@@ -133,42 +133,68 @@ Todo
 
 #### 2.2.4 Platform APIs
 
-The following are the platform APIs which will be used by 
+# Platform APIs Used
 
-+------------------------ Platform common Class -------------------------+
-| Method / Class          | Present | Action                             |
-|-------------------------|---------|-------------------------------------|
+Listing down the platform common APIs planned for sonic bmc support. 
 
-[ LeakageSensorBase ]
-  get_name()              |   Y     | Get leak sensor name
-  is_leak()               |   Y     | Is there a leak detected?
-  get_severity()          |  New    | Get the severity of leaks
+The following docs which is already present define many platform API's for bmc, leak and liquidCooling
 
-[ LiquidCoolingBase ]
-  get_num_leak_sensors()  |   Y     | Get number of leak sensors
-  get_leak_sensor(index)  |   Y     | Get per-leak-sensor status
-  get_leak_sensor_status()|   Y     | Get all leak sensor status
-  get_all_leak_sensors()  |   Y     | Get list of all leak sensors
+https://github.com/sonic-net/SONiC/blob/master/doc/bmc/bmc_hld.md                                                                                                       
+https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md 
 
-[ BmcBase ]  --- Redfish interface CPU → BMC ---
-  get_version()           |   Y     | Get BMC firmware version
-  get_eeprom()            |   Y     | Get BMC EEPROM information
-  get_status()            |   Y     | Get BMC status
-  get_model()             |   Y     | Get BMC model
-  get_serial()            |   Y     | Get BMC serial number
-  update_firmware()       |   Y     | Update BMC firmware
-  request_bmc_reset()     |   Y     | Do BMC reset
-  ...
+###  LeakageSensorBase
 
-[ HostCpuBase ] --- Commands BMC → CPU ---
-  power_on_host()         |  New    | Power on CPU board from standby/off
-  power_off_host()        |  New    | Immediate HW power‑off (bypass OS)
-  reboot_host()           |  New    | Graceful shutdown then power‑off
-  power_cycle_host()      |  New    | Power‑cycle Switch Host
-  get_host_power_state()  |  New    | Fetch host power state
+| Method | Present | Action |
+|---------|---------|----------|
+| get_name() | Y | Get leak sensor name |
+| is_leak() | Y | Is there a leak detected? |
+| get_severity() | New | Get the severity of leaks |
 
-[ ChassisBase ]
-  get_bmc()               |   Y     | Get the BMC object
-  get_cpu_host()          |   Y     | Get the Switch Host object
+---
+
+###  LiquidCoolingBase
+
+| Method | Present | Action |
+|---------|---------|----------|
+| get_num_leak_sensors() | Y | Get number of leak sensors |
+| get_leak_sensor(index) | Y | Get per-leak-sensor status |
+| get_leak_sensor_status() | Y | Get all leak sensor status |
+| get_all_leak_sensors() | Y | Get list of all leak sensors |
+
+---
+
+###  BmcBase — Redfish Interface (CPU → BMC)
+
+| Method | Present | Action |
+|---------|---------|----------|
+| get_version() | Y | Get BMC firmware version |
+| get_eeprom() | Y | Get BMC EEPROM information |
+| get_status() | Y | Get BMC status |
+| get_model() | Y | Get BMC model |
+| get_serial() | Y | Get BMC serial number |
+| update_firmware() | Y | Update BMC firmware |
+| request_bmc_reset() | Y | Do BMC reset |
+| ... | — | Additional existing APIs |
+
+---
+
+###  HostCpuBase — Commands (BMC → CPU)
+
+| Method | Present | Action |
+|---------|---------|----------|
+| power_on_host() | New | Power on CPU board from standby/off |
+| power_off_host() | New | Immediate HW power-off (bypass OS) |
+| reboot_host() | New | Graceful shutdown then power-off |
+| power_cycle_host() | New | Power-cycle Switch Host |
+| get_host_power_state() | New | Fetch host power state |
+
+---
+
+###  ChassisBase
+
+| Method | Present | Action |
+|---------|---------|----------|
+| get_bmc() | Y | Get the BMC object |
+| get_cpu_host() | Y | Get the Switch Host object |
 
 ## 3 Future Items
