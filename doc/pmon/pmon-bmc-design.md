@@ -8,18 +8,23 @@
   * [1. SONiC Platform Management and Monitoring](#1-sonic-platform-management-and-monitoring)
     * [1.1 Functional Requirements](#11-functional-requirements)
     * [1.2 BMC Platform Stack](#12-bmc-platform-stack)
-  * [2. Detailed Workflow](#2-detailed-workflow)
-    * [2.1 BMC Boot Process](#21-bmc-boot-process)
-      * [2.1.1 BMC Rack Manager Interaction](#211-bmc-rack-manager-interaction)
-      * [2.1.2 Midplane Ethernet](#212-midplane-ethernet)
-      * [2.1.3 BMC Swicth Host Interaction](#213-bmc-switch-interaction)
-      * [2.1.4 BMC leak_detection_and_thermal policy](#214-bmc-leak-detection-and-thermal-policy)
+  * [2. Detailed Architecture and Workflow](#2-Detailed-Architecture-and-workflow)
+    * [2.1 BMC Platform](#21-bmc-platform)
+      * [2.1.1 BMC platform power up](#211-bmc-platform-power-up) 
+      * [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction)
+      * [2.1.3 Midplane Ethernet](#213-midplane-ethernet)
+      * [2.1.4 BMC Swicth Host Interaction](#214-bmc-switch-interaction)
+      * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)
+      * [2.1.6 BMC firmware upgrade](#216-bmc-firmware-upgrade)
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
       * [2.2.1 BMC Monitoring and bmcctld](#221-bmc-monitoring-and-bmcctld)
+      * [2.2.1.1 DB schema changes](#2211-db-schema-changes)
       * [2.2.2 Thermalctld](#222-thermalctld)
+      * [2.2.2.1 DB schema changes](#2221-db-schema-changes)
       * [2.2.3 Hw watchdog](#223-hw-watchdog)
       * [2.2.4 Platform APIs](#224-platform-apis)
   * [3 Future Items](#3-future-items)
+
       
 ### Revision ###
 
@@ -51,20 +56,40 @@ This section captures the functional requirements for platform monitoring and ma
 ### 1.2. BMC Platform Stack
 <Add a pic with pmon in BCM and pmon/redis in switch_host - via the usb interface>
 
-## 2. Detailed Workflow
-### 2.1 BMC power on
-- BMC Power on triggered on power supply ON, or external rack-manager power-on command, wait for 3 sec - check for any leaks, thermal violations else power up Host_switch
-<img width="642" height="680" alt="image" src="https://github.com/user-attachments/assets/b568abae-effa-4f85-9ea6-f32e254a48c0" />
-
+## 2. Detailed Architecture and workflows
+### 2.1 BMC platform
+Presence of the file bmc.json in the <vendor>/platform tells this platform is either a Switch_Host or a switch_BMC. The contents of bmc.json can be as below 
+```
+Swicth_Host=1
+```
+```
+Switch_BMC=1
+```
 #### 2.1.1 BMC Rack Manager Interaction
-- bmcweb translates redfish call, use the dbus bridge to hadle GET/POST calls
-- GET request will get from redis db
-- POST request eg: power on/off will write in redis and bcmctrl daemon reads it.
+The BMC powers on first, boots up the sonic BMC which starts the various cointainers
+If it is Aircooled network switch the Switch Host is poweron immediately. 
+If it is liquid cooled, the following actions are donw before the Switch Host is powered on.
+*  "thermalctld" checks local leaks | external Leaks if any reported by Rack Manager, apply policy
+*  "bmcctld" to send a power on request to Swicth host if all clear.
+<img width="556" height="725" alt="bmc_1" src="https://github.com/user-attachments/assets/6fc9d0a5-e49f-4899-9d9c-2b284b35db98" />
 
-#### 2.1.2 Midplane Ethernet
-- usb ethernet interface with conmmon ip configured in sonic space for host_cpu end, bmc_end
+#### 2.1.2 BMC Rack Manager Interaction
+The new docker container "redfish" in sonicBMC will have openbmc/bmcweb service which terminates the redfish calls from the rack Manager.
 
-#### 2.1.3 BMC - Switch Host Interaction
+**Add more details, and reference to the redfish design doc here **
+
+#### 2.1.3 Midplane Ethernet
+
+The Switch_Host will intialize the usb netdev dring the inital platform bringup and name it as bmc0.
+Similarly the BMC will intialize the usb netdev dring the inital platform bringup and name it as bmc-eth0
+
+IP address to be configured on that the Switch_host end and Bmc end will be defined in file "files/image_config/constants/bmc_ip_address.json" as below
+```
+Switch_Host=10.1.0.1
+Switch_BMC=10.1.0.2
+```
+
+#### 2.1.4 BMC - Switch Host Interaction
 - BMC to power on and off the Switch Host/ASIC and other components as needed using platform API
 - Get the thermal data from Host thermal sensors
 
@@ -75,11 +100,14 @@ This section captures the functional requirements for platform monitoring and ma
 
 Question: what happens if BMC --- CPU link is down ?
 
-#### 2.1.4 BMC Leak detection and thermal policy
+#### 2.1.5 BMC Leak detection and thermal policy
 - Leak detected, what is the policy
 - thermal sensors from Host_switch_cpu if above thresholds, what is policy 
 
 policy can be enforced by a new daemon "bmcctld" 
+
+#### 2.1.6 BMC Firmware upgrade
+Firmware upgrade of any components in the BMC will be done during the sonic bmc image installation.
 
 ### 2.2 BMC Platform Management
 
@@ -87,15 +115,25 @@ policy can be enforced by a new daemon "bmcctld"
 - New daemon which enforces policy
 - it talks to local redis and Switch Host redis
 
+#### 2.2.1.1 DB schema changes
+New table 
+  - Swicth Host state
+
+
+
 #### 2.2.2 Thermalctld
 - Will read leak sensor details
 - Will also read the host_switch_cpu thermals
 - Store in local DB
 
+#### 2.2.2.1 DB schema changes
+
 #### 2.2.3 Hw watchdog
 Todo
 
 #### 2.2.4 Platform APIs
+
+The following are the platform APIs which will be used by 
 
 +------------------------ Platform common Class -------------------------+
 | Method / Class          | Present | Action                             |
