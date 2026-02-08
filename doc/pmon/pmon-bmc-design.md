@@ -8,19 +8,19 @@
   * [1. SONiC Platform Management and Monitoring](#1-sonic-platform-management-and-monitoring)
     * [1.1 Functional Requirements](#11-functional-requirements)
     * [1.2 BMC Platform Stack](#12-bmc-platform-stack)
-  * [2. Detailed Architecture and Workflow](#2-Detailed-Architecture-and-workflow)
+  * [2. Detailed Architecture and Workflows](#2-detailed-architecture-and-workflows)
     * [2.1 BMC Platform](#21-bmc-platform)
       * [2.1.1 BMC platform power up](#211-bmc-platform-power-up) 
       * [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction)
       * [2.1.3 Midplane Ethernet](#213-midplane-ethernet)
-      * [2.1.4 BMC Swicth Host Interaction](#214-bmc-switch-interaction)
-      * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)
-      * [2.1.6 BMC firmware upgrade](#216-bmc-firmware-upgrade)
+      * [2.1.4 BMC-Swicth Host Interaction](#214-bmc-switch-host-interaction)
+      * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)      
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
       * [2.2.1 BMC Monitoring and bmcctld](#221-bmc-monitoring-and-bmcctld)
-      * [2.2.1.1 DB schema changes](#2211-db-schema-changes)
+        * [2.2.1.1 DB schema changes](#2211-db-schema-changes)
       * [2.2.2 Thermalctld](#222-thermalctld)
-      * [2.2.2.1 DB schema changes](#2221-db-schema-changes)
+        * [2.2.2.1 DB schema changes](#2221-db-schema-changes)
+        * [2.2.2.2 Thermal sensor thresholds in platform json](#2222-thermal-sensor-thresholds-in-platform-json)      
       * [2.2.3 Hw watchdog](#223-hw-watchdog)
       * [2.2.4 Platform APIs](#224-platform-apis)
   * [3 Future Items](#3-future-items)
@@ -30,7 +30,7 @@
 
  | Rev |     Date    |       Author                                                            | Change Description                |
  |:---:|:-----------:|:-----------------------------------------------------------------------:|-----------------------------------|
- | 1.0 |             |       SONiC BMC team                                                    | Initial version                   |
+ | 1.0 |             |                                                                         | Initial version                   |
 
 # Scope
 This document provides design requirements and interactions between platform drivers and PMON for SONiC on BMC 
@@ -65,7 +65,7 @@ Swicth_Host=1
 ```
 Switch_BMC=1
 ```
-#### 2.1.1 BMC Rack Manager Interaction
+#### 2.1.1 BMC platform power up
 The BMC powers on first, boots up the sonic BMC which starts the various cointainers
 If it is Aircooled network switch the Switch Host is poweron immediately. 
 If it is liquid cooled, the following actions are donw before the Switch Host is powered on.
@@ -76,7 +76,28 @@ If it is liquid cooled, the following actions are donw before the Switch Host is
 #### 2.1.2 BMC Rack Manager Interaction
 The new docker container "redfish" in sonicBMC will have openbmc/bmcweb service which terminates the redfish calls from the rack Manager.
 
-**Add more details, and reference to the redfish design doc here **
+**Note: Redish docker to be enabled only on Liquid cooling platform.**
+
+Few of the URIs which needs to be supported in BMC are (there could be some change to OEM URI)
+Not all below URI is applicable to Air cooled switch.
+
+1. GET /redfish/v1   
+         -- Rack Manager to get switch name
+2. GET /redfish/v1/UpdateService/FirmwareInventory  
+         -- Rack Manager to get switch firmware details
+3. POST /redfish/v1/Systems/System/Actions/ComputerSystem.Reset  
+         -- Rack Manager to power off/on Main_cpu_switch_board
+4. POST /redfish/v1/Managers/Bmc/Actions/Oem/SONiC.RackManagerAlert  
+         -- Rack manager to post a critical alert to BMC
+5. POST /redfish/v1/Managers/Bmc/Actions/Oem/SONiC.RackManagerTelemetry  
+         -- Rack manager send periodic telemetry data of Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure, Leak information
+6. POST /redfish/v1/EventService/Subscriptions  
+         -- Rack manager to subscribe for events like Leak from switchBMC (P1 feature)
+
+The critical Alerts from RackManagerAlert URI will be stored in local redis DB
+The telemetry data from RackManagerTelemetry URI will also be stored in local redis DB to be used for thermal policy engine.
+
+**TODO** Add reference to the redfish design doc here
 
 #### 2.1.3 Midplane Ethernet
 
@@ -89,25 +110,41 @@ Switch_Host=10.1.0.1
 Switch_BMC=10.1.0.2
 ```
 
-#### 2.1.4 BMC - Switch Host Interaction
-- BMC to power on and off the Switch Host/ASIC and other components as needed using platform API
-- Get the thermal data from Host thermal sensors
+#### 2.1.4 BMC-Switch Host Interaction
+The switch Host and switch BMC communicate over the midplane ethernet for the following 
+  (i) Redis database access.
+  (ii) switch BMC can have a heartbeat mechanishm ( either redis PING/PONG, or ICM Echo/reply). 
+  (iii) power ON/OFF the Switch Host on critical errors (** only in the Liquid cooling platform **)
+  
+Defining the various states, events and final state below
 
-- Power ON Host
+| Switch Host (Current) | Event | Action | Switch Host (Final) 
+|---|---|---|---|
+| UP  | RACK_MGR_CRITICAL_EVENT/LOCAL_LEAK_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | DOWN 
+| UP | RACK_MGR_NON_CRITICAL_EVENT/LOCAL_LEAK_NON_CRITICAL_EVENT | Syslog | UP
+| UP  | SWITCH_HOST_THERMAL_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | DOWN 
+| DOWN  | RACK_MGR_CRITICAL_EVENT & LOCAL_LEAK_NON_CRITICAL_EVENT clear | Syslog, UnIsolate switch, Power ON Switch Host | UP
+| NOT REACHABLE | - | Syslog, Isolate switch, Power Cycle Switch Host | UP
 
-- Power off Host
--  Can we do this gracefully, like if switch is inProduction and carrying traffic how to get Host_switch_cpu OFF?
-
-Question: what happens if BMC --- CPU link is down ?
+**Question:** BMC Isolate/UnIsolate the switch Host before powering off
+                   -- syslog wil trigger alert 
+                   -- Netassisit isolate/unisolate the switch
+                   -- BMC wait for the events and power off ?
 
 #### 2.1.5 BMC Leak detection and thermal policy
-- Leak detected, what is the policy
-- thermal sensors from Host_switch_cpu if above thresholds, what is policy 
 
-policy can be enforced by a new daemon "bmcctld" 
+**Note: This section is only applicable to Liquid cooling platform.**
 
-#### 2.1.6 BMC Firmware upgrade
-Firmware upgrade of any components in the BMC will be done during the sonic bmc image installation.
+A new thermal policy engine thread will be introduced in thermalctld which takes input from all these below sources 
+
+   (i) Local leak detection thread which updates leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X} along with severity.
+       The result of which will set the CRITICAL/MAJOR/MINOR flag LOCAL_LEAK_CRITICAL_EVENT
+   (ii) External Rack manager alert status table updated by redfish/bmcweb.
+        The result of which will set the CRITICAL/MAJOR/MINOR flag RACK_MGR_CRITICAL_EVENT
+   (iii) Switch_Host thermal critical event status table 
+         - Take the various Switch_Host sensor thermals from Switch_Host redis STATE_DB
+         - Compare it with thresholds defined in platform json 
+         - **Question :** We need the liquid temperature and liquid flow rate along with threadholds ?
 
 ### 2.2 BMC Platform Management
 
@@ -128,8 +165,13 @@ New table
 
 #### 2.2.2.1 DB schema changes
 
+
+
+#### 2.2.2.2 Thermal sensor thresholds in platform json
+
+
 #### 2.2.3 Hw watchdog
-Todo
+** TODO **
 
 #### 2.2.4 Platform APIs
 
@@ -137,10 +179,12 @@ Todo
 
 Listing down the platform common APIs planned for sonic bmc support. 
 
-The following docs which is already present define many platform API's for bmc, leak and liquidCooling
+The following docs from Nvidia team which is already present define many platform API's for bmc, leak and liquidCooling
 
 https://github.com/sonic-net/SONiC/blob/master/doc/bmc/bmc_hld.md                                                                                                       
 https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md 
+
+There are a few new API's which needs to be added in few of the below base classes.
 
 ###  LeakageSensorBase
 
@@ -164,6 +208,7 @@ https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md
 ---
 
 ###  BmcBase — Redfish Interface (CPU → BMC)
+This Class contains API's for switch Host to control the switch BMC
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -172,13 +217,11 @@ https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md
 | get_status() | Y | Get BMC status |
 | get_model() | Y | Get BMC model |
 | get_serial() | Y | Get BMC serial number |
-| update_firmware() | Y | Update BMC firmware |
-| request_bmc_reset() | Y | Do BMC reset |
-| ... | — | Additional existing APIs |
 
 ---
 
-###  HostCpuBase — Commands (BMC → CPU)
+###  SwitchHostBase
+This Class contains API's for switch BMC to control the switch Host
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -195,6 +238,8 @@ https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md
 | Method | Present | Action |
 |---------|---------|----------|
 | get_bmc() | Y | Get the BMC object |
-| get_cpu_host() | Y | Get the Switch Host object |
+| get_cpu_host() | New | Get the Switch Host object |
+
+
 
 ## 3 Future Items
