@@ -58,20 +58,27 @@ This section captures the functional requirements for platform monitoring and ma
 
 ## 2. Detailed Architecture and workflows
 ### 2.1 BMC platform
-Presence of the file bmc.json in the <vendor>/platform tells this platform is either a Switch-Host or a switch_BMC. The contents of bmc.json can be as below 
+Presence of the file bmc.json in the <vendor>/platform tells this platform is either a Switch-Host or a switch_BMC. The contents of bmc.json in Switch-Host and BMC are as below.
 ```
-Swicth_Host=1
+Switch_Host=1
+Liquid_cooled=true
 ```
 ```
 Switch_BMC=1
+Liquid_cooled=true
 ```
+
+"Liquid_cooled" flag is set to true on a liquid cooled switch.  
+"Swicth_Host" flag is set to 1 on the switch host, "Switch_BMC" flag is set to 1 on the switch BMC.   
+
+
 #### 2.1.1 BMC platform power up
 The BMC powers on first, boots up the sonic BMC which starts the various cointainers
 If it is Aircooled network switch the Switch Host is poweron immediately. 
 If it is liquid cooled, the following actions are donw before the Switch Host is powered on.
     *  "thermalctld" checks local leaks | external Leaks if any reported by Rack Manager, apply policy
     *  "bmcctld" to send a power on request to Swicth host if all clear.
-<img width="556" height="725" alt="bmc_1" src="https://github.com/user-attachments/assets/6fc9d0a5-e49f-4899-9d9c-2b284b35db98" />
+<img width="556" height="725" alt="bmc_1" src="https://github.com/user-attachments/assets/9b7368e2-98cf-4467-bc68-936280f7079b" />
 
 #### 2.1.2 BMC Rack Manager Interaction
 The new docker container "redfish" in sonicBMC will have openbmc/bmcweb service which terminates the redfish calls from the rack Manager.
@@ -93,7 +100,7 @@ Not all below URI is applicable to Air cooled switch.
              -- Rack manager send periodic telemetry data of Inlet Liquid temperature, Inlet Liquid flow rate,
                 Inlet Liquid Pressure, Leak information
     6. POST /redfish/v1/EventService/Subscriptions  
-             -- Rack manager to subscribe for events like Leak from switchBMC (P1 feature)
+             -- Rack manager to subscribe for events like Leak from switchBMC.  
 
 The critical Alerts from RackManagerAlert URI will be stored in local redis DB
 The telemetry data from RackManagerTelemetry URI will also be stored in local redis DB to be used for thermal policy engine.
@@ -151,10 +158,13 @@ A new thermal policy engine thread will be introduced in thermalctld which takes
           **Question :** Do we need the liquid temperature and liquid flow rate along with threadholds ?  
 
 ### 2.2 BMC Platform Management
-In PMON docker a new daemon "bcmctld" will be introduced in Liquid cooled platforms. 
-The other daemons present in pmon in sonicBMC are hermalctld, syseepromd, stormond.
+The daemons present in pmon would be thermalctld, syseepromd, stormond.
+In Liquid cooled platforms a new daemon "bcmctld" will be introduced in pmon container.
 
 #### 2.2.1 BMC controller - bmcctld
+"bmcctld" will be the first daemon started in pmon container. Its main tasks include,    
+* Delays the boot of Switch-Host for a configurable boot_delay + power_on_delay
+* Boots on the Switch-Host 
 This daemon will have the following threads 
 1. 
 2. 
@@ -165,10 +175,10 @@ This daemon will have the following threads
 ```
 key                                   = BMC_BOOTUP_TIMEOUT      ; Config DB
 ; field                               = value
-boot_delay                            = float                   ; Time in secs it takes for leak data to be pushed to BMC from rack manager
-power_on_delay                        = float                   ; Time in secs after the boot_delay after which BMC can power_on Switch-Host, if BMC don't receive POWER ON from Rack manager + no critical events
+boot_delay                            = float                   ; Time in secs before leak data is pushed from Rack Manager ( default = 3 min ).  
+power_on_delay                        = float                   ; Time in secs after the boot_delay after which BMC can power_on Switch-Host. ( default = 2 min ).   
+                                                                ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events - Switch-Host will be powered on
 ```
-
 
 ```
 key                                   = SWITCH_HOST_STATE      ; STATE DB
