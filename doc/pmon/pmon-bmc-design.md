@@ -16,7 +16,7 @@
       * [2.1.4 BMC-Swicth Host Interaction](#214-bmc-switch-host-interaction)
       * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)      
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
-      * [2.2.1 BMC Monitoring and bmcctld](#221-bmc-monitoring-and-bmcctld)
+      * [2.2.1 BMC Monitoring and bmcctld](#221-bmc-controller---bmcctld)
         * [2.2.1.1 DB schema](#2221-db-schema)
       * [2.2.2 Thermalctld](#222-thermalctld)
         * [2.2.2.1 DB schema](#2221-db-schema)
@@ -47,7 +47,7 @@ PMON - Platform Monitor. Used in the context of Platform monitoring docker/proce
 This section captures the functional requirements for platform monitoring and management in sonic BMC 
 
 * BMC can be accessed in two ways (i) via the external management interface (ii) from the Switch Host via the internal midplane ethernet interface.  
-* BMC will manage the Switch Host to support operations like power up/down, get operational status.  
+* BMC will manage the Switch Host to support operations like power up/down, get operational status.  **Question:** In Aircooled systems -- What is the role of BMC ?
 * BMC will read local leak sensors and take appropriate actions based on policy. The severity of leak seansor is defined by platform via API.  
 * BMC will get inputs on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure,	Rack level Leak from Rack Manager. It takes action based on policy.  
 * BMC can take policy action if any of the Switch Host components have temperature above critical threshold value defined in platform defenition.  
@@ -108,11 +108,12 @@ The telemetry data from RackManagerTelemetry URI will also be stored in local re
 **TODO** Add reference to the redfish design doc here
 
 #### 2.1.3 Midplane Ethernet
+There is an ethernet connectivity between the Switch-Host and Switch-BMC 
 
 The Switch-Host will intialize the usb netdev dring the inital platform bringup and name it as bmc0.
 Similarly the BMC will intialize the usb netdev dring the inital platform bringup and name it as bmc-eth0
 
-IP address to be configured on that the Switch-Host end and Bmc end will be defined in file "files/image_config/constants/bmc_ip_address.json" as below
+IP address to be configured on the Switch-Host end and Switch-Bmc end can be defined sonic wide unique in file "files/image_config/constants/bmc_ip_address.json" as below
 ```
 Switch-Host=10.1.0.1
 Switch_BMC=10.1.0.2
@@ -143,7 +144,7 @@ Defining the various states, events and final state below
 
 **Note: This section is only applicable to Liquid cooling platform.**
 
-A new thermal policy engine thread will be introduced in thermalctld which takes input from all these below sources 
+thermalctld which takes input from all these below sources 
 
     (i) Local leak detection thread which updates leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X} along with severity.  
         The result of which will set the CRITICAL/MAJOR/MINOR flag LOCAL_LEAK_CRITICAL_EVENT.  
@@ -155,56 +156,118 @@ A new thermal policy engine thread will be introduced in thermalctld which takes
           - Take the various Switch-Host sensor thermals from Switch-Host redis STATE_DB.  
           - Compare it with thresholds defined in platform json.   
           
-          **Question :** Do we need the liquid temperature and liquid flow rate along with threadholds ?  
+          **Question :** Do we need the liquid temperature and liquid flow rate along with thresholds ?  
 
 ### 2.2 BMC Platform Management
 The daemons present in pmon would be thermalctld, syseepromd, stormond.
 In Liquid cooled platforms a new daemon "bcmctld" will be introduced in pmon container.
 
 #### 2.2.1 BMC controller - bmcctld
-"bmcctld" will be the first daemon started in pmon container. Its main tasks include,    
-* Delays the boot of Switch-Host for a configurable boot_delay + power_on_delay
-* Boots on the Switch-Host 
-This daemon will have the following threads 
-1. 
-2. 
-3. Heartbeat 
+The bmc controller daemon "bmcctld" is started first in BMC pmon container. Its main tasks are 
+
+(i) Power on the Switch-Host
+```
+Loop on this logic 
+ Check if the Switch-Host is reachable and up ( case when pmon restarts )
+ if YES
+ {
+   Check for Local Leak status + external Rack manager leak status + Switch-Host thermals status
+     if CRITICAL LEAK or thermals high ( check N consecutive failures)
+       syslog, POWER_OFF Switch_host, update DB SWITCH_HOST_STATE table
+ }
+ if NO
+ {
+   if it is POWERED_OFF
+   {
+     Check for Local Leak status + external Rack manager leak status + Switch-Host thermals status
+     if NO LEAK + Switch_host thermals good ( check N consecutive success)
+       syslog, POWER_ON Switch_host, update DB SWITCH_HOST_STATE table
+     else
+       continue
+   }
+   if it is First Boot
+   {
+     Sleep for 4 min ( this is configurable value in config_db)
+     Check if the redfish connectivity with rack_manager is established ( This should be updated in redis DB by redfish docker processes)
+     Check for Local Leak status + external Rack manager leak status + Switch-Host thermals status
+     if NO LEAK ( check N consecutive success)
+       syslog, POWER_ON Switch_host, update DB SWITCH_HOST_STATE table   
+   }
+ }
+```
+
+(ii) Switch-BMC and Switch-Host Heartbeat thread 
+```
+  Use either the redis PING/PONG, or ICMP ping req/response
+  Update the "heartbeat" field in the table SWITCH_HOST_STATE
+```
+
 
 #### 2.2.1.1 DB schema
+This section covers the various DB tables which this daemon creates/uses
 
 ```
 key                                   = BMC_BOOTUP_TIMEOUT      ; Config DB
 ; field                               = value
-boot_delay                            = float                   ; Time in secs before leak data is pushed from Rack Manager ( default = 3 min ).  
-power_on_delay                        = float                   ; Time in secs after the boot_delay after which BMC can power_on Switch-Host. ( default = 2 min ).   
+boot_delay                            = float                   ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 4 min ).   
                                                                 ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events - Switch-Host will be powered on
 ```
 
 ```
 key                                   = SWITCH_HOST_STATE      ; STATE DB
 ; field                               = value
-device_state                          = "state"                ;POWER_ON_CMD_SEND/POWER_OFF_CMD_SEND/POWERED_ON/POWERED_OFF/UNREACHABLE
+device_state                          = "state"                ;POWERED_ON/POWERED_OFF
+heartbeat                             = "status"               ;REACHABLE/UNREACHABLE
 ```
 
-
 #### 2.2.2 thermalctld
-- Will read leak sensor details
-- Will also read the host_switch_cpu thermals
-- Store in local DB
+The thermalctld will have additional threads to do following in a liquid cooled platform
+
+```
+Thread1
+
+Loop on this logic 
+(i) Check local leak sensors using platform API and update the LOCAL_LEAK_STATUS table
+(ii) Check the leak data from rack manager stored in redis DB by the redfish docker processes
+        -- store the result in RACK_MGR_LEAK_STATUS table
+```
+```
+Thread2
+
+Loop on this logic 
+(i) Get the current temperature reading from Switch-Host redis DB
+(ii) Loop through the list of Switch-Host thermal sensors defined in platform.json
+     {
+       Compare the current temperature with the high/critical thresholds defined
+     }
+(iii) store the result in SWITCH_HOST_THERMAL_STATUS table
+
+```
 
 #### 2.2.2.1 DB schema
 
 ```
-key                                   = SWITCH_HOST_STATE      ; STATE DB
+key                                   = LOCAL_LEAK_STATUS      ; STATE DB
 ; field                               = value
-device_state                          = "state"                ;POWER_ON_CMD_SEND/POWER_OFF_CMD_SEND/POWERED_ON/POWERED_OFF/UNREACHABLE
+device_leak_status                    = "status"               ;CRITICAL/MAJOR/MINOR
+```
+
+```
+key                                   = RACK_MGR_LEAK_STATUS      ; STATE DB
+; field                               = value
+rack_mgr_leak_status                  = "status"                  ;CRITICAL/MAJOR/MINOR
+```
+
+```
+key                                   = SWITCH_HOST_THERMAL_STATUS      ; STATE DB
+; field                               = value
+switch_host_thermal_status            = "status"                        ;CRITICAL/NORMAL
 ```
 
 
-
 #### 2.2.2.2 Thermal sensor thresholds in platform json
-
-
+** TODO ** Define the platform.json file format where platforms can speficy the temperature threasholds for various switch-Host components.
+ 
 #### 2.2.3 Hw watchdog
 ** TODO **
 
