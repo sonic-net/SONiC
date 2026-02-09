@@ -45,6 +45,10 @@
   - [Option 1 Fabric mananger](#option-1-fabric-mananger)
   - [Option 2 SDN style](#option-2-sdn-style)
   - [Option 3 Hybrid mode](#option-3-hybrid-mode)
+- [Some Ethernet Based Scale up systems](#some-ethernet-based-scale-up-systems)
+  - [ESUN](#esun)
+  - [Maia 200 Scale Up system](#maia-200-scale-up-system)
+  - [Byte Dance's Scale up system](#byte-dances-scale-up-system)
 - [Software Architecture](#software-architecture)
   - [ID Lookup](#id-lookup)
   - [PFC/CBFC](#pfccbfc)
@@ -418,6 +422,11 @@ Configuration data is delivered directly to each switch tray. The switch trays t
 
 Operators can select the provisioning model that best fits their operational requirements. SONiC does not mandate or enforce any specific option.
 
+
+## Some Ethernet Based Scale up systems
+### ESUN
+### Maia 200 Scale Up system
+### Byte Dance's Scale up system
 
 ## Software Architecture
 
