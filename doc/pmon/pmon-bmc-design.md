@@ -60,7 +60,7 @@ This section captures the functional requirements for platform monitoring and ma
 
 ## 2. Detailed Architecture and workflows
 ### 2.1 BMC platform
-Presence of the file bmc.json in the <vendor>/platform tells this platform is either a Switch-Host or a switch_BMC. The contents of bmc.json in Switch-Host and BMC are as below.
+Presence of the file bmc.json in the vendor/platform directory tells this platform has BMC. The contents of bmc.json in Switch-Host and BMC are as below.
 ```
 Switch_Host=1
 Liquid_cooled=true
@@ -113,7 +113,7 @@ The telemetry data from RackManagerTelemetry URI will also be stored in local re
 **TODO** Add reference to the redfish design doc here
 
 #### 2.1.3 Midplane Ethernet
-There is ethernet connectivity between the Switch-Host and Switch-BMC ( eg: Ethernet over USB )
+There is ethernet link between the Switch-Host and Switch-BMC ( eg: Ethernet over USB )
 
 The Switch-Host will intialize the usb netdev dring the inital platform bringup and name it as bmc0.
 Similarly the BMC will intialize the usb netdev dring the inital platform bringup and name it as bmc-eth0
@@ -125,7 +125,7 @@ Switch_BMC=10.1.0.2
 ```
 
 #### 2.1.4 BMC-Switch Host Interaction
-The SwitchHost and BMC communicate over the midplane ethernet for the following   
+The Switch-Host and BMC communicate over the midplane ethernet for the following   
 
     (i) Redis database access.  
     (ii) BMC can have a heartbeat mechanishm ( either redis PING/PONG, or ICM Echo/reply).   
@@ -138,12 +138,12 @@ Defining the various states, events and final state below
 | UP  | RACK_MGR_CRITICAL_EVENT/LOCAL_LEAK_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | POWERED_DOWN 
 | UP | RACK_MGR_NON_CRITICAL_EVENT/LOCAL_LEAK_NON_CRITICAL_EVENT | Syslog | POWERED_UP
 | UP  | Switch-Host_THERMAL_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | POWERED_DOWN
-| DOWN  | RACK_MGR_CRITICAL_EVENT & LOCAL_LEAK_NON_CRITICAL_EVENT clear | Syslog, UnIsolate switch, Power ON Switch Host | POWERED_UP
+| DOWN  | RACK_MGR_CRITICAL_EVENT & LOCAL_LEAK_NON_CRITICAL_EVENT **clear** | Syslog, UnIsolate switch, Power ON Switch Host | POWERED_UP
 | NOT REACHABLE | - | Syslog, Isolate switch, Power Cycle Switch Host | POWERED_UP
 
 **Question:** BMC Isolate/UnIsolate the switch Host before powering off  
                    -- syslog wil trigger alert   
-                   -- Netassisit isolate/unisolate the switch  
+                   -- Tooling will isolate/unisolate the switch  
                    -- BMC wait for the events and power off ?  
 
 #### 2.1.5 BMC Leak detection and thermal policy
@@ -152,7 +152,7 @@ Defining the various states, events and final state below
 
 thermalctld which takes input from all these below sources 
 
-    (i) Local leak detection thread which updates leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X} along with severity.  
+    (i) Local leak detection task which updates leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X} along with severity.  
         The result of which will set the CRITICAL/MAJOR/MINOR flag LOCAL_LEAK_CRITICAL_EVENT.  
         
     (ii) External Rack manager alert status table updated by redfish/bmcweb.  
@@ -162,7 +162,7 @@ thermalctld which takes input from all these below sources
           - Take the various Switch-Host sensor thermals from Switch-Host redis STATE_DB.  
           - Compare it with thresholds defined in platform json.   
           
-**Question :** Do we need the liquid temperature and liquid flow rate when we define thresholds ?
+**Question :** Do we need the liquid temperature and liquid flow rate when we define thresholds ? check with platform owners
 
 ### 2.2 BMC Platform Management
 The daemons present in pmon would be thermalctld, syseepromd, stormond.
@@ -344,7 +344,7 @@ This Class contains API's for switch BMC to control the switch Host
 | Method | Present | Action |
 |---------|---------|----------|
 | get_bmc() | Y | Get the BMC object |
-| get_cpu_host() | New | Get the Switch Host object |
+| get_switch_host() | New | Get the Switch Host object |
 
 
 
