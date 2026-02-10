@@ -47,13 +47,15 @@ PMON - Platform Monitor. Used in the context of Platform monitoring docker/proce
 This section captures the functional requirements for platform monitoring and management in sonic BMC 
 
 * BMC can be accessed in two ways (i) via the external management interface (ii) from the Switch Host via the internal midplane ethernet interface.  
-* BMC will manage the Switch Host to support operations like power up/down, get operational status.  **Question:** In Aircooled systems -- What is the role of BMC ?
-* BMC will read local leak sensors and take appropriate actions based on policy. The severity of leak seansor is defined by platform via API.  
-* BMC will get inputs on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure,	Rack level Leak from Rack Manager. It takes action based on policy.  
-* BMC can take policy action if any of the Switch Host components have temperature above critical threshold value defined in platform defenition.  
-* BMC can access the Swicth Host temperature sensor data directly from redis database running on switch host.  
+* BMC will manage the Switch Host to support operations like power up/down, get operational status.  
+  **Question:** In Aircooled systems -- What is the role of BMC ?  
+* BMC will have a heartbeat mechanishm with the Switch-Host to maintain the health of the link.
+* BMC will read local leak sensors, its severity and take appropriate actions based on policy.
+* BMC will get inputs from external Rack Manager on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure and Rack level Leak. It takes action based on policy.  
+* BMC can fetch the thermal sensor data of Switch Host components from redis-DB, compare with the temperature thresholds defined in platform.json and take action based on policy.  
 
 ### 1.2. BMC Platform Stack
+
 <Add a pic with pmon in BCM and pmon/redis in Switch-Host - via the usb interface>
 
 ## 2. Detailed Architecture and workflows
@@ -73,11 +75,14 @@ Liquid_cooled=true
 
 
 #### 2.1.1 BMC platform power up
-The BMC powers on first, boots up the sonic BMC which starts the various cointainers
-If it is Aircooled network switch the Switch Host is poweron immediately. 
-If it is liquid cooled, the following actions are donw before the Switch Host is powered on.
-    *  "thermalctld" checks local leaks | external Leaks if any reported by Rack Manager, apply policy
-    *  "bmcctld" to send a power on request to Swicth host if all clear.
+When device is powered ON, the BMC powers first, boots up the sonic BMC which starts the various cointainers   
+
+If it is Aircooled network switch the Switch Host is powered on immediately.
+
+If it is liquid cooled, the following actions are done before the Switch Host is powered on.
+* "thermalctld" checks local leaks | external Leaks if any reported by Rack Manager, apply thermal policy.  
+* "bmcctld" to send a power on request to Swicth host if all clear.    
+    
 <img width="556" height="725" alt="bmc_1" src="https://github.com/user-attachments/assets/9b7368e2-98cf-4467-bc68-936280f7079b" />
 
 #### 2.1.2 BMC Rack Manager Interaction
@@ -108,7 +113,7 @@ The telemetry data from RackManagerTelemetry URI will also be stored in local re
 **TODO** Add reference to the redfish design doc here
 
 #### 2.1.3 Midplane Ethernet
-There is an ethernet connectivity between the Switch-Host and Switch-BMC 
+There is ethernet connectivity between the Switch-Host and Switch-BMC ( eg: Ethernet over USB )
 
 The Switch-Host will intialize the usb netdev dring the inital platform bringup and name it as bmc0.
 Similarly the BMC will intialize the usb netdev dring the inital platform bringup and name it as bmc-eth0
@@ -120,25 +125,26 @@ Switch_BMC=10.1.0.2
 ```
 
 #### 2.1.4 BMC-Switch Host Interaction
-The switch Host and switch BMC communicate over the midplane ethernet for the following 
-    (i) Redis database access.
-    (ii) switch BMC can have a heartbeat mechanishm ( either redis PING/PONG, or ICM Echo/reply). 
-    (iii) power ON/OFF the Switch Host on critical errors (** only in the Liquid cooling platform **)
+The SwitchHost and BMC communicate over the midplane ethernet for the following   
+
+    (i) Redis database access.  
+    (ii) BMC can have a heartbeat mechanishm ( either redis PING/PONG, or ICM Echo/reply).   
+    (iii) soft reboot of the Switch Host.
   
 Defining the various states, events and final state below
 
 | Switch Host (Current) | Event | Action | Switch Host (Final) 
 |---|---|---|---|
-| UP  | RACK_MGR_CRITICAL_EVENT/LOCAL_LEAK_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | DOWN 
-| UP | RACK_MGR_NON_CRITICAL_EVENT/LOCAL_LEAK_NON_CRITICAL_EVENT | Syslog | UP
-| UP  | Switch-Host_THERMAL_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | DOWN 
-| DOWN  | RACK_MGR_CRITICAL_EVENT & LOCAL_LEAK_NON_CRITICAL_EVENT clear | Syslog, UnIsolate switch, Power ON Switch Host | UP
-| NOT REACHABLE | - | Syslog, Isolate switch, Power Cycle Switch Host | UP
+| UP  | RACK_MGR_CRITICAL_EVENT/LOCAL_LEAK_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | POWERED_DOWN 
+| UP | RACK_MGR_NON_CRITICAL_EVENT/LOCAL_LEAK_NON_CRITICAL_EVENT | Syslog | POWERED_UP
+| UP  | Switch-Host_THERMAL_CRITICAL_EVENT | Syslog, Isolate switch, Power OFF Switch Host | POWERED_DOWN
+| DOWN  | RACK_MGR_CRITICAL_EVENT & LOCAL_LEAK_NON_CRITICAL_EVENT clear | Syslog, UnIsolate switch, Power ON Switch Host | POWERED_UP
+| NOT REACHABLE | - | Syslog, Isolate switch, Power Cycle Switch Host | POWERED_UP
 
-**Question:** BMC Isolate/UnIsolate the switch Host before powering off
-                   -- syslog wil trigger alert 
-                   -- Netassisit isolate/unisolate the switch
-                   -- BMC wait for the events and power off ?
+**Question:** BMC Isolate/UnIsolate the switch Host before powering off  
+                   -- syslog wil trigger alert   
+                   -- Netassisit isolate/unisolate the switch  
+                   -- BMC wait for the events and power off ?  
 
 #### 2.1.5 BMC Leak detection and thermal policy
 
@@ -156,7 +162,7 @@ thermalctld which takes input from all these below sources
           - Take the various Switch-Host sensor thermals from Switch-Host redis STATE_DB.  
           - Compare it with thresholds defined in platform json.   
           
-          **Question :** Do we need the liquid temperature and liquid flow rate along with thresholds ?  
+**Question :** Do we need the liquid temperature and liquid flow rate when we define thresholds ?
 
 ### 2.2 BMC Platform Management
 The daemons present in pmon would be thermalctld, syseepromd, stormond.
@@ -196,7 +202,7 @@ Loop on this logic
  }
 ```
 
-(ii) Switch-BMC and Switch-Host Heartbeat thread 
+(ii) Heartbeat status with Switch-Host 
 ```
   Use either the redis PING/PONG, or ICMP ping req/response
   Update the "heartbeat" field in the table SWITCH_HOST_STATE
@@ -227,7 +233,8 @@ The thermalctld will have additional threads to do following in a liquid cooled 
 Thread1
 
 Loop on this logic 
-(i) Check local leak sensors using platform API and update the LOCAL_LEAK_STATUS table
+(i) Check local leak sensors using platform API
+        -- store the result in LOCAL_LEAK_STATUS table
 (ii) Check the leak data from rack manager stored in redis DB by the redfish docker processes
         -- store the result in RACK_MGR_LEAK_STATUS table
 ```
@@ -307,6 +314,7 @@ A new base class **SwitchHostBase** is introduced along with new platform API's 
 
 ###  BmcBase — Redfish Interface (CPU → BMC)
 This Class contains API's for switch Host to control the switch BMC
+**Question :** In the current implementation Calls from switch Host --> BMC uses redfish. Do we need to do that, can directly get ths from redis DB in BMC ?
 
 | Method | Present | Action |
 |---------|---------|----------|
