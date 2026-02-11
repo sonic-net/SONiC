@@ -13,10 +13,10 @@
       * [2.1.1 BMC platform power up](#211-bmc-platform-power-up) 
       * [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction)
       * [2.1.3 Midplane Ethernet](#213-midplane-ethernet)
-      * [2.1.4 BMC-Swicth Host Interaction](#214-bmc-switch-host-interaction)
+      * [2.1.4 BMC-Switch Host Interaction](#214-bmc-switch-host-interaction)
       * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)      
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
-      * [2.2.1 BMC Monitoring and bmcctld](#221-bmc-controller---bmcctld)
+      * [2.2.1 BMC controller-bmcctld](#221-bmc-controller---bmcctld)
         * [2.2.1.1 DB schema](#2221-db-schema)
       * [2.2.2 Thermalctld](#222-thermalctld)
         * [2.2.2.1 DB schema](#2221-db-schema)
@@ -120,7 +120,7 @@ Similarly the BMC will intialize the usb netdev dring the inital platform bringu
 
 IP address to be configured on the Switch-Host end and Switch-Bmc end can be defined sonic wide unique in file "files/image_config/constants/bmc_ip_address.json" as below
 ```
-Switch-Host=10.1.0.1
+Switch_Host=10.1.0.1
 Switch_BMC=10.1.0.2
 ```
 
