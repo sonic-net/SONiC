@@ -14,7 +14,8 @@
       * [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction)
       * [2.1.3 Midplane Ethernet](#213-midplane-ethernet)
       * [2.1.4 BMC-Switch Host Interaction](#214-bmc-switch-host-interaction)
-      * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)      
+      * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)
+      * [2.1.6 BMC event logging](#216-bmc-event-logging)
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
       * [2.2.1 BMC controller-bmcctld](#221-bmc-controller---bmcctld)
         * [2.2.1.1 DB schema](#2221-db-schema)
@@ -46,14 +47,17 @@ PMON - Platform Monitor. Used in the context of Platform monitoring docker/proce
 ### 1.1. Functional Requirements
 This section captures the functional requirements for platform monitoring and management in sonic BMC 
 
-* BMC can be accessed in two ways (i) via the external management interface (ii) from the Switch Host via the internal midplane ethernet interface.  
+* BMC can be accessed in two ways (i) via the external management interface (ii) from the Switch Host via the internal midplane ethernet interface.
+* BMC can access Switch-Host redis DB over this internal midplane ethernet interface.
 * BMC will manage the Switch Host to support operations like power up/down, get operational status.  
-  **Question:** In Aircooled systems -- What is the role of BMC ?  
-* BMC will have a heartbeat mechanishm with the Switch-Host to maintain the health of the link.
 * BMC will read local leak sensors, its severity and take appropriate actions based on policy.
 * BMC will get inputs from external Rack Manager on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure and Rack level Leak. It takes action based on policy.  
-* BMC can fetch the thermal sensor data of Switch Host components from redis-DB, compare with the temperature thresholds defined in platform.json and take action based on policy.  
-
+* BMC can fetch the thermal sensor data of Switch Host components from redis-DB, store it locally to be (i) log it in local disk (ii) apply thermal policy based on thresholds
+  **Question** Does it make sense to check thermal thresholds in BMC, and shut down Switch-Host if temperature above threshold ? Will Switch-Host power down automatically when temp goes high ?
+  
+* Switch-Host can access BMC redis DB over this internal midplane ethernet interface.
+* Switch-Host will be able do operations like power up/down, get operational status on BMC.
+ 
 ### 1.2. BMC Platform Stack
 
 <Add a pic with pmon in BCM and pmon/redis in Switch-Host - via the usb interface>
@@ -70,14 +74,14 @@ Switch_BMC=1
 Liquid_cooled=true
 ```
 
-"Liquid_cooled" flag is set to true on a liquid cooled switch.  
+"Liquid_cooled" flag is set to true on a liquid cooled switch. In Air cooled switches this flag will not be present
 "Swicth_Host" flag is set to 1 on the switch host, "Switch_BMC" flag is set to 1 on the switch BMC.   
 
 
 #### 2.1.1 BMC platform power up
 When device is powered ON, the BMC powers first, boots up the sonic BMC which starts the various cointainers   
 
-If it is Aircooled network switch the Switch Host is powered on immediately.
+If it is Air cooled switch the Switch Host is powered on immediately.
 
 If it is liquid cooled, the following actions are done before the Switch Host is powered on.
 * "thermalctld" checks local leaks | external Leaks if any reported by Rack Manager, apply thermal policy.  
@@ -128,8 +132,7 @@ Switch_BMC=10.1.0.2
 The Switch-Host and BMC communicate over the midplane ethernet for the following   
 
     (i) Redis database access.  
-    (ii) BMC can have a heartbeat mechanishm ( either redis PING/PONG, or ICM Echo/reply).   
-    (iii) soft reboot of the Switch Host.
+    (ii) soft reboot of the Switch Host.
   
 Defining the various states, events and final state below
 
@@ -163,6 +166,9 @@ thermalctld which takes input from all these below sources
           - Compare it with thresholds defined in platform json.   
           
 **Question :** Do we need the liquid temperature and liquid flow rate when we define thresholds ? check with platform owners
+
+#### 2.1.6 BMC event logging
+
 
 ### 2.2 BMC Platform Management
 The daemons present in pmon would be thermalctld, syseepromd, stormond.
@@ -202,13 +208,6 @@ Loop on this logic
  }
 ```
 
-(ii) Heartbeat status with Switch-Host 
-```
-  Use either the redis PING/PONG, or ICMP ping req/response
-  Update the "heartbeat" field in the table SWITCH_HOST_STATE
-```
-
-
 #### 2.2.1.1 DB schema
 This section covers the various DB tables which this daemon creates/uses
 
@@ -223,7 +222,7 @@ boot_delay                            = float                   ; Time in secs a
 key                                   = SWITCH_HOST_STATE      ; STATE DB
 ; field                               = value
 device_state                          = "state"                ;POWERED_ON/POWERED_OFF
-heartbeat                             = "status"               ;REACHABLE/UNREACHABLE
+device_status                         = "status"               ;REACHABLE/UNREACHABLE
 ```
 
 #### 2.2.2 thermalctld
