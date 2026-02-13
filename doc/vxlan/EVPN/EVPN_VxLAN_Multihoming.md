@@ -2,7 +2,7 @@
 
 # High Level Design Document
 
-Rev 1.5
+Rev 1.6
 
 # Table of Contents
 
@@ -87,6 +87,7 @@ Rev 1.5
 | 1.3  | Aug-2024   | Patrice Brissette (Cisco)   | Updated SAI examples |
 | 1.4  | Nov-2024   | Syed Hasan Naqvi (Broadcom) | Addressed review comments. Updated/removed duplicate text in SAI sec. |
 | 1.5  | Feb-2026   | Patrice Brissette (Cisco)   | Addressed review comments. |
+| 1.6  | Feb-2026   | Patrice Brissette (Cisco)   | Addressed review comments. |
 
 <a id="About-this-Manual"></a>
 # About this Manual
@@ -544,7 +545,8 @@ key = EVPN_ETHERNET_SEGMENT|"ifname"if_id
 ; field = value
 esi        = "AUTO"  or es_id
                 ; es_id is 10 byte colon (:) separated string when type = "TYPE_0_OPERATOR_CONFIGURED".
-                ; Otherwise, esi value should be "AUTO" falling back on ESI type 1 or 3.
+                ; Otherwise, for type = "TYPE_3_MAC_BASED", esi value should be "AUTO" to auto-generate
+                ; the ESI from the configured system-mac address and PortChannel interface number.
 type       = esi_type
                 ; esi_type should be string with one of the below values:
                 ; "TYPE_0_OPERATOR_CONFIGURED" for Type-0 ESI
@@ -753,13 +755,18 @@ Existing TeamMgr will be extended to perform following activites
 
 <a id="333-Zebra"></a>
 ### 3.3.3 Zebra
-Zebra changes are required to send ES membership and DF election information to Fpmsyncd. Existing socket for zebra-Fpmsyncd communication is leveraged. For sending split-horizon and DF information to Fpmsyncd, NEXTHOP update messages will be used. Fpmsyncd will process raw netlink messages instead of using libnl3 APIs for decoding these messages.
+Zebra sends ES membership and DF election information to the dataplane via bridge port update operations (DPLANE_OP_BR_PORT_UPDATE). This includes:
 
-Zebra changes will also be required to drive Linux kernel states for following:
+- DF state (non-DF flag)
+- Split-horizon VTEP list
+- Backup nexthop group ID
 
-- TC filter for split-horizon
-- TC filter for non-DF
+The dataplane (or FPM plugin for SONiC integration) would then program the Linux kernel with:
+- TC filter for split-horizon filtering
+- TC filter for non-DF filtering
 - Backup nexthop for local ES
+
+Note: The dplane_fpm_nl module requires enhancement to process BR_PORT_UPDATE messages and send them to Fpmsyncd as raw netlink messages.
 
 <a id="334-Fpmsyncd"></a>
 ### 3.3.4 Fpmsyncd
@@ -1268,7 +1275,7 @@ ESI: 03:00:00:00:11:22:33:00:00:02
      4.4.4.4 df_alg: preference df_pref: 32767 nh: 268435461
 ```
 
-**show evpn es-evi (1-16777215) detail**
+**show evpn es-evi detail**
 ```
 sonic# show evpn es-evi detail
 VNI 200 ESI: 03:00:00:00:11:22:33:00:00:01
