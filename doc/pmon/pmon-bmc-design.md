@@ -12,6 +12,7 @@
     * [2.1 BMC Platform](#21-bmc-platform)
       * [2.1.1 BMC platform power up](#211-bmc-platform-power-up) 
       * [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction)
+        * [2.1.2.1 DB schema](#2121-db-schema)
       * [2.1.3 Host-Bmc-link](#213-host-bmc-link)
       * [2.1.4 BMC-Switch Host Interaction](#214-bmc-switch-host-interaction)
       * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)
@@ -111,10 +112,25 @@ Not all below URI is applicable to Air cooled switch.
     6. POST /redfish/v1/EventService/Subscriptions  
              -- Rack manager to subscribe for events like Leak from switchBMC.  
 
-The critical Alerts from RackManagerAlert URI will be stored in local redis DB
-The telemetry data from RackManagerTelemetry URI will also be stored in local redis DB to be used for thermal policy engine.
-
 **TODO** Add reference to the redfish design doc here
+
+#### 2.1.2.1 DB schema
+
+This is the DB schema used for passing the commands and alerts from Rack-manager to platform daemons via redfish interface.
+
+```
+key                       = RACK_MANAGER_COMMAND|command         ; ComputerSystem.Reset from Rack Manager in STATE_DB
+; field                   = value
+command                   = POWER_ON | POWER_OFF | POWER_CYCLE   ; 
+reason                    = STR                                  ; optional reason string
+```
+
+```
+key                       = RACK_MANAGER_ALERT|alert             ; Alert data from Rack Manager in STATE_DB
+; field                   = value
+name                      = STR                                  ; Alert due to Inlet_liquid_temperature|Inlet_liquid_flow_rate|Inlet_liquid_pressure|Rack_level_leak
+severity                  = "status"                             ;CRITICAL/MINOR
+```  
 
 #### 2.1.3 Host-Bmc-Link
 There is ethernet link between the Switch-Host and Switch-BMC ( eg: Ethernet over USB )
@@ -143,18 +159,16 @@ Defining the various states, events and final state below
 
 #### 2.1.5 BMC Leak detection and thermal policy
 
-The Leak detection is applicable only to Liquid cooling platform. The thermalctld which takes input from all these below sources 
+The Leak detection is applicable only to Liquid cooling platform. The action is based on alerts from two different sources 
 
-    (i) Local leak detection task which updates leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X} along **with severity**.  
-        The result of which will set the CRITICAL/MAJOR/MINOR flag in LOCAL_LEAK_EVENT_TABLE in STATE_DB
+(i) Local leak detection uses the leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X}.
+    The result ( whether it is critical/minor ) will be updated in LEAK_STATUS table defined in [2.2.2.1 DB schema](#2221-db-schema)
         
-    (ii) External Rack manager alert status table updated by redfish/bmcweb.  
-         The result of which will set the CRITICAL/MAJOR/MINOR flag in RACK_MGR_EVENT_TABLE in STATE_DB
-
-The "bmcctld" daemon on BMC will act on these events based on action defined in [2.1.4 BMC-Switch Host Interaction](#214-bmc-switch-host-interaction)
-         
+(ii) External Rack manager alert status is updated by redfish/bmcweb in RACK_MANAGER_ALERT table defined in [2.1.2.1 DB schema](#2121-db-schema).
+    
+        
 #### 2.1.6 BMC event logging
-The general syslogs will be placed in syslog where /var/log will be mounted on tmpfs partition and send to remote rsyslog server
+The general syslogs will be placed in /va/log/syslog where /var/log directory will be mounted on **tmpfs **. Syslogs will be sent to remote server as well.
 The Leak, Switch-Host state and interactions, Rack-manager interactions will be stored on disk/eMMC in "/var/log/bmc.log"
 
 ### 2.2 BMC Platform Management
@@ -165,32 +179,37 @@ In Liquid cooled platforms a new daemon "bcmctld" will be introduced in pmon con
 
 ##### bmcctld on BMC
 
-The bmc controller daemon "bmcctld" is started first in BMC pmon container. Its main tasks are 
+The bmc controller daemon "bmcctld" is started first in BMC pmon container. The following logic is applied
 
-(i) Power on the Switch-Host
 ```
 Loop on this logic 
- Check if the Switch-Host is reachable and up ( case when pmon restarts )
+ Check if the Switch-Host is reachable and up ( In case when pmon restarts OR BMC alone restarts )
  if YES
  {
-   Check for Local Leak status + external Rack manager leak status + Switch-Host thermals status
-     if CRITICAL LEAK or thermals high ( check N consecutive failures)
-       - syslog
-       - Try to do a soft reboot of Switch Host with a timeout of ~2min ( configurable )
-       - if unsuccessfull POWER_OFF Switch_host
-       - update DB SWITCH_HOST_STATE table with the status
+   Check for Local Leak status + external Rack manager leak status
+     if CRITICAL LEAK
+          - syslog
+          - [enhancement] Try to do a soft reboot of Switch Host with a timeout of ~2min ( configurable )
+          - if unsuccessfull POWER_OFF Switch_host
+          - update DB SWITCH_HOST_STATE table with the status
+     else
+          - update DB SWITCH_HOST_STATE table with the status
  }
  if NO
  {
    if it is First Boot
    {
-     Sleep for 5 min ( this is configurable value in config_db)
-     Check if the redfish connectivity with rack_manager is established ( This should be updated in redis DB by redfish docker processes)
-     Check for Local Leak status + external Rack manager leak status
-     if NO LEAK
-       - syslog
-       - POWER_ON Switch_host
-       - update DB SWITCH_HOST_STATE table with status 
+     Sleep for (5min - bootup time) ( this is configurable value in config_db)
+   }
+   Check if the redfish connectivity with rack_manager is established ( This should be updated in redis DB by redfish docker processes)
+   Check for Local Leak status + external Rack manager leak status
+   if NO LEAK
+        - Check why is Switch-Host DOWN, is it thermal - check Switch-Host health ( How to check this ?? )
+        - syslog
+        - POWER_ON Switch_host if Switch-Host health ok 
+        - update DB SWITCH_HOST_STATE table with status
+   else
+        - syslog and continue
    }
  }
 ```
@@ -204,61 +223,78 @@ On receipt of this event, the Switch-Host will be shutdown/reboot gracefully.
 This section covers the various DB tables which this daemon creates/uses
 
 ```
-key                                   = BMC_BOOTUP_TIMEOUT      ; Config DB on BMC
+key                                   = BMC_BOOTUP_TIMEOUT|default   ; Config DB on BMC
 ; field                               = value
-boot_delay                            = float                   ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 4 min ).   
-                                                                ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events - Switch-Host will be powered on
+boot_delay                            = float                        ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
+                                                                     ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events - Switch-Host will be powered on
 ```
 
 ```
-key                                   = SWITCH_HOST_STATE      ; STATE DB on BMC
+key                                   = HOST_STATE|switch-host   ; STATE_DB on BMC
 ; field                               = value
-device_state                          = "state"                ;POWERED_ON/POWERED_OFF
-device_status                         = "status"               ;REACHABLE/UNREACHABLE
+device_state                          = POWERED_ON | POWERED_OFF
+device_status                         = Online | Offline
+```
+
+Below DB tables are enhancements to help support graceful reboot of Switch-Host before doing a power off, with a timeout configured in SWITCH_HOST_SHUT_TIMEOUT.
+We would need an instance of bmcctld running on Switch-Host as well to subscribe to these tables.
+**Note: ** To plan the criticality of this requirment.
+
+```
+key                                   = BMC_TO_SWITCH_HOST_COMMAND|command   ; STATE_DB on Switch-Host
+; field                               = value
+command                               = SHUTDOWN | SOFT_REBOOT               ; shutdown or soft reboot the Switch-Host
+reason                                = STR                                  ; optional reason string
 ```
 
 ```
-key                                   = BMC_TO_SWITCH_HOST_CMD     ; CONFIG_DB on Switch-Host
+key                                   = SWITCH_HOST_SHUT_TIMEOUT|default   ; Config DB on BMC
 ; field                               = value
-command                               = "SHUTDOWN/REBOOT"          ; shutdown/soft reboot the Switch-Host
-```
-
-```
-key                                   = SWITCH_HOST_SHUT_TIMEOUT   ; Config DB on BMC
-; field                               = value
-shutdown_delay                        = float                      ; Time in secs after SHUT command issued to Switch-Host should BMC do POWER OFF. ( default = 2 min ).
+shutdown_delay                        = float                              ; Time in secs after SHUT command issued to Switch-Host should BMC do POWER OFF. ( default = 2 min ).
 ```
 
 #### 2.2.2 thermalctld
-The thermalctld will have an additional thread to do following in a liquid cooled platform
+In Liquid cooled platform, thermalctld will have additional responsibilities to check leak sensors and apply leak policy.
 
 ```
-
 Loop on this logic 
-(i) Check local leak sensors using platform API
-        -- store the result in LOCAL_LEAK_STATUS table
-(ii) Check the leak data from rack manager stored in redis DB by the redfish docker processes
-        -- store the result in RACK_MGR_LEAK_STATUS table
-```
+  (i) Check local leak sensors using platform API
+          -- store the result in LIQUID_COOLING_DEVICE table
+  (ii) Apply the thermal policy based on the number and severity of leak sensors with leak
+       
+       +--------------------------------------+-----------+
+       | Leak conditions                      | Severity  |
+       +--------------------------------------+-----------+
+       | 1 or more leaks with Sev Critical    |  CRITICAL |
+       | 2 or more leaks                      |  CRITICAL |
+       | 1 leak sensor detected               |  MINOR    |
+       +--------------------------------------+-----------+
+       Note: This approach to require fine tuning 
 
+   (iii) Update the LEAK_STATUS table with the severity of leak 
+
+```
+ 
 #### 2.2.2.1 DB schema
 
+This LIQUID_COOLING_DEVICE table is already populated by thermalctld. New field **severity ** is introduced.
 ```
-key                                   = LOCAL_LEAK_STATUS      ; STATE DB
-; field                               = value
-device_leak_status                    = "status"               ;CRITICAL/MAJOR/MINOR
-device_leak_sensor                    = "sensor_name"          ; leak sensor which is flagged critical 
-```
+key                       = LIQUID_COOLING_DEVICE|leakage_sensors{X}  ; leak data in STATE_DB per sensor
+ ; field                  = value
+name                      = STR                                       ; sensor name
+leaking                   = STR                                       ; Yes or No to indicate leakage status
+severity                  = "status"                                  ;CRITICAL/MINOR
+```  
 
 ```
-key                                   = RACK_MGR_LEAK_STATUS      ; STATE DB
-; field                               = value
-rack_mgr_leak_status                  = "status"                  ;CRITICAL/MAJOR/MINOR
-device_leak_sensor                    = "sensor_name"             ; leak sensor which is flagged critical
-```
+key                       = LEAK_STATUS|local                         ; local bmc leak status in STATE DB
+; field                   = value
+device_leak_status        = "status"                                  ;CRITICAL/MINOR
+```     
 
 #### 2.2.3 Hw watchdog
-Hw watchdog timers will be enabled on both Switch-Host and BMC to reboot on software hugh issues.
+Hw watchdog timers will be enabled on both Switch-Host and BMC. 
+This will do a CPU reset when OS hangs or becomes unresponsive and fails to service the watchdog
 
 #### 2.2.4 Platform APIs
 
@@ -273,7 +309,9 @@ The following docs from Nvidia team which is already present define many platfor
 
 A new base class **SwitchHostBase** is introduced along with new platform API's added to exiting base classes.
 
-###  LeakageSensorBase
+####  LeakageSensorBase
+This base class is already defined in sonic-platform-common. 
+ - Adding a new API get_severity() which retuns back the severity of a particular leak
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -283,7 +321,8 @@ A new base class **SwitchHostBase** is introduced along with new platform API's 
 
 ---
 
-###  LiquidCoolingBase
+#### LiquidCoolingBase
+This base class is already defined in sonic-platform-common. 
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -294,9 +333,11 @@ A new base class **SwitchHostBase** is introduced along with new platform API's 
 
 ---
 
-###  BmcBase — Redfish Interface (CPU → BMC)
-This Class contains API's for switch Host to control the switch BMC
-In the current implementation Calls from switch Host --> BMC uses redfish. **We need to change this class to have flexibility to either use Redis DB or Redfish**
+####  BmcBase
+This base class is already defined in sonic-platform-common. 
+
+This Class contains API's for Switch-Host to control the switch BMC, In the current implementation Calls from Switch-Host --> BMC uses redfish.
+**We need to change this class to have flexibility to either use Redis DB or Redfish**
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -308,8 +349,8 @@ In the current implementation Calls from switch Host --> BMC uses redfish. **We 
 
 ---
 
-###  SwitchHostBase
-This Class contains API's for switch BMC to control the switch Host
+####  SwitchHostBase
+This Class is a new BaseClass to define which will contain API's for switch BMC to control the Switch-Host
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -318,10 +359,12 @@ This Class contains API's for switch BMC to control the switch Host
 | reboot_switch_host() | New | Graceful shutdown of Switch Host|
 | power_cycle_switch_host() | New | Power-cycle Switch Host |
 | get_switch_host_power_state() | New | Fetch Switch host power state |
+| get_switch_host_health() | New | Fetch Switch host health like thermal, power  ** to be decided ** |
 
 ---
 
-###  ChassisBase
+####  ChassisBase
+This base class is already defined in sonic-platform-common. We need a new API get_switch_host().
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -329,9 +372,26 @@ This Class contains API's for switch BMC to control the switch Host
 | get_switch_host() | New | Get the Switch Host object |
 
 ### 2.2 BMC CLI Commands
+Following commands are enhanced to support BMC operation
 
+#### Config commands
 
+1. CLI to enable user to powercycle/reboot the Switch-Host
+```
+config chassis modules startup <Switch-Host>
+config chassis modules shutdown <Switch-Host>
+config chassis modules reboot <Switch-Host>
+```
 
+#### Show commands 
 
+```
+admin@bmc-host:~$ show chassis module status
+        Name             Description    Oper-Status    Admin-Status       Serial
+------------  ----------------------  -------------  --------------  -----------
+BMC            Board Management Card         Online              up           <>
+Switch-Host     <Device sku details>         Online              up           <>
+
+```
 
 ## 3 Future Items
