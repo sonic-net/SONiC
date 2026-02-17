@@ -7,6 +7,7 @@
 |  Rev  |   Date      |   Author   | Change Description |
 | :---: | :---------: | :--------: | ------------------ |
 |  0.1  | 12 Jan 2026 | Cliff Chen | Initial version    |
+|  0.2  | 27 Jan 2026 | Cliff Chen | Multi-process architecture, separate PTY Bridge and Proxy services |
 
 ---
 
@@ -22,10 +23,10 @@
 - [3. Detailed Design](#3-detailed-design)
   - [3.1 Frame Structure Design](#31-frame-structure-design)
   - [3.2 DTE Side Service](#32-dte-side-service)
-  - [3.3 DCE Side Service](#33-dce-side-service)
+  - [3.3 DCE Side Services](#33-dce-side-services)
 - [4. Database Changes](#4-database-changes)
 - [5. CLI](#5-cli)
-- [6. Flow Diagrams](#6-flow-diagrams)
+- [6. Example Configuration](#6-example-configuration)
 - [7. References](#7-references)
 
 ---
@@ -38,8 +39,12 @@
 | DTE | Data Terminal Equipment - SONiC Switch (managed device) side |
 | Heartbeat | Periodic signal used to verify link connectivity |
 | Oper | Operational state (Up/Unknown) |
+| PTM | Pseudo Terminal Master - Master side of a PTY pair |
+| PTS | Pseudo Terminal Slave - Slave side of a PTY pair |
 | PTY | Pseudo Terminal - Virtual terminal interface |
-| Proxy | Intermediate proxy process handling serial communication |
+| PTY Bridge | Process that creates and bridges PTY pairs using socat |
+| Proxy | Intermediate proxy process handling serial communication and heartbeat filtering |
+| socat | Multipurpose relay tool for bidirectional data transfer between two channels |
 | TTY | Teletypewriter - Terminal device interface |
 
 ---
@@ -66,14 +71,19 @@ The console monitor service provides real-time automatic detection of link Oper 
 
 ### 2.1 Architecture
 
+This diagram shows the high-level architecture of the console monitor feature over a single console link, including both DCE and DTE sides. DTE regularly send heartbeat frames to DCE via physical serial link. DCE side Proxy process filters heartbeat frames, updates STATE_DB, and forwards non-heartbeat data to user applications via PTY Bridge.
+
 ```mermaid
 flowchart LR
   subgraph DCE["DCE (Console Server)"]
-    proxy_dce["proxy"]
-    picocom["picocom (user)"]
-    pty_master_dce["pty_master"]
-    pty_slave_dce["pty_slave"]
-    TTY_DCE["/dev/tty_dce (physical serial)"]
+    proxy_dce["console-monitor-proxy.service"]
+    picocom["consutil (user)"]
+    subgraph PTY["PTY Bridge"]
+      pty_pts["/dev/ttyUSB1-PTS"]
+      pty_ptm["/dev/ttyUSB1-PTM"]
+    end
+    TTY_DCE["/dev/ttyUSB1 (physical serial)"]
+    state_db["STATE_DB"]
   end
 
   subgraph DTE["DTE (SONiC Switch)"]
@@ -89,12 +99,16 @@ flowchart LR
   %% physical link
   TTY_DTE <-- serial link --> TTY_DCE
 
-  %% DCE side: proxy owns serial, filters RX, bridges to PTY for user tools
+  %% PTY pair connection
+  pty_pts <-- Socat --> pty_ptm
+
+  %% proxy owns serial, filters RX, bridges to PTM
   TTY_DCE <-- read/write --> proxy_dce
-  proxy_dce -- filter heartbeat and forward --> pty_master_dce
-  pty_master_dce -- forward --> proxy_dce
-  pty_master_dce <-- PTY pair --> pty_slave_dce
-  picocom <-- interactive session --> pty_slave_dce
+  proxy_dce -- filter heartbeat & forward --> pty_ptm
+  proxy_dce -- update oper_state --> state_db
+
+  %% user application connects to PTS
+  picocom <-- interactive session --> pty_pts
 ```
 
 ### Key Decisions
@@ -118,21 +132,35 @@ The DTE side dynamically responds to configuration changes via Redis keyspace no
 
 ### 2.3 DCE Side
 
-Creates a Proxy between the physical serial port and user applications, responsible for heartbeat frame detection, filtering, and link state maintenance.
+The DCE side uses a multi-process architecture that separates the control plane from the data plane, reducing fault radius and improving reliability. Each console link has its own independent PTY Bridge and Proxy processes managed by systemd.
 
-*   **Exclusive Ownership**
-    *   The only process holding the physical serial port file descriptor (`/dev/ttyUSBx`)
-*   **PTY Creation**
-    *   Creates pseudo-terminal pairs for upper-layer applications
-*   **PTY Symlink**
-    *   Creates fixed symlinks (e.g., `/dev/C0-1-PTS`) pointing to dynamic PTY slaves (e.g., `/dev/pts/3`)
-    *   Naming convention: `<prefix><link_id>-PTS` where prefix is read from udevprefix.conf
-    *   Upper-layer applications (consutil, picocom) use stable device paths
+#### 2.3.1 DCE Service
+
+The `console-monitor-dce.service` is the main control service that manages PTY Bridge and Proxy services via systemctl.
+
+*   **Configuration Monitoring**
+    *   Monitors `CONSOLE_PORT` and `CONSOLE_SWITCH` tables in CONFIG_DB
+    *   Dynamically starts/stops services based on configuration changes
+
+#### 2.3.2 PTY Bridge
+
+Each link has an independent `console-monitor-pty-bridge@<link_id>.service` that creates PTY pairs. Enable user side auto recovery and non-interruptive console access.
+
+*   **PTY Pair Creation**
+    *   Uses `socat` to create two linked pseudo-terminals
+    *   PTS symlink: `/dev/<prefix><link_id>-PTS` (for user applications like picocom)
+    *   PTM symlink: `/dev/<prefix><link_id>-PTM` (for Proxy process)
+
+#### 2.3.3 Proxy
+
+Each link has an independent `console-monitor-proxy@<link_id>.service` for serial communication and heartbeat detection.
+
+*   **Exclusive Serial Ownership**
+    *   The only process holding the physical serial port file descriptor
 *   **Heartbeat Filtering**
-    *   Identifies heartbeat frames, updates state, and discards heartbeat data
+    *   Identifies heartbeat frames, updates STATE_DB, and discards heartbeat data
 *   **Data Passthrough**
-    *   Non-heartbeat data is transparently forwarded to the virtual serial port
-
+    *   Non-heartbeat data is transparently forwarded to PTM
 ---
 
 ## 3. Detailed Design
@@ -456,15 +484,19 @@ flowchart TD
 
 ---
 
-### 3.3 DCE Side Console Monitor DCE Service
+### 3.3 DCE Side Services
 
-#### 3.3.1 Service: `console-monitor-dce.service`
+The DCE side consists of three types of services working together:
 
-Topology:
+| Service | Type | Description |
+|---------|------|-------------|
+| `console-monitor-dce.service` | Control Plane | Main service that monitors CONFIG_DB and manages other services |
+| `console-monitor-pty-bridge@<link_id>.service` | Data Plane | Creates PTY pairs for each link using socat |
+| `console-monitor-proxy@<link_id>.service` | Data Plane | Handles serial communication and heartbeat detection |
 
-![Console Monitor Structure](Console-Monitor-High-Level-Design/ConsoleMonitorStructure.png)
+#### 3.3.1 Service Architecture
 
-Each link has an independent Proxy instance, responsible for serial port read/write and state maintenance.
+![ConsoleMonitorServiceArchitecture](Console-Monitor-High-Level-Design/ConsoleMonitorServiceArchitecture.png)
 
 #### 3.3.2 Timeout Determination
 
@@ -492,36 +524,60 @@ STATE_DB entries:
 
 #### 3.3.4 Service Startup and Initialization
 
-The console-monitor-dce service starts in the following order:
+##### DCE Service Startup
+
+The `console-monitor-dce.service` starts in the following order:
 
 1.  **Wait for Dependencies**
-    *   Starts after `config-setup.service` completes loading config.json into CONFIG_DB
+    *   Starts after `config-setup.service` and `database.service`
 2.  **Connect to Redis**
-    *   Establishes connections to CONFIG_DB and STATE_DB
-3.  **Read PTY Symlink Prefix**
-    *   Reads device prefix (e.g., `C0-`) from `<platform_path>/udevprefix.conf`
-    *   PTY symlinks are created with format: `/dev/<prefix><link_id>-PTS` (e.g., `/dev/C0-1-PTS`)
-4.  **Initial Sync (Check Console Feature)**
+    *   Establishes connection to CONFIG_DB
+3.  **Initial Sync (Check Console Feature)**
     *   Checks the `enabled` field of `CONSOLE_SWITCH|console_mgmt` in CONFIG_DB
-    *   If `enabled` is not `"yes"`, skips Proxy initialization; service continues running but does not start any Proxy
-    *   If `enabled` is `"yes"`, initializes Proxy instances for each serial port configuration in CONFIG_DB
-5.  **Subscribe to Configuration Changes**
-    *   Monitors the following CONFIG_DB keyspace events simultaneously:
+    *   If `enabled` is not `"yes"`, service continues running but does not start any services
+    *   If `enabled` is `"yes"`, starts PTY Bridge and Proxy services for each link
+4.  **Subscribe to Configuration Changes**
+    *   Monitors the following CONFIG_DB keyspace events:
         *   `CONSOLE_PORT|*` - Serial port configuration changes
         *   `CONSOLE_SWITCH|*` - Console feature toggle changes
-6.  **Initialize Proxy Instances** (only when enabled=yes)
+5.  **Start Services for Each Link** (only when enabled=yes)
     *   For each serial port configuration in CONFIG_DB:
-        *   Open physical serial port (e.g., `/dev/C0-1`)
-        *   Create PTY pair (master/slave, e.g., `/dev/pts/X`)
-        *   Create symlink (e.g., `/dev/C0-1-PTS` → `/dev/pts/3`)
-        *   Configure serial port and PTY to raw mode
-        *   Register file descriptors to asyncio event loop
-        *   Start heartbeat timeout timer (15 seconds)
-7.  **Enter Main Loop**
+        *   Start `console-monitor-pty-bridge@<link_id>.service` first
+        *   Then start `console-monitor-proxy@<link_id>.service`
+6.  **Enter Main Loop**
+    *   Listen for configuration changes and manage services accordingly
+
+##### PTY Bridge Service Startup
+
+The `console-monitor-pty-bridge@<link_id>.service` performs:
+
+1.  **Read PTY Symlink Prefix**
+    *   Reads device prefix (e.g., `ttyUSB`) from `<platform_path>/udevprefix.conf`
+2.  **Execute socat**
+    *   Replaces current process with socat command
+    *   Creates PTY pair with symlinks:
+        *   `/dev/<prefix><link_id>-PTS` (for user applications)
+        *   `/dev/<prefix><link_id>-PTM` (for Proxy)
+
+##### Proxy Service Startup
+
+The `console-monitor-proxy@<link_id>.service` performs:
+
+1.  **Wait for Dependencies to be available**
+    *   Reads device prefix (e.g., `ttyUSB`) from `<platform_path>/udevprefix.conf`. Fallback to `ttyUSB` if the config file doesn't exists.
+    *   Waits for CONFIG_DB configuration to be available
+    *   Waits for physical device is available (e.g., `/dev/ttyUSB1`)
+    *   Waits for PTM symlink is available (e.g., `/dev/ttyUSB1-PTM`)
+2.  **Initialize Resources**
+    *   Connect to STATE_DB
+    *   Open physical serial port
+    *   Open PTM device
+    *   Create frame filter
+3.  **Enter Main Loop**
     *   Process serial data, filter heartbeats, update STATE_DB
-8.  **Initial State**
-    *   If no heartbeat or data activity within 15 seconds, `oper_state` is set to `Unknown`, recording `last_state_change` timestamp
-    *   After receiving first heartbeat, `oper_state` becomes `Up`, recording `last_state_change` timestamp
+4.  **Initial State**
+    *   If no heartbeat or data activity within 15 seconds, `oper_state` is set to `Unknown`
+    *   After receiving first heartbeat, `oper_state` becomes `Up`
 
 #### 3.3.5 Dynamic Configuration Changes
 
@@ -533,15 +589,28 @@ The console-monitor-dce service starts in the following order:
 
 #### 3.3.6 Service Shutdown and Cleanup
 
-When console-monitor-dce service receives shutdown signal (SIGINT/SIGTERM), each proxy performs cleanup:
+##### DCE Service Shutdown
+
+When `console-monitor-dce.service` receives shutdown signal:
+
+*   Stops all Proxy services first (via systemctl)
+*   Then stops all PTY Bridge services (via systemctl)
+
+##### Proxy Service Shutdown
+
+When `console-monitor-proxy@<link_id>.service` stops:
 
 *   **STATE_DB Cleanup**
-    *   Only deletes `oper_state` and `last_state_change` fields
+    *   Deletes `oper_state` and `last_state_change` fields
     *   Preserves `state`, `pid`, `start_time` fields managed by consutil
-*   **PTY Symlink**
-    *   Deletes symlinks (e.g., `/dev/C0-1-PTS`)
 *   **Buffer Flush**
-    *   If filter buffer is non-empty, flush to PTY
+    *   If filter buffer is non-empty, flush to PTM
+
+##### PTY Bridge Service Shutdown
+
+When `console-monitor-pty-bridge@<link_id>.service` stops:
+
+*   **PTY Symlinks** are removed when socat exits
 
 ---
 
@@ -611,7 +680,52 @@ admin@sonic:~$ sonic-db-cli STATE_DB HGETALL "CONSOLE_PORT|2"
 
 ## 5. CLI
 
-### 5.1 Show line
+### 5.1 console-monitor Command
+
+The `console-monitor` command is the unified entry point for all console monitor services.
+
+```bash
+console-monitor <subcommand> [options] [arguments]
+```
+
+#### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `pty-bridge <link_id>` | Run PTY bridge for a port (exec socat) |
+| `dce` | Run DCE (Console Server) control service |
+| `proxy <link_id>` | Run proxy for a specific serial port |
+| `dte [tty_name] [baud]` | Run DTE (SONiC Switch) heartbeat service |
+
+#### Common Options
+
+| Option | Description |
+|--------|-------------|
+| `-l, --log-level` | Set log level: `debug`, `info`, `warning`, `error`, `critical` (default: `info`) |
+
+#### Examples
+
+```bash
+# Run PTY bridge for link 1 (creates PTY pair via socat)
+console-monitor pty-bridge 1
+
+# Run DCE control service with debug logging
+console-monitor dce -l debug
+
+# Run proxy for link 1
+console-monitor proxy 1
+
+# Run proxy for link 2 with debug logging
+console-monitor proxy -l debug 2
+
+# Run DTE service (auto-detect TTY from /proc/cmdline)
+console-monitor dte
+
+# Run DTE service with specified TTY and baud rate
+console-monitor dte -l debug ttyS0 9600
+```
+
+### 5.2 Show line
 
 Alias of `consutil show`
 
@@ -637,9 +751,9 @@ New columns:
 | Oper State | Current operational state of console link |
 | State Duration | Duration of current state (format: XyXdXhXmXs, only shows non-zero parts) |
 
-### 5.2 Configuration Commands
+### 5.3 Configuration Commands
 
-#### 5.2.1 Enable/Disable Console Heartbeat (DTE Side)
+#### 5.3.1 Enable/Disable Console Heartbeat (DTE Side)
 
 ```bash
 config console heartbeat {enable|disable}
@@ -660,7 +774,7 @@ admin@switch:~$ sudo config console heartbeat disable
 admin@switch:~$ sonic-db-cli CONFIG_DB HGETALL "CONSOLE_SWITCH|controlled_device"
 ```
 
-#### 5.2.2 Enable/Disable Console Monitor (DCE Side)
+#### 5.3.2 Enable/Disable Console Monitor (DCE Side)
 
 ```bash
 config console {enable|disable}
