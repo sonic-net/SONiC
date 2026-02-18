@@ -38,12 +38,12 @@
 This document provides design requirements and interactions between platform drivers and PMON for SONiC on BMC 
 
 # Acronyms  
-BMC - Baseboard Management Controller.  
-Switch-Host - Main board in network device which hosts the ASIC and CPU.  
-Chassis - Swicth-Host + BMC as a unit called chassis.
-Rack Manager - Manager module for rack where switch is mounted.  
-Redfish - standard REST API for managing hardware.  
-PMON - Platform Monitor. Used in the context of Platform monitoring docker/processes.  
+**BMC**          - Baseboard Management Controller.  
+**Switch-Host** - Main board in network device which hosts the ASIC and CPU.  
+**Chassis**   - Switch-Host & BMC as a unit called chassis.  
+**Rack Manager** - Manager module for rack where switch is mounted.  
+**Redfish**   - standard REST API for managing hardware.  
+**PMON**    - Platform Monitor. Used in the context of Platform monitoring docker/processes.  
 
 ## 1. SONiC Platform Management and Monitoring
 ### 1.1. Functional Requirements
@@ -75,17 +75,18 @@ Switch_BMC=1
 Liquid_cooled=true
 ```
 
-"Liquid_cooled" flag is set to true on a liquid cooled switch. In Air cooled switches this flag will not be present
-"Swicth_Host" flag is set to 1 on the switch host, "Switch_BMC" flag is set to 1 on the switch BMC.   
+"Liquid_cooled" flag is set to true on a liquid cooled switch."Switch_Host" flag is set to 1 on the switch host, "Switch_BMC" flag is set to 1 on the switch BMC.  
+
+In Air cooled switches this flag will not be present
 
 #### 2.1.1 BMC platform power up
 When device is powered ON, the BMC powers first, boots up the sonic BMC which starts the various cointainers   
 
-If it is Air cooled switch the Switch Host is powered on immediately.
+If it is Air cooled switch the Switch-Host is powered on immediately.
 
-If it is liquid cooled, the following actions are done before the Switch Host is powered on.
+If it is liquid cooled, the following actions are done before the Switch-Host is powered on.
 * "thermalctld" checks local leaks and external Leaks if any reported by Rack Manager
-* "bmcctld" to send a power on request to Swicth host if all clear.    
+* "bmcctld" to send a POWER_ON command to Switch-host if all clear.    
     
 <img width="556" height="725" alt="bmc_bootup" src="https://github.com/user-attachments/assets/28f21964-8efb-4ebe-a092-7fc1415d067e" />
 
@@ -145,7 +146,7 @@ Switch_BMC=169.254.100.2
 ```
 
 #### 2.1.4 BMC-Switch Host Interaction
-The Switch-Host and BMC communicate over the Host-Bmc-Link for accessing redis DBs for gathering sensor data.
+The Switch-Host and BMC communicate over the Host-Bmc-Link for accessing redis DB.
  
 Defining the various states, events and final state below
 
@@ -168,8 +169,8 @@ The Leak detection is applicable only to Liquid cooling platform. The action is 
     
         
 #### 2.1.6 BMC event logging
-The general syslogs will be placed in /va/log/syslog where /var/log directory will be mounted on **tmpfs **. Syslogs will be sent to remote server as well.
-The Leak, Switch-Host state and interactions, Rack-manager interactions will be stored on disk/eMMC in "/var/log/bmc.log"
+The general syslogs will be placed in /var/log/syslog where /var/log directory will be mounted on **tmpfs **. Syslogs will be sent to remote server as well.
+The Leak, Switch-Host state and interactions, Rack-manager interactions will be stored on disk/eMMC in "bmc.log"
 
 ### 2.2 BMC Platform Management
 The daemons present in pmon would be thermalctld, syseepromd, stormond.
