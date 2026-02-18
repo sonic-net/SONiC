@@ -67,6 +67,7 @@
       2. [3.5.2. File management](#352-file-management)
       3. [3.5.3. JSON format specification](#353-json-format-specification)
       4. [3.5.4. Scale considerations](#354-scale-considerations)
+      5. [3.5.5. CLI (sonic-dpu-flow-dump)](#355-cli-sonic-dpu-flow-dump)
 4. [4. SAI APIs](#4-sai-apis)
 5. [5. CLI commands](#5-cli-commands)
 
@@ -975,6 +976,84 @@ Full mapping available in SAI header `sai_flow_entry_attr_t struct`
 - Intended for **debugging specific flows** using filters and during tests
 - Should expand to alternatives such as gRPC for full scale
 
+#### 3.5.5. CLI (sonic-dpu-flow-dump)
+
+The `sonic-dpu-flow-dump` utility runs on the DPU and triggers a flow dump session, waits for completion, then reads the gzipped JSONL output file and prints the flows (or the file path only) to stdout. 
+
+**Usage:**
+
+```bash
+sonic-dpu-flow-dump.py [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|--------------|
+| `-f`, `--file-only` | Print only the output file path; do not print flow contents. |
+| `-t`, `--timeout` | Timeout in seconds to wait for session completion (default: 60). |
+| `-m`, `--max-flows` | Maximum number of flows to dump (default: 1000). |
+| `--no-flow-state` | Disable flow state (dump only values under `sai_flow_entry_t`). |
+| `-v`, `--verbose` | Enable verbose output. |
+
+
+**Example output:**
+
+```bash
+root@sonic:/home/admin# ./sonic-dpu-flow-dump.py
+[
+  {
+    "SAI_FLOW_ENTRY_ATTR_ACTION": "SAI_FLOW_ENTRY_ACTION_SET_FLOW_ENTRY_ATTR",
+    "SAI_FLOW_ENTRY_ATTR_VERSION": "1",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_VNET_ID": "100",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SIP": "3.2.1.0",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DIP": "101.1.2.3",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DASH_ENCAPSULATION": "SAI_DASH_ENCAPSULATION_NVGRE",
+    "SAI_FLOW_ENTRY_ATTR_DASH_DIRECTION": "SAI_DASH_DIRECTION_OUTBOUND",
+    "SAI_FLOW_ENTRY_ATTR_SIP": "fd41:108:20:d107:64:ff71:a00:b",
+    "SAI_FLOW_ENTRY_ATTR_DIP": "2603:10e1:100:2::3401:203",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_ACTION": "65",
+    "SAI_FLOW_ENTRY_ATTR_IP_ADDR_FAMILY": "SAI_IP_ADDR_FAMILY_IPV4",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_SYNC_STATE": "SAI_DASH_FLOW_SYNC_STATE_FLOW_CREATED",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SMAC": "B0:CF:0E:20:8E:DE",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DMAC": "B0:CF:0E:20:8E:00",
+    "SAI_FLOW_ENTRY_ATTR_METER_CLASS": "3634",
+    "SAI_FLOW_ENTRY_ATTR_IS_UNIDIRECTIONAL_FLOW": "true",
+    "DST_IP": "10.2.0.100",
+    "DST_PORT": 55057,
+    "ENI_MAC": "F4:93:9F:EF:C4:7E",
+    "IP_PROTO": 17,
+    "SRC_IP": "10.0.0.11",
+    "SRC_PORT": 34074,
+    "VNET_ID": 0
+  },
+  {
+    "SAI_FLOW_ENTRY_ATTR_ACTION": "SAI_FLOW_ENTRY_ACTION_SET_FLOW_ENTRY_ATTR",
+    "SAI_FLOW_ENTRY_ATTR_VERSION": "1",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_VNET_ID": "4321",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SIP": "3.2.1.0",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DIP": "25.1.1.1",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DASH_ENCAPSULATION": "SAI_DASH_ENCAPSULATION_VXLAN",
+    "SAI_FLOW_ENTRY_ATTR_DASH_DIRECTION": "SAI_DASH_DIRECTION_INBOUND",
+    "SAI_FLOW_ENTRY_ATTR_SIP": "10.2.0.100",
+    "SAI_FLOW_ENTRY_ATTR_DIP": "10.0.0.11",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_ACTION": "129",
+    "SAI_FLOW_ENTRY_ATTR_IP_ADDR_FAMILY": "SAI_IP_ADDR_FAMILY_IPV6",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_SYNC_STATE": "SAI_DASH_FLOW_SYNC_STATE_FLOW_CREATED",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SMAC": "B0:CF:0E:20:8E:DE",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DMAC": "B0:CF:0E:20:8E:00",
+    "SAI_FLOW_ENTRY_ATTR_METER_CLASS": "3634",
+    "SAI_FLOW_ENTRY_ATTR_IS_UNIDIRECTIONAL_FLOW": "true",
+    "DST_IP": "fd41:108:20:d107:64:ff71:a00:b",
+    "DST_PORT": 34074,
+    "ENI_MAC": "F4:93:9F:EF:C4:7E",
+    "IP_PROTO": 17,
+    "SRC_IP": "2603:10e1:100:2::3401:203",
+    "SRC_PORT": 55057,
+    "VNET_ID": 0
+  }
+]
+```
 
 ## 4. SAI APIs
 
