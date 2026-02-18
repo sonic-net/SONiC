@@ -146,13 +146,13 @@ The following flow diagram captures the control flow.
 
 The following flow captures scenarios for ```boot-up``` sequence and ```config reload```. Default CoPP Tables shall be present in ```copp_cfg.json``` and if the same entry is present in ```config_db.json```, it is expected to be overwritten by ```config_db``` entry. This model ensures user-configuration gets priority over default configuration.
 
-![](https://github.com/sonic-net/SONiC/blob/master/images/copp/CoppInit_1.png)
+![](CoppInit_1.png)
 
 ## Copp Manager flow
 
 The following flow captures CoPP manager functionality.
 
-![](https://github.com/sonic-net/SONiC/blob/master/images/copp/CoppManager_1.png)
+![](CoppManager_1.png)
 
 # Examples
 

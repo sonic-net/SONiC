@@ -68,7 +68,7 @@ We optimized several engaging submodules accordingly, but SAI / ASIC optimaztion
 
 The routes loading workflow consists of steps illustrated in the [figure](https://github.com/SONiC-net/SONiC/wiki/Architecture#routing-state-interactions) below.
 
-![SONiC BGP Loading Workflow](https://github.com/Azure/SONiC/raw/master/images/sonic_user_guide_images/section4_images/section4_pic4_routing_sonic_interactions.png 'SONiC BGP Loading Workflow')
+![SONiC BGP Loading Workflow](section4_pic4_routing_sonic_interactions.png 'SONiC BGP Loading Workflow')
 This HLD focuses on the following steps:
 
 Step 5: `fpmsyncd` processes netlink messages, flushes them to redis-server `APPL_DB`. \
