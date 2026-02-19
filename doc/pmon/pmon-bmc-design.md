@@ -19,7 +19,8 @@
       * [2.1.6 BMC event logging](#216-bmc-event-logging)
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
       * [2.2.1 BMC controller-bmcctld](#221-bmc-controller---bmcctld)
-        * [2.2.1.1 DB schema](#2221-db-schema)
+        * [2.2.1.1 bmcctld on bmc](#2211-bmcctld-on-bmc)
+        * [2.2.1.2 bmcctld on switch-host](#2212-bmcctld-on-switch-host)
       * [2.2.2 Thermalctld](#222-thermalctld)
         * [2.2.2.1 DB schema](#2221-db-schema)        
       * [2.2.3 Hw watchdog](#223-hw-watchdog)
@@ -88,16 +89,14 @@ If it is liquid cooled, the following actions are done before the Switch-Host is
 * "thermalctld" checks local leaks and external Leaks if any reported by Rack Manager
 * "bmcctld" to send a POWER_ON command to Switch-host if all clear.    
     
-<img width="556" height="725" alt="bmc_bootup" src="https://github.com/user-attachments/assets/28f21964-8efb-4ebe-a092-7fc1415d067e" />
-
+<img width="556" height="725" alt="bmc_1" src="https://github.com/user-attachments/assets/5896f8e4-da32-4e2c-846f-80a7a3bb104d" />
 
 #### 2.1.2 BMC Rack Manager Interaction
 The new docker container "redfish" in sonicBMC will have openbmc/bmcweb service which terminates the redfish calls from the rack Manager.
 
 **Note: Redish docker to be enabled only on Liquid cooling platform.**
 
-Few of the URIs which needs to be supported in BMC are (there could be some change to OEM URI)
-Not all below URI is applicable to Air cooled switch.
+Few of the URIs which needs to be supported in BMC are below, please note there could be some change naming of OEM URI paths.
 
     1. GET /redfish/v1   
              -- Rack Manager to get switchBMC type eg: "SONiCBMC"
@@ -117,20 +116,35 @@ Not all below URI is applicable to Air cooled switch.
 
 #### 2.1.2.1 DB schema
 
-This is the DB schema used for passing the commands and alerts from Rack-manager to platform daemons via redfish interface.
+Redis DB will be used to store the command/data send from external Rack manager for the platform daemons to act upon.
 
 ```
 key                       = RACK_MANAGER_COMMAND|command         ; ComputerSystem.Reset from Rack Manager in STATE_DB
 ; field                   = value
-command                   = POWER_ON | POWER_OFF | POWER_CYCLE   ; 
-reason                    = STR                                  ; optional reason string
+command                   = POWER_ON | POWER_OFF | POWER_CYCLE   ; The commands
+timestamp                 = STR
 ```
 
 ```
-key                       = RACK_MANAGER_ALERT|alert             ; Alert data from Rack Manager in STATE_DB
+key                       = RACK_MANAGER_ALERT|Inlet_liquid_temperature    ; Alert data from Rack Manager in STATE_DB
 ; field                   = value
-name                      = STR                                  ; Alert due to Inlet_liquid_temperature|Inlet_liquid_flow_rate|Inlet_liquid_pressure|Rack_level_leak
-severity                  = "status"                             ;CRITICAL/MINOR
+severity                  = "status"                                       ;CRITICAL/MINOR
+timestamp                 = STR
+
+key                       = RACK_MANAGER_ALERT|Inlet_liquid_flow_rate      ; Alert data from Rack Manager in STATE_DB
+; field                   = value
+severity                  = "status"                                       ;CRITICAL/MINOR
+timestamp                 = STR
+
+key                       = RACK_MANAGER_ALERT|Inlet_liquid_pressure       ; Alert data from Rack Manager in STATE_DB
+; field                   = value
+severity                  = "status"                                       ;CRITICAL/MINOR
+timestamp                 = STR
+
+key                       = RACK_MANAGER_ALERT|Rack_level_leak             ; Alert data from Rack Manager in STATE_DB
+; field                   = value
+severity                  = "status"                                       ;CRITICAL/MINOR
+timestamp                 = STR
 ```  
 
 #### 2.1.3 Host-Bmc-Link
@@ -169,16 +183,18 @@ The Leak detection is applicable only to Liquid cooling platform. The action is 
     
         
 #### 2.1.6 BMC event logging
+
 The general syslogs will be placed in /var/log/syslog where /var/log directory will be mounted on **tmpfs **. Syslogs will be sent to remote server as well.
-The Leak, Switch-Host state and interactions, Rack-manager interactions will be stored on disk/eMMC in "bmc.log"
+The Leak, Switch-Host state and interactions, Rack-manager interactions will be persistently stored on disk/eMMC in "/host/bmc.log" (Note: yet to conclude on exact location )
 
 ### 2.2 BMC Platform Management
+
 The daemons present in pmon would be thermalctld, syseepromd, stormond.
-In Liquid cooled platforms a new daemon "bcmctld" will be introduced in pmon container on both BMC and Switch-Host
+In Liquid cooled platforms a new daemon "bmcctld" will be introduced in pmon container on both BMC and Switch-Host
 
 #### 2.2.1 BMC controller - bmcctld
 
-##### bmcctld on BMC
+##### 2.2.1.1 bmcctld on BMC
 
 The bmc controller daemon "bmcctld" is started first in BMC pmon container. The following logic is applied
 
@@ -215,43 +231,49 @@ Loop on this logic
  }
 ```
 
-##### bmcctld on Switch-Host
+###### DB schema
+This section covers the various tables which this daemon creates/uses in Redis DB on BMC
 
-The bmc controller daemon on the Switch-Host will subscribe to STATE DB table "BMC_TO_SWITCH_HOST_CMD" for any shutdown/reboot command from BMC.
+```
+key                                   = BMC_BOOTUP_TIMEOUT|default         ; Config DB on BMC
+; field                               = value
+boot_delay                            = float                              ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
+                                                                           ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events - Switch-Host will be powered on
+
+key                                   = HOST_STATE|switch-host             ; STATE_DB on BMC
+; field                               = value
+device_power                          = POWERED_ON | POWERED_OFF
+device_status                         = Online | Offline
+
+key                                   = SWITCH_HOST_REBOOT_TIMEOUT|default ; Config DB on BMC
+; field                               = value
+shutdown_delay                        = float                              ; Time in secs the BMC will wait after REBOOT command issued to Switch-Host. ( default = 2 min ).
+                                                                           ; if this timer expires, BMC will go ahead and POWER OFF switch-host
+
+```
+
+##### 2.2.1.2 bmcctld on Switch-Host
+
+The bmcctld daemon on the Switch-Host will subscribe to STATE DB table "BMC_TO_SWITCH_HOST_CMD" for any shutdown/reboot command from BMC.
 On receipt of this event, the Switch-Host will be shutdown/reboot gracefully.
 
-#### 2.2.1.1 DB schema
-This section covers the various DB tables which this daemon creates/uses
-
-```
-key                                   = BMC_BOOTUP_TIMEOUT|default   ; Config DB on BMC
-; field                               = value
-boot_delay                            = float                        ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
-                                                                     ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events - Switch-Host will be powered on
-```
-
-```
-key                                   = HOST_STATE|switch-host   ; STATE_DB on BMC
-; field                               = value
-device_state                          = POWERED_ON | POWERED_OFF
-device_status                         = Online | Offline
-```
-
+###### DB schema
+This section covers the various tables which this daemon creates/uses in Redis DB on BMC
 Below DB tables are enhancements to help support graceful reboot of Switch-Host before doing a power off, with a timeout configured in SWITCH_HOST_SHUT_TIMEOUT.
 We would need an instance of bmcctld running on Switch-Host as well to subscribe to these tables.
-**Note: ** To plan the criticality of this requirment.
+
+**Note: ** Still to validate if we need this infra to do a gracefull shutdown
 
 ```
 key                                   = BMC_TO_SWITCH_HOST_COMMAND|command   ; STATE_DB on Switch-Host
 ; field                               = value
-command                               = SHUTDOWN | SOFT_REBOOT               ; shutdown or soft reboot the Switch-Host
+command                               = SHUTDOWN | REBOOT                    ; shutdown or soft reboot the Switch-Host
 reason                                = STR                                  ; optional reason string
-```
+timestamp                             = STR
 
-```
-key                                   = SWITCH_HOST_SHUT_TIMEOUT|default   ; Config DB on BMC
+key                                   = BMC_STATE|bmc                        ; STATE_DB on Switch-Host
 ; field                               = value
-shutdown_delay                        = float                              ; Time in secs after SHUT command issued to Switch-Host should BMC do POWER OFF. ( default = 2 min ).
+device_status                         = Online | Offline
 ```
 
 #### 2.2.2 thermalctld
@@ -285,9 +307,7 @@ key                       = LIQUID_COOLING_DEVICE|leakage_sensors{X}  ; leak dat
 name                      = STR                                       ; sensor name
 leaking                   = STR                                       ; Yes or No to indicate leakage status
 severity                  = "status"                                  ;CRITICAL/MINOR
-```  
 
-```
 key                       = LEAK_STATUS|local                         ; local bmc leak status in STATE DB
 ; field                   = value
 device_leak_status        = "status"                                  ;CRITICAL/MINOR
@@ -318,7 +338,7 @@ This base class is already defined in sonic-platform-common.
 |---------|---------|----------|
 | get_name() | Y | Get leak sensor name |
 | is_leak() | Y | Is there a leak detected? |
-| get_severity() | New | Get the severity of leaks |
+| get_severity() | New | Get the severity of leaks based on criticality of zone |
 
 ---
 
