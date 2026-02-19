@@ -18,6 +18,7 @@
     - [7.3.4 CPO Joint Mode](#734-cpo-joint-mode)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
+  - [9.1 sfputil Changes](#91-sfputil-changes)
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Memory Consumption](#11-memory-consumption)
 - [12. Restrictions/Limitations](#12-restrictionslimitations)
@@ -378,14 +379,42 @@ There is a mode of operation for CPO hardware called "joint mode" where a single
 ![](./cpo_joint_mode.png)
 <br>
 
-The only difference in the above platform API design required to support joint mode is setting both the optical engine Sfp and ELSFP Sfp objects' I2C sysfs EEPROM paths to point to the same value -- the MCU's I2C sysfs EEPROM path. The rest of the platform API design remains the same.
+The only differences in the above platform API design required to support joint mode is the following:
+  - Both the optical engine Sfp and ELSFP Sfp objects' I2C sysfs EEPROM paths should be set to the same sysfs path (the MCU's I2C sysfs EEPROM path).
+  - The ELSFP should be initialized with a memory map that is aware of the memory layout that the MCU exposes (in joint mode, the ELSFP EEPROM will likely be mapped into some part of the MCU's address space).
+
+The rest of the platform API design remains the same.
 
 ### 8. SAI API 
 
 There are no changes to SAI API in this HLD.
 
 ### 9. Configuration and management 
-This HLD proposes no changes to configuration, or SONiC's database contents/schema, beyond the introduction of the `optical_devices.json` file.
+The introduction of a composite SFP abstraction will require changes to `sfputil`, because composite SFPs do not implement `read_eeprom()` and `write_eeprom()` methods and `sfputil` does not yet know how to reason about composite SFPs in general. `sfputil` will need to be modified to access the underlying SFPs inside a composite SFP directly.
+
+#### 9.1 sfputil Changes
+
+A new command will be added to `sfputil` to allow users to list all the names of the underlying Sfps in a composite Sfp.
+
+```
+$> sfputil show devices -p Ethernet4
+Device Name    Type
+-----------    ----
+OE1            Optical Engine
+ELS1           External Laser Source
+```
+
+In addition, all existing commands to query/manipulate transceivers will be modified to accept a new optional parameter `-d <device>` to specify the name of the underlying Sfp to query/manipulate. This parameter is not required for non-composite Sfps, but if not specified for a composite Sfp an error will be returned asking the user to specify a device.
+
+```
+$> sfputil show eeprom-hexdump -p Ethernet4
+Error: Ethernet4 is a composite SFP. Please specify a device using the -d option.
+To see the devices Ethernet4 is using, run `sfputil show devices -p Ethernet4`.
+$> sfputil show eeprom-hexdump -p Ethernet4 -d OE1
+...expected output...
+```
+
+`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_all_sfps()` and `get_sfp()` methods provided by the `CompositeSfpOptoeBase` interface.
 
 ### 10. Warmboot and Fastboot Design Impact  
 There is no warmboot/fastboot design impact for this HLD.
