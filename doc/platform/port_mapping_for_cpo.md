@@ -150,7 +150,10 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
         "4": "47,48",
         ...
       }
-    }
+    },
+    "OE2": {...},
+    "ELS2": {...},
+    ...
   },
   "interfaces": {
     "Ethernet0": {
@@ -167,7 +170,9 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
           "bank": 0
         }
       ]
-    }
+    },
+    "Ethernet8": {...},
+    ...
   },
 }
 ```
@@ -209,28 +214,26 @@ class CompositeSfpOptoeBase(abc.ABC, SfpOptoeBase):
     """
 
     @abc.abstractmethod
-    def get_all_sfps(self) -> typing.List[SfpOptoeBase]:
+    def get_internal_devices(self) -> typing.List[SfpOptoeBase]:
         """
-        Get a list of all Sfp objects that this composite class is
+        Get a list of all internal Sfp objects that this composite class is
         responsible for.
         """
         ...
   
     @abc.abstractmethod
-    def get_number_of_sfps(self) -> int:
+    def get_number_of_internal_devices(self) -> int:
         """
-        Get the number of Sfp objects that this composite class is
+        Get the number of internal Sfp objects that this composite class is
         responsible for.
         """
         ...
 
     @abc.abstractmethod
-    def get_sfp(self, name: str) -> SfpOptoeBase:
+    def get_internal_device(self, name: str) -> SfpOptoeBase:
         """
-        Get a specific Sfp object that this composite class is
+        Get a specific internal Sfp object that this composite class is
         responsible for.
-
-        TODO: Explain how to use the name parameter clearly.
         """
         ...
 
@@ -273,13 +276,13 @@ class CpoSfpBase(CompositeSfpOptoeBase):
         self._oe = oe
         self._els = els
 
-    def get_all_sfps(self) -> typing.List[SfpOptoeBase]:
+    def get_internal_devices(self) -> typing.List[SfpOptoeBase]:
         return [self._oe, self._els]
 
-    def get_number_of_sfps(self) -> int:
+    def get_number_of_internal_devices(self) -> int:
         return 2
 
-    def get_sfp(self, name: str) -> SfpOptoeBase:
+    def get_internal_device(self, name: str) -> SfpOptoeBase:
         if "OE" in name:
             return self._oe
         elif "ELS" in name:
@@ -326,7 +329,7 @@ class ElsfpApi(XcvrApi):
     ...
 ```
 
-Note that the above implementation in `CpoApi` delegates most method calls to the optical engine API by default, since the optical engine reports most information on CPO hardware. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_all_sfps()` and `get_sfp()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_sfp("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
+Note that the above implementation in `CpoApi` delegates most method calls to the optical engine API by default, since the optical engine reports most information on CPO hardware. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_all_internal_devices()` and `get_internal_device()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_internal_device("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
 
 ##### 7.3.3 Chassis and Composite SFP Creation
 
@@ -398,10 +401,10 @@ A new command will be added to `sfputil` to allow users to list all the names of
 
 ```
 $> sfputil show devices -p Ethernet4
-Device Name    Type
------------    ----
-OE1            Optical Engine
-ELS1           External Laser Source
+Device Name    Type                   Bank  Part Number  Vendor
+-----------    ---------------------  ----  -----------  ----------------
+OE1            Optical Engine         0     012345678    ExampleVendor
+ELS1           External Laser Source  0     123456789    ExampleVendorTwo
 ```
 
 In addition, all existing commands to query/manipulate transceivers will be modified to accept a new optional parameter `-d <device>` to specify the name of the underlying Sfp to query/manipulate. This parameter is not required for non-composite Sfps, but if not specified for a composite Sfp an error will be returned asking the user to specify a device.
@@ -414,7 +417,9 @@ $> sfputil show eeprom-hexdump -p Ethernet4 -d OE1
 ...expected output...
 ```
 
-`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_all_sfps()` and `get_sfp()` methods provided by the `CompositeSfpOptoeBase` interface.
+`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_all_internal_devices()` and `get_internal_device()` methods provided by the `CompositeSfpOptoeBase` interface.
+
+`sfputil` will require changes across most, if not all, commands to support the composite SFP abstraction. A separate HLD in the future will cover those changes in greater detail.
 
 ### 10. Warmboot and Fastboot Design Impact  
 There is no warmboot/fastboot design impact for this HLD.
