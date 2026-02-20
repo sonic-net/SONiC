@@ -36,6 +36,7 @@
 | 3.3 | Oct-31 2023 | Jie Feng (Arista Networks) | Update clear fabric counter commands |
 | 3.4 | May-05 2024 | Jie Feng (Arista Networks) | Update CLI |
 | 3.5 | Aug-12 2024 | Jie Feng (Arista Networks) | Update fabric link monitoring behavior on link down |
+| 3.6 | Oct-09 2025 | Jie Feng (Arista Networks) | Update fabric link monitoring behavior on persistent link flap |
 
 # Scope
 
@@ -223,8 +224,11 @@ Instead of reacting to the counter changes, Orchagent adds a new poller and peri
 
 When a fabric port goes down and then comes back up, whether due to a peer end card power cycle or peer end Orchange restart, the previous monitoring status and decision will be cleared unless the link is shutdown manually by the user via CLI.
 
+#### 2.8.1.3 Permanent isolate fabric links
 
-#### 2.8.1.3 Cli commands
+If a fabric port repeatedly and rapidly transitions between the isolate and unisolate states, resulting in instability, the algorithm places the link in a permanent isolated state. Currently, the threshold for triggering this condition is when a link flaps three times within a two-hour period. Recovery from this state requires manual user intervention via a CLI command.
+
+#### 2.8.1.4 Cli commands
 
 Several commands will be added to set fabric link monitor config parameters.
 ```
@@ -260,7 +264,8 @@ The above command sets the number of consecutive polls in which no error is dete
 > config fabric port unisolate [port_id] --force
 ```
 
-Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link ( i.e. take the link out of service and put the link back into service ). The two commands can help us debug on the system as well as a force option to unisolate a fabric link.
+Besides the fabric link monitoring algorithm, the above two commands are added. The commands can be used to manually isolate and unisolate a fabric link (i.e. take the link out of service and put the link back into service).
+The two commands can help us debug on the system as well as a force option to unisolate a fabric link or a permanently isolated link.
 
 
 An additional show command is also added to show the fabric link isolation status of a system.
