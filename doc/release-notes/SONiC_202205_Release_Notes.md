@@ -139,7 +139,7 @@ Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/pbh/pbh-
 #### Extend auto tech support for memory threshold
 Currently, techsupport is run by invoking show techsupport either by orchestration tools or manually. The techsupport dump also collects any core dump files available in the /var/core/ directory. However upon the techsupport invocation be made event-driven based on core dump generation, that would improve the debuggability which is implimented on this enhancement.
 
-Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/auto_techsupport_and_coredump_mgmt.md) and below mentioned PR's for more details. 
+Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/auto-techsupport/auto_techsupport_and_coredump_mgmt.md) and below mentioned PR's for more details. 
 <br>  **Pull Requests** : [939](https://github.com/sonic-net/SONiC/pull/939), [2116](https://github.com/sonic-net/sonic-utilities/pull/2116) & [10433](https://github.com/sonic-net/sonic-buildimage/pull/10433)
 
 
