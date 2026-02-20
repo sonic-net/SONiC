@@ -9,6 +9,7 @@
 | 0.5 | 10/14/2023 | Riff Jiang | Merged resource placement and topology section and moved detailed design out for better readability |
 | 0.6 | 10/22/2023 | Riff Jiang | Added ENI leak detection |
 | 0.7 | 10/13/2024 | Riff Jiang | Update HA control plane components graph to match with latest design update on database and gNMI. |
+| 0.8 | 01/16/2026 | Changrong Wu | Update HA state machine per latest discussions. |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
@@ -61,6 +62,7 @@
    3. [6.3. DPU-to-DPU liveness probe](#63-dpu-to-dpu-liveness-probe)
       1. [6.3.1. Card-level and ENI-level data plane failure](#631-card-level-and-eni-level-data-plane-failure)
       2. [6.3.2. ENI-level pipeline failure](#632-eni-level-pipeline-failure)
+      3. [6.3.3. Failure Notification](#633-failure-notication)
    4. [6.4. Probe state pinning](#64-probe-state-pinning)
       1. [6.4.1. Pinning BFD probe](#641-pinning-bfd-probe)
       2. [6.4.2. Pinning ENI-level traffic control state](#642-pinning-eni-level-traffic-control-state)
@@ -68,6 +70,19 @@
 7. [7. HA state machine](#7-ha-state-machine)
    1. [7.1. HA state definition and behavior](#71-ha-state-definition-and-behavior)
    2. [7.2. State transition](#72-state-transition)
+    1. [7.2.1 State: Dead](#721-state-dead)
+    2. [7.2.2 State: Connecting](#722-state-connecting)
+    3. [7.2.3 State: Connected](#723-state-connected)
+    4. [7.2.4 State: InitializingToActive](#724-state-initializingtoactive)
+    4. [7.2.5 State: InitializingToStandby](#725-state-initializingtostandby)
+    5. [7.2.6 State: PendingActiveRoleActivation](#726-state-pendingactiveroleactivation)
+    6. [7.2.7 State: PendingStandbyRoleActivation](#727-state-pendingstandbyroleactivation)
+    7. [7.2.8 State: Active](#728-state-active)
+    8. [7.2.9 State: Standby](#729-state-standby)
+    9. [7.2.10 State: Standalone](#7210-state-standalone)
+    10. [7.2.11 State: SwitchingToStandby](#7211-state-switchingtostandby)
+    11. [7.2.12 State: SwitchingToActive](#7212-state-switchingtoactive)
+    12. [7.2.13 State: Destroying](#7213-state-destroying)
    3. [7.3. Primary election](#73-primary-election)
    4. [7.4. HA state persistence and rehydration](#74-ha-state-persistence-and-rehydration)
 8. [8. Planned events and operations](#8-planned-events-and-operations)
@@ -672,6 +687,10 @@ The hard problem is how to really detect gray failure with generic probe mechani
 
 Hence, to summarize, we are skipping designing ENI-level pipeline probe here.
 
+#### 6.3.3. Failure Notication
+
+Although we let the vendors to design their own probing mechanism, we specify a uniform failure event notification interface: [DASH SAI event notification API](https://github.com/opencomputeproject/SAI/blob/master/experimental/saiswitchextensions.h). The health signal will be reflected in `dp_channel_is_alive` field in `DASH_HA_SET_STATE` table of `DPU_STATE_DB`.
+
 ### 6.4. Probe state pinning
 
 For each ENI, besides probing and handling the probe state update, we can also choose to pin the probe state to whatever state we like and use it as our final state. This is mostly designed for failure handling, where we want to force the packet to go to a certain place.
@@ -760,7 +779,7 @@ Here are all the states that each HA participants will go through to help us ach
 | Dead | HA participant is just getting created, and not connected yet. | No | Drop | Drop | No | No | No |  |
 | Connecting | Connecting to its peer. | No | Drop | Drop | No | No | No |  |
 | Connected | Connected to its peer, but starting primary election to join the HA set. | No | Drop | Drop | No | No | No |  |
-| InitializingToActive | Connected to pair for the first time, voted to be active. | No | Drop | Drop | No | No | No | We have to drop the packet at this moment, because we need to ensure the peer is ready to respond the flow replication traffic, otherwise the traffic will be dropped. |
+| InitializingToActive | Connected to pair for the first time, voted to be active. | No | Drop | Drop | No | No | Yes | We have to drop the packet at this moment, because we need to ensure the peer is ready to respond the flow replication traffic, otherwise the traffic will be dropped. |
 | InitializingToStandby | Connected to pair for the first time, voted to be standby. | No | Tunneled to pair | Tunneled to pair | Yes | No | No | It needs to wait until existing flows to be replicated before going to the next state. |
 | Destroying | Preparing to be destroyed. Waiting for existing traffic to drain out. | No | Tunneled to pair | Tunneled to pair | No | No | No | Wait for traffic to drain and doesn’t take any new traffic load. |
 | Active | Connected to pair and act as decision maker. | Yes | Yes | Yes | No | Yes | Yes |  |
@@ -768,6 +787,8 @@ Here are all the states that each HA participants will go through to help us ach
 | Standalone | Heartbeat to pair is lost. Acting like a standalone setup. | Yes | Yes | Yes | Yes | No | No | Acting like the peer doesn’t exist, hence skip all data syncs. <br/><br/>However, the peer can be still connected, because in certain failure cases, we have to drive the DPU to standalone mode for mitigation. |
 | SwitchingToActive | Connected and preparing to switch over to active. | No | Yes | Yes | Yes | Yes | No | SwitchingToActive state is a transient state to help old active moving to standby, hence it accepts flow sync from old active, as well as making decision and sync flow back, when old active moved to standby.<br/><br/>Bulk sync is not used in SwitchOver at all. |
 | SwitchingToStandby | Connected, leaving active state and preparing to become standby. | Yes | Tunneled to pair | Tunneled to pair | Yes | No | No | SwitchingToStandby is a transient state to help new active moving from SwitchingToActive state to active state. It is identical to standby except responding NPU probe to tunneling traffic. This is needed to make sure we always only have 1 decider at any moment during the transition.<br/><br/>Bulk sync is not used in SwitchOver at all. |
+| PendingActiveRoleActivation | Connected, waiting for approval to become active. | No | Drop | Drop | No | No | No | PendingActiveRoleActivation is an intermediate state where we allow the SDN controller to block the DPU until the flow programming has been completed. |
+| PendingStandbyRoleActivation | Connected, waiting for approval to become standby. | No | Tunneled to pair | Tunneled to pair | Yes | No | No | PendingStandbyRoleActivation is an intermediate state where we allow the SDN controller to block the DPU until the flow programming has been completed. |
 
 Here are the definitions of the columns above:
 
@@ -783,6 +804,98 @@ Here are the definitions of the columns above:
 The state transition graph is shown as below:
 
 <p align="center"><img alt="HA state transition" src="./images/ha-state-transition.svg"></p>
+
+The specification of each HA state and its transitions is detailed as follows:
+
+#### 7.2.1 State: Dead
+
+- On launch, initialize configurations and transition to *Connecting*
+
+#### 7.2.2 State: Connecting
+
+- Initiate connections to the peer DPU
+- On successful connection to the peer DPU, transition to *Connected*
+- On connection failures (after 3 retries), follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+
+#### 7.2.3 State: Connected
+
+- Initiate the voting process with the peer DPU by sending `RequestVote`
+- On acquiring the voting result, perform the following state changes:
+	* transition to *InitializingToActive* if won the vote
+	* transition to *InitializingToStandby* if lost the vote
+- If failed to get the voting result, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+- If the `RequestVote` is rejected by the peer, keep retrying.
+
+#### 7.2.4 State: InitializingToActive
+
+- Wait for the peer to acknowledge the completion of bulk sync via `BulkSyncCompletedAck` event
+- On receiving the acknowledgement, transition to *PendingActiveRoleActivation*
+- On timeout, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+- On detecting local failures, transition to *Standby*
+
+#### 7.2.5 State: InitializingToStandby
+
+- Wait for the peer to confirm the completion of bulk sync via `BulkSyncCompleted` event
+- On receiving the acknowledgement, transition to *PendingStandbyRoleActivation*
+- On timeout, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+- On detecting local failures, transition to *Standby*
+
+#### 7.2.6 State: PendingActiveRoleActivation
+
+- Request the approval to be active DPU from SDN controller
+- Wait until received the approval, transition to *Active*
+
+#### 7.2.7 State: PendingStandbyRoleActivation
+
+- Request the approval to be standby DPU from SDN controller
+- Wait until received the approval, transition to *Standby*
+
+#### 7.2.8 State: Active
+
+- DPU carrying traffic and replicating flows to the standby peer inline
+- Listening for `PlannedSwitchover` and `PlannedPeerShutdown` from the SDN controller
+	* On receiving `PlannedSwitchover` and acknowledgement from the peer DPU, transition to *SwitchingToStandby*
+	* On receiving `PlannedPeerShutdown`, transitiont to *Standalone*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+
+#### 7.2.9 State: Standby
+
+- DPU not carrying traffic and forwarding traffic to the active peer
+- Listening for `PlannedSwitchover` and `PlannedShutdown`
+	* On receiving `PlannedSwitchover`, transition to *SwitchingToActive*
+	* On receiving `PlannedShutdown`, transition to *Destroying*
+- Listening for health signals
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+
+#### 7.2.10 State: Standalone
+
+- DPU carrying traffic
+- Listening for `HAStateChanged` events from peer
+	* On receiving `HAStateChanged` from the peer, transition to *Active*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+
+#### 7.2.11 State: SwitchingToStandby
+
+- Set up tunnel to forward traffic to the peer DPU
+- On receiving acknowledgement from the peer DPU being Active, transition to *Standby*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+
+#### 7.2.12 State: SwitchingToActive
+
+- On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, transition to *Active*
+- Listening for health signals
+	* On local DPU failure, transition to *Standby*
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+
+#### 7.2.13 State: Destroying
+
+- Draining traffic
+- After the traffic is drained, transition to *Dead*
 
 ### 7.3. Primary election
 
@@ -858,11 +971,14 @@ Once ENIs are created, they will start the clean launch process:
 1. Both DPUs will start with `Dead` state.
 2. During launch, they will move to `Connecting` state and start to connect to its peer.
 3. Once connected, they will start to send `RequestVote` to its peer with its own information, such as Term, to start Primary election process. This will decide which of them will become Active or Standby.
-4. Say, DPU0 will become active. Then, DPU0 will start to move to `InitializingToActive` state, while its peer moves to `InitializingToStandby` state.
-5. Once DPU0 receives `HAStateChanged` event and knows DPU1 is ready, DPU0 will:
-    1. Move to `Active` state. This will cause ENI traffic forwarding rule to be updated, and make the traffic start to flow.
-    2. Send back `BulkSyncDone` event, since there is nothing to sync.
-6. Once received `BulkSyncDone` event, DPU1 will move to `Standby` state. DPU1 will also receive `HAStateChanged` event from DPU0, which updates the Term from 0 to 1.
+4. Say, DPU0 won the vote and is set to become active. Then, DPU0 will start to move to `InitializingToActive` state, while its peer moves to `InitializingToStandby` state.
+6. NPU associated with DPU1 will activate the standby role of DPU1 by setting the ha_role field to `Standby`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+7. When DPU0 receives `HAStateChanged` (Connected -> InitializingToStandby) from DPU1, it will move to `PendingActiveRoleActivation` state.
+8. Upon approval from SDN, DPU0 will move to `Active` state and update the Term from 0 to 1.
+9. DPU0 will send a `BulkSyncDone` message to DPU1 immediately since there is no flow to sync.
+10. When DPU1 receives `BulkSyncDone`, it enters `PendingStandbyRoleActivation`.
+11. Once received approval from SDN, the HA state machine of DPU1 will move to `Standby` state.
+12. DPU1 will update its term when it received `HAStateChanged` (PendingActiveRoleActivation -> Active) message from DPU0.
 
 To summarize the workflow, here is the sequence diagram:
 
@@ -875,6 +991,7 @@ sequenceDiagram
     participant S1N as Switch 1 NPU
     participant S1D as Switch 1 DPU<br>(Desired Standby)
     participant SA as All Switches
+    participant SDN as SDN controller
 
     S0N->>S0N: Move to Connecting state
     S1N->>S1N: Move to Connecting state
@@ -886,16 +1003,24 @@ sequenceDiagram
 
     S0N->>S0N: Move to InitializingToActive state
     S1N->>S1N: Move to InitializingToStandby state
+    
     S1N->>S1D: Activate standby role
-    S1N->>S0N: Send HAStateChanged event
+    S1N->>S0N: HAStateChanged, Connected->InitializingToStandby
 
-    S0N->>S1N: Send BulkSyncDone event
+    S0N->>S0N: Move to PendingActiveRoleActivation state
+    S0N->>SDN: Request Approval to be Active
+    SDN->>S0N: Approval to be active
     S0N->>S0N: Move to Active state<br>and move to next term (Term 1)
     S0N->>S0D: Activate active role with term 1
+    S0N->>S1N: HAStateChanged, PendingActiveRoleActivation->Active
+    S0N->>S1N: Bulk Sync Done
+    S1N->>S1N: Move to PendingStandbyRoleActivation state
+    S1N->>SDN: Request Approval to be Standby
+
     S0N->>SA: Update ENI traffic forwarding<br>rule next hop to DPU0
     Note over S0N,SA: From now on, traffic will be forwarded<br>from all NPUs to DPU0
-    S0N->>S1N: Send HAStateChanged event
-
+    
+    SDN->>S1N: Approval to be standby
     S1N->>S1N: Move to Standby state and update its term
 ```
 
@@ -912,11 +1037,15 @@ Once created, the new ENI will go through similar steps as above and join the HA
 3. The primary election response will move the new node to `InitializingToStandby` state.
     * Using `RequestVote` method is trying to make the launch process simple, because the pair could also be doing a clean start, so we are not determined to become standby, but also might become the active.
     * If the DPU0 is pinned to standalone state, we can reject the `RequestVote` message with retry later.
-4. DPU1 sends `HAStateChanged` event to DPU0, so DPU0 knows DPU1 is ready. Then it moves to `Active` state, which will,
+4. NPU associated with DPU1 will activate the standby role of DPU1 by setting the ha_role field to `Standby`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+5. DPU1 sends `HAStateChanged` (Connected -> InitializingToStandby) event to DPU0, so DPU0 knows DPU1 is ready. Then it moves to `Active` state, which will,
     1. Start replicating flows inline.
-    2. Start bulk sync to replicate all old flows.
+    2. Start bulk sync to replicate all old flows (by adding a new entry in DASH_FLOW_SYNC_SESSION_TABLE of DPU_APPL_DB.).
     3. Move to next term, because the flow replication channel is re-established.
-5. When entering `Active` state, DPU0 will also send out `HAStateChanged` event to sync the term across, but DPU1 should save this update and postpone it until it moves to standby state. This is to ensure all previous flow is copied over. After bulk sync is done, DPU0 will send `BulkSyncDone` event to DPU1 to move DPU1 to `Standby`.
+6. The DPU1 will accept bulk sync from the DPU0. Upon completion, DPU1 will move to `PendingStandbyRoleActivation` state.
+7. DPU0 will send `HAStateChanged` (Standalone -> Active) to DPU1 with the new term, but DPU1 should save this update and postpone it until it moves to standby state. This is to ensure all previous flow is copied over. 
+8. Upon receiving the approval from SDN controller, DPU1 moves to `Standby` state.
+
 
 To summarize the workflow, here is the sequence diagram:
 
@@ -929,6 +1058,7 @@ sequenceDiagram
     participant S1N as Switch 1 NPU
     participant S1D as Switch 1 DPU<br>(Initial Dead)
     participant SA as All Switches
+    participant SDN as SDN controller
 
     S1N->>S1N: Move to Connecting state
 
@@ -939,15 +1069,16 @@ sequenceDiagram
     S0N->>S1N: Respond BecomeStandby
 
     S1N->>S1N: Move to InitializingToStandby state
-    S1N->>S1D: Activate standby role
-    S1N->>S0N: Send HAStateChanged event
-
+    S1N->>S1D: Active standby role
+    S1N->>S0N: HAStateChanged, Connected->InitializingToStandby
     S0N->>S0N: Move to Active state and move to next term
     S0N->>S0D: Activate active role with new term
-    S0N->>S0D: Start bulk sync
-    S0N->>S1N: Send HAStateChanged event
-
-    S0N->>S1N: Send BulkSyncDone event
+    S0N->>S0D: Start Bulk Sync
+    S0N->>S1N: Bulk Sync Done
+    S0N->>S1N: HAStateChanged, Standalone->Active
+    S1N->>S1N: Move to PendingStandbyRoleActivation state
+    S1N->>SDN: Request Approval to be Standby
+    SDN->>S1N: Approval to be Standby
     S1N->>S1N: Move to Standby state and update its term to match its peer
 ```
 
@@ -1151,6 +1282,8 @@ Because each ENI is programmed independently with our northbound interface, the 
 
 4. DPU1 can now move to `Destroying` state. In `Destroying` state, the DPU will wait for existing flow replication traffic to drain.
 
+    The NPU associated with DPU1 will set the ha_role field to `Dead`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
+    Starting from this, the DPU1 should drain flow replication traffic.
     Since DPU1 state is changed, it will still send back `HAStateChanged` message, but the message will not trigger any action.
 
     <p align="center"><img alt="HA planned shutdown standby step 4" src="./images/ha-planned-events-shutdown-step-4.svg"></p>
@@ -1326,7 +1459,7 @@ This probe is mostly used for determining if the NPU (no matter if it owns the D
 
 The detailed mechanism is described in "[Card level NPU-to-DPU liveness probe](#61-card-level-npu-to-dpu-liveness-probe)" and "[All probe state altogether](#65-all-probe-states-altogether)" sections. The detailed data path is described in "[NPU-to-DPU traffic forwarding](#421-eni-level-npu-to-dpu-traffic-forwarding)" section.
 
-##### 9.1.4.2. Data plane gray failure
+##### 9.1.4.2. DPU-to-DPU Data plane gray failure
 
 When data plan channel failure occurs, it is very important to avoid making a gray failure becoming 100% down. See "[DPU-to-DPU Data Plane Channel](#4352-dpu-to-dpu-data-plane-channel)" for more information.
 
