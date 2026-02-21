@@ -196,25 +196,25 @@ We will require some changes to the SONiC platform APIs in order to support mult
 
 ##### 7.3.1 The Composite SFP Interface
 
-We will define a `CompositeSfpOptoeBase` interface, so that it is possible to define composite "logical" SFPs that consist of multiple independent `SfpOptoeBase` derived objects. This allows us to present a single logical view/transceiver to application code despite there being multiple independent, and possibly shared, hardware devices backing the logical transceiver.
+We will define a `CompositeSfpBase` interface, so that it is possible to define composite "logical" SFPs that consist of multiple independent `SfpOptoeBase` derived objects. This allows us to present a single logical view/transceiver to application code despite there being multiple independent, and possibly shared, hardware devices backing the logical transceiver.
 
-An important consequence of the below `CompositeSfpOptoeBase` interface is that there is no concept in software that the underlying hardware is shared -- software treats each composite Sfp as an independent device, even if that is not true in reality. As a result, protection against issues like concurrent I2C operations is left up to downstream components (for instance, the optoe driver for reading/writing to transceiver EEPROMs over I2C acquires a lock for each I2C read/write).
+An important consequence of the below `CompositeSfpBase` interface is that there is no concept in software that the underlying hardware is shared -- software treats each composite Sfp as an independent device, even if that is not true in reality. As a result, protection against issues like concurrent I2C operations is left up to downstream components (for instance, the optoe driver for reading/writing to transceiver EEPROMs over I2C acquires a lock for each I2C read/write).
 
 ```python
 # sonic-platform-common/sonic_platform_base/sonic_xcvr/composite_sfp_base.py
 import abc
 import typing
-from sonic_platform_base.sonic_xcvr.sfp_optoe_base import SfpOptoeBase
+from sonic_platform_base.sfp_base import SfpBase
 from sonic_platform_base.sonic_xcvr.api.xcvr_api import XcvrApi
 
-class CompositeSfpOptoeBase(abc.ABC, SfpOptoeBase):
+class CompositeSfpBase(abc.ABC, SfpBase):
     """
-    Interface for a class that composes multiple SfpOptoeBase derived objects
+    Interface for a class that composes multiple SfpBase derived objects
     to present a single logical transceiver.
     """
 
     @abc.abstractmethod
-    def get_internal_devices(self) -> typing.List[SfpOptoeBase]:
+    def get_internal_devices(self) -> typing.List[SfpBase]:
         """
         Get a list of all internal Sfp objects that this composite class is
         responsible for.
@@ -230,7 +230,7 @@ class CompositeSfpOptoeBase(abc.ABC, SfpOptoeBase):
         ...
 
     @abc.abstractmethod
-    def get_internal_device(self, name: str) -> SfpOptoeBase:
+    def get_internal_device(self, name: str) -> SfpBase:
         """
         Get a specific internal Sfp object that this composite class is
         responsible for.
@@ -266,11 +266,11 @@ We will need a composite sfp subclass and XcvrApi subclass to be implemented for
 ```python
 # sonic-platform-common/sonic_platform_base/sonic_xcvr/cpo_base.py
 import typing
-from sonic_platform_base.sonic_xcvr.composite_sfp import CompositeSfpOptoeBase
+from sonic_platform_base.sonic_xcvr.composite_sfp import CompositeSfpBase
 from sonic_platform_base.sonic_xcvr.sfp_optoe_base import SfpOptoeBase
 from sonic_platform_base.sonic_xcvr.api.public.cpo import CpoApi
 
-class CpoSfpBase(CompositeSfpOptoeBase):
+class CpoSfpOptoeBase(SfpOptoeBase, CompositeSfpBase):
     def __init__(self, oe: SfpOptoeBase, els: SfpOptoeBase) -> None:
         super().__init__()
         self._oe = oe
@@ -417,7 +417,7 @@ $> sfputil show eeprom-hexdump -p Ethernet4 -d OE1
 ...expected output...
 ```
 
-`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_all_internal_devices()` and `get_internal_device()` methods provided by the `CompositeSfpOptoeBase` interface.
+`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_all_internal_devices()` and `get_internal_device()` methods provided by the `CompositeSfpBase` interface.
 
 `sfputil` will require changes across most, if not all, commands to support the composite SFP abstraction. A separate HLD in the future will cover those changes in greater detail.
 
