@@ -32,6 +32,7 @@
 
 |  Rev  |    Date    |       Author        | Change Description                        |
 | :---: | :--------: | :-----------------: | :---------------------------------------- |
+| 2.6.1 | 02/23/2026 |    Lawrence Lee     | Change 'trusted_vnis' field to 'trusted_vnis_list' |
 |  2.6  | 10/27/2025 |    Lawrence Lee     | Move route rule priority to key |
 |  2.5  | 06/13/2025 |    Lawrence Lee     | Add DB schema for PL redirect map         |
 |  2.4  | 02/05/2025 |    Prince Sunny     | Update DASH_TUNNEL, FNIC, minor clarifications  |
@@ -387,7 +388,7 @@ DASH_ENI_TABLE:{{eni}}
     "v6_meter_policy_id": {{string}} (OPTIONAL)
     "disable_fast_path_icmp_flow_redirection": {{bool}} (OPTIONAL)
     "mode": {{floating_nic_mode/vm_mode}} (OPTIONAL)
-    "trusted_vni": {{vni list}} (OPTIONAL)
+    "trusted_vnis_list": {{vni list}} (OPTIONAL)
 ```
 ```
 key                      = DASH_ENI_TABLE:eni ; ENI MAC as key
@@ -403,7 +404,7 @@ v4_meter_policy_id	 = IPv4 meter policy ID
 v6_meter_policy_id	 = IPv6 meter policy ID
 disable_fast_path_icmp_flow_redirection = Disable handling fast path ICMP flow redirection packets
 mode                     = floating nic mode or vm mode. Default is 'vm_mode'
-trusted_vni              = list of trusted VNIs for this ENI, single value or "-" for range both inclusive. MSEE VNIs can added here temporarily.
+trusted_vnis_list              = list of trusted VNIs for this ENI, single value or "-" for range both inclusive. MSEE VNIs can added here temporarily.
 ```
 
 ### 3.2.4 TAG
@@ -523,7 +524,7 @@ DASH_APPLIANCE_TABLE:{{appliance_id}}
     "vm_vni": {{vni}}
     "local_region_id": {{region_id}}
     "outbound_direction_lookup": {{dst_mac/src_mac}} (OPTIONAL)
-    "trusted_vnis": {{vni list}} (OPTIONAL)
+    "trusted_vnis_list": {{vni list}} (OPTIONAL)
 ```
 
 ```
@@ -533,7 +534,7 @@ sip                      = source ip address, to be used in encap
 vm_vni                   = VM VNI that is used for setting direction. Also used for inbound encap to VM
 local_region_id          = Region where this appliance is located
 outbound_direction_lookup= dst_mac or src_mac; Default is src_mac. This attribute overrides to dst_mac
-trusted_vnis             = list of global trusted VNIs, single value or "-" for range both inclusive.
+trusted_vnis_list             = list of global trusted VNIs, single value or "-" for range both inclusive.
 ```
 
 ### 3.2.9 ROUTE LPM TABLE - OUTBOUND
