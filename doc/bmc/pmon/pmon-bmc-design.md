@@ -62,7 +62,7 @@ This section captures the functional requirements for platform monitoring and ma
     
 ### 1.2. BMC Platform Stack
 
-<Add a pic with pmon in BCM and pmon/redis in Switch-Host - via the usb interface>
+![BMC Platform Stack](images/sonic-bmc-arch.png)
 
 ## 2. Detailed Architecture and workflows
 ### 2.1 BMC platform
@@ -88,8 +88,9 @@ If it is Air cooled switch the Switch-Host is powered on immediately.
 If it is liquid cooled, the following actions are done before the Switch-Host is powered on.
 * "thermalctld" checks local leaks and external Leaks if any reported by Rack Manager
 * "bmcctld" to send a POWER_ON command to Switch-host if all clear.    
-    
-<img width="556" height="725" alt="bmc_1" src="https://github.com/user-attachments/assets/5896f8e4-da32-4e2c-846f-80a7a3bb104d" />
+
+![BMC platform power up](images/sonic-bmc-bootup.png)
+
 
 #### 2.1.2 BMC Rack Manager Interaction
 The new docker container "redfish" in sonicBMC will have openbmc/bmcweb service which terminates the redfish calls from the rack Manager.
