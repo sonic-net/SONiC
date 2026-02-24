@@ -19,6 +19,7 @@
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
   - [9.1 sfputil Changes](#91-sfputil-changes)
+  - [9.2 Config DB Enhancements](#92-config-db-enhancements)
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Memory Consumption](#11-memory-consumption)
 - [12. Restrictions/Limitations](#12-restrictionslimitations)
@@ -420,6 +421,166 @@ $> sfputil show eeprom-hexdump -p Ethernet4 -d OE1
 `sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_all_internal_devices()` and `get_internal_device()` methods provided by the `CompositeSfpBase` interface.
 
 `sfputil` will require changes across most, if not all, commands to support the composite SFP abstraction. A separate HLD in the future will cover those changes in greater detail.
+
+#### 9.2 Config DB Enhancements
+
+Schema changes will be required in CONFIG_DB to store the information encoded in optical_devices.json.
+
+The `associated_devices` field will be added to the PORT table, so that the mapping of interface to devices is stored in CONFIG_DB.
+```yang
+list associated_devices {
+    description "List of optical devices associated with this interface";
+    key "device_id";
+
+    leaf device_id {
+        description "Reference to an optical device";
+        type string {
+            length 1..16;
+        }
+    }
+
+    leaf bank {
+        description "CMIS bank number on the device that this interface uses."
+        type uint8 {
+            range "0..7";
+        }
+    }
+}
+```
+
+A new OPTICAL_DEVICES table will be added to CONFIG_DB to store information about each device associated with a port (optical engine, external laser source, etc.).
+```yang
+// sonic-yang-models/yang-models/sonic-optical-devices.yang
+
+module sonic-optical-devices {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-optical-devices";
+    prefix optical;
+
+    import sonic-types {
+        prefix stypes;
+    }
+
+    import sonic-extension {
+        prefix ext;
+    }
+
+    import sonic-port {
+        prefix port;
+    }
+
+    description "OPTICAL_DEVICES yang Module for SONiC OS - Configuration for optical engines,
+                 external laser sources, and other optical devices";
+
+    revision 2026-02-23 {
+        description "Initial revision";
+    }
+
+    typedef device-type {
+        type enumeration {
+            enum optical_engine {
+                description "Optical engine device (e.g., CPO optical engine)";
+            }
+            enum external_laser_source {
+                description "External laser source device";
+            }
+            enum optical_engine_rx {
+                description "Receive-only optical engine";
+            }
+            enum optical_engine_tx {
+                description "Transmit-only optical engine";
+            }
+        }
+        description "Type of optical device";
+    }
+
+    container sonic-optical-devices {
+
+        container OPTICAL_DEVICE {
+
+            description "OPTICAL_DEVICE part of config_db.json - Defines optical devices
+                         such as optical engines and external laser sources";
+
+            list OPTICAL_DEVICE_LIST {
+
+                key "device_id";
+
+                leaf device_id {
+                    description "Unique identifier for the optical device (e.g., OE1, ELS1)";
+                    type string {
+                        length 1..16;
+                    };
+                    mandatory true;
+                }
+
+                leaf device_type {
+                    description "Type of optical device - determines which fields are applicable";
+                    type device-type;
+                    mandatory true;
+                }
+
+                leaf max_banks {
+                    description "Number of CMIS banks associated with this device";
+                    type uint8 {
+                        range "1..8";
+                    }
+                }
+
+                leaf lanes {
+                    description "Comma-separated list of physical lane numbers available in this device.
+                                 Example: '41,42,43,44,45,46,47,48'";
+                    type string {
+                        length 1..1024;
+                    }
+                }
+
+                leaf lasers {
+                    description "Number of individual lasers this device provides (for external_laser_source type)";
+                    type uint16 {
+                        range "1..256";
+                    }
+                }
+
+                leaf i2c_path {
+                    description "I2C device path for accessing this device (platform-dependent).
+                                 Example: '/sys/bus/i2c/devices/32-0050'";
+                    type string {
+                        length 1..256;
+                    }
+                }
+
+                list laser_to_lane_mapping {
+                    description "Mapping of laser number to the lanes it powers (for external_laser_source type)";
+                    key "laser_id";
+
+                    leaf laser_id {
+                        description "Laser identifier (1-based index)";
+                        type uint16 {
+                            range "1..256";
+                        }
+                    }
+
+                    leaf lanes {
+                        description "Comma-separated list of lane numbers powered by this laser.
+                                     Example: '41,42'";
+                        type string {
+                            length 1..256;
+                        }
+                        mandatory true;
+                    }
+                }
+            }
+            /* end of list OPTICAL_DEVICE_LIST */
+        }
+        /* end of container OPTICAL_DEVICE */
+    }
+    /* end of container sonic-optical-devices */
+}
+/* end of module sonic-optical-devices */
+```
+
 
 ### 10. Warmboot and Fastboot Design Impact  
 There is no warmboot/fastboot design impact for this HLD.
