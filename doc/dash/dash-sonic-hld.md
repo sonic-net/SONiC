@@ -774,7 +774,7 @@ See [PL redirect map HLD](https://github.com/sonic-net/DASH/blob/main/documentat
 |                                    |              | vm_vni                    | sai_direction_lookup_entry_t.VNI                                                                |                                                                                            |
 |                                    |              | local_region_id           | SAI_DASH_APPLIANCE_ATTR_LOCAL_REGION_ID                                                         |                                                                                            |
 |                                    |              | outbound_direction_lookup | SAI_DIRECTION_LOOKUP_ENTRY_ATTR_ACTION                                                          | Also used to determine value of SAI_DIRECTION_LOOKUP_ENTRY_ATTR_DASH_ENI_MAC_OVERRIDE_TYPE |
-|                                    |              | trusted_vnis              | sai_global_trusted_vni_entry_t.vni_range                                                        |                                                                                            |
+|                                    |              | trusted_vnis_list         | sai_global_trusted_vni_entry_t.vni_range                                                        |                                                                                            |
 | DASH_ENI_ROUTE_TABLE               |              |                           |                                                                                                 |                                                                                            |
 |                                    | eni          |                           |                                                                                                 |                                                                                            |
 |                                    |              | group_id                  | SAI_ENI_ATTR_OUTBOUND_ROUTING_GROUP_ID                                                          |                                                                                            |
@@ -808,7 +808,7 @@ See [PL redirect map HLD](https://github.com/sonic-net/DASH/blob/main/documentat
 |                                    |              | v4_meter_policy_id        | SAI_ENI_ATTR_V4_METER_POLICY_ID                                                                 |                                                                                            |
 |                                    |              | v6_meter_policy_id        | SAI_ENI_ATTR_V6_METER_POLICY_ID                                                                 |                                                                                            |
 |                                    |              | mode                      | SAI_ENI_ATTR_DASH_ENI_MODE                                                                      |                                                                                            |
-|                                    |              | trusted_vni               | sai_eni_trusted_vni_entry_t.vni_range                                                           |                                                                                            |
+|                                    |              | trusted_vnis_list         | sai_eni_trusted_vni_entry_t.vni_range                                                           |                                                                                            |
 | DASH_ACL_V4_IN_TABLE               |              |                           |                                                                                                 | Same for V6                                                                                |
 |                                    | eni          |                           |                                                                                                 |                                                                                            |
 |                                    |              | stage                     | SAI_ENI_ATTR_INBOUND_V4_stage_DASH_ACL_GROUP_ID                                                 | STAGE1..STAGE5                                                                             |
@@ -1718,7 +1718,7 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
             "vm_vni": "20",
             "local_region_id": "2",
             "outbound_direction_lookup": "dst_mac",
-            "trusted_vni": "100"
+            "trusted_vnis_list": ["100"]
         },
         "OP": "SET"
     },
@@ -1745,7 +1745,7 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
 	    "vnet": "Vnet1",
             "pl_sip_encoding": "::cb3a:16e5:ff71:0:0/::ffff:ffff:ffff:0:0"
 	    "mode": "floating_nic_mode",
-	    "trusted_vni": "1000"
+	    "trusted_vnis_list": ["1000"]
         },
         "OP": "SET"
     },
