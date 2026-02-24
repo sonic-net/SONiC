@@ -372,6 +372,7 @@ class VendorCpoChassis(ChassisBase):
         # Create a composite SFP to represent this interface
         assert oe, "No optical engine found for this interface"
         assert elsfp, "No ELSFP found for this interface"
+        # VendorCpoSfp would be a subclass of CpoSfpOptoeBase here.
         self._sfp_list.append(VendorCpoSfp(oe=oe, elsfp=elsfp))
 ```
 
