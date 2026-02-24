@@ -2844,7 +2844,7 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 
 ### 4.7 Rollback flow
 
-![rollback flow](images/rollback_mdb.png)
+![rollback flow](images/rollback_mdb.jpg)
 
 1. REST client can send any of the write commands such as POST, PUT, PATCH, or DELETE and it will be handled by the REST Gateway.
 2. All handlers in the REST Gateway will invoke a command request handler.
