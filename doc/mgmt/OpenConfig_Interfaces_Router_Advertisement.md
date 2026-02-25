@@ -144,25 +144,21 @@ The implementation uses transformer functions in `translib/transformer/xfmr_intf
 
 #### Table 2: OpenConfig YANG to SONiC YANG Mapping
 
-| OpenConfig YANG Node | SONiC YANG File | DB Name | Table:Field | Notes |
-|---------------------|-----------------|---------|-------------|-------|
-| **router-advertisement** | | | | |
-| config/suppress | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_suppress_ra | Suppress RA on VLAN interface |
-| config/managed | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_managed_config_flag | M-flag for stateful DHCPv6 |
-| config/other-config | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_other_config_flag | O-flag for DHCPv6 other configuration |
-| state/suppress | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_suppress_ra | Read-only, mirrors config |
-| state/managed | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_managed_config_flag | Read-only, mirrors config |
-| state/other-config | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_other_config_flag | Read-only, mirrors config |
-| **prefixes** | | | | |
-| prefix[prefix=X]/config/prefix | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:`<key>` | Key format: VlanX\|prefix |
-| prefix[prefix=X]/config/disable-autoconfiguration | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:disable_autoconfiguration | Disable SLAAC for prefix |
-| prefix[prefix=X]/state/prefix | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:`<key>` | Read-only, mirrors config |
-| prefix[prefix=X]/state/disable-autoconfiguration | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:disable_autoconfiguration | Read-only, mirrors config |
+| OpenConfig YANG Node | SONiC YANG File | DB Name | Table:Field |
+|---------------------|-----------------|---------|-------------|
+| **router-advertisement** | | | |
+| config/suppress | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_suppress_ra |
+| config/managed | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_managed_config_flag |
+| config/other-config | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_other_config_flag |
+| **prefixes** | | | |
+| prefix[prefix=X]/config/prefix | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:`<key>` |
+| prefix[prefix=X]/config/disable-autoconfiguration | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:disable_autoconfiguration |
 
 **Notes:**
 - **Bold** entries indicate major feature categories/containers
 - Router Advertisement is only supported on VLAN interfaces (routed-vlan)
 - Key format for VLAN_INTERFACE_ND_PREFIX: `"VlanX|ipv6-prefix"`
+- State nodes mirror their corresponding config nodes and are read-only
 - State nodes mirror config nodes (read-only)
 
 **Key Transformers:**
