@@ -1,7 +1,7 @@
 # OpenConfig support for System features
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -44,7 +44,7 @@
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
 | 0.1 | 06/21/2024  | Anukul Verma          | Initial version                   |
-| 0.2 | 02/25/2026  | Anukul Verma          | Adding details on NTP server state and cpu |
+| 0.2 | 02/25/2026  | Anukul Verma          | Adding mapping for NTP server and cpu state nodes |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration/management of System features in SONiC corresponding to openconfig-system.yang module and its sub-modules.
@@ -423,7 +423,6 @@ This HLD design is in line with the [https://github.com/sonic-net/SONiC/blob/mas
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
 There are no changes to CONFIG DB schema definition.  
-For software-version, new table will be added, namely VERSIONS|SOFTWARE.
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
@@ -438,9 +437,9 @@ New tables will be added along with support for some paths. These are:
 - CREDENTIALS|SSH_ACCOUNT
 - CREDENTIALS|SSH_HOST
 - COMPONENT_STATE_TABLE|*
-- CPU_STATS|* (CPU state monitoring)
+- CPU_STATS|*
 - HOST_STATS|CONFIG
-- NTP_SERVER_STATE|* (NTP server state monitoring)
+- NTP_SERVER|*
 - PATHZ_TABLE|*
 
 ### 3.2.4 ASIC DB
@@ -462,7 +461,7 @@ Main changes in the latest openconfig versions are:
     * system/state -> up-time, software-version, last-configuration-timestamp nodes are added.
     * system/cpus -> CPU state monitoring support added with real-time utilization metrics (instant, avg, min, max) from STATE_DB.CPU_STATS.
     * ntp -> source-address moved to per server list from global container. Also network-instance is included per server. NTP Key reference is added in server.
-    * ntp/servers/server/state -> NTP server state monitoring support added with runtime statistics (stratum, offset, root-delay, root-dispersion, poll-interval) from STATE_DB.NTP_SERVER_STATE.
+    * ntp/servers/server/state -> NTP server state monitoring support added with runtime statistics (stratum, offset, root-delay, root-dispersion, poll-interval) from STATE_DB.NTP_SERVER.
     * grpc-server -> Restructured completely, multiple server provision is added.
     * logging -> For remote-server, network-instance support is added. Files & VTY containers are added newly.
     * memory -> used and free leaves are added.
@@ -720,17 +719,13 @@ Example list of xpaths which can be used for subscription
 "/openconfig-system:system/messages/config"
 "/openconfig-system:system/ssh-server/config"
 "/openconfig-system:system/clock/config"
-"/openconfig-system:system/processes/process[pid=<>]"
+"/openconfig-system:system/processes/process[pid=<>/*]"
 "/openconfig-system:system/dns/config"
 "/openconfig-system:system/ntp/config"
 "/openconfig-system:system/ntp/ntp-keys/ntp-key[key-id=<>]/config"
 "/openconfig-system:system/ntp/servers/server[address=<>]/config"
-"/openconfig-system:system/ntp/servers/server[address=<>]/state"
-"/openconfig-system:system/ntp/servers/server[address=<>]/state/stratum"
-"/openconfig-system:system/ntp/servers/server[address=<>]/state/offset"
-"/openconfig-system:system/cpus/cpu[index=all]/state"
+"/openconfig-system:system/ntp/servers/server[address=<>/*]/state"
 "/openconfig-system:system/cpus/cpu[index=0]/state"
-"/openconfig-system:system/cpus/cpu[index=*]/state"
 ```
 
 **Sample Telemetry Output for CPU State (SAMPLE mode):**
@@ -742,64 +737,361 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 # Output:
 {
   "source": "<ip:port>",
-  "subscription-name": "default-1234567890",
-  "timestamp": 1708876800000000000,
-  "time": "2026-02-25T10:00:00Z",
-  "prefix": "openconfig-system:system/cpus/cpu[index=all]",
+  "subscription-name": "default-1772019692",
+  "timestamp": 1772019690169695979,
+  "time": "2026-02-25T17:11:30.169695979+05:30",
+  "prefix": "openconfig-system:system/cpus/cpu[index=0]/state",
   "target": "OC-YANG",
   "updates": [
     {
-      "Path": "state/total/instant",
+      "Path": "kernel/min-time",
       "values": {
-        "instant": 15
+        "kernel/min-time": 1772019657000000000
       }
     },
     {
-      "Path": "state/total/avg",
+      "Path": "user/interval",
       "values": {
-        "avg": 12
+        "user/interval": 51000000000
+      }
+    },
+    {
+      "Path": "kernel/avg",
+      "values": {
+        "kernel/avg": 3
+      }
+    },
+    {
+      "Path": "software-interrupt/min",
+      "values": {
+        "software-interrupt/min": 0
+      }
+    },
+    {
+      "Path": "user/max",
+      "values": {
+        "user/max": 7
+      }
+    },
+    {
+      "Path": "idle/interval",
+      "values": {
+        "idle/interval": 51000000000
+      }
+    },
+    {
+      "Path": "idle/max-time",
+      "values": {
+        "idle/max-time": 1772019677000000000
+      }
+    },
+    {
+      "Path": "idle/min",
+      "values": {
+        "idle/min": 87
+      }
+    },
+    {
+      "Path": "hardware-interrupt/instant",
+      "values": {
+        "hardware-interrupt/instant": 0
+      }
+    },
+    {
+      "Path": "hardware-interrupt/max",
+      "values": {
+        "hardware-interrupt/max": 0
+      }
+    },
+    {
+      "Path": "wait/max",
+      "values": {
+        "wait/max": 0
+      }
+    },
+    {
+      "Path": "wait/min-time",
+      "values": {
+        "wait/min-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "nice/min",
+      "values": {
+        "nice/min": 0
+      }
+    },
+    {
+      "Path": "total/instant",
+      "values": {
+        "total/instant": 7
+      }
+    },
+    {
+      "Path": "hardware-interrupt/min-time",
+      "values": {
+        "hardware-interrupt/min-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "software-interrupt/avg",
+      "values": {
+        "software-interrupt/avg": 1
+      }
+    },
+    {
+      "Path": "hardware-interrupt/interval",
+      "values": {
+        "hardware-interrupt/interval": 51000000000
+      }
+    },
+    {
+      "Path": "hardware-interrupt/min",
+      "values": {
+        "hardware-interrupt/min": 0
+      }
+    },
+    {
+      "Path": "idle/max",
+      "values": {
+        "idle/max": 95
+      }
+    },
+    {
+      "Path": "nice/min-time",
+      "values": {
+        "nice/min-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "user/instant",
+      "values": {
+        "user/instant": 2
+      }
+    },
+    {
+      "Path": "hardware-interrupt/avg",
+      "values": {
+        "hardware-interrupt/avg": 0
+      }
+    },
+    {
+      "Path": "idle/avg",
+      "values": {
+        "idle/avg": 91
+      }
+    },
+    {
+      "Path": "user/avg",
+      "values": {
+        "user/avg": 4
+      }
+    },
+    {
+      "Path": "user/min-time",
+      "values": {
+        "user/min-time": 1772019687000000000
+      }
+    },
+    {
+      "Path": "software-interrupt/interval",
+      "values": {
+        "software-interrupt/interval": 51000000000
+      }
+    },
+    {
+      "Path": "total/min-time",
+      "values": {
+        "total/min-time": 1772019677000000000
+      }
+    },
+    {
+      "Path": "kernel/min",
+      "values": {
+        "kernel/min": 1
+      }
+    },
+    {
+      "Path": "nice/interval",
+      "values": {
+        "nice/interval": 51000000000
+      }
+    },
+    {
+      "Path": "software-interrupt/min-time",
+      "values": {
+        "software-interrupt/min-time": 1772019667000000000
+      }
+    },
+    {
+      "Path": "total/min",
+      "values": {
+        "total/min": 4
+      }
+    },
+    {
+      "Path": "idle/instant",
+      "values": {
+        "idle/instant": 92
+      }
+    },
+    {
+      "Path": "kernel/instant",
+      "values": {
+        "kernel/instant": 3
+      }
+    },
+    {
+      "Path": "total/max",
+      "values": {
+        "total/max": 12
+      }
+    },
+    {
+      "Path": "hardware-interrupt/max-time",
+      "values": {
+        "hardware-interrupt/max-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "idle/min-time",
+      "values": {
+        "idle/min-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "software-interrupt/instant",
+      "values": {
+        "software-interrupt/instant": 1
+      }
+    },
+    {
+      "Path": "total/interval",
+      "values": {
+        "total/interval": 51000000000
+      }
+    },
+    {
+      "Path": "wait/instant",
+      "values": {
+        "wait/instant": 0
+      }
+    },
+    {
+      "Path": "wait/max-time",
+      "values": {
+        "wait/max-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "kernel/max",
+      "values": {
+        "kernel/max": 4
+      }
+    },
+    {
+      "Path": "nice/max-time",
+      "values": {
+        "nice/max-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "kernel/max-time",
+      "values": {
+        "kernel/max-time": 1772019667000000000
+      }
+    },
+    {
+      "Path": "wait/min",
+      "values": {
+        "wait/min": 0
+      }
+    },
+    {
+      "Path": "software-interrupt/max-time",
+      "values": {
+        "software-interrupt/max-time": 1772019657000000000
+      }
+    },
+    {
+      "Path": "wait/avg",
+      "values": {
+        "wait/avg": 0
+      }
+    },
+    {
+      "Path": "nice/instant",
+      "values": {
+        "nice/instant": 0
+      }
+    },
+    {
+      "Path": "software-interrupt/max",
+      "values": {
+        "software-interrupt/max": 2
+      }
+    },
+    {
+      "Path": "user/max-time",
+      "values": {
+        "user/max-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "user/min",
+      "values": {
+        "user/min": 2
+      }
+    },
+    {
+      "Path": "wait/interval",
+      "values": {
+        "wait/interval": 51000000000
+      }
+    },
+    {
+      "Path": "index",
+      "values": {
+        "index": 0
+      }
+    },
+    {
+      "Path": "kernel/interval",
+      "values": {
+        "kernel/interval": 51000000000
+      }
+    },
+    {
+      "Path": "total/avg",
+      "values": {
+        "total/avg": 8
+      }
+    },
+    {
+      "Path": "total/max-time",
+      "values": {
+        "total/max-time": 1772019636000000000
+      }
+    },
+    {
+      "Path": "nice/avg",
+      "values": {
+        "nice/avg": 0
+      }
+    },
+    {
+      "Path": "nice/max",
+      "values": {
+        "nice/max": 0
       }
     }
   ]
 }
-```
-
-**Sample Telemetry Output for NTP Server State (ON_CHANGE mode):**
-```bash
-gnmic -a <ip:port> -u <user> -p <passwd> \
-  sub --path "/openconfig-system:system/ntp/servers/server[address=time.google.com]/state" \
-  --target OC-YANG --stream-mode on-change
-
-# Output:
 {
-  "source": "<ip:port>",
-  "subscription-name": "default-1234567891",
-  "timestamp": 1708876850000000000,
-  "time": "2026-02-25T10:00:50Z",
-  "prefix": "openconfig-system:system/ntp/servers/server[address=time.google.com]",
-  "target": "OC-YANG",
-  "updates": [
-    {
-      "Path": "state/stratum",
-      "values": {
-        "stratum": 2
-      }
-    },
-    {
-      "Path": "state/offset",
-      "values": {
-        "offset": 1234
-      }
-    },
-    {
-      "Path": "state/poll-interval",
-      "values": {
-        "poll-interval": 64
-      }
-    }
-  ]
+  "sync-response": true
 }
 ```
+
 
 # 4 Flow Diagrams
 
@@ -815,7 +1107,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | current-datatime | - | - | - |
 | up-time | - | - | - |
 | boot-time | - | - | - |
-| software-version | sonic-version.yang | CONFIG_DB | VERSION |
+| software-version | - | - | - |
 | last-configuration-timestamp | - | STATE_DB | HOST_STATS |
 | **mount-points** | | | |
 | mount-point/state | - | STATE_DB | MOUNT_POINTS |
@@ -878,7 +1170,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | config/key-id | sonic-ntp.yang | CONFIG_DB | key |
 | config/network-instance | sonic-ntp.yang | CONFIG_DB | NTP:vrf |
 | config/source-address | sonic-ntp.yang | CONFIG_DB | NTP:src_intf |
-| **state** (NTP server state) | - | **STATE_DB** | **NTP_SERVER_STATE** |
+| **state** (NTP server state) | - | **STATE_DB** | **NTP_SERVER** |
 | state/address | - | STATE_DB | `<table-key>` |
 | state/port | - | STATE_DB | port |
 | state/version | - | STATE_DB | version |
@@ -999,7 +1291,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 - **Bold** entries indicate major feature categories
 - `-` indicates direct system call or no specific YANG file
 - `<table-key>` indicates the field is used as the Redis table key
-- **New in Rev 0.2**: NTP server state mapping (STATE_DB.NTP_SERVER_STATE) and CPU state mapping (STATE_DB.CPU_STATS)
+- **New in Rev 0.2**: NTP server state mapping (STATE_DB.NTP_SERVER) and CPU state mapping (STATE_DB.CPU_STATS)
 
 ## 4.2 Detailed Feature Mapping
 
@@ -1027,14 +1319,27 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 **STATE_DB Table Structure:**
 ```
 CPU_STATS|<cpu_index>
-  "idle": "<percentage>"
-  "system": "<percentage>"  
-  "user": "<percentage>"
-  "nice": "<percentage>"
+  "total": "[<array of percentages>]"
+  "user": "[<array of percentages>]"
+  "kernel": "[<array of percentages>]"
+  "nice": "[<array of percentages>]"
+  "idle": "[<array of percentages>]"
+  "wait": "[<array of percentages>]"
+  "irq": "[<array of percentages>]"
+  "soft": "[<array of percentages>]"
+  "timestamp": "[<array of timestamps>]"
 ```
 
+**Field Details:**
+- Arrays contain historical values for calculating statistics (instant, avg, min, max)
+- `kernel` maps to OpenConfig `kernel` (system CPU time)
+- `irq` maps to OpenConfig `hardware-interrupt`
+- `soft` maps to OpenConfig `software-interrupt`
+- Transformer calculates instant, avg, min, max, min-time, max-time from the arrays
+
 **Calculation:**
-Total CPU usage = 100 - idle percentage
+- Total CPU usage values stored directly in the `total` field
+- Individual component breakdowns in user, kernel, nice, idle, wait, irq, soft fields
 
 **Sample GET Request:**
 ```bash
@@ -1086,7 +1391,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 
 **SONiC Mapping:**
 - **Database**: STATE_DB
-- **Table**: NTP_SERVER_STATE (per-server state information)
+- **Table**: NTP_SERVER (per-server state information)
 
 **Supported State Attributes:**
 ```
@@ -1127,7 +1432,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 
 **STATE_DB Table Structure:**
 ```
-NTP_SERVER_STATE|<server_address>
+NTP_SERVER|<server_address>
   "port": "123"
   "version": "4"
   "stratum": "2"
@@ -1213,7 +1518,7 @@ Translation Notes:
    iv. Server network-instanse & source-address - Only a single value is supported across servers, as SONiC support these nodes in global table, not per server.  
    v. Server source-address - SONiC has src_intf support instead of source-address in NTP configurations. Translib will fetch src_intf for given address.  
                               So user must configure IP on Ports properly, before NTP configuration.  
-   vi. **Server state** - NTP server state attributes (stratum, offset, delay, etc.) are retrieved from STATE_DB.NTP_SERVER_STATE table populated by ntpd
+   vi. **Server state** - NTP server state attributes (stratum, offset, delay, etc.) are retrieved from STATE_DB.NTP_SERVER table populated by ntpd
 4. logging & messages severity - EMERGENCY, ALERT & CRITICAL, all these three are translated to SONiC critical level
 5. logging facility - Only ALL is supported currently
 6. **system/cpus** - CPU state information is retrieved from STATE_DB.CPU_STATS table with real-time utilization data
@@ -1259,15 +1564,11 @@ REST - POST/PATCH/DELETE/PUT/GET
 3. Verify that invalid DNS nameserver configuration is not allowed.
 4. Verify that invalid timezone-name is not allowed.
 5. Verify that invalid NTP source address returns proper error.
-   - 5.1 Verify that NTP server state configuration is not allowed (read-only)
-   - 5.2 Verify that invalid NTP server version (<3 or >4) returns error
 6. Verify that AAA server source-address accepts only valid IP.
 7. Verify that GET on processes with non-existing pid returns an empty data.
 8. Verify that GET on alarms with non-existing alarm-id returns an empty data.
 9. Verify that GET on mount-points with non-existing mount-point returns an empty data.
 10. Verify that GET on cpus with non-existing cpu returns an empty data.
-    - 10.1 Verify that CPU state configuration (PATCH/PUT) is not allowed (read-only)
-    - 10.2 Verify that DELETE on CPU state is not allowed
 11. Verify that GET on grpc-servers with non-existing grpc-server returns an empty data.
 12. Verify that GET on grpc-servers/connections with non-existing address:port returns an empty data.
 13. Verify that GET on grpc-servers/gnmi-pathz-policy-counters with non-existing path returns an empty data.
