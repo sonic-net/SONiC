@@ -1634,3 +1634,333 @@ def write_cdb(port,cmd):
     write_reg(port, LPLPAGE, INIT_OFFSET+CMDLEN, len(cmd)-CMDLEN, cmd[CMDLEN:])
     write_reg(port, LPLPAGE, INIT_OFFSET, CMDLEN, cmd[:CMDLEN])
 ```
+
+### 7.Performance Monitoring - 400-G ZR module
+#### 7.1 Overview
+Performance monitoring in 400G ZR/CCMIS optical modules is essential for detecting link degradation and correction. It involves measuring and analyzing various parameters of the optical signal, such as its power, wavelength, polarization, and phase. By monitoring these parameters, operators can detect and diagnose problems in the system, such as signal distortion, loss, or noise, and take corrective actions to maintain the performance of the system.
+It can be used to compare optical link performance against desired parameters and benchmarks, providing valuable insight into the overall health of the interface link. Below sub-sections will walk through the CLI syntax, output format and high level design. Currently the performance monitoring will be executed only for 400G-ZR modules.
+
+ **Solution:**
+Over the defined PM interval time, the statistics are collected for the paramters defined in 7.2 from the transciever, sampled and updated to fixed time window slots of TRANSCEIVER_PM_WINDOW_STATS table for each port in a linecard/box.
+The statistics then can be displayed for a specific time window using a CLI. All this functionality will be done by xcvrd process in pmon container. 
+
+#### 7.2 Transceiver PM Window statistics parameters
+All the fields from table [2\.1\.5 Transceiver PM Table](#215-transceiver-pm-table) are part of the TRANSCEIVER_PM_WINDOW_STATS table along with below mentioned fields.
+```
+        ; Defines Transceiver PM Window statistics table information for a port
+        key                          = TRANSCEIVER_PM_WINDOW_STATS|ifname            ; information of PM on port
+        ; field                      = value
+	window1                   = 1*255VCHAR                       ; PM window number with PM window start time, end time, current and PM_TABLE fields.
+        window2                   = 1*255VCHAR                       ; PM window number with PM window start time, end time, current and PM_TABLE fields.
+        .
+	.
+        .
+	window29                   = 1*255VCHAR                      ; PM window number with PM window start time, end time, current and PM_TABLE fields.
+        
+Each window field(Key) in TRANSCEIVER_PM_WINDOW_STATS have a value string comprises of following fields.
+
+	pm_win_start_time           = 1*255VCHAR                       ; PM statistics start time for the window.
+	pm_win_end_time             = 1*255VCHAR                       ; PM statistics end time for the window. 
+        pm_win_current               = 1*255VCHAR                       ; PM statistics collection is Progressing on this window. (True/False)      
+```
+ 
+#### 7.3 CLI Sub-options and Syntax 
+
+```
+#show int transceiver <enter>​
+commands:​
+pm show interface transceiver performance monitoring​
+​
+#Show int trans pm <enter>​
+commands:​
+Current show progressing pm data​
+history show historical pm data​
+
+​#show int trans pm current <time window period>​
+commands:​
+60sec show cumulative pm statistics from the progressing 60sec pm window. ​
+15min show cumulative pm statistics from the progressing 15min pm window.​
+24hrs  show cumulative pm statistics from the progressing 24hrs pm window.​
+
+#show int trans pm history​
+commands:​
+60sec show cumulative pm statistics for the given pm window number from 60sec pm window.​
+15min show cumulative pm statistics for the given pm window number from 15min pm window.​
+24hrs  show cumulative pm statistics for the given pm window number from 24hrs pm window.​
+
+#show int trans pm history 60sec window
+commands:
+1 - 14 PM window number
+
+#show int trans pm history 15min window
+commands:
+1 - 11 PM window number
+
+#show int trans pm history 24hrs window 
+commands:
+1  PM window number
+
+Optional subset display:​
+#Show int trans pm current 60sec –n asic0 Ethernet0​
+commands:​
+fec shows pm fec data​
+```
+
+**Current window** :
+
+A PM window is marked as current until the PM data updated for the fixed interval(60sec/15min/24hrs) of time is complete.  When the CLI option 'current' is executed with a fixed interval time, the data will be displayed from the PM window that is being updated at present.
+
+For example: Updating one of the 15min fixed interval PM window.
+Upon every PM interval time (60 sec), the 15min interval PM window data is sampled and updated with collected PM data from module. 
+Let say the PM window number '16' update started at time T, then the PM window '16' is filled with 5 mins of sampled PM data at T+300sec. So another 10 more mins the window number '16' will be sampled with module fetched PM data and updated, during this entire 15mins of update the window is marked with current/called current window.
+
+**History window** :
+
+A PM window gets completed with PM data update for the whole fixed interval (60sec/15min/24Hr) of time is marked/called as history. When the CLI option 'history' is selected with a window number, it display the sampled PM data for the fixed interval duration with the timestamp when it is collected.
+
+For example: Updating one of the 15min fixed interval PM window.
+Upon every PM interval time (60 sec), the 15min interval PM window data is sampled and updated with collected PM data from module. 
+Let say the PM window number '16' update started at time T, then the PM window '16' is filled with 15 mins of sampled PM data at T+900sec. At 'T+900sec'/ next PM interval collection the PM window number '16' is marked as history and PM window number '17' become a current window and will be sampled and updated with PM data collected from the module.
+
+
+#### 7.4 CLI Sample Output format
+```
+root@sonic:/home/cisco# show interface transceiver pm history 60sec window 1 -n asic0 Ethernet2                                                                          
+Tue Jan 31 09:25:16 UTC 2023
+PM window: 60 sec
+PM window start time: Tue Jan 31 09:24:03 UTC 2023
+Ethernet2:
+    Parameter        Unit    Min       Avg       Max       Threshold    Threshold    Threshold     Threshold    Threshold    Threshold
+                                                           High         High         Crossing      Low          Low          Crossing
+                                                           Alarm        Warning      Alert-High    Alarm        Warning      Alert-Low
+    ---------------  ------  --------  --------  --------  -----------  -----------  ------------  -----------  -----------  -----------
+    Tx Power         dBm     -8.22     -8.23     -8.24     -5.0         -6.0         False         -16.99       -16.003      False
+    Rx Total Power   dBm     -10.61    -10.62    -10.62    2.0          0.0          False         -21.0        -18.0        False
+    Rx Signal Power  dBm     -40.0     0.0       40.0      13.0         10.0         True          -18.0        -15.0        True
+    CD-short link    ps/nm   0.0       0.0       0.0       1000.0       500.0        False         -1000.0      -500.0       False
+    PDL              dB      0.5       0.6       0.6       4.0          4.0          False         0.0          0.0          False
+    OSNR             dB      36.5      36.5      36.5      99.0         99.0         False         0.0          0.0          False
+    eSNR             dB      30.5      30.5      30.5      99.0         99.0         False         0.0          0.0          False
+    CFO              MHz     54.0      70.0      121.0     3800.0       3800.0       False         -3800.0      -3800.0      False
+    DGD              ps      5.37      5.56      5.81      7.0          7.0          False         0.0          0.0          False
+    SOPMD            ps^2    0.0       0.0       0.0       655.35       655.35       False         0.0          0.0          False
+    SOP ROC          krad/s  1.0       1.0       2.0       N/A          N/A          N/A           N/A          N/A          N/A
+    Pre-FEC BER      N/A     4.58E-04  4.66E-04  5.76E-04  1.25E-02     1.10E-02     0.0           0.0          0.0          0.0
+    Post-FEC BER     N/A     0.0       0.0       0.0       1000.0       1.0          False         0.0          0.0          False
+    EVM              %       100.0     100.0     100.0     N/A          N/A          N/A           N/A          N/A          N/A
+```
+#### 7.5 High Level Design
+
+##### 7.5.1 Configurations
+1. performance monitor enable - Global CLI to enable PM on all ports. 
+Before this configuration get implemented, PM will be enabled by default on all ports
+
+##### 7.5.2 PM Interval and PM time window:
+
+- ##### PM interval /statistic collection interval:
+Duration between two ‘VDM freeze’ requests issued by host, which the host collects the cumulative statistics for all PM parameter after the 2nd freeze request. 
+It is a host-controlled monitoring interval. During this time, the module that supports statistics takes short term measurements which are also called samples over a module vendor specific fine measurement time interval (eg : 1ms) and then updates internal statistics variables(min, max, avg), thus providing cumulative statistics until the host issues the 2nd freeze request. 
+
+This feature allows a platform(Pizza-box or distributed system-linecard with CPU ) to choose from following period for PM interval. 
+- 30sec
+- 60sec and
+- 120sec
+  
+It is recommended to choose 30sec, platforms that have high CPU load can choose 120sec as PM interval. By default 60sec is the PM interval when no input provided by platform, please refer to [7\.5\.4 Platform specific flags and input](#754-platform-specific-flags-and-inputs)  for platform input.
+
+- ##### PM time window or PM window :
+The cumulative PM statistics over an fixed interval of time is called a PM time window AKA PM window. 
+Each PM window PM Statistics are computed from samples reseted from the start time of that PM window. The cumulative statistics of a specific fixed PM window allow the user to estimate the quality of the link over a specific time period. 
+
+The 'fixed interval' of a PM time window and number of windows are not specified in any standard. In this feature three different fixed interval of PM windows are defined with interval time/granularity of 60seconds, 15mins and 24hour. 
+
+The 60sec fixed interval time window is based on the PM interval time and the 15mins and 24hour are defined for the ease of debuggability in realtime. 
+For example, to understand/debug the link stability while bringing up an 400G-ZR interface connection on a topology, a 60sec statistics/current sample will be useful and four 15mins window statistics monitoring will be useful to understand the link stability from initial connection.  
+For the long term link health monitoring, device telemetry data can be analyzed to estimate the link health but it is out of scope of this HLD/feature.
+
+The number of PM windows for each granularity/ fixed time interval is defined as follow.
+
+ - 15 ‘PM windows’ of 60sec fixed time interval  (at any given time user can view 14mins of statistics history once accumulated with 1 min granularity)
+ - 12 ‘PM windows’ of 15min fixed time interval (at any given time user can view 2.45Hr of statistics history once accumulated with 15min granularity) and
+ - 2 ‘PM windows’ of 24hr fixed time interval (at any given time user can view 24Hr of statistics once accumulated).
+
+So total 29 PM time window slots will be maintained per port/interface when inserted with 400G-ZR module. 
+
+- ##### Caveat:
+Platform which choose 120sec as PM interval time, the 60sec granularity of 15 ‘time window’ is not valid/not computed as the chosen PM interval time is greater than 60sec. The CLI o/p is valid only for the 15min/24Hr predefined time window.
+
+##### 7.5.3 Examples and code snipets: 
+- ##### CLI usage and expected output; example: (Platform with PM interval time : 30sec)
+    - ##### 15min time window:
+```
+    Show int trans pm current 15min –n asic0 Ethernet0
+
+    Assume the last 15min time window started at Time T0-> 9.45.00 by the PM thread running in xcvrd.
+    At T1 time->9:50:42, above pm current CLI with predefined time window interval of 15min is executed
+    The expected display is the cumulative statistics from time 9.45:00 to 9.50:30. (This is the current 15mins statistics in flight)
+    Show int trans pm history 15min window 2 –n asic0 Ethernet0
+
+    Assume the last 15min time window started at Time T0-> 9.44.00 by the PM thread running in xcvrd.
+    At T1 time->9:50:42, above pm history CLI with ‘predefined window’ of 15min and ‘window number’ 2 is executed
+    The expected display is the 2nd last 15mins cumulative statistics from time 9.43:30 to 9.43:45.
+ 
+    60sec time window:
+
+    Show int trans pm history 60sec window 15 –n asic0 Ethernet0
+
+    Assume the last PM statistics interval started at Time T0-> 9.44.00 by the PM thread running in xcvrd.
+    T2 time->9:45:44, above pm history CLI with ‘predefined window’ of 60sec and ‘window number’ 15 is executed. 
+    the CLI o/p displays the cumulative data from time 9.00:00 to 9.01:00.
+    Show int trans pm current 60sec –n asic0 Ethernet0
+    Assume the last PM statistics interval started at Time T0-> 9.44.00 by the PM thread running in xcvrd.
+    At T1 time->9:44:42, above pm current CLI with ‘predefined window’ of 60sec is executed
+    The expected display is the cumulative data from time 9.44:00 to 9.44:30 "this is the current 60sec window data which is in flight"
+```
+For Platform with PM interval time of 60sec: the above CLI will display the statistics from 9:43:00 to 9:44:00, which will be same as history with window 1 as there is no PM statistics collected within the 60sec.
+
+- ##### Sampling for fixed time window; example:
+    In this example only Rx total power statistics parameter is displayed for simplicity, The assumption is PM started for the port at Apr 27 9.44.02 UTC 2023. At this time all the time window slots are empty and will be updated every PM interval time (default 60sec).
+The 60sec time window are filled as it is read from module if the PM interval is 60sec, the 60sec sample collected from module is then sampled for 15mins and 24Hr window every 60seconds.
+
+			
+<img src ="https://user-images.githubusercontent.com/97986478/278157900-01a32358-d257-4ff2-9fb2-af5ce404d6df.png" width=70% height=60%>
+
+
+- #####Code snipet for PM data sampling:
+
+```
+#Sample the PM data for min, max and average between two PM data set and returns the sampled PM data. Below is the snippet of a field min, max and average calculation.
+ def pm_data_sampling(self, pm_data_dict1, pm_data_dict2):
+        sampled_pm_dict = {}
+        sampled_pm_dict['prefec_ber_avg'] = self.average_of_two_val(float(pm_data_dict1['prefec_ber_avg']), float(pm_data_dict2['prefec_ber_avg']))
+        sampled_pm_dict['prefec_ber_min'] = min(float(pm_data_dict1['prefec_ber_min']), float(pm_data_dict2['prefec_ber_min']))
+        sampled_pm_dict['prefec_ber_max'] = max(float(pm_data_dict1['prefec_ber_max']), float(pm_data_dict2['prefec_ber_max']))
+
+def average_of_two_val(self, val1, val2):
+        return((val1+val2)/2)
+```
+
+##### 7.5.4 Platform specific flags and inputs:
+"xcvrd_pm_poll_interval" - Platform to define the PM polling periodicity as 30sec or 60sec of the PM thread which will be fed as input argument. When the arg is not defined, default periodicity is 60sec. 
+
+
+##### 7.5.5 High level Work flow:
+  1. A new thread will be created 'PM thread' in xcvrd process to collect PM statistics between every PM interval period from the 400G-ZR transciever and update both TRANSCEIVER_PM and TRANSCEIVER_PM_WINDOW_STATS, follwing is the work flow.
+  2. PM thread to check "config pm enable" configuration presence to collect PM statistics.
+  3. CMIS xcvrAPI to freeze the statistics in transceiver, record the timestamp and copy both recorded timestamp and PM statitics from transciver. 
+  4. Above Freezing request will reset and start new statistics set, CMIS xcvrAPI to unfreeze the statistics register in transceiver. 
+  5. Update the copied PM statistics and timestamp to TRANSCEIVER_PM table.
+  6. Fetch the data from TRANSCEIVER_PM table and update the respective time window slots <60sec/15min/24Hrs> in TRANSCEIVER_PM_WINDOW_STATS table
+  7. Sample the data between TRANSCEIVER_PM_WINDOW_STATS and TRANSCEIVER_PM table and update the respective time window slot <60sec/15min/24Hrs> of TRANSCEIVER_PM_WINDOW_STATS table.
+  8. PM thread will iterate all the ports and will sleep for PM interval and repeat the steps from pointer 2 to 8.
+  9.  PM CLI mentoned in 7.3 will always fetch data from TRANSCEIVER_PM_WINDOW_STATS and provide the display.
+  10. All the PM time window slots for the port is cleared when an optics is inserted/deleted to/from the port.
+  11. When xcvrd process is restarted, PM statistics collection will be resumed.
+
+##### Flow Diagram of PmUpdateTask thread
+
+```mermaid
+flowchart TD;
+A[Subscribe to State-DB TRANSCEIVER_INFO Table change event]
+B[while task_stopping_event is not set]
+C[TRANSCEIVER_INFO Table creation]
+D[TRANSCEIVER_INFO Table deletion]
+E[update port_list local cache with port number contains 400GZR module]
+F[Iterate each port in port_list and check for 400GZR presence]
+G[Freeze the PM stats and collect the PM data, unfreeze PM stats]
+H[sample and update the respective PM windows in TRANCEIVER_PM_WIN_STATS table]
+
+
+Start --> A
+A --> B
+B -- True --> F
+B -- event optics OIR --> C
+B -- event optics OIR --> D
+C -- add port number to cache if not present and reset the PM STATS in DB if not process restart --> E
+D -- remove port number from cache and reset the PM STATS in DB  --> E
+E --> F
+F -- False --> B
+F -- True --> G
+G --> H
+H --> B
+B -- False --> End
+```
+##### Flow Diagram for PM window update Algorithm to DB with PM Stats collected over PM interval.
+```mermaid
+graph TD;
+P[Start with PM HW data as input]
+A[Iterate from start window number to end window number of a fixed interval PM window]
+B[Retrieve PM DB data from TRANSCEIVER_PM_WIN_STATS table for the window number]
+C[PM DB data is empty and window number == start number of a fixed interval PM window]
+D[copy PM HW data to DB for the window number, update pm_win_current = ture, update start time with end time]
+O[End of this PM interval iteration]
+F(if window PM DB data start time == end time)
+G[copy the PM HW data for the window to DB, update end time with PM HW data end time]
+H(if delta between PM DB data end time and start time is < fixed interval time)
+I[sample the PM HW data with PM DB data from DB for the window]
+J[update sampled PM data and PM HW data end time to DB, no change in start time]
+K[update pm_win_current = False to PM DB data for the window. update DB, Move to next window]
+L(if next window PM DB data is empty)
+M[if next window PM DB is not empty and end time > start time]
+N(if previous window PM DB data start time < next window PM DB data start time)
+R[update previous window PM DB data pm_win_current = False]
+S[copy PM HW data to window num+1 PM data, update current=True, start time and end time to DB]
+
+P --> A
+A --> B
+B --> C
+C -- True --> D
+D --> O
+C -- False --> F
+F -- True --> G
+G --> O
+F -- False --> H
+H -- True --> I 
+I --> J
+J --> O
+H -- False --> K
+K --> L
+L -- True --> D
+L -- False --> M
+M -- False --> F
+M -- True --> N
+N -- True, window = window+1 --> A
+N -- False --> R
+R --> S
+S --> O
+```
+
+##### Flow Diagram for PM window retrieval upon CLI execution.
+
+```mermaid
+flowchart TD;
+A[PM cli execution with Fixed interval window and Port number]
+B(if 400G-ZR is not present in the port)
+C[Return with msg = No data available for the request]
+D[Retreive the TRANSCIEVER_PM_WIN_STATS table for the port number]
+E[Iterate start to end window number of the Fixed interval window in the table]
+F[Find the current window, window number set with pm_win_current == true from the table]
+G(cli sub option)
+H[Return the PM data associated with the current window]
+I[iterate back for number times with suboption window number from current window]
+J[Return the PM data for this window number]
+
+Start --> A
+A --> B
+B -- True --> C
+C --> End
+B -- False --> D
+D --> E
+E --> F
+F --> G
+G -- suboption is current --> H
+H --> End
+G -- suboption is history --> I
+I --> J
+J --> End
+```
+
+ #### 7.6 Out of Scope
+ 1. Peformance monitoring is not enabled/performed for modules other than 400G-ZR.
+ 2. Thershold crossing setting/monitoring for PM params are not covered as part of this implementation.
+ 
