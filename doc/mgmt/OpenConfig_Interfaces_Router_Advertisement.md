@@ -13,7 +13,6 @@
     * [1.1 Requirements](#11-requirements)
       * [1.1.1 Functional Requirements](#111-functional-requirements)
       * [1.1.2 Configuration and Management Requirements](#112-configuration-and-management-requirements)
-      * [1.1.3 Scalability Requirements](#113-scalability-requirements)
     * [1.2 Design Overview](#12-design-overview)
       * [1.2.1 Basic Approach](#121-basic-approach)
       * [1.2.2 Container](#122-container)
@@ -57,7 +56,7 @@ This document provides general information about the OpenConfig configuration of
 - This does not support Router Advertisement configuration on Ethernet or PortChannel interfaces.
 - Supported attributes in OpenConfig YANG tree:
 
-<pre>
+```
 module: openconfig-interfaces
   +--rw interfaces
      +--rw interface* [name]
@@ -81,7 +80,7 @@ module: openconfig-interfaces
               |        +--ro oc-ip:state
               |           +--ro oc-ip:prefix?                      oc-inet:ipv6-prefix
               |           +--ro oc-ip:disable-autoconfiguration?   boolean
-</pre>
+```
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
@@ -112,10 +111,6 @@ The IPv6 Router Advertisement configurations can be done via REST and gNMI. The 
 - Router Advertisement is only supported on VLAN interfaces (routed-vlan).
 - Attempting to configure router-advertisement on non-VLAN interfaces (Ethernet, PortChannel, Loopback) will result in an error.
 
-### 1.1.3 Scalability Requirements
-- Supports multiple VLAN interfaces with router-advertisement configuration.
-- Supports multiple IPv6 prefixes per VLAN interface for ND prefix configuration.
-
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
 SONiC already supports IPv6 Router Advertisement configurations via FRR CLIs. This feature adds support for OpenConfig based YANG models using transformer based implementation in the Management Framework.
@@ -124,8 +119,10 @@ The implementation provides mapping between:
 - OpenConfig router-advertisement config parameters → SONiC VLAN_INTERFACE table fields
 - OpenConfig router-advertisement prefix parameters → SONiC VLAN_INTERFACE_ND_PREFIX table
 
+The FRR configuration is managed through the Unified FRR Management Interface framework. For details on the configuration sequence and FRR integration, refer to the [SONiC Unified FRR Management Interface Design - Configuration Sequence](https://github.com/Verma-Anukul/SONiC/blob/oc-intf-router-adv-hld/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md#41-configuration-sequence).
+
 ### 1.2.2 Container
-The code changes for this feature are part of *Management Framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
+The code changes for this feature are part of *mgmt-framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
 
 ### 1.2.3 Repository Changes
 Changes are also made in **sonic-buildimage** repository:
@@ -147,13 +144,26 @@ The implementation uses transformer functions in `translib/transformer/xfmr_intf
 
 #### Table 2: OpenConfig YANG to SONiC YANG Mapping
 
-| OpenConfig Path | SONiC Table | SONiC Field | Transformer Function |
-|----------------|-------------|-------------|---------------------|
-| `/interfaces/interface[name=VlanX]/routed-vlan/ipv6/router-advertisement/config/suppress` | VLAN_INTERFACE | nd_suppress_ra | Direct field mapping |
-| `/interfaces/interface[name=VlanX]/routed-vlan/ipv6/router-advertisement/config/managed` | VLAN_INTERFACE | nd_managed_config_flag | Direct field mapping |
-| `/interfaces/interface[name=VlanX]/routed-vlan/ipv6/router-advertisement/config/other-config` | VLAN_INTERFACE | nd_other_config_flag | Direct field mapping |
-| `/interfaces/interface[name=VlanX]/routed-vlan/ipv6/router-advertisement/prefixes/prefix[prefix=X]/config/prefix` | VLAN_INTERFACE_ND_PREFIX | Key (name\|prefix) | vlan_interface_nd_prefix_key_xfmr |
-| `/interfaces/interface[name=VlanX]/routed-vlan/ipv6/router-advertisement/prefixes/prefix[prefix=X]/config/disable-autoconfiguration` | VLAN_INTERFACE_ND_PREFIX | disable_autoconfiguration | Direct field mapping |
+| OpenConfig YANG Node | SONiC YANG File | DB Name | Table:Field | Notes |
+|---------------------|-----------------|---------|-------------|-------|
+| **router-advertisement** | | | | |
+| config/suppress | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_suppress_ra | Suppress RA on VLAN interface |
+| config/managed | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_managed_config_flag | M-flag for stateful DHCPv6 |
+| config/other-config | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_other_config_flag | O-flag for DHCPv6 other configuration |
+| state/suppress | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_suppress_ra | Read-only, mirrors config |
+| state/managed | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_managed_config_flag | Read-only, mirrors config |
+| state/other-config | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE:nd_other_config_flag | Read-only, mirrors config |
+| **prefixes** | | | | |
+| prefix[prefix=X]/config/prefix | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:`<key>` | Key format: VlanX\|prefix |
+| prefix[prefix=X]/config/disable-autoconfiguration | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:disable_autoconfiguration | Disable SLAAC for prefix |
+| prefix[prefix=X]/state/prefix | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:`<key>` | Read-only, mirrors config |
+| prefix[prefix=X]/state/disable-autoconfiguration | sonic-vlan.yang | CONFIG_DB | VLAN_INTERFACE_ND_PREFIX:disable_autoconfiguration | Read-only, mirrors config |
+
+**Notes:**
+- **Bold** entries indicate major feature categories/containers
+- Router Advertisement is only supported on VLAN interfaces (routed-vlan)
+- Key format for VLAN_INTERFACE_ND_PREFIX: `"VlanX|ipv6-prefix"`
+- State nodes mirror config nodes (read-only)
 
 **Key Transformers:**
 - **YangToDb_vlan_interface_nd_prefix_key_xfmr**: Converts OpenConfig interface name and prefix into SONiC key format `"VlanX|prefix"`.
@@ -510,13 +520,6 @@ Comprehensive test cases are available in `translib/transformer/xfmr_vlan_radv_t
 - POST prefix with invalid IPv6 prefix format
 - Configure prefix without creating VLAN_INTERFACE entry first
 - POST duplicate prefix
-
-### 5.2.1 CVL Validation Tests
-
-- Validate boolean field values (true/false only)
-- Validate prefix format (must be valid IPv6 prefix)
-- Validate VLAN interface name format
-- Validate mandatory fields are present
 
 # 6 References
 
