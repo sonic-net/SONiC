@@ -88,6 +88,8 @@
 	* [4.3 Translib Initialization flow](#43-Translib-initialization-flow)
 	* [4.4 gNMI flow](#44-gNMI-flow)
 	* [4.5 CVL flow](#45-CVL-flow)
+    * [4.6 Bulk flow](#46-Bulk-flow)
+    * [4.7 Rollback flow](#47-Rollback-flow)
 * [5 Developer Work flow](#5-Developer-Work-flow)
     * [5.1 Developer work flow for custom (SONiC/CVL) YANG](#51-Developer-work-flow-for-custom-SONiCCVL-YANG)
         * [5.1.1 Define Config Validation YANG schema](#511-Define-Config-Validation-YANG-schema)
@@ -139,6 +141,7 @@
 | 0.17 | 04/08/2020 | Mohammed Faraaz         | OpenAPI 3.0 enhancements |
 | 0.18 | 04/09/2020 | Kwangsuk Kim            | Updated CLI and Transformer enhancement |
 | 0.19 | 04/15/2020 | Mohammed Faraaz         | Generic REST client for CLI |
+| 0.20 | 10/23/2025 | Gandhi Sevagan          | Multiple DB extensions |
 
 ## About this Manual
 
@@ -216,8 +219,8 @@ Management framework makes use of the translation library (Translib) written in 
 #### 1.2.2 Container
 
 The management framework is designed to run in a single container named “sonic-mgmt-framework”. The container includes the REST server linked with Translib, and CLI process.
-The gNMI support requires the gNMI server which is provided as a part of sonic-telemetry container. We would like to rename this container as the sonic-gnmi container as now it can perform configurations as well through the gNMI server.
-Will introduce a new container sonic-mgmt-common to host the common code that is used both in the mgmt-framework and sonic-telemetry container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-telemetry repo can be compiled without the mgmt-framework being present in the code base.
+The gNMI support requires the gNMI server which is provided as a part of sonic-gnmi container.
+A new repo sonic-mgmt-common will host the common code that is used both in the mgmt-framework and sonic-gnmi container. This new repo will compile into static libraries that will be used in the other two repos. This way sonic-gnmi repo can be compiled without the mgmt-framework being present in the code base.
 
 ## 2 Functionality
 
@@ -1273,6 +1276,16 @@ App Interface helps in identifying the App module responsible for servicing the 
 
 Translib request handlers use the App interface to get all the App module information depending on the incoming path as part of the requests.
 
+A new interface, named getNamespace, has been introduced in appInterface to retrieve the namespace associated with a YANG node's XPath.  All applications including common app will define the wrapper function which will invoke the actual getNamespace function associated with yang node which is defined in the transformation of corresponding yang module.
+
+// Interface for all App Modules
+type appInterface interface {
+        initialize(data appData)
+        .
+        .
+        getNamespace(path string) ([]string, error)
+}   
+
 ###### 3.2.2.6.2 Translib Request Handler
 
 These are the handlers for the APIs exposed by the Translib. Whenever a request lands in the request handler, the handler uses the App interface to get the App module that can process the request based on the incoming path. It then uses the YGOT binder module, if needed, to convert the incoming path and payload from the request into YGOT structures. The filled YGOT structures are given to the App Modules for processing. The Translib also interacts with the DB access layer to start, commit and abort a transaction.
@@ -1825,6 +1838,7 @@ type yangXpathInfo struct {
 	subscriptionFlags  utils.Bits
 	isDataSrcDynamic   *bool
 	isRefByKey         bool
+    namespaceFunc  string
 }
 ```
 
@@ -1833,6 +1847,9 @@ When a request lands at the common app in the form of a YGOT structure from the 
 Transformer has a built-in default transformer method to perform static, simple translation from YANG to ABNF or vice versa. It performs simple mapping - e.g. a direct name/value mapping, table/key/field name - which can be customized by a YANG extension.
 
 Additionally, for more complex translations of non-ABNF YANG models, i.e. OpenConfig models, Transformer also allows developers to overload the default method by specifying a callback fucntion in YANG extensions, to perform translations with developer-supplied translation codes as callback functions. Transformer dynamically invokes those functions instead of using default method. Each transformer callback must be defined to support two-way translation, i.e, YangToDb_<transformer_callback> and DbToYang_<transformer_callback>, which are invoked by Transformer core.
+
+Transformer also has callback function in YANG extensions to get namespace associated with the uri path. This will be mainly useful in case of Multi ASIC platform with multiple Redis DBs. The namespace callback function will be specific to every YANG model defined with its annotations. Translib/transformer shall use "HOST" DB as default for YANG models without namespace extension defined.
+Note: getNameSpace can be defined at top level, however it is not recommended to override/terminate at its descendant objects.
 
 ###### 3.2.2.7.3 Process
 
@@ -1938,6 +1955,207 @@ Refer [model based REPLACE & DELETE in Transformer](Management_Framework_Transfo
 12. `sonic-ext:virtual-table:true [boolean]`:
 This annotation is useful where there is no matching table in the DB schema for a yang node, however that node needs to be traversed to reach the child yang hierarchy where DB mappings exist.
 Refer [model based REPLACE & DELETE in Transformer](Management_Framework_Transformer_Component_Support_For_Model_based_Replace_And_Delete.md) for more details and dynamic version of annotation.
+
+13. `sonic-ext:get-namespace [function]`:
+Multiple DB extension, populates associated namespaces with the YANG path
+Used by Translib service to get all DB's associated with the YANG path. In case of single DB, this extension shall not be used.
+Namespace yang extension shall allow override capability to allow product specific customizations 
+```Sample annotation
+get-namespace annotation sample for openconfig-optical-amplifier yang support: 
+
+Annotation YANG File:
+sonic-mgmt-common/models/yang/annotations/openconfig-optical-amplifier-annot.yang
+module openconfig-optical-amplifier-annot {
+  .....
+    deviation /oc-opt-amp:optical-amplifier {
+      deviate add {
+        sonic-ext:subscribe-on-change "enable";
+        sonic-ext:get-namespace "oa_name_get_namespace_xfmr";
+      }
+    }
+
+    deviation /oc-opt-amp:optical-amplifier/oc-opt-amp:amplifiers {
+      deviate add {
+        sonic-ext:table-name "AMPLIFIER";
+      }
+    }
+
+    deviation /oc-opt-amp:optical-amplifier/oc-opt-amp:amplifiers/oc-opt-amp:amplifier {
+      deviate add {
+        sonic-ext:key-transformer "oa_name_key_xfmr";
+      }
+    }
+.....           
+
+Annotation implementation function
+sonic-mgmt-common/translib/transformer/xfmr_oa.go
+
+func init () {
+ .....
+    XlateFuncBind("oa_name_get_namespace_xfmr", oa_name_get_namespace_xfmr)
+}
+
+var oa_name_get_namespace_xfmr GetNamespaceFunc = func(inParams XfmrParams) ([]NamespacePayload, error) {
+        // Struct to hold payload and associated key
+        type payloadWithKey struct {
+                payload map[string]interface{}
+                key     string
+        }
+        var key string
+
+        // Updated map to hold list of payload+key per namespace
+        var nsPayloadMap = make(map[string][]payloadWithKey)
+
+        log.Infof("oa_name_get_namespace_xfmr: inParams: %v", inParams)
+
+        pathInfo := NewPathInfo(inParams.uri)
+
+        if strings.Contains(inParams.uri, "/amplifier") {
+                key = pathInfo.Var("name")
+
+        } else if strings.Contains(inParams.uri, "/supervisory-channel") {
+                key = pathInfo.Var("interface")
+        }
+        log.Infof("oa_name_get_namespace_xfmr: key: %v", key)
+
+        if len(key) > 0 && key != "*" {
+                dbName := db.GetMDBNameFromEntity(key)
+                log.Infof("oa_name_get_namespace_xfmr: dbName: %v", dbName)
+
+                var raw interface{}
+                var payloads []map[string]interface{}
+
+                if inParams.body != nil && len(inParams.body) > 0 {
+                        if err := json.Unmarshal(inParams.body, &raw); err != nil {
+                                return nil, err
+                        }
+
+                        switch val := raw.(type) {
+                        case map[string]interface{}:
+                                // JSON object — store directly
+                                payloads = append(payloads, val)
+                        case []interface{}:
+                                // JSON array — convert each element if it's an object
+                                for _, item := range val {
+                                        if m, ok := item.(map[string]interface{}); ok {
+                                                payloads = append(payloads, m)
+                                        } else {
+                                                return nil, fmt.Errorf("Invalid json payload!:%v", inParams.body)
+                                        }
+                                }
+                        default:
+                                return nil, fmt.Errorf("unsupported JSON structure: must be object or array of objects")
+                        }
+                } else {
+                        payloads = []map[string]interface{}{}
+                }
+
+                return []NamespacePayload{
+                        {
+                                Namespace: dbName,
+                                Payloads:  payloads,
+                                Key:       key,
+                        },
+                }, nil
+        }
+
+        var containerPrefix string
+        if inParams.body != nil {
+                bodyStr := string(inParams.body)
+                idx := strings.Index(bodyStr, "[")
+                if idx != -1 {
+                        containerPrefix = bodyStr[:idx]
+                        containerPrefix = strings.TrimRight(containerPrefix, ": \t\r\n")
+                }
+        }
+
+        if inParams.ygRoot != nil {
+                oa := getAmplifierRootObj(inParams.ygRoot)
+
+                printPayloads := func(entities interface{}) {
+                        val := reflect.ValueOf(entities)
+                        if val.Kind() != reflect.Map {
+                                log.Info("entities is not a map")
+                                return
+                        }
+
+                        for _, key := range val.MapKeys() {
+                                entity := val.MapIndex(key).Interface()
+                                dbName := db.GetMDBNameFromEntity(key.String())
+
+                                ygotStruct, ok := entity.(ygot.ValidatedGoStruct)
+                                if !ok {
+                                        log.Errorf("Entity does not implement ygot.ValidatedGoStruct")
+                                        continue
+                                }
+
+                                entityJson, err := ygot.EmitJSON(ygotStruct, &ygot.EmitJSONConfig{
+                                        Format:         ygot.RFC7951,
+                                        Indent:         "",
+                                        SkipValidation: true,
+                                })
+                                if err != nil {
+                                        log.Errorf("Failed to marshal entity with ygot.EmitJSON: %v", err)
+                                        continue
+                                }
+                                openBraces := strings.Count(containerPrefix, "{")
+                                finalJson := fmt.Sprintf("%s:[%s]%s", containerPrefix, string(entityJson), strings.Repeat("}", openBraces))
+
+                                log.Errorf("reconstructed payload: %v", finalJson)
+
+                                var finalMap map[string]interface{}
+                                if err := json.Unmarshal([]byte(finalJson), &finalMap); err != nil {
+                                        log.Errorf("Failed to unmarshal reconstructed payload: %v", err)
+                                        continue
+                                }
+
+                                nsPayloadMap[dbName] = append(nsPayloadMap[dbName], payloadWithKey{
+                                        payload: finalMap,
+                                        key:     key.String(),
+                                })
+
+                                if outStr, err := json.MarshalIndent(finalMap, "", "  "); err == nil {
+                                        log.Infof("Namespace: %s\nWrapped Output:\n%s", dbName, string(outStr))
+                                }
+                        }
+                }
+
+                if strings.Contains(inParams.uri, "optical-amplifier") && oa.Amplifiers != nil {
+                        printPayloads(oa.Amplifiers.Amplifier)
+                } else if strings.Contains(inParams.uri, "supervisory-channels") && oa.SupervisoryChannels != nil {
+                        printPayloads(oa.SupervisoryChannels.SupervisoryChannel)
+                }
+        }
+
+        // If no payloads found, use wildcard namespace
+        if len(nsPayloadMap) == 0 {
+                log.Infof("No specific key found, using '*' to include all DBs.")
+                return []NamespacePayload{
+                        {
+                                Namespace: "*",
+                                Payloads:  []map[string]interface{}{},
+                                Key:       "*",
+                        },
+                }, nil
+        }
+
+        // Construct final result
+        var result []NamespacePayload
+        for ns, pwkList := range nsPayloadMap {
+                for _, pwk := range pwkList {
+                        result = append(result, NamespacePayload{
+                                Namespace: ns,
+                                Payloads:  []map[string]interface{}{pwk.payload},
+                                Key:       pwk.key,
+                                Commited:  false,
+                        })
+                }
+        }
+
+        return result, nil
+}
+
+```
 ----------
 
 
@@ -1957,12 +2175,14 @@ Here is the general guide you can check to find which extensions can be annotate
 
 ###### 3.2.2.7.6 Public Functions
 
-`XlateToDb()` and `GetAndXlateFromDb` are used by the common app to request translations.
+`XlateToDb()` and `GetAndXlateFromDb` and `GetNamespace` are used by the common app to request translations.
 
 ```go
 func XlateToDb(path string, opcode int, d *db.DB, yg *ygot.GoStruct, yt *interface{}) (map[string]map[string]db.Value, error) {}
 
 func GetAndXlateFromDB(xpath string, uri *ygot.GoStruct, dbs [db.MaxDB]*db.DB) ([]byte, error) {}
+
+func GetNamespace(uri string, ygotRoot *ygot.GoStruct, body []byte) ([]NamespacePayload, error) {}
 ```
 
 ###### 3.2.2.7.7 Overloaded Methods
@@ -2063,6 +2283,21 @@ type PostXfmrFunc func (inParams XfmrParams) error
  * Return: List of table names, error
  **/
 type TableXfmrFunc func (inParams XfmrParams) ([]string, error)
+
+/**
+* GetNamespaceFunc type is defined to retrieve namespace associated with the uri path/payload.
+* Param: XfmrParams structure having operation, uri
+* Return: Array of NamespacePayload struct, error
+**/
+
+type NamespacePayload struct {
+        Namespace string
+        Payloads  []map[string]interface{}
+        Key       string
+        Commited  bool
+}
+
+type GetNamespaceFunc func(inParams XfmrParams) ([]NamespacePayload, error
 
 ```
 
@@ -2392,44 +2627,70 @@ mechanism for the app specific configuration.
 
 ### 4.1 REST SET flow
 
-![REST SET flow](images/write.jpg)
+![REST SET flow](images/write_mdb.jpg)
 
-1. REST client can send any of the write commands such as POST, PUT, PATCH or DELETE and it will be handled by the REST Gateway.
-2. All handlers in the REST gateway will invoke a command request handler.
+1. REST client can send any of the write commands such as POST, PUT, PATCH, or DELETE and it will be handled by the REST Gateway.
+2. All handlers in the REST Gateway will invoke a command request handler.
 3. Authentication and authorization of the commands are done here.
 4. Request handler invokes one of the write APIs exposed by the Translib.
-5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation
+5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation.
 6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
 7. Translib infra gets the App module corresponding to the incoming URI.
-8. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+8. Initialize the APP module with request data
 9. App module caches the incoming data into the app structure.
-10. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
-11. App module returns the list of keys that it wants to keep a watch on along with the status.
-12. Translib infra invokes the start transaction request exposed by the DB access layer.
-13. DB access layer performs a WATCH of all the keys in the Redis DB. If any of these keys are modified externally then the EXEC call in step 26 will fail.
-14. Status being returned from Redis.
-15. Status being returned from DB access layer.
-16. Translib then invokes the processWrite API on the App module.
-17. App modules perform writes of the translated data to the DB access layer.
-18. DB access layer validates the writes using CVL and then caches them.
-19. Status being returned from DB access layer.
-20. Status being returned from App module.
-21. Translib infra invokes the commit transaction on the DB access layer.
-22. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
-23. Status returned from Redis.
-24. Pipeline of all the cached writes are executed from the DB access layer.
-25. Status retuned from Redis.
-26. EXEC call is made to the Redis DB. Here if the call fails, it indicates that one of the keys that we watched has changed and none of the writes will go into the Redis DB.
-27. Status returned from Redis DB.
-28. Status returned from DB access layer.
-29. Write lock acquired in Step 6 is released.
-30. Status returned from the Translib infra.
-31. REST Status returned from the Request handler.
-32. REST response is sent by the REST gateway to the REST client.
+10. App module returns after initializing local data.
+11. Translib infra invokes App module getNamespace() API to get namespace associated with the ygot and path.
+12. App module invokes transformer service getNamespaceMapping() to retrieve namespace based on Yang model.
+13. Transformer invokes Yang model-based exception to retrieve the namespace associated with ygot and URI.
+14. Transformer returns namespace associated with the ygot and URI.
+15. App module returns namespace.
+16. Loop through all Payloads —
+    1. Initialize the APP module with request data
+    2. App module caches the incoming data into the app structure.
+    3. App module returns after initializing local data.
+    4. Get DB for the selected payload namespace
+    5. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+    6. App module returns the list of keys that it wants to keep a watch on along with the status.
+    7. Translib infra invokes the start transaction request exposed by the DB access layer.
+    8. DB access layer performs a WATCH of all the keys in the Redis DB.
+    9. Status being returned from Redis.
+    10. Status being returned from DB access layer.
+    11. Translib then invokes the prepareUpdate() API on the App module. For Update, Replace, or Delete operations existing row entry for corresponding request's key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.
+    12. Translib then invokes the processValidate() API on the App module.
+    13. App modules perform validation of the translated data to the DB access layer.
+    14. DB access layer validates the operation using CVL.
+    15. Status being returned from DB access layer (validation result only).
+    16. Status being returned from App module.
+17. If Validation on all Payloads is successful:
+    1. Translib invokes the processWrite() API on the App module.
+    2. App modules perform actual writes of the translated data to the DB access layer.
+    3. DB access layer caches the writes.
+    4. Status being returned from DB access layer.
+    5. Status being returned from App module.
+18. If operation on all payloads in Step 17 is successful:
+    1. Translib infra invokes the commit transaction on the DB access layer.
+    2. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
+    3. Status returned from Redis.
+    4. Pipeline of all the cached writes are executed from the DB access layer.
+    5. Status returned from Redis.
+    6. EXEC call is made to the Redis DB.
+    7. Status returned from Redis DB.
+    8. Status returned from DB access layer
+19. If any operation failed in Step 16 Abort all DB transactions
+    1. Translib infra invokes the abort transaction on the DB access layer.
+    2. DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
+    3. Status returned from Redis.
+    4. Status returned from DB access layer.
+20. Post Handling case : Rollback for any failure while commiting (If Rollback is Enabled)
+	Rollback actions will be continued even with failure, however failure during rollback will be logged.
+21. Release the write lock acquired in Step 6.
+22. Status returned from the Translib infra.
+23. REST status returned from the Request handler.
+24. REST response is sent by the REST Gateway to the REST client.
 
 ### 4.2 REST GET flow
 
-![REST GET flow](images/read.jpg)
+![REST GET flow](images/read_mdb.jpg)
 
 1. REST GET request from the REST client is sent to the REST Gateway.
 2. REST Gateway invokes a common request handler.
@@ -2438,17 +2699,24 @@ mechanism for the app specific configuration.
 5. Translib infra gets the App module corresponding to the incoming uri.
 6. Translib infra calls the initialize function of the App module with the YGOT structures and path. App module caches them.
 7. Status retuned from App module.
-8. App module queries Transformer to translate the path to the Redis keys that need to be queried.
-9. Status returned from App module.
-10. Translib infra calls the processGet function on the App module
-11. App modules calls read APIs exposed by the DB access layer to read data from the Redis DB.
-12. Data is read from the Redis DB is returned to the App module
-13. App module fills the YGOT structure with the data from the Redis DB and validated the filled YGOT structure for the syntax.
-14. App module converts the YGOT structures to JSON format.
-15. IETF JSON payload is returned to the Translib infra.
-16. IETF JSON payload is returned to the request handler.
-17. Response is returned to REST gateway.
-18. REST response is returned to the REST client from the REST gateway.
+8. Translib infra calls the getNamespace function of the App module with the uri path, to get all DB namespace associated with the uri path
+9. App module queries Transformer to get all namespace associated with the uri path
+10. Transformer shall use Yang specific "Transformer Spec" to get all namespace associated with uri path
+11. Transformer return namespace associated with the uri path
+12. App module return namespace retrived by the transformer layer
+13. Translib infra gets all the namespaces available in the platform, loops through each of the namespace associated with the uri path as recieved in earlier step
+14. App module queries Transformer to translate the path to the Redis keys that need to be queried.
+15. Status returned from App module.
+16. Translib infra calls the processGet function on the App module
+17. App modules calls read APIs exposed by the DB access layer to read data from the Redis DB.
+18. Data is read from the Redis DB is returned to the App module
+19. App module fills the YGOT structure with the data from the Redis DB and validated the filled YGOT structure for the syntax.
+20. App module converts the YGOT structures to JSON format.
+21. IETF JSON payload is returned to the Translib infra.
+22. Translib infra aggregates all the responses from app module with different namesapce DB associated with uri path
+23. IETF JSON payload is returned to the request handler.
+24. Response is returned to REST gateway.
+25. REST response is returned to the REST client from the REST gateway.
 
 ### 4.3 Translib Initialization flow
 
@@ -2474,7 +2742,7 @@ This way multiple app modules initialize with the Translib infra during boot up.
 
 ### 4.5 CVL flow
 
-![CVL flow](images/CVL_flow.jpg)
+![CVL flow](images/CVL_flow_mdb.jpg)
 
 Above is the sequence diagram explaining the CVL steps. Note that interaction between DB Access layer and Redis including transactions is not shown here for brevity.
 
@@ -2483,27 +2751,179 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 3. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
 4. Translib infra gets the App module corresponding to the incoming uri.
 5. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
-6. App module calls Transformer to translate the request from cached YGOT structure into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
-7. App modules returns the list of keys that it wants to keep a watch on along with the status.
-8. Translib infra invokes the start transaction request exposed by the DB access layer.
-9. Status being returned from DB access layer.
-10. Translib then invokes the processWrite API on the App module.
-11. App modules perform writes of the translated data to the DB access layer.
-12. DB access layer calls validateWrite for CREATE/UPDATE/DELETE operation. It is called with keys and Redis/ABNF payload.
-13. validateSyntax() feeds Redis data to translator internally which produces YANG XML. This is fed to libyang for validating the syntax.
-14. If it is successful, control goes to next step, else error is returned to DB access layer. The next step is to ensure that keys are present in Redis DB for Update/Delete operation. But keys should not be present for Create operation.
-15. Status is returned after checking keys.
-16. CVL gets dependent data from  incoming Redis payload. For example if ACL_TABLE and ACL_RULE is getting created in a single request.
-17. Otherwise dependent should be present in Redis DB, query is sent to Redis to fetch it.
-18. Redis returns response to the query.
-19. Finally request data and dependent is merged and validateSemantics() is called.
-20. If above step is successful, success is returned or else failure is returned with error details.
-21. DB Access layer forwards the status response to App mpdule.
-22. App module forwards the status response to Translib infra.
-23. Translib infra invokes the commit transaction on the DB access layer.
-24. Status is returned from DB access layer after performing commit operation.
-25. Write lock acquired in Step 3 is released.
-26. Final response is returned from the Translib infra to REST/GNMI.
+6. App module caches the incoming data into the app structure.
+7. App module returns after initializing local data
+8. Translib infra invokes getNameSpace API of the App module
+9. App module invokes getNameSpaceMapping Transformer API
+10. Transformer invokes Yang model specific getNameSpace annotation function
+11. Transformer returns the namespace associated with the uri path
+12. App module returns namespace associated with the uri path
+13. Iterate through all payloads, Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+14. App module caches the incoming data into the app structure.
+15. App module returns after initializing local data  
+16. Get the Config DB for the selected Namespace 
+17. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+18. App module returns the list of keys that it wants to keep a watch on along with the status.
+19. Translib infra invokes the start transaction request exposed by the DB access layer.
+20. Status being returned from DB access layer.
+21. Prepare for update: Take backup of entries to be modified in a backup file
+22. Translib then invokes the processWrite API on the App module.
+23. App modules perform writes of the translated data to the DB access layer.
+24. DB access layer calls validateWrite for CREATE/UPDATE/DELETE operation. It is called with keys and Redis/ABNF payload.
+25. validateSyntax() feeds Redis data to translator internally which produces YANG XML. This is fed to libyang for validating the syntax.
+26. If it is successful, control goes to next step, else error is returned to DB access layer. The next step is to ensure that keys are present in Redis DB for Update/Delete operation. But keys should not be present for Create operation.
+27. Status is returned after checking keys.
+28. CVL gets dependent data from  incoming Redis payload. For example if ACL_TABLE and ACL_RULE is getting created in a single request.
+29. Otherwise dependent should be present in Redis DB, query is sent to Redis to fetch it.
+30. Redis returns response to the query.
+31. Finally request data and dependent is merged and validateSemantics() is called.
+32. If above step is successful, success is returned or else failure is returned with error details.
+33. DB Access layer forwards the status response to App mpdule.
+34. App module forwards the status response to Translib infra.
+35. If Successul, Translib infra invokes the commit transaction on the DB access layer.
+36. Status is returned from DB access layer after performing commit operation.
+37. If Failure, Translib infra invokes the Abort transaction on the DB access layer.
+38. Status is returned from DB access layer after performing Abort operation.
+39. Post handling, cleanup backup data handling commit success and failure scenario
+40. Write lock acquired in Step 3 is released.
+41. Final response is returned from the Translib infra to REST/GNMI.
+
+### 4.6 Bulk flow
+
+![Bulk flow](images/bulk_mdb.jpg)
+
+1. REST client can send any of the write commands such as POST, PUT, PATCH or DELETE and it will be handled by the REST Gateway.
+2. All handlers in the REST gateway will invoke a command request handler.
+3. Authentication and authorization of the commands are done here.
+4. Request handler invokes one of the bulk APIs exposed by the Translib.
+5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation
+6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
+7. Translib infra gets the App module corresponding to the incoming URI
+8. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+9. App module caches the incoming data into the app structure.
+10. App module returns after initializing local data
+11. Translib infra invoke App module getNamespace API (introduced in app interface) to get namespace associated with the uri
+12. App module invokes transformer service getNamespaceMapping to retrieve namespace based on Yang model
+13. Transformer invokes Yang model based exception to retrieve the namespace associated with uri
+14. Transformer returns namespace associated with the uri
+15. Appmodule returns namespace
+16. Loop through all Requests and payloads
+    1. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+    2. App module caches the incoming data into the app structure.
+    3. App module returns after initializing local data
+    4. Get the Config DB for the selected Namespace
+    5.  module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+    6. App module returns the list of keys that it wants to keep a watch on along with the status.
+    7. Translib infra invokes the start transaction request exposed by the DB access layer.
+    8. DB access layer performs a WATCH of all the keys in the Redis DB. If any of these keys are modified externally then the EXEC call in step 33 will fail.
+    9. Status being returned from Redis.
+    10. Status being returned from DB access layer.
+    11. Prepare for update, take backup of entries to be modified in a backup file.
+    12. Translib then invokes the process Validate API on the App module.
+    13. App modules perform validation of the translated data to the DB access layer.
+    14. DB access layer validates the operation using CVL.
+    15. Status being returned from DB access layer.
+    16. Status being returned from App module.
+    12. If Set was a failure, Translib infra invokes the abort transaction on the DB access layer.
+    13. DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
+    14. Status retuned from Redis.
+    15. Status returned from DB access layer.
+17. If Validation on all Payloads is successful:
+    1. Translib invokes the processWrite API on the App module with WRITE mode
+    2. App modules perform actual writes of the translated data to the DB access layer.
+    3. DB access layer caches the writes .
+    4. Status being returned from DB access layer.
+    5. Status being returned from App module.
+18. If operations were successful, Translib infra invokes the commit transaction on the DB access layer.
+19. If any operation is failed, abort all DB transactions
+20. Post handling, cleanup backup data handling commit success and failure scenario      
+21. Write lock acquired in Step 6 is released.
+22. Status returned from the Translib infra.
+23. REST Status returned from the Request handler.
+24. REST response is sent by the REST gateway to the REST client.
+
+### 4.7 Rollback flow
+
+![rollback flow](images/rollback_mdb.png)
+
+1. REST client can send any of the write commands such as POST, PUT, PATCH, or DELETE and it will be handled by the REST Gateway.
+2. All handlers in the REST Gateway will invoke a command request handler.
+3. Authentication and authorization of the commands are done here.
+4. Request handler invokes one of the write APIs exposed by the Translib.
+5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation.
+6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
+7. Translib infra gets the App module corresponding to the incoming URI.
+8. Initialize the APP module with request data
+9. App module caches the incoming data into the app structure.
+10. App module returns after initializing local data.
+11. Translib infra invokes App module getNamespace() API to get namespace associated with the ygot and path.
+12. App module invokes transformer service getNamespaceMapping() to retrieve namespace based on Yang model.
+13. Transformer invokes Yang model-based exception to retrieve the namespace associated with ygot and URI.
+14. Transformer returns namespace associated with the ygot and URI.
+15. App module returns namespace.
+16. Loop through all Payloads  
+    1. Initialize the APP module with request data
+    2. App module caches the incoming data into the app structure.
+    3. App module returns after initializing local data.
+    4. Get DB for the selected payload namespace
+    5. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+    6. App module returns the list of keys that it wants to keep a watch on along with the status.
+    7. Translib infra invokes the start transaction request exposed by the DB access layer.
+    8. DB access layer performs a WATCH of all the keys in the Redis DB.
+    9. Status being returned from Redis.
+    10. Status being returned from DB access layer.
+    11. Translib then invokes the prepareUpdate() API on the App module. For Update, Replace, or Delete operations keys are constructed based on the original request keys and existing row entry of corresponding key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.     
+        1. Translib invokes the prepareUpdate() API for the keys
+        2. App modules perform operation of taking backup data in the backup file.
+        3. Status being returned from file write.
+        4. Status being returned from App module.
+    12. Translib then invokes the processValidate() API on the App module.
+    13. App modules perform validation of the translated data to the DB access layer.
+    14. DB access layer validates the operation using CVL.
+    15. Status being returned from DB access layer.
+    16. Status being returned from App module.
+17. If Validation on all Payloads is successful:
+    1. Translib invokes the processWrite() API on the App module.
+    2. App modules perform actual writes of the translated data to the DB access layer.
+    3. DB access layer caches the writes .
+    4. Status being returned from DB access layer.
+    5. Status being returned from App module.
+18. If operation on all payloads is successful  
+    1. Translib infra invokes the commit transaction on the DB access layer.
+    2. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
+    3. Status returned from Redis.
+    4. Pipeline of all the cached writes are executed from the DB access layer.
+    5. Status returned from Redis.
+    6. EXEC call is made to the Redis DB.
+    7. Status returned from Redis DB.
+    8. Status returned from DB access layer
+19. If any operation on payload failed in Step 17. Abort all DB transactions  
+    1. Translib infra invokes the abort transaction on the DB access layer.
+    2. DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
+    3. Status returned from Redis.
+    4. Status returned from DB access layer.
+20. Post Handling case when Rollback is Enabled : Rollback for any failure while commiting
+    Rollback actions will be continued even with failure, however failure during rollback will be logged  
+    1. Non-commited DB Abort: Translib infra invokes the abort transaction on the DB access layer.
+    2. Non-commited DB Abort: DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
+    3. Non-commited DB Abort: Status returned from Redis.
+    4. Non-commited DB Abort: Status returned from DB access layer
+    5. Commited DB Rollback: Revert modified entry by reading backup data from backup file
+    6. App modules invokes data read from backup file for corresponding keys.
+    7. Status is being returned from file read.
+    8. Status is being returned from App module.
+    9. Translib invokes the processWrite() API for Prep_keys
+    10. App modules perform operation of the translated data to the DB access layer.
+    11. DB access layer validates the operation using CVL and then caches them.
+    12. Status being returned from DB access layer.
+    13. Status being returned from App module.
+21. Post cleanup: delete all backup entries
+    1. Delete the backup files.
+    2. Status being returned from file operation. 
+22. Release the write lock acquired in Step 6.
+23. Status returned from the Translib infra.
+24. REST status returned from the Request handler.
+25. REST response is sent by the REST Gateway to the REST client.
 
 ## 5 Developer Work flow
 Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary YANG used for a feature. When a standards-based YANG model is chosen for a new feature, the associated Redis DB design should take the design of this model into account - the closer the mapping between these, then the less translation logic is required in the Management path. This simplifies the work flow as translation intelligence can be avoided as both Redis schema and NB YANG schema are aligned.
