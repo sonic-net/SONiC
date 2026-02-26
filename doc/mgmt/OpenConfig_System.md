@@ -456,6 +456,7 @@ Community PR [https://github.com/sonic-net/sonic-mgmt-common/pull/147]
    * In this PR openconfig-system.yang and its submodules are updated to latest version available
    * Reference to openconfig-network-instance model is commented, as this module is yet to be supported in SONiC
 
+Main changes in the latest openconfig versions are:
  * Feature wise major changes -
     * system/state -> up-time, software-version, last-configuration-timestamp nodes are added.
     * ntp -> source-address moved to per server list from global container. Also network-instance is included per server. NTP Key reference is added in server.
@@ -773,7 +774,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
     {
       "Path": "idle/interval",
       "values": {
-        "idle/interval": 51000000000
+        "idle/interval": 61000000000
       }
     },
     {
@@ -1053,7 +1054,7 @@ Translation Notes:
    iv. Server network-instanse & source-address - Only a single value is supported across servers, as SONiC support these nodes in global table, not per server.  
    v. Server source-address - SONiC has src_intf support instead of source-address in NTP configurations. Translib will fetch src_intf for given address.  
                               So user must configure IP on Ports properly, before NTP configuration.  
-4. system/cpus - CPU statistics are fetched from STATE_DB.CPU_STATS table. Data is collected every 10 seconds. Timestamp is in timeticks64 format. Calculations (instant, avg, min, max, min-time, max-time, interval) are performed using 5 sample references.
+4. system/cpus - CPU statistics are fetched from STATE_DB.CPU_STATS table. Data is collected every 10 seconds. Timestamp is in timeticks64 format. Calculations (instant, avg, min, max, min-time, max-time, interval) are performed using 6 sample references.
 5. logging & messages severity - EMERGENCY, ALERT & CRITICAL, all these three are translated to SONiC critical level
 6. logging facility - Only ALL is supported currently
 
