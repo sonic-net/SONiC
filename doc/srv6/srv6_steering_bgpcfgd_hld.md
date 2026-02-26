@@ -138,7 +138,7 @@ This section describes the YANG model extensions required to support SRv6 traffi
 
 The sonic-static-route YANG model is extended to include `sidlist` as a structured list under `STATIC_ROUTE_LIST`. The updated model is shown below:
 
-```
+```diff
   module: sonic-static-route
     +--rw sonic-static-route
         +--rw STATIC_ROUTE
