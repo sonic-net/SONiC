@@ -52,11 +52,13 @@ This section captures the functional requirements for platform monitoring and ma
 * BMC can be accessed in three ways (i) shared console (ii) via the external mgmt interface (ii) from the Switch-Host via the internal Host-Bmc-Link
 * BMC can access Switch-Host redis DB over this internal Host-Bmc-Link and viceversa.
 * BMC will manage the Switch Host to support operations like soft reboot, power up/down, get operational status.  
-* BMC will read local leak sensors, its severity and take appropriate actions based on policy.
+* BMC will manage leak detection, read local leak sensors, its severity and take appropriate actions based on policy.
 * BMC will get inputs from external Rack Manager on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure and Rack level Leak. It takes action based on policy.  
-* BMC and Switch-Host shall each enable an independent Hw watchdog timer.
+* BMC and Switch-Host shall enable an independent Hw watchdog timer.
 * BMC and Switch-Host can be power ON and OFF independently.
-* Switch-Host will manage its thermal sensors and automatically power down when any thermal sensor temperature exceeds the policy-defined thresholds.
+* BMC shall remain operational (UP) during main power or voltage faults, provided standby power is present.
+* In Liquid cooled switches, Switch-Host manage its thermal sensors and automatically power down when any thermal sensor temperature exceeds the policy-defined thresholds.
+* In Air cooled switches, Switch-Host/thermalctld manage its thermal sensors and control the fan/cooling as done today.
     
 ### 1.2. BMC Platform Stack
 
@@ -172,12 +174,12 @@ Defining the various states, events and final state below
 
 || Switch Host (Current) | Event | Action | Switch Host (Final) 
 |--|---|---|---|---|
-|1| POWERED_UP  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, DB update, graceful-shutdown/Power OFF Switch Host | POWERED_DOWN 
-|2| POWERED_UP  | RACK_MGR_CRITICAL_EVENT | Syslog, graceful-shutdown/Power OFF Switch Host | POWERED_DOWN 
-|3| POWERED_UP  | POWER OFF request | Syslog, graceful-shutdown/Power OFF Switch Host | POWERED_DOWN 
-|4| POWERED_UP  | LOCAL_LEAK_MINOR_EVENT | Syslog, external monitoring tool isolate Switch-Host | POWERED_UP
-|4| POWERED_UP  | RACK_MGR_MINOR_EVENT | Syslog, <To conclude on the action> | POWERED_UP
-|5| POWERED_DOWN  | POWER ON request | Power ON Switch Host, Syslog | POWERED_UP
+|1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, DB update, graceful-shutdown/Power OFF Switch Host | OFFLINE 
+|2| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog, graceful-shutdown/Power OFF Switch Host | OFFLINE 
+|3| ONLINE  | POWER OFF request | Syslog, graceful-shutdown/Power OFF Switch Host | OFFLINE 
+|4| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, external monitoring tool isolate Switch-Host | ONLINE
+|4| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, <To conclude on the action> | ONLINE
+|5| ONLINE  | POWER ON request | Power ON Switch Host, Syslog | ONLINE
 
 
 #### 2.1.5 BMC Leak detection and thermal policy
@@ -198,8 +200,10 @@ The Leak, Switch-Host state and interactions, Rack-manager interactions will be 
 
 ### 2.2 BMC Platform Management
 
-The daemons present in pmon would be thermalctld, syseepromd, stormond.
-In **Liquid cooled platforms** a new daemon **"bmcctld"** will be introduced in pmon container on BMC
+The daemons present in pmon will be thermalctld, syseepropmd, stormond. A new daemon **"bmcctld"** will be introduced to power control the Switch-Host based on either leaks in device in case of **liquid cooled platform**, rack-manager or admin-user power off/on commands.
+
+In the **Air cooled platforms** the Switch-Host manages its thermal sensors as done today in Sonic and control the fan/cooling.
+
 
 #### 2.2.1 BMC controller - bmcctld
 
@@ -226,10 +230,10 @@ if NO
   - update the HOST_STATE|switch-host with the device_power_state.
 }
 
-Subscribe to RACK_MANAGER_COMMAND table, RACK_MANAGER_ALERT* tables and SYSTEM_LEAK_STATUS table in STATE_DB 
+Subscribe to RACK_MANAGER_COMMAND table, CHASSIS_MODULE table, RACK_MANAGER_ALERT* tables and SYSTEM_LEAK_STATUS table in STATE_DB 
 On an Event 
   - if POWER_DOWN request
-      - JUMP to REBOOT|POWER_DOWN_SWITCH_HOST:
+      - JUMP to **REBOOT|POWER_DOWN_SWITCH_HOST:
       - update the HOST_STATE|switch-host with the device_power_state.
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
 
@@ -238,7 +242,7 @@ On an Event
       - update the HOST_STATE|switch-host with the device_power_state.
 
   - if CRITICAL Local OR External leak
-      - JUMP to REBOOT|POWER_DOWN_SWITCH_HOST:
+      - JUMP to **REBOOT|POWER_DOWN_SWITCH_HOST:
       - update the HOST_STATE|switch-host with the device_power_state.
 
   - if MINOR Local OR External leak
@@ -248,7 +252,7 @@ On an Event
       - Assume there will be an external fix and powercycle of device as needed which willclear leak state ? **Question**
 
 
-REBOOT|POWER_DOWN_SWITCH_HOST:
+**REBOOT|POWER_DOWN_SWITCH_HOST:
   - use GNOI framework to issue remote reboot/shutdown command. The gnmi and sysmgr docker needs to be running on Switch-Host
     REF: https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/gnoi_system_hld.md, https://github.com/sonic-net/SONiC/pull/1489
   - if it was a shutdown command
@@ -262,8 +266,9 @@ REBOOT|POWER_DOWN_SWITCH_HOST:
 
 ```
 
-**Note:** To add more details and flow diagrams to this section.
-
+**Note:** (i)  To add more details and flow diagrams to this section.
+          (ii) Do we need a thread in bmcctld to check reachablity of Switch-Host
+          (iii) In Air cooled devices with BMC, do we need to update platform.json with additional thermal sensor.
 
 ###### DB schema
 This section covers the various tables which this daemon creates/uses in Redis DB on BMC
@@ -276,7 +281,8 @@ boot_delay                = float                              ; Time in secs af
 
 key                       = HOST_STATE|switch-host             ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
-device_power_state        = POWERED_ON | POWERED_OFF | REBOOT  ; What was the last action done on Switch-Host
+device_power_state        = POWER_ON | POWER_OFF | REBOOT      ; What was the last action done on Switch-Host
+device_status             = ONLINE | OFFLINE                   ; current oper status of device
 last_change_timestamp     = STR
 
 
@@ -328,11 +334,14 @@ key                       = LIQUID_COOLING_DEVICE|leakage_sensors{X}  ; leak dat
  ; field                  = value
 name                      = STR                                       ; sensor name
 leaking                   = STR                                       ; Yes or No to indicate leakage status
+type                      = STR                                       ; leak sensor type
+location                  = STR                                       ; leak sensor location
 severity                  = "status"                                  ;CRITICAL/MINOR
 
 key                       = SYSTEM_LEAK_STATUS|local                  ; local bmc leak status in STATE DB
 ; field                   = value
 device_leak_status        = "status"                                  ;CRITICAL/MINOR
+timestamp                 = STR                                       ; timestamp when this status is recorded.
 ```     
 
 #### 2.2.3 Hw watchdog
@@ -359,6 +368,8 @@ This base class is already defined in sonic-platform-common.
 |---------|---------|----------|
 | get_name() | Y | Get leak sensor name |
 | is_leak() | Y | Is there a leak detected? |
+| get_type() | New | What type of leak sensor is this rope,  spot etc |
+| get_location() | New | Location of leak sensor |
 | get_severity() | New | Get the severity based on the criticality of the zone |
 
 ---
@@ -389,23 +400,26 @@ It contains API's for Switch-Host to control the switch BMC, In the current impl
 | get_status() | Y | Get BMC status |
 | get_model() | Y | Get BMC model |
 | get_serial() | Y | Get BMC serial number |
+| request_bmc_reset() | Y | Reset BMC from switch-host |
 
 ---
 
 ####  ModuleBase
 This base class is already defined in sonic-platform-common.
- - Adding a new API get_power_state() which retuns back the power ON status of Module
+
+Switch-Host can be modelled as a Module object and the APIs to control power on/off/cycle the Switch-Host are as below,
 
 
 | Method | Present | Action |
 |---------|---------|----------|
 | set_admin_state(UP) | Y | Power on Switch Host from standby/off |
 | set_admin_state(DOWN) | Y | Power OFF Switch Host |
-| reboot() | Y | Graceful shutdown of Switch Host|
-| get_power_state() | New | Fetch the power state of Switch-Host|
+| reboot() | Y | Power cycle Switch Host|
+| get_oper_state() | Y | Fetch the operational state of Switch-Host|
 
 
-We can model Switch-Host as a Module. Sample Implementaion as below 
+Sample Implementation of Switch-Host Module below,
+
 
 ```
 
@@ -443,7 +457,7 @@ Use it in sonic_platform_daemons:
 
   from sonic_platform import chassis
   platform_chassis = chassis.Chassis()
-  modules = platform_chassis.get_all_modules() // Check for SWITCH_HOST type 
+  modules = platform_chassis.get_all_modules() // Check for MODULE_SWITCH_HOST type 
 
 ```
 
@@ -458,7 +472,7 @@ This base class is already defined in sonic-platform-common.
 | get_all_modules() | Y | In the BMC, to get the Switch-Host Module object |
 
 
-### 2.2 BMC CLI Commands
+### 2.3 BMC CLI Commands
 
 The following docs already present define CLI's for bmc/leak show commands.
 
@@ -470,21 +484,37 @@ Additional commands enhanced to support BMC operation are below
 
 #### Config commands
 
-1. CLI to enable user to powercycle/reboot the Switch-Host
+1. CLI to enable user to power on/off the Switch-Host. 
+   This could be used in an **Air cooled switch** to recover the Switch-Host in case of a software failure.
+
 ```
 config chassis modules startup <Switch-Host>
+   - This command is to POWER ON the Switch Host from BMC
+
 config chassis modules shutdown <Switch-Host>
-config chassis modules reboot <Switch-Host>
+   - This command is to POWER OFF the Switch Host from BMC
+
+```
+
+
+##### DB schema
+
+```
+    "CHASSIS_MODULE": {
+        "SWITCH-HOST": {
+            "admin_status": "up"
+        }
+    }    
 ```
 
 #### Show commands 
 
 ```
 admin@bmc-host:~$ show chassis module status
-        Name             Description   Power status       Serial
+        Name             Description   oper status       Serial
 ------------  ----------------------  -------------  -----------
-BMC            Board Management Card         up          <>
-Switch-Host    <Device sku details>          down        <>
+BMC            Board Management Card             up          <>
+Switch-Host    Switch Host System                up          <>
 
 
 ```
