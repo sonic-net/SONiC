@@ -456,12 +456,9 @@ Community PR [https://github.com/sonic-net/sonic-mgmt-common/pull/147]
    * In this PR openconfig-system.yang and its submodules are updated to latest version available
    * Reference to openconfig-network-instance model is commented, as this module is yet to be supported in SONiC
 
-Main changes in the latest openconfig versions are:
  * Feature wise major changes -
     * system/state -> up-time, software-version, last-configuration-timestamp nodes are added.
-    * system/cpus -> CPU state monitoring support added with real-time utilization metrics (instant, avg, min, max) from STATE_DB.CPU_STATS.
     * ntp -> source-address moved to per server list from global container. Also network-instance is included per server. NTP Key reference is added in server.
-    * ntp/servers/server/state -> NTP server state monitoring support added with runtime statistics (stratum, offset, root-delay, root-dispersion, poll-interval) from STATE_DB.NTP_SERVER.
     * grpc-server -> Restructured completely, multiple server provision is added.
     * logging -> For remote-server, network-instance support is added. Files & VTY containers are added newly.
     * memory -> used and free leaves are added.
@@ -791,288 +788,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
         "idle/min": 87
       }
     },
-    {
-      "Path": "hardware-interrupt/instant",
-      "values": {
-        "hardware-interrupt/instant": 0
-      }
-    },
-    {
-      "Path": "hardware-interrupt/max",
-      "values": {
-        "hardware-interrupt/max": 0
-      }
-    },
-    {
-      "Path": "wait/max",
-      "values": {
-        "wait/max": 0
-      }
-    },
-    {
-      "Path": "wait/min-time",
-      "values": {
-        "wait/min-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "nice/min",
-      "values": {
-        "nice/min": 0
-      }
-    },
-    {
-      "Path": "total/instant",
-      "values": {
-        "total/instant": 7
-      }
-    },
-    {
-      "Path": "hardware-interrupt/min-time",
-      "values": {
-        "hardware-interrupt/min-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "software-interrupt/avg",
-      "values": {
-        "software-interrupt/avg": 1
-      }
-    },
-    {
-      "Path": "hardware-interrupt/interval",
-      "values": {
-        "hardware-interrupt/interval": 51000000000
-      }
-    },
-    {
-      "Path": "hardware-interrupt/min",
-      "values": {
-        "hardware-interrupt/min": 0
-      }
-    },
-    {
-      "Path": "idle/max",
-      "values": {
-        "idle/max": 95
-      }
-    },
-    {
-      "Path": "nice/min-time",
-      "values": {
-        "nice/min-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "user/instant",
-      "values": {
-        "user/instant": 2
-      }
-    },
-    {
-      "Path": "hardware-interrupt/avg",
-      "values": {
-        "hardware-interrupt/avg": 0
-      }
-    },
-    {
-      "Path": "idle/avg",
-      "values": {
-        "idle/avg": 91
-      }
-    },
-    {
-      "Path": "user/avg",
-      "values": {
-        "user/avg": 4
-      }
-    },
-    {
-      "Path": "user/min-time",
-      "values": {
-        "user/min-time": 1772019687000000000
-      }
-    },
-    {
-      "Path": "software-interrupt/interval",
-      "values": {
-        "software-interrupt/interval": 51000000000
-      }
-    },
-    {
-      "Path": "total/min-time",
-      "values": {
-        "total/min-time": 1772019677000000000
-      }
-    },
-    {
-      "Path": "kernel/min",
-      "values": {
-        "kernel/min": 1
-      }
-    },
-    {
-      "Path": "nice/interval",
-      "values": {
-        "nice/interval": 51000000000
-      }
-    },
-    {
-      "Path": "software-interrupt/min-time",
-      "values": {
-        "software-interrupt/min-time": 1772019667000000000
-      }
-    },
-    {
-      "Path": "total/min",
-      "values": {
-        "total/min": 4
-      }
-    },
-    {
-      "Path": "idle/instant",
-      "values": {
-        "idle/instant": 92
-      }
-    },
-    {
-      "Path": "kernel/instant",
-      "values": {
-        "kernel/instant": 3
-      }
-    },
-    {
-      "Path": "total/max",
-      "values": {
-        "total/max": 12
-      }
-    },
-    {
-      "Path": "hardware-interrupt/max-time",
-      "values": {
-        "hardware-interrupt/max-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "idle/min-time",
-      "values": {
-        "idle/min-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "software-interrupt/instant",
-      "values": {
-        "software-interrupt/instant": 1
-      }
-    },
-    {
-      "Path": "total/interval",
-      "values": {
-        "total/interval": 51000000000
-      }
-    },
-    {
-      "Path": "wait/instant",
-      "values": {
-        "wait/instant": 0
-      }
-    },
-    {
-      "Path": "wait/max-time",
-      "values": {
-        "wait/max-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "kernel/max",
-      "values": {
-        "kernel/max": 4
-      }
-    },
-    {
-      "Path": "nice/max-time",
-      "values": {
-        "nice/max-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "kernel/max-time",
-      "values": {
-        "kernel/max-time": 1772019667000000000
-      }
-    },
-    {
-      "Path": "wait/min",
-      "values": {
-        "wait/min": 0
-      }
-    },
-    {
-      "Path": "software-interrupt/max-time",
-      "values": {
-        "software-interrupt/max-time": 1772019657000000000
-      }
-    },
-    {
-      "Path": "wait/avg",
-      "values": {
-        "wait/avg": 0
-      }
-    },
-    {
-      "Path": "nice/instant",
-      "values": {
-        "nice/instant": 0
-      }
-    },
-    {
-      "Path": "software-interrupt/max",
-      "values": {
-        "software-interrupt/max": 2
-      }
-    },
-    {
-      "Path": "user/max-time",
-      "values": {
-        "user/max-time": 1772019636000000000
-      }
-    },
-    {
-      "Path": "user/min",
-      "values": {
-        "user/min": 2
-      }
-    },
-    {
-      "Path": "wait/interval",
-      "values": {
-        "wait/interval": 51000000000
-      }
-    },
-    {
-      "Path": "index",
-      "values": {
-        "index": 0
-      }
-    },
-    {
-      "Path": "kernel/interval",
-      "values": {
-        "kernel/interval": 51000000000
-      }
-    },
-    {
-      "Path": "total/avg",
-      "values": {
-        "total/avg": 8
-      }
-    },
-    {
-      "Path": "total/max-time",
-      "values": {
-        "total/max-time": 1772019636000000000
-      }
-    },
+    ...
     {
       "Path": "nice/avg",
       "values": {
@@ -1104,10 +820,10 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | login-banner | sonic-banner.yang | CONFIG_DB | BANNER_MESSAGE:login |
 | motd-banner | sonic-banner.yang | CONFIG_DB | BANNER_MESSAGE:motd |
 | **state** | | | |
-| current-datatime | - | - | - |
+| current-datetime | - | - | - |
 | up-time | - | - | - |
 | boot-time | - | - | - |
-| software-version | - | - | - |
+| software-version | - | - | Extracted from /etc/sonic/sonic_version.yml |
 | last-configuration-timestamp | - | STATE_DB | HOST_STATS |
 | **mount-points** | | | |
 | mount-point/state | - | STATE_DB | MOUNT_POINTS |
@@ -1119,28 +835,63 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | config/timezone-name | sonic-device_metadata.yang | CONFIG_DB | DEVICE_METADATA:timezone |
 | **cpus** | | | |
 | cpu/state | - | STATE_DB | CPU_STATS |
-| index | - | - | `<table-key>` |
-| total/instant | - | - | calculated (100 - idle) |
-| total/avg | - | - | calculated average |
-| total/min | - | - | calculated minimum |
-| total/max | - | - | calculated maximum |
-| total/interval | - | - | sampling interval |
-| user/instant | - | - | user |
-| user/avg | - | - | user average |
-| user/min | - | - | user minimum |
-| user/max | - | - | user maximum |
-| kernel/instant | - | - | system |
-| kernel/avg | - | - | system average |
-| kernel/min | - | - | system minimum |
-| kernel/max | - | - | system maximum |
-| nice/instant | - | - | nice |
-| nice/avg | - | - | nice average |
-| nice/min | - | - | nice minimum |
-| nice/max | - | - | nice maximum |
-| idle/instant | - | - | idle |
-| idle/avg | - | - | idle average |
-| idle/min | - | - | idle minimum |
-| idle/max | - | - | idle maximum |
+| index | - | - | `<table-key>` (numeric or "all") |
+| total/instant | - | - | total (latest value) |
+| total/avg | - | - | total (calculated average) |
+| total/min | - | - | total (calculated minimum) |
+| total/max | - | - | total (calculated maximum) |
+| total/min-time | - | - | timestamp (calculated for min) |
+| total/max-time | - | - | timestamp (calculated for max) |
+| total/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| user/instant | - | - | user (latest value) |
+| user/avg | - | - | user (calculated average) |
+| user/min | - | - | user (calculated minimum) |
+| user/max | - | - | user (calculated maximum) |
+| user/min-time | - | - | timestamp (calculated for min) |
+| user/max-time | - | - | timestamp (calculated for max) |
+| user/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| kernel/instant | - | - | kernel (latest value) |
+| kernel/avg | - | - | kernel (calculated average) |
+| kernel/min | - | - | kernel (calculated minimum) |
+| kernel/max | - | - | kernel (calculated maximum) |
+| kernel/min-time | - | - | timestamp (calculated for min) |
+| kernel/max-time | - | - | timestamp (calculated for max) |
+| kernel/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| nice/instant | - | - | nice (latest value) |
+| nice/avg | - | - | nice (calculated average) |
+| nice/min | - | - | nice (calculated minimum) |
+| nice/max | - | - | nice (calculated maximum) |
+| nice/min-time | - | - | timestamp (calculated for min) |
+| nice/max-time | - | - | timestamp (calculated for max) |
+| nice/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| idle/instant | - | - | idle (latest value) |
+| idle/avg | - | - | idle (calculated average) |
+| idle/min | - | - | idle (calculated minimum) |
+| idle/max | - | - | idle (calculated maximum) |
+| idle/min-time | - | - | timestamp (calculated for min) |
+| idle/max-time | - | - | timestamp (calculated for max) |
+| idle/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| wait/instant | - | - | wait (latest value) |
+| wait/avg | - | - | wait (calculated average) |
+| wait/min | - | - | wait (calculated minimum) |
+| wait/max | - | - | wait (calculated maximum) |
+| wait/min-time | - | - | timestamp (calculated for min) |
+| wait/max-time | - | - | timestamp (calculated for max) |
+| wait/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| hardware-interrupt/instant | - | - | irq (latest value) |
+| hardware-interrupt/avg | - | - | irq (calculated average) |
+| hardware-interrupt/min | - | - | irq (calculated minimum) |
+| hardware-interrupt/max | - | - | irq (calculated maximum) |
+| hardware-interrupt/min-time | - | - | timestamp (calculated for min) |
+| hardware-interrupt/max-time | - | - | timestamp (calculated for max) |
+| hardware-interrupt/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| software-interrupt/instant | - | - | soft (latest value) |
+| software-interrupt/avg | - | - | soft (calculated average) |
+| software-interrupt/min | - | - | soft (calculated minimum) |
+| software-interrupt/max | - | - | soft (calculated maximum) |
+| software-interrupt/min-time | - | - | timestamp (calculated for min) |
+| software-interrupt/max-time | - | - | timestamp (calculated for max) |
+| software-interrupt/interval | - | - | timestamp (calculated interval in nanoseconds) |
 | **dns** | | | |
 | config/search | sonic-dns.yang | CONFIG_DB | DNS_NAMESERVER:ip |
 | **memory** | | | |
@@ -1289,6 +1040,22 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 
 **Notes:**
 - **Bold** entries indicate major feature categories/containers   
+
+## 4.2 Translation Notes
+
+Translation Notes:  
+1. current-datetime, up-time & boot-time nodes are directly fetched from system using syscall.
+2. system/dns/config/search : Deletion of individual value is not supported currently.
+3. system/ntp -  
+   i. Server version - Only 3 and 4 are supported in SONiC  
+   ii. Server association-type - Only SERVER & POOL are supported in SONiC  
+   iii. Key-type - Only MD5 is supported as per Openconfig  
+   iv. Server network-instanse & source-address - Only a single value is supported across servers, as SONiC support these nodes in global table, not per server.  
+   v. Server source-address - SONiC has src_intf support instead of source-address in NTP configurations. Translib will fetch src_intf for given address.  
+                              So user must configure IP on Ports properly, before NTP configuration.  
+4. system/cpus - CPU statistics are fetched from STATE_DB.CPU_STATS table. Data is collected every 10 seconds. Timestamp is in timeticks64 format. Calculations (instant, avg, min, max, min-time, max-time, interval) are performed using 5 sample references.
+5. logging & messages severity - EMERGENCY, ALERT & CRITICAL, all these three are translated to SONiC critical level
+6. logging facility - Only ALL is supported currently
 
 # 5 Error Handling
 Invalid configurations/operations will report an error.
