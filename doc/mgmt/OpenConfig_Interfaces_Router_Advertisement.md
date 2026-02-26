@@ -22,7 +22,7 @@
     * [3.1 Overview](#31-overview)
     * [3.2 DB Changes](#32-db-changes)
       * [3.2.1 CONFIG DB](#321-config-db)
-      * [3.2.2 APP DB](#322-app-db)
+      * [3.2.2 APPL_DB](#322-appl_db)
       * [3.2.3 STATE DB](#323-state-db)
       * [3.2.4 ASIC DB](#324-asic-db)
       * [3.2.5 COUNTER DB](#325-counter-db)
@@ -222,8 +222,8 @@ VLAN_INTERFACE_ND_PREFIX|Vlan100|2001:db8::/64
 
 Changes are made in **frrcfgd** daemon to subscribe to the `VLAN_INTERFACE` and `VLAN_INTERFACE_ND_PREFIX` tables in CONFIG_DB and configure the corresponding IPv6 Neighbor Discovery CLIs in FRR (Free Range Routing).
 
-### 3.2.2 APP DB
-There are no changes to APP DB schema definition for this feature.
+### 3.2.2 APPL_DB
+There are no changes to APPL_DB schema definition for this feature.
 
 ### 3.2.3 STATE DB
 There are no changes to STATE DB schema definition for this feature.
