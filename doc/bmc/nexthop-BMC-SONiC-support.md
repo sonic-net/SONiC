@@ -123,6 +123,7 @@ Future enhancements may include advanced hardware health monitoring, telemetry d
 - The **OpenBMC image** will continue to serve as the **golden firmware** in the SPI boot flash
 - **Initial Load Process**:
   - Boot the SONiC kernel with a minimal initramfs from U-Boot to launch a shell, and use the included script to download the image via TFTP and flash it to the eMMC.
+  - If SPI flash is running OpenBMC, boot into that, download a pre-formatted disk image and flash that to eMMC
 - **Subsequent Boots**:
   - Once the image is installed, the system can boot directly from the eMMC, eliminating the need to download or reinstall the image over TFTP.
   - The image will support the sonic-installer utility for image management, including adding a new image, removing an existing image, and selecting the default image for boot.
