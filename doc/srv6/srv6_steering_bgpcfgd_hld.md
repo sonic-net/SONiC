@@ -2,6 +2,8 @@
 
 # Table of Contents
 
+- [Bgpcfgd SRv6 Traffic Steering Configuration](#bgpcfgd-srv6-traffic-steering-configuration)
+- [Table of Contents](#table-of-contents)
 - [Revision](#revision)
 - [Definition/Abbreviation](#definitionabbreviation)
     - [Table 1: Abbreviations](#table-1-abbreviations)
@@ -134,21 +136,24 @@ Specifically, frrcfgd reads and validates the `sidlist` field in `STATIC_ROUTE` 
 
 This section describes the YANG model extensions required to support SRv6 traffic steering configuration.
 
-The sonic-static-route YANG model is extended by adding the `sidlist` leaf to the static route list. The simplified model is shown below:
+The sonic-static-route YANG model is extended to include `sidlist` as a structured list under `STATIC_ROUTE_LIST`. The updated model is shown below:
 
-```diff
+```
   module: sonic-static-route
     +--rw sonic-static-route
         +--rw STATIC_ROUTE
             +--rw STATIC_ROUTE_LIST* [vrf_name prefix]
-                +--rw vrf_name    string
-                +--rw prefix      inet:ipv4-prefix or inet:ipv6-prefix
-                +--rw ifname?     string
-                +--rw nexthop?    string
-                +--rw distance?   uint8
-                +--rw nexthop_vrf? union
-                +--rw blackhole?  boolean
-+               +--rw sidlist?    string
+                +--rw vrf_name       union
+                +--rw prefix         inet:ip-prefix
+                +--rw nexthop?       string
+                +--rw ifname?        string
+                +--rw advertise?     string
+                +--rw distance?      string
+                +--rw nexthop-vrf?   string
+                +--rw blackhole?     string
++               +--rw sidlist* [name]
++                   +--rw name    string
++                   +--rw sid*    inet:ipv6-address
 ```
 
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
