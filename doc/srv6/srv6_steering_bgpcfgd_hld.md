@@ -10,7 +10,8 @@
 - [3 Feature Design](#3-feature-design)
   - [3.1 ConfigDB Changes](#31-configdb-changes)
   - [3.2 Bgpcfgd Changes](#32-bgpcfgd-changes)
-  - [3.3 YANG Model](#33-yang-model)
+  - [3.3 frrcfgd Changes](#33-frrcfgd-changes)
+  - [3.4 YANG Model](#34-yang-model)
 - [4 Unit Tests](#4-unit-tests)
 - [5 System Tests](#5-system-tests)
 
@@ -32,13 +33,14 @@
 | SRv6 | Segment Routing IPv6 |
 | VRF | Virtual Routing and Forwarding |
 | bgpcfgd | BGP configuration daemon in SONiC |
+| frrcfgd | FRR configuration daemon in SONiC |
 
 
 # 1 Introduction and Scope
 
 SONiC supports SRv6 traffic steering. It can be currently configured using the FRR CLI.
 
-This document describes adding SRv6 traffic steering configuration support in bgpcfgd.
+This document describes adding SRv6 traffic steering configuration support in bgpcfgd and frrcfgd.
 
 # 2 Feature Requirements
 
@@ -46,7 +48,7 @@ Provide the ability to configure SRv6 traffic steering from CONFIG_DB.
 
 # 3 Feature Design
 
-This section describes the CONFIG_DB and bgpcfgd changes needed to add SRv6 traffic steering configuration support in bgpcfgd.
+This section describes the CONFIG_DB, bgpcfgd, and frrcfgd changes needed to add SRv6 traffic steering configuration support.
 
 ## 3.1 ConfigDB Changes
 
@@ -106,7 +108,7 @@ The following example shows how StaticRouteManager translates CONFIG_DB entries 
         "ifname": "Ethernet0",
         "sidlist": "FCBB:BBBB:2:3:FEDD::"
     },
-    "VrfA|2001:db8:10::/64": {
+    "default|2001:db8:10::/64": {
         "ifname": "Ethernet4",
         "sidlist": "FCBB:BBBB:4:5:6:FEDD::"
     }
@@ -122,7 +124,13 @@ ipv6 route 2001:db8:10::/64 Ethernet4 segments fcbb:bbbb:4:5:6:fedd:: encap-beha
 
 FRR then programs these routes into the SONiC data plane, which encapsulates matching packets with the specified SID lists before forwarding them to the destination.
 
-## 3.3 YANG Model
+## 3.3 frrcfgd Changes
+
+In addition to bgpcfgd changes, we extend the frrcfgd static route handler to process the `sidlist` field in the `STATIC_ROUTE` table.
+
+Specifically, frrcfgd reads and validates the `sidlist` field in `STATIC_ROUTE` entries, carries it through static route processing, and generates the corresponding SRv6 static route configuration in FRR. The generated FRR syntax is the same as the one shown in [Section 3.2 Bgpcfgd Changes](#32-bgpcfgd-changes).
+
+## 3.4 YANG Model
 
 This section describes the YANG model extensions required to support SRv6 traffic steering configuration.
 
@@ -147,7 +155,7 @@ Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/
 
 # 4 Unit Tests
 
-Unit tests validate that bgpcfgd correctly translates CONFIG_DB entries into FRR configuration.
+Unit tests validate that bgpcfgd/frrcfgd correctly translate CONFIG_DB entries into FRR configuration.
 
 | Test Cases | Test Result |
 | :------ | :----- |
