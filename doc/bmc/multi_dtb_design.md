@@ -182,7 +182,7 @@ device/nexthop/arm64-nexthop_b27-r0/
 
 #### 6.7. Build & Boot Flow Diagram
 
-![Build & Boot Flow Diagram](images/nexthop-multi_dtb_design.png)
+![Build & Boot Flow Diagram](images/multi_dtb_design.png)
 
 ### 7. Vendor Work Flow For New SoCs
 
