@@ -230,6 +230,8 @@ Other than that, `xcvrd` requires no further changes and will pick up the new at
 
 The third proposed change is to alter the way the orchagent process sets gearbox tunings. Upon detecting a change within APPL\_DB for a particular port, orchagent will be triggered to run doPortTask() with SET\_COMMAND on the logical port. Since the media settings parser change from above will use the same mechanism as before to update APPL\_DB with gearbox tunings, similarly the same flow and system can be used within orchagent as before to set the gearbox tuning values. This will involve creating new serdes attributes for line-side and system-side tunings. These new serdes attributes will then be used to make SAI calls and program the relevant gearbox ports in a manner similar to how ASIC tunings are currently applied. In the current iteration of this feature, only tunings with serdes attributes of the form ('pre3', 'pre2', 'pre1', 'main', 'post1', 'post2', 'post3') will be parsed and applied to gearbox ports. This change will allow orchagent to dynamically set the appropriate tunings to gearboxes if customers ever wish to change the configuration of their ports or transceivers and will eliminate the need for engineers to spend time doing so manually.
 
+These changes can be found in [this PR](https://github.com/sonic-net/sonic-swss/pull/4113).
+
 ## Overview \- Big Picture
 
 The following diagram depicts an overview of the new proposed dynamic gearbox tuning flow. Intentionally, this is identical to the current flow of ASIC-port dynamic tuning with media settings as shown in [SONiC/Media-based-Port-settings.md at master](https://github.com/sonic-net/SONiC/blob/master/doc/media-settings/Media-based-Port-settings.md).
