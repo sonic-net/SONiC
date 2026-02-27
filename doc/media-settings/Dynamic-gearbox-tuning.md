@@ -2,10 +2,11 @@
 
 ## Revision
 
-  | Version |     Date    |       Author           | Description                                        |
-  |:-------:|:-----------:|:----------------------:|:--------------------------------------------------:|
-  | 0.1     | 12/19/2024  | Jan Mazurek            | Initial version                                    |
-  | 0.2     | 01/07/2026  | Brian Gallagher        | Updated after publishing PRs to implement this HLD |
+  | Version |     Date    |       Author           | Description                                                             |
+  |:-------:|:-----------:|:----------------------:|:-----------------------------------------------------------------------:|
+  | 0.1     | 12/19/2024  | Jan Mazurek            | Initial version                                                         |
+  | 0.2     | 01/07/2026  | Brian Gallagher        | Updated after publishing PRs to implement this HLD                      |
+  | 0.3     | 02/27/2026  | Brian Gallagher        | Changed the format of the media_settings.json to avoid changes in xcvrd |
 
 ## Summary
 
@@ -53,97 +54,86 @@ The media settings file currently supports lookups for a variety of media tuning
 
 ## Design Proposal
 
-### 1\. sonic-buildimage \- Add GEARBOX\_MEDIA\_SETTINGS Section in Media Settings File
+### 1\. sonic-buildimage \- Add gearbox-specific attributes in the Media Settings File
 
-The first proposed change is to add support for a new section to the media settings file of gearbox-enabled SKUs specifically for gearbox tunings. Support is added for GEARBOX\_GLOBAL\_MEDIA\_SETTINGS and GEARBOX\_PORT\_MEDIA\_SETTINGS as top-level keys, representing global gearbox settings over a range of ports and individual logical port configurations, respectively. These new keys will include sub-sections for line-side and system-side tunings for logical ports which have gearbox connections.
+The first proposed change is to add support for gearbox-specific signal integrity tuning attributes. Existing attributes can be configured for either the line-side or system-side of a gearbox by prepending either `gb_line_` or `gb_system_` to the attribute name. For instance, to configure values for `pre1` on the line-side of the gearbox, the `gb_line_pre1` attribute would be specified in media_settings.json.
 
 #### Example media_settings.json
 
 ```
 {
-    "GEARBOX_GLOBAL_MEDIA_SETTINGS": {
+    "MEDIA_SETTINGS": {
         "2-32": {
-            "line": {
-                "COPPER100": {
-                    "main": {
-                        "lane0": "0x75",
-                        "lane1": "0x75",
-                        "lane2": "0x75",
-                        "lane3": "0x75",
-                        "lane4": "0x75",
-                        "lane5": "0x75",
-                        "lane6": "0x75",
-                        "lane7": "0x75"
-                    },
-			        ...
-                }
+            "COPPER100": {
+                "gb_line_pre1": {
+                    "lane0": "0x75",
+                    "lane1": "0x75",
+                },
+                "gb_line_main": {
+                    "lane0": "0x75",
+                    "lane1": "0x75",
+                },
+                "gb_line_post1": {
+                    "lane0": "0x75",
+                    "lane1": "0x75",
+                },
+                "gb_system_pre1": {
+                    "lane0": "0x75",
+                    "lane1": "0x75",
+                    "lane2": "0x75",
+                    "lane3": "0x75",
+                },
+                "gb_system_main": {
+                    "lane0": "0x75",
+                    "lane1": "0x75",
+                    "lane2": "0x75",
+                    "lane3": "0x75",
+                },
+                "gb_system_post1": {
+                    "lane0": "0x75",
+                    "lane1": "0x75",
+                    "lane2": "0x75",
+                    "lane3": "0x75",
+                },
+                ...
             },
-            "system": {
-                "Default": {
-                    "main": {
-                        "lane0": "0x75",
-                        "lane1": "0x75",
-                        "lane2": "0x75",
-                        "lane3": "0x75",
-                        "lane4": "0x75",
-                        "lane5": "0x75",
-                        "lane6": "0x75",
-                        "lane7": "0x75"
-                    },
-			        ...
-                }
-            }
-        }
-    },
-    "GEARBOX_PORT_MEDIA_SETTINGS": {
-        "1": {
-            "line": {
-                "COPPER100": {
-                    "main": {
-                        "lane0": "0x75",
-                        "lane1": "0x75",
-                        "lane2": "0x75",
-                        "lane3": "0x75",
-                        "lane4": "0x75",
-                        "lane5": "0x75",
-                        "lane6": "0x75",
-                        "lane7": "0x75"
-                    },
-			        ...
-                }
-            },
-            "system": {
-                "Default": {
-                    "main": {
-                        "lane0": "0x75",
-                        "lane1": "0x75",
-                        "lane2": "0x75",
-                        "lane3": "0x75",
-                        "lane4": "0x75",
-                        "lane5": "0x75",
-                        "lane6": "0x75",
-                        "lane7": "0x75"
-                    },
-			        ...
-                }
-            }
         }
     },
     "PORT_MEDIA_SETTINGS": {
-        "33": {
+        "1": {
             "COPPER100": {
-                "main": {
-                    "lane0": "0x6d",
-                    "lane1": "0x6d",
-                    "lane2": "0x6d",
-                    "lane3": "0x6d",
-                    "lane4": "0x6d",
-                    "lane5": "0x6d",
-                    "lane6": "0x6d",
-                    "lane7": "0x6d"
+                "gb_line_pre1": {
+                    "lane0": "0x5",
+                    "lane1": "0x5",
                 },
-		        ...
-            }
+                "gb_line_main": {
+                    "lane0": "0x5",
+                    "lane1": "0x5",
+                },
+                "gb_line_post1": {
+                    "lane0": "0x5",
+                    "lane1": "0x5",
+                },
+                "gb_system_pre1": {
+                    "lane0": "0x5",
+                    "lane1": "0x5",
+                    "lane2": "0x5",
+                    "lane3": "0x5",
+                },
+                "gb_system_main": {
+                    "lane0": "0x5",
+                    "lane1": "0x5",
+                    "lane2": "0x5",
+                    "lane3": "0x5",
+                },
+                "gb_system_post1": {
+                    "lane0": "0x5",
+                    "lane1": "0x5",
+                    "lane2": "0x5",
+                    "lane3": "0x5",
+                },
+                ...
+            },
         }
     }
 }
@@ -151,7 +141,9 @@ The first proposed change is to add support for a new section to the media setti
 
 ### 2\. sonic-platform-daemons \- Update Media Settings Parser / xcvrd
 
-The second proposed change is to expand the media settings parser to parse the new gearbox settings section(s) in the media settings file. Currently xcvrd uses the parser file to parse tuning values for ASIC-port connections and sets these values in APPL\_DB. The aim here is to expand this functionality to include the new gearbox tunings. To facilitate this, we will simply add new gearbox media settings keys to the lookup function within the parser and make additional calls to parse the gearbox values. Updating APPL\_DB with gearbox tuning values will follow the same design as ASIC tunings while simply adding a unique prefix to the key-value pair to distinguish between line-side and system-side values. Parsing gearbox tunings will follow the same lookup logic as current ASIC tunings, and will support global gearbox settings over a range of ports (GEARBOX\_GLOBAL\_MEDIA\_SETTINGS) or individual logical port configurations (GEARBOX\_PORT\_MEDIA\_SETTINGS). This change will not disrupt vendors and SKUs which do not implement gearboxes or rely on specific vendor/media keys to perform tuning value lookups.
+`xcvrd` requires only minimal changes to support the above format. When calculating the speed for a media key, the line-side lane count will be used in the calculation. For example, when calculating lane speed, `xcvrd` performs calculations like `speed = int(int(int(port_speed) /lane_count)/1000)`. The gearbox line-side lane count will be used for `lane_count` in these calculations. Additionally, `xcvrd` requires some minor changes in its logic for publishing SI settings to APPL_DB to make sure it publishes the correct lane-width size for the line-side settings. These changes can be found in [this PR](https://github.com/sonic-net/sonic-platform-daemons/pull/728).
+
+Other than that, `xcvrd` requires no further changes and will pick up the new attributes and publish them to APPL_DB out-of-the-box.
 
 #### Example gearbox port APPL\_DB:
 
