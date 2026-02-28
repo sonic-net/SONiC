@@ -8,6 +8,7 @@
 | 0.4 | 05/06/2024 | Riff Jiang | Added drop counters for pipeline monitoring. |
 | 0.5 | 06/03/2024 | Riff Jiang | Added DASH BFD probe state update workflow and DB schema. |
 | 0.6 | 03/23/2025 | Riff Jiang | Split DPU table into DPU and REMOTE_DPU. Add FEATURE table. |
+| 0.7 | 12/31/2025 | Vivek Reddy Karri | Added flow dump and timeout field to Bulk sync |
 
 1. [1. High level data flow](#1-high-level-data-flow)
    1. [1.1. Upstream config programming path](#11-upstream-config-programming-path)
@@ -37,6 +38,7 @@
          1. [2.3.1.1. HA set configurations](#2311-ha-set-configurations)
          2. [2.3.1.2. HA scope configurations](#2312-ha-scope-configurations)
          3. [2.3.1.3. Flow sync sessions](#2313-flow-sync-sessions)
+         4. [2.3.1.4. Flow dump filter](#2314-flow-dump-filter)
       2. [2.3.2. APPL\_DB (per-NPU)](#232-appl_db-per-npu)
          1. [2.3.2.1. DASH\_ENI\_FORWARD\_TABLE](#2321-dash_eni_forward_table)
       3. [2.3.3. CHASSIS\_STATE\_DB (per-NPU)](#233-chassis_state_db-per-npu)
@@ -60,6 +62,12 @@
       1. [3.4.1. Data plane channel probing (Per-HA Set)](#341-data-plane-channel-probing-per-ha-set)
       2. [3.4.2. Inline flow sync (Per-ENI)](#342-inline-flow-sync-per-eni)
       3. [3.4.3. Bulk sync related counters (Per-HA Set)](#343-bulk-sync-related-counters-per-ha-set)
+   5. [3.5. Flow dump for debugging](#35-flow-dump-for-debugging)
+      1. [3.5.1. Flow dump workflow](#351-flow-dump-workflow)
+      2. [3.5.2. File management](#352-file-management)
+      3. [3.5.3. JSON format specification](#353-json-format-specification)
+      4. [3.5.4. Scale considerations](#354-scale-considerations)
+      5. [3.5.5. CLI (sonic-dpu-flow-dump)](#355-cli-sonic-dpu-flow-dump)
 4. [4. SAI APIs](#4-sai-apis)
 5. [5. CLI commands](#5-cli-commands)
 
@@ -556,11 +564,30 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_FLOW_SYNC_SESSION_TABLE | | |  |
-| | \<SESSION_ID\> | | Flow sync session id. |
-| | | ha_set_id | HA set id. |
-| | | target_server_ip | The IP of the server that used to receive flow records. |
-| | | target_server_port | The port of the server that used to receive flow records. |
+| DASH_FLOW_SYNC_SESSION_TABLE | | | Flow sync session table supporting both bulk sync and flow dump sessions. |
+| | \<SESSION_ID\> | | Session ID. |
+| | | type | Session type: "bulk_sync" or "flow_dump". |
+| | | ha_set_id | HA set id (required for bulk_sync type). |
+| | | target_server_ip | The IP of the server that used to receive flow records (required for bulk_sync type). |
+| | | target_server_port | The port of the server that used to receive flow records (required for bulk_sync type). |
+| | | timeout | Timeout to mark the status as failed if the finished notification is not received (default is 120 secs for bulk_sync, 300 secs for flow_dump). |
+| | | flow_state | Boolean: "True/true" or "False/false" (for flow_dump type). If flow state is false, only values under sai_flow_entry_t are present. |
+| | | filter_1 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_2 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_3 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_4 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | filter_5 | Reference to filter name in DASH_FLOW_DUMP_FILTER_TABLE (for flow_dump type, optional). |
+| | | max_flows | Maximum flows to dump (for flow_dump type, default: 1000). |
+
+##### 2.3.1.4. Flow dump filter
+
+| Table | Key | Field | Description |
+| --- | --- | --- | --- |
+| DASH_FLOW_DUMP_FILTER_TABLE | | | Flow dump filter for selecting flows to dump. |
+| | \<FILTER_NAME\> | | Filter name. |
+| | | key | Filter key: eni_addr, ip_protocol, src_ip_addr, dst_ip_addr, src_l4_port, dst_l4_port, or key_version. |
+| | | op | Filter operation: equal_to, greater_than, greater_than_or_equal_to, less_than, or less_than_or_equal_to. |
+| | | value | Value to compare against. Type can be INT, IP, or MAC depending on key |
 
 #### 2.3.2. APPL_DB (per-NPU)
 
@@ -628,11 +655,13 @@ DPU state table stores the health states of each DPU. These data are collected b
 
 | Table | Key | Field | Description |
 | --- | --- | --- | --- |
-| DASH_FLOW_SYNC_SESSION_STATE | | |  |
-| | \<SESSION_ID\> | | Flow sync session id. |
-| | | state | Flow sync session state. It can be "created", "in_progress", "completed", "failed". |
-| | | creation_time_in_ms | Flow sync session creation time in milliseconds. |
-| | | last_state_start_time_in_ms | Flow sync session last state start time in milliseconds. |
+| DASH_FLOW_SYNC_SESSION_STATE | | | Flow sync session state table supporting both bulk sync and flow dump sessions. |
+| | \<SESSION_ID\> | | Session ID (same as config table key). |
+| | | type | Session type: "bulk_sync" or "flow_dump". |
+| | | state | Session state. It can be "created", "in_progress", "completed", "failed". |
+| | | creation_time_in_ms | Session creation time in milliseconds. |
+| | | last_state_start_time_in_ms | Session last state start time in milliseconds. |
+| | | output_file | Path to output file: `/var/dump/flows/flow_dump_<oid>.jsonl.gz` (for flow_dump type, present when state is "completed"). |
 
 ##### 2.3.4.4. DASH BFD probe state
 
@@ -796,6 +825,235 @@ Besides the channel status, we should also have the following counters for the b
 | SAI_HA_SET_STAT_BULK_SYNC_MESSAGE_SEND_FAILED | Number of messages we failed to sent for bulk sync via data channel. |
 | SAI_HA_SET_STAT_BULK_SYNC_FLOW_RECEIVED | Number of flows received from bulk sync message. A single bulk sync message can contain many flow records. |
 | SAI_HA_SET_STAT_BULK_SYNC_FLOW_SENT | Number of flows sent via bulk sync message. A single bulk sync message can contain many flow records. |
+
+### 3.5. Flow dump for debugging
+
+Flow dump is a debugging/testing feature that exports all active flows from SDK to userspace.  This is a highly resource-intensive operation. 
+
+Traditional pattern would be to relay the flow data from syncd to orchagent. This would atleast 2 serialize and 2 deserialize operations as of today. To optimize this, we directly write from syncd process to a file directly.
+
+#### 3.5.1. Flow dump workflow
+
+**Flow Diagram:**
+
+```
+┌──────┐      ┌─────────────┐      ┌──────────────┐      ┌──────────────┐       ┌────────┐      ┌─────┐
+│ User │      │ GNMI Server │      │ DPU Orchagent│      │ DPU_STATE_DB │       │ Syncd  │      │ SDK │
+│      │      │  (via ZMQ)  │      │              │      │              │       │        │      │     │
+└───┬──┘      └──────┬──────┘      └──────┬───────┘      └──────┬───────┘       └───┬────┘      └──┬──┘
+    │                │                    │                     │                   │              │
+    │ 1. Create      │                    │                     │                   │              │
+    │   Filter(s)    │                    │                     │                   │              │
+    │───────────────>│                    │                     │                   │              │
+    │                │                    │                     │                   │              │
+    │ 2. Create      │                    │                     │                   │              │
+    │   Session      │                    │                     │                   │              │
+    │   (type=       │                    │                     │                   │              │
+    │   flow_dump,   │                    │                     │                   │              │
+    │   filter refs) │                    │                     │                   │              │
+    │───────────────>│                    │                     │                   │              │
+    │                │  3. Push config    │                     │                   │              │
+    │                │───────────────────>│                     │                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 4. Create SAI       │                   │              │
+    │                │                    │    Filter & Session │                   │              │
+    │                │                    │────────────────────────────────────────>│              │
+    │                │                    │                     │                   │  SAI API     │
+    │                │                    │                     │                   │─────────────>│
+    │                │                    │                     │                   │              │
+    │                │                    │ 5. Write OID & STATE│                   │              │
+    │                │                    │  type="flow_dump"   │                   │              │
+    │                │                    │  status="in_progress"│                   │              │
+    │                │                    │────────────────────>│                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │ 6. Stream    │
+    │                │                    │                     │                   │    flows     │
+    │                │                    │                     │                   │<─────────────│
+    │                │                    │                     │                   │ (callback)   │
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │ 7. Write     │
+    │                │                    │                     │                   │    JSON      │
+    │                │                    │                     │                   │─────┐        │
+    │                │                    │                     │                   │     │to file │
+    │                │                    │                     │                   │<────┘        │
+    │                │                    │                     │                   │/var/dump/    │
+    │                │                    │                     │                   │flows/        │
+    │                │                    │                     │                   │flow_dump_    │
+    │                │                    │                     │                   │<oid>.jsonl.gz│
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │ 8. FINISHED  │
+    │                │                    │                     │                   │     event    │
+    │                │                    │                     │                   │<─────────────│
+    │                │                    │                     │                   │              │
+    │                │                    │ 9. Notify           │                   │              │
+    │                │                    │    completion       │                   │              │
+    │                │                    │<────────────────────────────────────────│              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 10. Write STATE     │                   │              │
+    │                │                    │  type="flow_dump"   │                   │              │
+    │                │                    │  output_file=       │                   │              │
+    │                │                    │  /var/dump/flows/   │                   │              │
+    │                │                    │  flow_dump_<oid>    │                   │              │
+    │                │                    │  .jsonl.gz          │                   │              │
+    │                │                    │  status="completed" │                   │              │
+    │                │                    │────────────────────>│                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 11. Delete Session  │                   │              │
+    │                │                    │────────────────────────────────────────>│              │
+    │                │                    │                     │                   │  SAI API     │
+    │                │                    │                     │                   │─────────────>│
+    │                │                    │                     │                   │              │
+    │                │                    │                     │                   │              │
+    │                │                    │ 12. Timeout watchdog│                   │              │
+    │                │                    │  (if no COMPLETION) │                   │              │
+    │                │                    │────────────────────>│                   │              │
+    │                │                    │  type="flow_dump"   │                   │              │
+    │                │                    │  status="failed"    │                   │              │
+    │                │                    │                     │                   │              │
+```
+
+#### 3.5.2. File management
+
+**Output location**: `/var/dump/flows/`  
+**File format**: GZIP compressed JSON Lines (JSONL) - one flow entry per line  
+**Naming**: `flow_dump_<oid>.jsonl.gz` where `<oid>` is the flow bulk get session OID
+
+**Logrotate policy**:
+- Maximum 2 files retained
+- Rotation handled by syncd
+
+**File lifecycle**: Session creation → SAI sends flows → Rotation check -> File open → Stream flows → File close → State update → Session deletion 
+
+#### 3.5.3. JSON format specification
+
+**Key fields** (always present, 7 fields):
+- `em` = eni_mac (MAC address string)
+- `vn` = vnet_id (uint16, optional - may not be present)
+- `pr` = ip_proto (uint8)
+- `si` = src_ip (IP address string)
+- `di` = dst_ip (IP address string)
+- `sp` = src_port (uint16)
+- `dp` = dst_port (uint16)
+
+**Attribute fields**:
+- Attributes are encoded as numeric keys representing enum IDs. For Eg: ACTION = 0, VERSION = 1. 
+- String equivalent for key is `(SAI_FLOW_ENTRY_ATTR_<NAME>)`
+- List of all attributes: https://github.com/opencomputeproject/SAI/blob/v1.17/experimental/saiexperimentaldashflow.h#L149
+- Values are typed based on the attribute (int, bool, string, MAC, IP)
+
+**Example JSON line:**
+```json
+{"em":"00:1a:2b:3c:4d:5e","vn":100,"pr":6,"si":"10.0.1.5","di":"192.168.1.100","sp":45678,"dp":443,"0":0,"1":1,"2":1,"3":2,"4":5,"5":false,"6":"00:1a:2b:3c:4d:6f","7":100,"8":6,"9":"192.168.1.100","10":"10.0.1.5","11":443,"12":45678,"13":1000,"14":"100.64.0.1","15":"100.64.0.2"}
+```
+
+**Attribute ID mapping** (partial list):
+| ID | Attribute Name | Type |
+|----|----------------|------|
+| 0 | action | uint32 |
+| 1 | version | uint32 |
+| 2 | dash_direction | enum |
+| 3 | dash_flow_action | enum |
+| 4 | meter_class | uint32 |
+| 5 | is_unidirectional_flow | bool |
+| 6 | reverse_flow_eni_mac | MAC |
+| 7 | reverse_flow_vnet_id | uint16 |
+
+Full mapping available in SAI header `sai_flow_entry_attr_t struct`
+
+#### 3.5.4. Scale considerations
+
+**Total per flow:** 
+
+~300 bytes when saved without compression calculated with 7 field and average of 15 attributes
+
+**64M flows (maximum scale, average load):**
+- Raw size: 300 bytes × 67,108,864 = **18.75 GB**
+- Compressed (gzip): 3-10x reduction. ~4 GB
+- Note: Compression will be done for a batch of flows as they are recieved and will be appended to the file. Higher the number of records per callback from SAI/SDK, lower the size
+
+**Important limitations:**
+- Flow dump with Mode Event is NOT suitable for full-scale dumps
+- Intended for **debugging specific flows** using filters and during tests
+- Should expand to alternatives such as gRPC for full scale
+
+#### 3.5.5. CLI (sonic-dpu-flow-dump)
+
+The `sonic-dpu-flow-dump` utility runs on the DPU and triggers a flow dump session, waits for completion, then reads the gzipped JSONL output file and prints the flows (or the file path only) to stdout. 
+
+**Usage:**
+
+```bash
+sonic-dpu-flow-dump.py [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|--------------|
+| `-f`, `--file-only` | Print only the output file path; do not print flow contents. |
+| `-t`, `--timeout` | Timeout in seconds to wait for session completion (default: 60). |
+| `-m`, `--max-flows` | Maximum number of flows to dump (default: 1000). |
+| `--no-flow-state` | Disable flow state (dump only values under `sai_flow_entry_t`). |
+| `-v`, `--verbose` | Enable verbose output. |
+
+
+**Example output:**
+
+```bash
+root@sonic:/home/admin# ./sonic-dpu-flow-dump.py
+[
+  {
+    "SAI_FLOW_ENTRY_ATTR_ACTION": "SAI_FLOW_ENTRY_ACTION_SET_FLOW_ENTRY_ATTR",
+    "SAI_FLOW_ENTRY_ATTR_VERSION": "1",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_VNET_ID": "100",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SIP": "3.2.1.0",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DIP": "101.1.2.3",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DASH_ENCAPSULATION": "SAI_DASH_ENCAPSULATION_NVGRE",
+    "SAI_FLOW_ENTRY_ATTR_DASH_DIRECTION": "SAI_DASH_DIRECTION_OUTBOUND",
+    "SAI_FLOW_ENTRY_ATTR_SIP": "fd41:108:20:d107:64:ff71:a00:b",
+    "SAI_FLOW_ENTRY_ATTR_DIP": "2603:10e1:100:2::3401:203",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_ACTION": "65",
+    "SAI_FLOW_ENTRY_ATTR_IP_ADDR_FAMILY": "SAI_IP_ADDR_FAMILY_IPV4",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_SYNC_STATE": "SAI_DASH_FLOW_SYNC_STATE_FLOW_CREATED",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SMAC": "B0:CF:0E:20:8E:DE",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DMAC": "B0:CF:0E:20:8E:00",
+    "SAI_FLOW_ENTRY_ATTR_METER_CLASS": "3634",
+    "SAI_FLOW_ENTRY_ATTR_IS_UNIDIRECTIONAL_FLOW": "true",
+    "DST_IP": "10.2.0.100",
+    "DST_PORT": 55057,
+    "ENI_MAC": "F4:93:9F:EF:C4:7E",
+    "IP_PROTO": 17,
+    "SRC_IP": "10.0.0.11",
+    "SRC_PORT": 34074,
+    "VNET_ID": 0
+  },
+  {
+    "SAI_FLOW_ENTRY_ATTR_ACTION": "SAI_FLOW_ENTRY_ACTION_SET_FLOW_ENTRY_ATTR",
+    "SAI_FLOW_ENTRY_ATTR_VERSION": "1",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_VNET_ID": "4321",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SIP": "3.2.1.0",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DIP": "25.1.1.1",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DASH_ENCAPSULATION": "SAI_DASH_ENCAPSULATION_VXLAN",
+    "SAI_FLOW_ENTRY_ATTR_DASH_DIRECTION": "SAI_DASH_DIRECTION_INBOUND",
+    "SAI_FLOW_ENTRY_ATTR_SIP": "10.2.0.100",
+    "SAI_FLOW_ENTRY_ATTR_DIP": "10.0.0.11",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_ACTION": "129",
+    "SAI_FLOW_ENTRY_ATTR_IP_ADDR_FAMILY": "SAI_IP_ADDR_FAMILY_IPV6",
+    "SAI_FLOW_ENTRY_ATTR_DASH_FLOW_SYNC_STATE": "SAI_DASH_FLOW_SYNC_STATE_FLOW_CREATED",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_SMAC": "B0:CF:0E:20:8E:DE",
+    "SAI_FLOW_ENTRY_ATTR_UNDERLAY0_DMAC": "B0:CF:0E:20:8E:00",
+    "SAI_FLOW_ENTRY_ATTR_METER_CLASS": "3634",
+    "SAI_FLOW_ENTRY_ATTR_IS_UNIDIRECTIONAL_FLOW": "true",
+    "DST_IP": "fd41:108:20:d107:64:ff71:a00:b",
+    "DST_PORT": 34074,
+    "ENI_MAC": "F4:93:9F:EF:C4:7E",
+    "IP_PROTO": 17,
+    "SRC_IP": "2603:10e1:100:2::3401:203",
+    "SRC_PORT": 55057,
+    "VNET_ID": 0
+  }
+]
+```
 
 ## 4. SAI APIs
 
