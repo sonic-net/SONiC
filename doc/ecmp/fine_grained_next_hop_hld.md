@@ -1,6 +1,6 @@
 # SONiC Fine Grained ECMP
 # High Level Design Document
-### Rev 1.4
+### Rev 1.6
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -43,6 +43,7 @@
 | 1.3 | 10/23/2020  |    Anish Narsian   | Interface nh oper state handler   |
 | 1.4 | 12/21/2020  |    Anish Narsian   | Match Mode changes                |
 | 1.5 | 09/16/2024  | Ashutosh Agrawal/Manas Mandal | Added prefix-based match mode     |
+| 1.6 | 11/24/2025  |    Anish Narsian   | VNET_TUNNEL_ROUTE consistent hashing |
 
 # About this Manual
 This document provides the high level design for the Fine Grained ECMP feature implementation in SONiC
@@ -90,6 +91,9 @@ Phase #1
 Phase #2
 - CLI commands to configure Fine Grained ECMP
 
+Phase #3:
+- Ability to enable consistent hashing for Vxlan tunnel next hops [here](../vxlan/Consistent_ecmp_for_Vxlan_tunnel.md)
+
 ## 1.2 Orchagent requirements
 ### FgNhg orchagent:
  - Should be able to create Fine Grained Next-hop groups
@@ -98,6 +102,9 @@ Phase #2
 
 ### Route orchagent:
  - Should be able to redirect route and next-hop modifications to fgNhg orchagent for prefixes or next-hops which have a Fine Grained definition
+
+### Vnet orchagent:
+ - Should be able to redirect vxlan tunnel nexthop group creation and modification to fgNhg orchagent for prefixes which require Fine Grained behavior, more details [here](../vxlan/Consistent_ecmp_for_Vxlan_tunnel.md)
 
 ## 1.3 CLI requirements
 - User should be able to add/delete/view Fine Grained Next-hop groups
@@ -169,7 +176,7 @@ Please refer to the [schema](https://github.com/sonic-net/sonic-swss/blob/master
 Following new table will be added to State DB. Unless otherwise stated, the attributes are mandatory.
 FG_ROUTE_TABLE is used for some of the show commands associated with this feature as well as for warm boot support.
 ```
-FG_ROUTE_TABLE|{{IPv4 OR IPv6 prefix}}:
+FG_ROUTE_TABLE|{{VRF/VNET-name}}|{{IPv4 OR IPv6 prefix}}:
     "0": {{next-hop-key}}
     "1": {{next-hop-key}}
     ...
@@ -180,7 +187,7 @@ FG_ROUTE_TABLE|{{IPv4 OR IPv6 prefix}}:
 ### 2.2.1 StateDB Schemas
 ```
 ; Defines schema for FG ROUTE TABLE state db attributes
-key                                   = FG_ROUTE_TABLE|{{IPv4 OR IPv6 prefix}}      ; Prefix associated with this route
+key                                   = FG_ROUTE_TABLE|{{VRF/VNET-name}}|{{IPv4 OR IPv6 prefix}}      ; VNET/VRF and Prefix associated with this route
 ; field                               = value
 INDEX                                 = next-hop-key                                ; index in hash bucket associated with the next-hop-key(IP addr,if alias)
 ```
@@ -320,6 +327,8 @@ Following orchagents shall be modified. Flow diagrams are captured in a later se
 The overall data flow diagram is captured in Section 3 for all TABLE updates.
 Refer to section 4 for detailed information about redistribution performed during runtime scenarios.
 
+### vnetorch
+This is the swss orchestrator which receives VNET_ROUTE_TUNNEL_TABLE entires along with a need to configure consistent hashing, vnetorch will check if consistent_hashing_buckets is set in the kv pairs and if so call fgnhgorch to create an internal FgNhgEntry and the SAI nexthop group and group members, vnetorch will also assoicate the fine grained ecmp nexthop group with a route. More details [here](../vxlan/Consistent_ecmp_for_Vxlan_tunnel.md)
 
 ## 2.5 SAI
 The below table represents main SAI attributes which shall be used for Fine Grained ECMP
@@ -350,6 +359,7 @@ The below table represents main SAI attributes which shall be used for Fine Grai
 - A guideline for the hash bucket size is to define a bucket size which will allow equal distribution of traffic regardless of the number of next-hops which are active. For example with 2 Firewall sets, each set containing 3 firewall members: each set can have equal redistribution by finding the lowest common multiple of 3 next-hops which is 3x2x1(this is equivalent to us saying that if there were 3 or 2 or 1 next-hop active, we could distribute the traffic equally amongst the next-hops). With 2 such sets we get a total of 3x2x1 + 3x2x1 = 12 hash buckets.
 - fgnhgorch is an observer for SUBJECT_TYPE_PORT_OPER_STATE_CHANGE events, these events are used in conjunction with the IP to interface mapping(INTERFACE attribute of the FG NHG member table), to trigger next-hop withdrawal/addition depending on which interface's operational state transitioned to down/up. The next-hop withdrawal/addition is performed per consistent and layered hashing rules. The INTERFACE attribute is optional, so this functionality is activated based on user configuration.
 - There are 2 match_modes supported for Fine Grained ECMP. A nexthop-based match mode implies that all prefixes that have next-hop IPs as a subset of the FG_NHG_MEMBER nh IPs defined by the user, will get Fine Grained ECMP behavior. If a route has next-hops which don't have an equivalent FG_NHG_MEMBER, then the route will get regular ECMP/next-hop behavior. A route-based match mode implies that only those prefixes which have FG_NHG_PREFIX defined will get Fine Grained ECMP behavior. The example configuration section has examples of both config types.
+- Details for VNET_ROUTE_TUNNEL with fine grained ecmp can be found [here](../vxlan/Consistent_ecmp_for_Vxlan_tunnel.md)
 
 # 5 Example configuration
 
@@ -559,3 +569,5 @@ Test details:
 - Test both IPv4 and IPv6 above
 - The above test is configured via config_db entries directly, a further test mode to configure Fine Grained ECMP via minigraph will be present and tested
 - Test warm reboot to ensure there is no traffic disruption and ECMP groups are correctly applied post warm boot
+
+
