@@ -1,7 +1,7 @@
 # OpenConfig support for System features
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -43,7 +43,8 @@
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 | 06/21/2024  | Anukul Verma | Initial version                   |
+| 0.1 | 06/21/2024  | Anukul Verma          | Initial version                   |
+| 0.2 | 02/25/2026  | Anukul Verma          | Adding mapping for NTP server and cpu state nodes |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration/management of System features in SONiC corresponding to openconfig-system.yang module and its sub-modules.
@@ -186,6 +187,69 @@ module: openconfig-system
      |     +--ro state
      |        +--ro index?                union
      |        +--ro total
+     |        |  +--ro instant?    oc-types:percentage
+     |        |  +--ro avg?        oc-types:percentage
+     |        |  +--ro min?        oc-types:percentage
+     |        |  +--ro max?        oc-types:percentage
+     |        |  +--ro interval?   oc-types:stat-interval
+     |        |  +--ro min-time?   oc-types:timeticks64
+     |        |  +--ro max-time?   oc-types:timeticks64
+     |        +--ro user
+     |        |  +--ro instant?    oc-types:percentage
+     |        |  +--ro avg?        oc-types:percentage
+     |        |  +--ro min?        oc-types:percentage
+     |        |  +--ro max?        oc-types:percentage
+     |        |  +--ro interval?   oc-types:stat-interval
+     |        |  +--ro min-time?   oc-types:timeticks64
+     |        |  +--ro max-time?   oc-types:timeticks64
+     |        +--ro kernel
+     |        |  +--ro instant?    oc-types:percentage
+     |        |  +--ro avg?        oc-types:percentage
+     |        |  +--ro min?        oc-types:percentage
+     |        |  +--ro max?        oc-types:percentage
+     |        |  +--ro interval?   oc-types:stat-interval
+     |        |  +--ro min-time?   oc-types:timeticks64
+     |        |  +--ro max-time?   oc-types:timeticks64
+     |        +--ro nice
+     |        |  +--ro instant?    oc-types:percentage
+     |        |  +--ro avg?        oc-types:percentage
+     |        |  +--ro min?        oc-types:percentage
+     |        |  +--ro max?        oc-types:percentage
+     |        |  +--ro interval?   oc-types:stat-interval
+     |        |  +--ro min-time?   oc-types:timeticks64
+     |        |  +--ro max-time?   oc-types:timeticks64
+     |        +--ro idle
+     |        |  +--ro instant?    oc-types:percentage
+     |        |  +--ro avg?        oc-types:percentage
+     |        |  +--ro min?        oc-types:percentage
+     |        |  +--ro max?        oc-types:percentage
+     |        |  +--ro interval?   oc-types:stat-interval
+     |        |  +--ro min-time?   oc-types:timeticks64
+     |        |  +--ro max-time?   oc-types:timeticks64
+     |        +--ro wait
+     |        |  +--ro instant?    oc-types:percentage
+     |        |  +--ro avg?        oc-types:percentage
+     |        |  +--ro min?        oc-types:percentage
+     |        |  +--ro max?        oc-types:percentage
+     |        |  +--ro interval?   oc-types:stat-interval
+     |        |  +--ro min-time?   oc-types:timeticks64
+     |        |  +--ro max-time?   oc-types:timeticks64
+     |        +--ro hardware-interrupt
+     |        |  +--ro instant?    oc-types:percentage
+     |        |  +--ro avg?        oc-types:percentage
+     |        |  +--ro min?        oc-types:percentage
+     |        |  +--ro max?        oc-types:percentage
+     |        |  +--ro interval?   oc-types:stat-interval
+     |        |  +--ro min-time?   oc-types:timeticks64
+     |        |  +--ro max-time?   oc-types:timeticks64
+     |        +--ro software-interrupt
+     |           +--ro instant?    oc-types:percentage
+     |           +--ro avg?        oc-types:percentage
+     |           +--ro min?        oc-types:percentage
+     |           +--ro max?        oc-types:percentage
+     |           +--ro interval?   oc-types:stat-interval
+     |           +--ro min-time?   oc-types:timeticks64
+     |           +--ro max-time?   oc-types:timeticks64
      +--rw dns
      |  +--rw config
      |  |  +--rw search*   oc-inet:domain-name
@@ -220,6 +284,21 @@ module: openconfig-system
      |        |  +--rw key-id?      ->    ../../../ntp-keys/ntp-key/key-id
      |        |  +--rw network-instance?   oc-ni:network-instance-ref
      |        |  +--rw source-address?     oc-inet:ip-address
+     |        +--ro state
+     |           +--ro address?            oc-inet:host
+     |           +--ro port?               oc-inet:port-number
+     |           +--ro version?            uint8
+     |           +--ro association-type?   enumeration
+     |           +--ro iburst?             boolean
+     |           +--ro network-instance?   string
+     |           +--ro source-address?     oc-inet:ip-address
+     |           +--ro key-id?             -> ../../../../ntp-keys/ntp-key/key-id
+     |           +--ro prefer?             boolean
+     |           +--ro stratum?            uint8
+     |           +--ro root-delay?         int64
+     |           +--ro root-dispersion?    int64
+     |           +--ro offset?             int64
+     |           +--ro poll-interval?      uint32
      +--rw oc-sys-grpc:grpc-servers
      |  +--rw oc-sys-grpc:grpc-server* [name]
      |     +--rw oc-sys-grpc:name                            -> ../config/name
@@ -344,7 +423,6 @@ This HLD design is in line with the [https://github.com/sonic-net/SONiC/blob/mas
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
 There are no changes to CONFIG DB schema definition.  
-For software-version, new table will be added, namely VERSIONS|SOFTWARE.
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
@@ -359,7 +437,9 @@ New tables will be added along with support for some paths. These are:
 - CREDENTIALS|SSH_ACCOUNT
 - CREDENTIALS|SSH_HOST
 - COMPONENT_STATE_TABLE|*
+- CPU_STATS|*
 - HOST_STATS|CONFIG
+- NTP_SERVER|*
 - PATHZ_TABLE|*
 
 ### 3.2.4 ASIC DB
@@ -636,17 +716,333 @@ Example list of xpaths which can be used for subscription
 "/openconfig-system:system/logging/remote-servers/remote-server[host=<>]/config/remote-port"
 "/openconfig-system:system/messages/config"
 "/openconfig-system:system/ssh-server/config"
-/openconfig-system:system/clock/config"
-"/openconfig-system:system/processes/process[pid=<>]"
+"/openconfig-system:system/clock/config"
+"/openconfig-system:system/processes/process[pid=<>/*]"
 "/openconfig-system:system/dns/config"
 "/openconfig-system:system/ntp/config"
-"openconfig-system:system/ntp/ntp-keys/ntp-key[key-id=<>]/config"
+"/openconfig-system:system/ntp/ntp-keys/ntp-key[key-id=<>]/config"
 "/openconfig-system:system/ntp/servers/server[address=<>]/config"
+"/openconfig-system:system/ntp/servers/server[address=<>/*]/state"
+"/openconfig-system:system/cpus/cpu[index=0]/state"
 ```
 
+**Sample Telemetry Output for CPU State (SAMPLE mode):**
+```bash
+gnmic -a <ip:port> -u <user> -p <passwd> \
+  sub --path "/openconfig-system:system/cpus/cpu[index=0]/state" \
+  --target OC-YANG --stream-mode sample
+
+# Output:
+{
+  "source": "<ip:port>",
+  "subscription-name": "default-1772019692",
+  "timestamp": 1772019690169695979,
+  "time": "2026-02-25T17:11:30.169695979+05:30",
+  "prefix": "openconfig-system:system/cpus/cpu[index=0]/state",
+  "target": "OC-YANG",
+  "updates": [
+    {
+      "Path": "kernel/min-time",
+      "values": {
+        "kernel/min-time": 1772019657000000000
+      }
+    },
+    {
+      "Path": "user/interval",
+      "values": {
+        "user/interval": 51000000000
+      }
+    },
+    {
+      "Path": "kernel/avg",
+      "values": {
+        "kernel/avg": 3
+      }
+    },
+    {
+      "Path": "software-interrupt/min",
+      "values": {
+        "software-interrupt/min": 0
+      }
+    },
+    {
+      "Path": "user/max",
+      "values": {
+        "user/max": 7
+      }
+    },
+    {
+      "Path": "idle/interval",
+      "values": {
+        "idle/interval": 61000000000
+      }
+    },
+    {
+      "Path": "idle/max-time",
+      "values": {
+        "idle/max-time": 1772019677000000000
+      }
+    },
+    {
+      "Path": "idle/min",
+      "values": {
+        "idle/min": 87
+      }
+    },
+    ...
+    {
+      "Path": "nice/avg",
+      "values": {
+        "nice/avg": 0
+      }
+    },
+    {
+      "Path": "nice/max",
+      "values": {
+        "nice/max": 0
+      }
+    }
+  ]
+}
+{
+  "sync-response": true
+}
+```
+
+
 # 4 Flow Diagrams
-Mapping attributes between OpenConfig YANG and SONiC YANG:
-![openconfig to sonic mapping](images/Openconfig_system_SONiC_mapping.png)
+
+## 4.1 OpenConfig to SONiC Mapping Table
+
+| OpenConfig YANG Node | SONiC YANG File | DB Name | Table:Field |
+|---------------------|-----------------|---------|-------------|
+| **config** | | | |
+| hostname | sonic-device_metadata.yang | CONFIG_DB | DEVICE_METADATA:hostname |
+| login-banner | sonic-banner.yang | CONFIG_DB | BANNER_MESSAGE:login |
+| motd-banner | sonic-banner.yang | CONFIG_DB | BANNER_MESSAGE:motd |
+| **state** | | | |
+| current-datetime | - | - | - |
+| up-time | - | - | - |
+| boot-time | - | - | - |
+| software-version | - | - | Extracted from /etc/sonic/sonic_version.yml |
+| last-configuration-timestamp | - | STATE_DB | HOST_STATS |
+| **mount-points** | | | |
+| mount-point/state | - | STATE_DB | MOUNT_POINTS |
+| name | - | - | `<table-key>` |
+| size | - | - | size |
+| available | - | - | available |
+| type | - | - | filesystem-type |
+| **clock** | | | |
+| config/timezone-name | sonic-device_metadata.yang | CONFIG_DB | DEVICE_METADATA:timezone |
+| **cpus** | | | |
+| cpu/state | - | STATE_DB | CPU_STATS |
+| index | - | - | `<table-key>` (numeric or "all") |
+| total/instant | - | - | total (latest value) |
+| total/avg | - | - | total (calculated average) |
+| total/min | - | - | total (calculated minimum) |
+| total/max | - | - | total (calculated maximum) |
+| total/min-time | - | - | timestamp (calculated for min) |
+| total/max-time | - | - | timestamp (calculated for max) |
+| total/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| user/instant | - | - | user (latest value) |
+| user/avg | - | - | user (calculated average) |
+| user/min | - | - | user (calculated minimum) |
+| user/max | - | - | user (calculated maximum) |
+| user/min-time | - | - | timestamp (calculated for min) |
+| user/max-time | - | - | timestamp (calculated for max) |
+| user/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| kernel/instant | - | - | kernel (latest value) |
+| kernel/avg | - | - | kernel (calculated average) |
+| kernel/min | - | - | kernel (calculated minimum) |
+| kernel/max | - | - | kernel (calculated maximum) |
+| kernel/min-time | - | - | timestamp (calculated for min) |
+| kernel/max-time | - | - | timestamp (calculated for max) |
+| kernel/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| nice/instant | - | - | nice (latest value) |
+| nice/avg | - | - | nice (calculated average) |
+| nice/min | - | - | nice (calculated minimum) |
+| nice/max | - | - | nice (calculated maximum) |
+| nice/min-time | - | - | timestamp (calculated for min) |
+| nice/max-time | - | - | timestamp (calculated for max) |
+| nice/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| idle/instant | - | - | idle (latest value) |
+| idle/avg | - | - | idle (calculated average) |
+| idle/min | - | - | idle (calculated minimum) |
+| idle/max | - | - | idle (calculated maximum) |
+| idle/min-time | - | - | timestamp (calculated for min) |
+| idle/max-time | - | - | timestamp (calculated for max) |
+| idle/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| wait/instant | - | - | wait (latest value) |
+| wait/avg | - | - | wait (calculated average) |
+| wait/min | - | - | wait (calculated minimum) |
+| wait/max | - | - | wait (calculated maximum) |
+| wait/min-time | - | - | timestamp (calculated for min) |
+| wait/max-time | - | - | timestamp (calculated for max) |
+| wait/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| hardware-interrupt/instant | - | - | irq (latest value) |
+| hardware-interrupt/avg | - | - | irq (calculated average) |
+| hardware-interrupt/min | - | - | irq (calculated minimum) |
+| hardware-interrupt/max | - | - | irq (calculated maximum) |
+| hardware-interrupt/min-time | - | - | timestamp (calculated for min) |
+| hardware-interrupt/max-time | - | - | timestamp (calculated for max) |
+| hardware-interrupt/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| software-interrupt/instant | - | - | soft (latest value) |
+| software-interrupt/avg | - | - | soft (calculated average) |
+| software-interrupt/min | - | - | soft (calculated minimum) |
+| software-interrupt/max | - | - | soft (calculated maximum) |
+| software-interrupt/min-time | - | - | timestamp (calculated for min) |
+| software-interrupt/max-time | - | - | timestamp (calculated for max) |
+| software-interrupt/interval | - | - | timestamp (calculated interval in nanoseconds) |
+| **dns** | | | |
+| config/search | sonic-dns.yang | CONFIG_DB | DNS_NAMESERVER:ip |
+| **memory** | | | |
+| state | - | STATE_DB | MEMORY_STATS |
+| physical | - | - | total |
+| used | - | - | used |
+| free | - | - | free |
+| counters/correctable-ecc-errors | - | - | correctable-ecc-errors |
+| counters/uncorrectable-ecc-errors | - | - | uncorrectable-ecc-errors |
+| **ntp** | | | |
+| config | sonic-ntp.yang | CONFIG_DB | NTP |
+| enabled | sonic-ntp.yang | CONFIG_DB | admin_state |
+| enable-ntp-auth | sonic-ntp.yang | CONFIG_DB | authentication |
+| **ntp-keys** | | | |
+| ntp-key | sonic-ntp.yang | CONFIG_DB | NTP_KEY |
+| key-id (list key) | sonic-ntp.yang | CONFIG_DB | id |
+| config/key-id | sonic-ntp.yang | CONFIG_DB | id |
+| config/key-type | sonic-ntp.yang | CONFIG_DB | type |
+| config/key-value | sonic-ntp.yang | CONFIG_DB | value |
+| **servers** | | | |
+| server | sonic-ntp.yang | CONFIG_DB | NTP_SERVER |
+| address (list key) | sonic-ntp.yang | CONFIG_DB | server_address |
+| config/address | sonic-ntp.yang | CONFIG_DB | server_address |
+| config/version | sonic-ntp.yang | CONFIG_DB | version |
+| config/association-type | sonic-ntp.yang | CONFIG_DB | association_type |
+| config/iburst | sonic-ntp.yang | CONFIG_DB | iburst |
+| config/key-id | sonic-ntp.yang | CONFIG_DB | key |
+| config/network-instance | sonic-ntp.yang | CONFIG_DB | NTP:vrf |
+| config/source-address | sonic-ntp.yang | CONFIG_DB | NTP:src_intf |
+| **state** (NTP server state) | - | **STATE_DB** | **NTP_SERVER** |
+| state/address | - | STATE_DB | `<table-key>` |
+| state/port | - | STATE_DB | port |
+| state/version | - | STATE_DB | version |
+| state/association-type | - | STATE_DB | association-type |
+| state/iburst | - | STATE_DB | iburst |
+| state/network-instance | - | STATE_DB | network-instance |
+| state/source-address | - | STATE_DB | source-address |
+| state/key-id | - | STATE_DB | key-id |
+| state/prefer | - | STATE_DB | prefer |
+| state/stratum | - | STATE_DB | stratum |
+| state/root-delay | - | STATE_DB | root-delay |
+| state/root-dispersion | - | STATE_DB | root-dispersion |
+| state/offset | - | STATE_DB | offset |
+| state/poll-interval | - | STATE_DB | poll-interval |
+| **ssh-server** | | | |
+| config/timeout | sonic-ssh-server.yang | CONFIG_DB | SSH_SERVER:login_timeout |
+| state | - | STATE_DB | CREDENTIALS |
+| state/active-trusted-user-ca-keys-version | - | - | ca_keys_version |
+| state/active-trusted-user-ca-keys-created-on | - | - | ca_keys_created_on |
+| state/counters/access-rejects | - | - | access_rejects |
+| state/counters/last-access-reject | - | - | last_access_reject |
+| state/counters/access-accepts | - | - | access_accepts |
+| state/counters/last-access-accept | - | - | last_access_accept |
+| **alarms** | | | |
+| alarm/state | - | STATE_DB | COMPONENT_STATE_TABLE |
+| id | - | - | `<table-key>` + timestamp-seconds + timestamp-nanoseconds |
+| resource | - | - | `<table-key>` |
+| text | - | - | state + reason |
+| time-created | - | - | timestamp-seconds + timestamp-nanoseconds |
+| severity | - | - | state |
+| type-id | - | - | hwErr |
+| **logging** | | | |
+| remote-servers/remote-server | sonic-syslog.yang | CONFIG_DB | SYSLOG_SERVER |
+| host (list key) | sonic-syslog.yang | CONFIG_DB | server_address |
+| config/host | sonic-syslog.yang | CONFIG_DB | server_address |
+| config/source-address | sonic-syslog.yang | CONFIG_DB | source |
+| config/network-instance | sonic-syslog.yang | CONFIG_DB | vrf |
+| config/remote-port | sonic-syslog.yang | CONFIG_DB | port |
+| selectors/selector/severity | sonic-syslog.yang | CONFIG_DB | severity |
+| selectors/selector/config/severity | sonic-syslog.yang | CONFIG_DB | severity |
+| **aaa** | | | |
+| authentication | sonic-system-aaa.yang | CONFIG_DB | AAA : type |
+| authentication/config/authentication-method | sonic-system-aaa.yang | CONFIG_DB | AAA : login |
+| authentication/users/user/state | - | STATE_DB | CREDENTIALS |
+| state/username | - | - | `<table-key>` |
+| state/password-version | - | - | password_version |
+| state/password-created-on | - | - | password_created_on |
+| state/authorized-principals-list-version | - | - | principals_version |
+| state/authorized-principals-list-created-on | - | - | principals_created_on |
+| state/authorized-keys-list-version | - | - | keys_version |
+| state/authorized-keys-list-created-on | - | - | keys_created_on |
+| authorization | sonic-system-aaa.yang | CONFIG_DB | AAA : type |
+| authorization/config/authorization-method | sonic-system-aaa.yang | CONFIG_DB | AAA : login |
+| authorization/state | - | STATE_DB | CREDENTIALS |
+| state/grpc-authz-policy-version | - | - | authz_version |
+| state/grpc-authz-policy-created-on | - | - | authz_created_on |
+| accounting | sonic-system-aaa.yang | CONFIG_DB | AAA : type |
+| accounting/config/accounting-method | sonic-system-aaa.yang | CONFIG_DB | AAA : login |
+| **server-groups/server-group/servers/server** | | | |
+| address (TACACS) | sonic-system-tacacs.yang | CONFIG_DB | TACPLUS_SERVER : ipaddress |
+| config/address (TACACS) | sonic-system-tacacs.yang | CONFIG_DB | TACPLUS_SERVER : ipaddress |
+| config/timeout (TACACS) | sonic-system-tacacs.yang | CONFIG_DB | TACPLUS_SERVER : timeout |
+| tacacs/config/port | sonic-system-tacacs.yang | CONFIG_DB | TACPLUS_SERVER : tcp_port |
+| tacacs/config/secret-key | sonic-system-tacacs.yang | CONFIG_DB | TACPLUS_SERVER : passkey |
+| tacacs/config/source-address | sonic-system-tacacs.yang | CONFIG_DB | TACPLUS : src_intf + TACPLUS_SERVER:vrf |
+| radius/config/auth-port | sonic-system-radius.yang | CONFIG_DB | RADIUS_SERVER : auth_port |
+| radius/config/secret-key | sonic-system-radius.yang | CONFIG_DB | RADIUS_SERVER : passkey |
+| radius/config/source-address | sonic-system-radius.yang | CONFIG_DB | RADIUS_SERVER : src_intf & vrf |
+| radius/config/retransmit-attempts | sonic-system-radius.yang | CONFIG_DB | RADIUS_SERVER : retransmit |
+| **processes** | | | |
+| process | - | STATE_DB | PROCESS_STATS |
+| pid (list key) | - | STATE_DB | pid |
+| state/pid | - | STATE_DB | pid |
+| state/name | - | STATE_DB | CMD |
+| state/args | - | STATE_DB | CMD |
+| state/cpu-utilization | - | STATE_DB | %CPU |
+| state/memory-utilization | - | STATE_DB | %MEM |
+| **messages** | | | |
+| config/severity | sonic-syslog.yang | CONFIG_DB | SYSLOG_CONFIG:severity |
+| **grpc-servers** | | | |
+| grpc-server/state | - | STATE_DB | CREDENTIALS |
+| state/name | - | - | `<table-key>` |
+| state/certificate-version | - | - | certificate_version |
+| state/certificate-created-on | - | - | certificate_created_on |
+| state/ca-trust-bundle-version | - | - | ca_trust_bundle_version |
+| state/ca-trust-bundle-created-on | - | - | ca_trust_bundle_created_on |
+| state/certificate-revocation-list-bundle-version | - | - | certificate_revocation_list_bundle_version |
+| state/certificate-revocation-list-bundle-created-on | - | - | certificate_revocation_list_bundle_created_on |
+| connections/connection/state | - | COUNTERS_DB | COUNTERS |
+| state/address | - | - | `<table-key>` |
+| state/port | - | - | `<table-key>` |
+| counters/bytes-sent | - | - | bytes_sent |
+| counters/packets-sent | - | - | packets_sent |
+| counters/data-send-error | - | - | packets_error |
+| gnmi-pathz-policy-counters/paths/path/state | - | STATE_DB | PATHZ_TABLE |
+| state/name | - | - | `<table-key>` |
+| reads/access-rejects | - | - | count |
+| reads/last-access-reject | - | - | timestamp |
+| reads/access-accepts | - | - | count |
+| reads/last-access-accept | - | - | timestamp |
+| writes/access-rejects | - | - | count |
+| writes/last-access-reject | - | - | timestamp |
+| writes/access-accepts | - | - | count |
+| writes/last-access-accept | - | - | timestamp |
+| authz-policy-counters/rpcs/rpc/state | - | STATE_DB | AUTHZ_TABLE |
+| state/name | - | - | `<table-key>` |
+| state/access-rejects | - | - | count |
+| state/last-access-reject | - | - | timestamp |
+| state/access-accepts | - | - | count |
+| state/last-access-accept | - | - | timestamp |
+| **gnmi-pathz-policies** | | | |
+| policies/policy/state | - | STATE_DB | CREDENTIALS |
+| instance | - | - | `<table-key>` |
+| version | - | - | pathz_version |
+| created-on | - | - | pathz_created_on |
+
+**Notes:**
+- **Bold** entries indicate major feature categories/containers   
+
+## 4.2 Translation Notes
 
 Translation Notes:  
 1. current-datetime, up-time & boot-time nodes are directly fetched from system using syscall.
@@ -658,8 +1054,9 @@ Translation Notes:
    iv. Server network-instanse & source-address - Only a single value is supported across servers, as SONiC support these nodes in global table, not per server.  
    v. Server source-address - SONiC has src_intf support instead of source-address in NTP configurations. Translib will fetch src_intf for given address.  
                               So user must configure IP on Ports properly, before NTP configuration.  
-4. logging & messages severity - EMERGENCY, ALERT & CRITICAL, all these three are translated to SONiC critical level
-5. logging facility - Only ALL is supported currently
+4. system/cpus - CPU statistics are fetched from STATE_DB.CPU_STATS table. Data is collected every 10 seconds. Timestamp is in timeticks64 format. Calculations (instant, avg, min, max, min-time, max-time, interval) are performed using 6 sample references.
+5. logging & messages severity - EMERGENCY, ALERT & CRITICAL, all these three are translated to SONiC critical level
+6. logging facility - Only ALL is supported currently
 
 # 5 Error Handling
 Invalid configurations/operations will report an error.
@@ -674,6 +1071,10 @@ REST - POST/PATCH/DELETE/PUT/GET
 2. Verify that operations supported for gNMI/REST works fine for clock/timezone-name.
 3. Verify that operations supported for gNMI/REST works fine for DNS nameserver.
 4. Verify that operations supported for gNMI/REST works fine for NTP nodes.
+   - 4.1 Verify NTP server configuration (address, version, association-type, iburst)
+   - 4.2 Verify NTP server state retrieval (stratum, offset, root-delay, root-dispersion, poll-interval)
+   - 4.3 Verify NTP server state reflects actual ntpd synchronization status
+   - 4.4 Verify gNMI subscription for NTP server state changes (ON_CHANGE, SAMPLE)
 5. Verify that operations supported for gNMI/REST works fine for ssh-server nodes.
 6. Verify that operations supported for gNMI/REST works fine for logging and messages nodes.
 7. Verify that operations supported for gNMI/REST works fine for AAA (TACACS & RADIUS) nodes.
@@ -684,6 +1085,11 @@ REST - POST/PATCH/DELETE/PUT/GET
 12. Verify that operations supported for gNMI/REST works fine for mount-points nodes.
 13. Verify that operations supported for gNMI/REST works fine for memory nodes.
 14. Verify that operations supported for gNMI/REST works fine for cpus nodes.
+    - 14.1 Verify CPU state retrieval for all CPUs (index="all")
+    - 14.2 Verify CPU state retrieval for individual CPU cores (index="0", "1", etc.)
+    - 14.3 Verify CPU utilization metrics (instant, avg, min, max)
+    - 14.4 Verify gNMI subscription for CPU state changes (SAMPLE mode)
+    - 14.5 Verify CPU state is read-only (configuration not allowed)
 15. Verify that operations supported for gNMI/REST works fine for grpc-servers nodes.
 16. Verify that operations supported for gNMI/REST works fine for gnmi-pathz-policies nodes.
 
@@ -703,3 +1109,4 @@ REST - POST/PATCH/DELETE/PUT/GET
 13. Verify that GET on grpc-servers/gnmi-pathz-policy-counters with non-existing path returns an empty data.
 14. Verify that GET on grpc-servers/authz-policy-counters with non-existing rpc returns an empty data.
 15. Verify that GET on gnmi-pathz-policies with non-existing instance returns an empty data.
+16. Verify that GET on non-existent NTP server returns appropriate error.
