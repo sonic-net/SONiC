@@ -1,0 +1,40 @@
+############################################################################################################
+# llr_profile_lookup.ini
+#
+#   Vendor‑supplied lookup table used by llrmgrd to auto‑generate LLR_PROFILE entries per (speed, cable_len).
+#
+# Format is similar to port_config.ini:
+#   * Plain text, whitespace separated columns.
+#   * Lines beginning with '#' are comments and ignored.
+#   * First two columns are mandatory and positional: <speed> <cable_length>
+#       - speed: interface speed in Mb/s (e.g. 100000, 400000, 800000)
+#       - cable_length: cable length string as used in CONFIG_DB PORT table (e.g. 1m, 3m, 40m)
+#   * Remaining columns are optional and MAY appear in any order. A vendor lists only the
+#     fields it supports; absent columns are treated as unsupported / not configured.
+#   * If a column is present but a particular row wants to skip the value, use '-' (dash) to denote unset.
+#   * Duplicate (speed, cable_length) rows are not allowed.
+#
+# Column Header Rule (Option 4):
+#   First non-empty, non-comment line IS the header (no leading '#').
+#   Header must start with: speed cable_length
+#   You may use either long field names or short aliases (mixing allowed).
+#   Subsequent lines are data rows.
+#
+# Alias mapping (long <-> short):
+# max_outstanding_frames      <-> outstanding_frames
+# max_outstanding_bytes       <-> outstanding_bytes
+# max_replay_timer            <-> replay_timer
+# max_replay_count            <-> replay_count
+# pcs_lost_timeout            <-> pcs_lost_timeout
+# data_age_timer              <-> data_age_timer
+# ctlos_spacing_bytes         <-> ctlos_spacing
+# init_action                 <-> init_action
+# flush_action                <-> flush_action
+#
+# Example values (illustrative only):
+
+speed    cable  outstanding_frames outstanding_bytes replay_timer replay_count pcs_lost_timeout data_age_timer ctlos_spacing init_action   flush_action
+400000    3m      4096              262144           5000         3            50000            20000          2048          best_effort   block
+400000    10m     4096              262144           5500         3            55000            24000          2048          best_effort   block
+800000    3m      8192              524288           5000         3            50000            20000          2048          best_effort   best_effort
+800000    10m     8192              524288           5500         3            55000            24000          2048          best_effort   discard
