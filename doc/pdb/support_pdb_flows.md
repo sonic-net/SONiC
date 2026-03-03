@@ -222,7 +222,7 @@ It must be enabled on pdb based platform.
 ```
 pmon_daemon_control.json
 
-“skip_pdbd”: true/false
+“enable_pdbd”: true/false
 ```
 
 ![pdb daemon flow](https://github.com/yuazhe/SONiC/blob/26bd990514cc13b5ebe00a6e1fa23082786c66be/images/pdb/pdb_daemon_flow.png)
