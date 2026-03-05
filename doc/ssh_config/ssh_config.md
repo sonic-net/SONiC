@@ -51,7 +51,7 @@ We want to allow configuring ssh server global settings. This will feature will 
 
 ###  1.5. Requirements
 
-This feature requires a dedicated table in the configuration DB, and enhancements of hostcfg demon, in order to allow modifing the relvant ssh configuration files. In order to override ssh configurations, we need to have write access to ssh config files such as /etc/ssh/sshd_config
+This feature requires a dedicated table in the configuration DB, and enhancements of hostcfg demon, in order to allow modifing the relevant ssh configuration files. In order to override ssh configurations, we need to have write access to ssh config files such as /etc/ssh/sshd_config
 
 ###  1.6. Architecture Design 
 ####  1.6.1. Configuration modules
