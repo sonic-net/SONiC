@@ -48,7 +48,7 @@
 - [Some Ethernet Based Scale up systems](#some-ethernet-based-scale-up-systems)
   - [ESUN](#esun)
   - [Maia 200 Scale Up system](#maia-200-scale-up-system)
-  - [Byte Dance's Scale up system](#byte-dances-scale-up-system)
+  - [An Example Dual-rack Scale Up System](#an-example-dual-rack-scale-up-system)
 - [Software Architecture](#software-architecture)
   - [ID Lookup](#id-lookup)
   - [PFC/CBFC](#pfccbfc)
@@ -426,7 +426,103 @@ Operators can select the provisioning model that best fits their operational req
 ## Some Ethernet Based Scale up systems
 ### ESUN
 ### Maia 200 Scale Up system
-### Byte Dance's Scale up system
+### An Example Dual-rack Scale Up System
+
+#### Overview
+
+This section describes an Ethernet-based dual-rack scale-up network design spanning two racks. The fabric is built from a few parallel tracks. A track is a pair of switches, one in each rack, plus the bundle of inter-rack links between them. Each GPU node connects to a track using a NIC, and each GPU connects to all switches within the same rack via multiple NICs. In this section, "NIC" refers to an in-band network interface and does not necessarily refer to a physical adapter card.
+
+In this design, the switch provisions NIC-facing L3 configuration deterministically. Specifically, each switch assigns an IP address to the neighboring NIC and advertises the IP/mask/gateway to the NIC using LLDP organization-specific TLVs.
+
+#### Dual-rack System Topology
+
+The system consists of Rack A and Rack B. Each rack contains _n_ Ethernet switches, labeled Track 0 through Track _n_-1. The inter-rack wiring follows the track structure: Track i in Rack A connects only to Track i in Rack B. Within a rack, each GPU node has one NIC to each track, giving _n_ independent paths for in-band GPU communication.
+
+In a representative dual-rack deployment, there are _2N_ GPUs total, with _N_ GPUs per rack. Each GPU has _n_ NICs, one per track. From the switch perspective, each track switch needs one downlink per GPU in the rack, resulting in _N_ downlinks per switch.
+
+Between the two connected switches within a track, there are _N_ ports for inter-rack connectivity. Please note that the NIC-facing total bandwidth is equivalent to the switch-facing total bandwidth to provide non-tapering bi-section bandwidth.
+
+In addition to the in-band fabric, there is a separate management network connecting all the devices including the hosts and switches through the OOB (Out of Band) interfaces.
+
+![Protocol Stack](images/dual_rack_topo.png)
+
+#### NIC IP Allocation Scheme
+
+NIC L3 configuration is provisioned by the switch. Each track switch is configured with a dedicated IPv4 subnet for the NIC-facing links. The allocation service generates the usable host address pool for the subnet and assigns the IP address to the connected NIC. If the subnet and the port set remain unchanged, the port-to-IP assignment remains unchanged across process restarts and device reboots.
+
+The delivery mechanism is LLDP. After the IP computation is done, the switch programs its LLDP subsystem to advertise an organization-specific TLV on each relevant downlink port. The host agent receives LLDP frames, validates the TLV payload, and applies the advertised IP/mask/gateway to the NIC.
+
+#### Forwarding Design
+
+NIC-facing ports on a track switch are placed into the same VLAN, and the switch provides a default gateway for that VLAN via an SVI. As a result, traffic between NICs attached to the same switch can be forwarded within the local L2 domain when it stays within that VLAN. When a NIC needs to reach a destination NIC that is attached to a different switch, packets are sent to the default gateway and forwarded using IP routing across switches.
+
+eBGP is used between the switches of the same track, to exchange the reachability of NIC subnets on each side of the dual-rack system. In particular, each track switch advertises the IPv4 prefixes used on its NIC-facing VLAN(s), so that the peer switch in the other rack can forward traffic to the correct next hop.
+
+#### LLDP Network Protocol Changes
+
+The LLDP extensions use the standard organization-specific TLV type and carry a compact NIC configuration payload. The payload includes a version field and an integrity check (for example, a checksum over the configuration fields) so the host can validate what it receives. The payload conveys the IP address, mask length, and default gateway for the subnet.
+
+The LLDP transmit interval affects how quickly a newly connected node learns its configuration. A shorter interval speeds up convergence at the cost of more LLDP control traffic.
+
+#### SONiC Changes
+
+Supporting this design in SONiC requires a small set of changes in the CLI surface, ConfigDB schema, and the LLDP management path. The switch computes a deterministic port-to-IP mapping and uses LLDP organization-specific TLVs to deliver the resulting L3 configuration to the NIC.
+
+##### CLI
+
+SONiC adds a configuration command to define the NIC-facing IPv4 subnet and the set of ports that participate in deterministic IP allocation:
+
+```
+featureName ipv4 address <A.B.C.D/mask> port-list <ethernet ports and ranges>
+```
+
+The port-list order is treated as the allocation order. Appending additional ports to the configured list does not change the assignments for existing ports.
+
+SONiC also adds a show command to display the currently configured feature state:
+
+```
+show running-configuration featureName
+```
+
+##### ConfigDB
+
+ConfigDB stores one authoritative record for the feature containing:
+
+- The IPv4 subnet to allocate from
+- The validated port list expanded to individual port names
+
+ConfigDB adds a dedicated section for the feature, for example:
+
+```json
+{
+  "ipv4_address": "A.B.C.D/mask",
+  "host_facing_port_list": [
+    "ethernet1"
+  ]
+}
+```
+
+##### LLDP Docker
+
+The LLDP container is responsible for emitting the on-wire LLDP advertisements. A management component in the container updates the per-port organization-specific TLV configuration via the lldpd control utility (lldpcli), so that LLDP advertisements match the current intended port-to-IP mapping.
+
+##### NIC IP Allocation Service
+
+The allocation service subscribes to the feature configuration in ConfigDB and derives a deterministic mapping:
+
+- Generate the usable host address pool for the configured subnet
+- Iterate ports in port-list order
+- For each port, reuse an existing mapping if present; otherwise allocate the first unused host address from the pool
+- Remove advertisements for ports that are no longer in the configured scope
+
+The service then programs the LLDP container so each participating port advertises an organization-specific TLV payload that includes the version, gateway IP address, port IP address and mask length, plus an integrity check (CRC32) over the configuration fields.
+
+To implement this in SONiC, the LLDP management component, lldpmgrd, in the LLDP container needs to be extended to:
+
+- Watch the ConfigDB record for subnet and port-list changes
+- Compute the port-to-IP mapping and construct the corresponding custom TLV payloads
+- Use lldpcli to add/update/delete per-port TLV configuration in lldpd
+
 
 ## Software Architecture
 
