@@ -2,11 +2,12 @@
 
 ## 1. Requirments
 PDB, power distributed board, will be installed on direct-current platform and replace PSU. SONiC needs to provide several facilities to monitor status of this new kind of hardware. 
-This HLD proposes a new SONiC platform object, PDBobject,as the platform abstraction and corresponding small updates to the chassis base object. In addition to that, a new platform daemon, PDB daemon, which similar to PSU daemon will be provided, as well as new CLI command.
+This HLD proposes a new SONiC platform object, PDBobject,as the platform abstraction and corresponding small updates to the chassis base object. On top of that, the current psu daemone and it's CLI will be extended to support
+this new kind of hardware but at meantime keep a consitent user experience for power monitoring.
 
 ## 2. New sonic-platform-common PDBobject APIs
 
-### 2.1 APIs inherited from Device Base object
+### 2.1 APIs inherited from PSU Base object
 ```
     def get_name(self):
         """
@@ -70,83 +71,7 @@ This HLD proposes a new SONiC platform object, PDBobject,as the platform abstrac
             A boolean, False since PDB is generally not replaceable.
         """
 
-```
-
-### 2.2  APIs new for PDB object
-```
-    def get_input_current(self):
-        """
-        Retrieves the input current reading.
-
-        Returns:
-            A float representing the input current in Amperes, or 'N/A' if not available.
-        """
-
-
-    def get_input_power(self):
-        """
-        Retrieves the input power reading.
-
-        Returns:
-            A float representing the input power in Watts, or 'N/A' if not available.
-        """
-
-
-    def get_input_voltage(self):
-        """
-        Retrieves the input voltage reading.
-
-        Returns:
-            A float representing the input voltage in Volts, or 'N/A' if not available.
-        """
-
-
-    def get_output_current(self):
-        """
-        Retrieves the output current reading.
-
-        Returns:
-            A float representing the output current in Amperes, or 'N/A' if not available.
-        """
-
-
-    def get_output_power(self):
-        """
-        Retrieves the output power reading.
-
-        Returns:
-            A float representing the output power in Watts, or 'N/A' if not available.
-        """
-
-
-    def get_output_voltage(self):
-        """
-        Retrieves the output voltage reading.
-
-        Returns:
-            A float representing the output voltage in Volts, or 'N/A' if not available.
-        """
-
-
-    def get_maximum_supplied_power(self):
-        """
-        Retrieves the maximum supplied power capacity.
-
-        Returns:
-            A float representing the maximum supplied power in Watts, or 'N/A' if not available.
-        """
-
-
-    def get_temperature(self):
-        """
-        Retrieves the current temperature reading.
-
-        Returns:
-            A float representing the temperature in Celsius, or 'N/A' if not available.
-        """
-
-
-    def get_num_thermals(self):
+        def get_num_thermals(self):
         """
         Retrieves the number of thermals available on this PDB
 
@@ -177,6 +102,81 @@ This HLD proposes a new SONiC platform object, PDBobject,as the platform abstrac
             An object dervied from ThermalBase representing the specified thermal
         """
 
+    def get_temperature(self):
+        """
+        Retrieves the current temperature reading.
+
+        Returns:
+            A float representing the temperature in Celsius, or 'N/A' if not available.
+        """
+
+        def get_output_current(self):
+        """
+        Retrieves the output current reading.
+
+        Returns:
+            A float representing the output current in Amperes, or 'N/A' if not available.
+        """
+    
+    def get_output_current(self):
+        """
+        Retrieves the output current reading.
+
+        Returns:
+            A float representing the output current in Amperes, or 'N/A' if not available.
+        """
+
+    def get_output_power(self):
+        """
+        Retrieves the output power reading.
+
+        Returns:
+            A float representing the output power in Watts, or 'N/A' if not available.
+        """
+
+
+    def get_output_voltage(self):
+        """
+        Retrieves the output voltage reading.
+
+        Returns:
+            A float representing the output voltage in Volts, or 'N/A' if not available.
+        """
+```
+
+### 2.2  APIs new for PDB object
+```
+    def get_input_current(self):
+        """
+        Retrieves the input current reading.
+
+        Returns:
+            A float representing the input current in Amperes, or 'N/A' if not available.
+        """
+
+    def get_input_power(self):
+        """
+        Retrieves the input power reading.
+
+        Returns:
+            A float representing the input power in Watts, or 'N/A' if not available.
+        """
+
+    def get_input_voltage(self):
+        """
+        Retrieves the input voltage reading.
+
+        Returns:
+            A float representing the input voltage in Volts, or 'N/A' if not available.
+        """
+
+    def get_maximum_supplied_power(self):
+        """
+        Retrieves the maximum supplied power capacity.
+
+        Returns:
+            A float representing the maximum supplied power in Watts, or 'N/A' if not available.
+        """
 ```
 
 ## 3. New functions of ChassisBase object
@@ -212,31 +212,41 @@ This HLD proposes a new SONiC platform object, PDBobject,as the platform abstrac
             The PDB object at the specified index, or None if the index is
             out of range.
         """
-
-
 ```
 
-## 4. New platform daemon for pdb
-New PDB daemon pdbd shall be created, it can be configured to skip on psu based platform.
-It must be enabled on pdb based platform.
+## 4. PSU daemon extending for pdb
+The current psu daemon will be re-used to cover new pdb object, these new functions will be provided:
 ```
-pmon_daemon_control.json
+def _wrapper_get_num_psus(self):
+    """
+    Get number of pdb object
+    """
 
-“enable_pdbd”: true/false
+
+def _wrapper_get_psu(self, pdb_index):
+    """
+    Get PDB object from platform chassis
+    :param logger: Logger instance for error/warning messages
+    :param pdb_index: PDB index (1-based)
+    :return: PDB object if available, None otherwise
+    """
+
+
+def _wrapper_get_pdb_presence(sefl, pdb_index):
+    """
+    Get the pdb object presence status
+    """
 ```
 
-![pdb daemon flow](https://github.com/yuazhe/SONiC/blob/26bd990514cc13b5ebe00a6e1fa23082786c66be/images/pdb/pdb_daemon_flow.png)
-
-
-The purpose of PDB daemon is to collect platform pdb data, supervisord takes charge of this daemon. This daemon will loop every 3 seconds and get the data from platform API and then write it the Redis DB.
-The pdb_num will store in "chassis_info" table. It will just be invoked one time when system boots up or reloads. The key is chassis_name, the field is "pdb_num" and the value is from get_pdb_num() of chassis object.
+The pdb_num will store in "chassis_info" table. It will just be invoked one time when system boots up or reloads. The key is chassis_name, the field is "pdb_num" and the value is from get_pdb_num() of chassis object. 
 The pdb_status and pdb_presence will store in "pdb_info" table. It will be updated every 3 seconds. The key is pdb_name, the field is "presence" and "status", the value is from get_pdb_presence() and get_pdb_num(). This table will store all the important information of the pdb object.
+
 
 ## 5. Thermalctld change to support PDB
 for supporting the pdb device, a new logic will be added to the *update* fucntion of  *class TemperatureUpdater*
 ```
 for pdb in get_all_pdbs():
-            if psu.get_presence():
+            if pdb.get_presence():
                 for thermal in enumerate(pdb.get_all_thermals()):
                     self._refresh_temperature_status(thermal)
 
@@ -280,25 +290,8 @@ timestamp                        = STRING                               ; timest
 
 ![CLI data flow](https://github.com/yuazhe/SONiC/blob/9e9b4c2cd6feba0706112f3865feef5498a6c759/images/pdb/CLI_data_flow.png) 
 
-### 7.1 show platform pdbstatus
-The status field represents the status of the PDB, which can be the following:
-1.	OK represents no alarm
-2.	Not OK can be caused by power is not good, which means the PDB is present but no power (Eg. the power is down or power cable is unplugged)
-3.	WARNING can be caused by power exceeding the PDB's max power threshold
-The led field represents the single power led, it’s maintained by CPLD in the front panel. There is no specific led for each pdb, so they all will share this led status.
 
-```
-PDB    Model        Serial       HW Rev  Voltage (V)   Current (A)   Power (W)   Status   LED
------  ------------ ------------ ------- ------------  ------------  ----------  -------  -----
-PDB 1  XXXX         SNXXXX       RXX     XX.XX         XX.XX         XX.XX       OK       green
-PDB 2  XXXX         SNXXXX       RXX     XX.XX         XX.XX         XX.XX       NotOK    red
-…      …            …            …       …             …             …           …        …
-PDB X  XXXX         SNXXXX       RXX     XX.XX         XX.XX         XX.XX       OK       green
-```
-
-show plat temp
-
-### 7.2 show platform psustatus output 
+### 7.1 show platform psustatus output 
 when number of psu is 0, the old output is:
 ```
 Error: Failed to get the number of PSUs
@@ -315,7 +308,22 @@ Wherase in PSU platform, the error message will be:
 ERROR: PSU not detected
 ```
 
-### 7.3 show platform temperture
+The status field represents the status of the PDB, which can be the following:
+1.	OK represents no alarm
+2.	Not OK can be caused by power is not good, which means the PDB is present but no power (Eg. the power is down or power cable is unplugged)
+3.	WARNING can be caused by power exceeding the PDB's max power threshold
+The led field represents the single power led, it’s maintained by CPLD in the front panel. There is no specific led for each pdb, so they all will share this led status.
+
+```
+PSU    Model        Serial       HW Rev  Voltage (V)   Current (A)   Power (W)   Status   LED
+-----  ------------ ------------ ------- ------------  ------------  ----------  -------  -----
+PDB 1  XXXX         SNXXXX       RXX     XX.XX         XX.XX         XX.XX       OK       green
+PDB 2  XXXX         SNXXXX       RXX     XX.XX         XX.XX         XX.XX       NotOK    red
+…      …            …            …       …             …             …           …        …
+PDB X  XXXX         SNXXXX       RXX     XX.XX         XX.XX         XX.XX       OK       green
+```
+
+### 7.2 show platform temperture
 in pdb based platform, the pdb temperture will be displayed and replace psu 
 ```
                 Sensor    Temperature    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
