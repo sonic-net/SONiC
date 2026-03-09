@@ -239,7 +239,7 @@ def _wrapper_get_pdb_presence(sefl, pdb_index):
 ```
 
 The pdb_num will store in "chassis_info" table. It will just be invoked one time when system boots up or reloads. The key is chassis_name, the field is "pdb_num" and the value is from get_pdb_num() of chassis object. 
-The pdb_status and pdb_presence will store in "pdb_info" table. It will be updated every 3 seconds. The key is pdb_name, the field is "presence" and "status", the value is from get_pdb_presence() and get_pdb_num(). This table will store all the important information of the pdb object.
+The pdb_status and pdb_presence will store in "psu_info" table, but within PDBX key. It will be updated every 3 seconds. The key is pdb_name, the field is "presence" and "status", the value is from get_pdb_presence() and get_pdb_num(). This table will store all the important information of the pdb object.
 
 
 ## 5. Thermalctld change to support PDB
@@ -255,7 +255,7 @@ since in legacy psu based platform the get_all_pdbs() will return none so there 
 
 
 ## 6. database scheme
-Keys of PDB_INFO|PDB X, it will be updated by pdb daemon
+Keys of PSU_INFO|PDB X, it will be updated by psu daemon
 ```
 ; Defines information for a power supply object
 key                              = PSU_INFO|object_name                 ; name of the power supply object
