@@ -269,13 +269,7 @@ A new daemon **"bmcctld"** will be introduced to do power-control actions on Swi
 
 The bmc controller daemon "bmcctld" is started first in BMC pmon container. It acts on the commands/alerts from External rack manager and local system leaks reported by 'thermalctld'.
 
-The following logic is applied when "bmcctld" is started
-
 ![bmcctld interactions](images/bmcctld.png)
-
-
-![bmcctld events](images/bmcctld_events.png)
-
 
 Detailed workflow below
 
@@ -331,6 +325,8 @@ On an Event
   
 
 ```
+
+![bmcctld events](images/bmcctld_events.png)
 
 ###### DB schema
 This section covers the various tables which this daemon creates/uses in Redis DB on BMC
@@ -526,7 +522,7 @@ This base class is already defined in sonic-platform-common.
 
 | Method | Present | Action |
 |---------|---------|----------|
-| get_all_modules() | Y | In the BMC, to get the Switch-Host Module object +  my own BMC module object |
+| get_all_modules() | Y | To get the (i) Switch-Host Module object (ii) BMC module object |
 
 
 ### 2.3 BMC CLI Commands
