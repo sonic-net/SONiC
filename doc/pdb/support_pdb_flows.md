@@ -5,9 +5,9 @@ PDB, power distributed board, will be installed on direct-current platform and r
 This HLD proposes a new SONiC platform object, PDBobject,as the platform abstraction and corresponding small updates to the chassis base object. On top of that, the current psu daemone and it's CLI will be extended to support
 this new kind of hardware but at meantime keep a consitent user experience for power monitoring.
 
-## 2. New sonic-platform-common PDBobject APIs
+## 2. New sonic-platform-common PDB base object inherited from PSU object
 
-### 2.1 APIs inherited from PSU Base object
+### 2.1 APIs for PDB base object 
 ```
     def get_name(self):
         """
@@ -142,10 +142,6 @@ this new kind of hardware but at meantime keep a consitent user experience for p
         Returns:
             A float representing the output voltage in Volts, or 'N/A' if not available.
         """
-```
-
-### 2.2  APIs new for PDB object
-```
     def get_input_current(self):
         """
         Retrieves the input current reading.
@@ -292,21 +288,9 @@ timestamp                        = STRING                               ; timest
 
 
 ### 7.1 show platform psustatus output 
-when number of psu is 0, the old output is:
-```
-Error: Failed to get the number of PSUs
-Error: Failed to get PSU status
-Error: failed to get PSU status from state DB
-```
-However, this error is false in PDB based system, so the new output would be simply:
-```
-PSU doesn’t exist in PDB platform
-```
 
-Wherase in PSU platform, the error message will be:
-```
-ERROR: PSU not detected
-```
+The command output columns will stay same for consistent experience. Give a system can be pdb based and no psu, original error message in this
+situation will be removed, and the output will be simply no rows.
 
 The status field represents the status of the PDB, which can be the following:
 1.	OK represents no alarm
