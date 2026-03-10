@@ -226,15 +226,15 @@ The Switch-Host and BMC communicate over the Host-Bmc-Link for accessing redis D
 
 BMC controls the State of the Switch-Host based on various factors/events. Defining the various events, the start, final states of Switch-Host here,
 
-|| Switch Host (Start) | Event | Action | Switch Host (Final) 
+|| Switch Host State (Start) | Event | Action | Switch Host State (Final) 
 |--|---|---|---|---|
-|1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, DB update, graceful-shutdown/Power OFF Switch Host | OFFLINE 
-|2| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog, graceful-shutdown/Power OFF Switch Host | OFFLINE 
-|3| ONLINE  | POWER OFF request | Syslog, graceful-shutdown/Power OFF Switch Host | OFFLINE 
-|4| ONLINE  | POWER FORCE_OFF request | Syslog, Power OFF Switch Host | OFFLINE 
+|1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, Power OFF Switch Host | OFFLINE 
+|2| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog, graceful-shutdown Switch Host | OFFLINE 
+|3| ONLINE  | RACK_MGR POWER OFF request | Syslog, graceful-shutdown Switch Host | OFFLINE 
+|4| ONLINE  | CHASSIS_MODULE admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE 
 |5| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, External monitoring tool take action | ONLINE
-|6| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, External Rack-manager to take action | ONLINE
-|7| ONLINE  | POWER ON request | Power ON Switch Host, Syslog | ONLINE
+|6| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, External monitoring tool to take action | ONLINE
+|7| OFFLINE  | POWER ON request | Power ON Switch Host, Syslog | ONLINE
 
 The BMC remains POWERED ON in all above scenarios.
 
@@ -469,7 +469,7 @@ Switch-Host can be modelled as a Module object and the APIs to control power on/
 | set_admin_state(UP) | Y | Power ON Switch Host from standby/off |
 | set_admin_state(DOWN) | Y | Power OFF Switch Host |
 | get_oper_state() | Y | Fetch the operational state of Switch-Host|
-| do_power_cycle() | New | Power cycle Switch Host|
+| set_admin_state(RESET) | New | Power cycle Switch Host|
 
 
 Sample Implementation for BMC
