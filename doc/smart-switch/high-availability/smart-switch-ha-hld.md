@@ -1632,6 +1632,7 @@ The standalone setup can be triggered by following types of signals. Each signal
 #### 10.1.3. Determine desired standalone setup
 
 The key of driving the HA pair into standalone setup is to determine which side should be the standalone. The steps are different for card-level and ENI-level standalone setup.
+When the Active-Standby pair detect anomalies, they will first enter `SwitchingToStandalone` state. In `SwitchingToStandalone` state, they will perform the checks detailed in the following sections (depending on ENI-scope vs DPU-scope). Upon acquiring the decision, the Active-Standby pair will enter Standalone set-up (Standalone-Stanby pair).
 
 ##### 10.1.3.1. Determine card-level standalone setup
 
@@ -1643,7 +1644,7 @@ First, we need to check the DPU health signals:
 2. If the signals have "Peer DPU lost" or "Peer DPU dead", we drive ourselves to standalone.
    * This covers the cases where the paired card or entire switch is dead, as well as manual operations.
 
-At this moment, both DPU should be running fine, so we start to check the ENI status and data path status. To ensure we have the latest state, we will send the `DPURequestEnterStandalone` message with aggregated signals and ENI states to the peer DPU. And upon receiving the message, we will run the following checks:
+If we pass the above two steps, both DPU should be running fine at this moment. So, we start to check the ENI status and data path status. To ensure we have the latest state, we will send the `DPURequestEnterStandalone` message with aggregated signals and ENI states to the peer DPU. And upon receiving the message, we will run the following checks:
 
 1. If the signals from local DPU have "Card pinned to standalone", we return `Deny` to the peer DPU.
 2. Check "Manual Pinned" for manual opertaions:
@@ -1689,7 +1690,7 @@ This is usually caused by data plane gray failure. The detailed steps are listed
 
     <p align="center"><img alt="Entering standalone setup with peer up step 2" src="images/ha-unplanned-events-enter-standalone-with-peer-up-step-2.svg"></p>
 
-   Since the other side can be in state other than `Dead`, `Destroying` and `Standby`, e.g. `Active`, the HAStateChanged will be sent to peer (DPU1), which will force the peer into `Standby` state.
+3. If we determined to move Standby to Standalone for some reasons (e.g. pinning Standby to Standalone), the Standby side will move to Standalone and also move to the next term. Since the other side can be in state other than `Dead`, `Destroying` and `Standby`, e.g. `Active`, the HAStateChanged will be sent to peer (DPU1), which will force the peer into `Standby` state.
 
     <p align="center"><img alt="Entering standalone setup with peer up step 3" src="images/ha-unplanned-events-enter-standalone-with-peer-up-step-2-standby.svg"></p>
 
