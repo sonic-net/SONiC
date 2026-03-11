@@ -250,13 +250,13 @@ The Leak detection is applicable only to Liquid cooling platform. The action is 
         
 #### 2.1.6 BMC event logging
 
-The general syslogs will be placed in /var/log/syslog where /var/log directory will be mounted on **tmpfs **. Syslogs will be sent to remote server as well.
+The general syslogs will be placed in /var/log/syslog where /var/log directory will be mounted on **tmpfs**. Syslogs will be sent to remote server as well.
 The Leak, Switch-Host state and interactions, Rack-manager interactions will be persistently stored on disk/eMMC in "/host/bmc.log" with log rotation enabled.
 
 
 ### 2.2 BMC Platform Management
 
-Switch-Host and BMC could be modeled as a "Module" using "ModuleBase" (https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/module_base.py#L22C7-L22C17)
+Switch-Host and BMC could be modeled as a "Module" using "ModuleBase" (https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/module_base.py)
 
 **Pmon** is a critical container, it has the following daemons viz. thermalctld, syseepropmd, stormond. 
 
@@ -337,16 +337,16 @@ key                       = BMC_BOOTUP_TIMEOUT|default   ; Config DB on BMC
 boot_delay                = float                        ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
                                                          ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events, Switch-Host will be powered on
 
-key                       = HOST_STATE|switch-host                           ; STATE_DB on BMC to store state of Switch-Host
+key                       = HOST_STATE|switch-host       ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
-device_power_state        = POWER_ON | POWER_OFF | POWER_FORCE_OFF | REBOOT  ; What was the last action done on Switch-Host
-device_status             = ONLINE | OFFLINE                                 ; current oper status of device
+device_power_state        = POWER_ON | POWER_OFF         ; What was the last action done on Switch-Host
+device_status             = ONLINE | OFFLINE             ; current oper status of device
 last_change_timestamp     = STR
 
 
 key                       = SWITCH_HOST_SHUTDOWN_TIMEOUT|default ; Config DB on BMC
 ; field                   = value
-shutdown_delay            = float                                ; Time in secs the BMC will wait after REBOOT command issued to Switch-Host. ( default = 2 min ).
+shutdown_delay            = float                                ; Time in secs the BMC will wait after SHUTDOWN command send to Switch-Host. ( default = 2 min ).
                                                                  ; if this timer expires, BMC will go ahead and POWER OFF switch-host
 
 ```
@@ -370,14 +370,14 @@ The main thermalctld daemon will run the sonic thermal policy based on the numbe
     - Subscribe to LIQUID_COOLING_DEVICE to check if there is any change in leak sensor status 
     - Apply the System leak severity detection algorithm as below
        
-       +--------------------------------------+-----------------------+
-       | Leak sensor data                     | System Leak Severity  |
-       +--------------------------------------+-----------------------+
-       | 1 Critical leak                      |        CRITICAL       |
-       | 2 or more leaks with any Severity    |        CRITICAL       |
-       | 1 Minor leak stay leaking for MAX-T  |        CRITICAL       |
-       | 1 Minor leak detected                |        MINOR          |
-       +--------------------------------------+-----------------------+
+       +--------------------------------------+-----------------------------+
+       | Leak sensor data                     | System Local Leak Severity  |
+       +--------------------------------------+-----------------------------+
+       | 1 Critical leak                      |        CRITICAL             |
+       | 2 or more leaks with any Severity    |        CRITICAL             |
+       | 1 Minor leak stay leaking for MAX-T  |        CRITICAL             |
+       | 1 Minor leak detected                |        MINOR                |
+       +--------------------------------------+-----------------------------+
 
     - Additional considerations, the timers can be configured per leak sensor profile.
        - MAX-T mins defined before which a MINOR leak can be considered CRITICAL.
@@ -431,7 +431,7 @@ This base class is already defined in sonic-platform-common. Additional new plat
 | Method | Present | Action |
 |---------|---------|----------|
 | get_name() | Y | Get leak sensor name |
-| is_leak() | Y | Is there a leak detected? Platform api to apply debounce logic before reporting/clearing leak |
+| is_leak() | Y | Is there a leak detected? **Applies debounce logic before reporting or clearing a leak** |
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
 | get_type() | New | What type of leak sensor is this rope, flex, spot etc |
 | get_location() | New | Location of leak sensor |
@@ -460,16 +460,14 @@ This base class is already defined in sonic-platform-common.
 
 ####  ModuleBase
 This base class is already defined in sonic-platform-common.
-
 Switch-Host can be modelled as a Module object and the APIs to control power on/off/cycle the Switch-Host are as below,
-
 
 | Method | Present | Action |
 |---------|---------|----------|
 | set_admin_state(UP) | Y | Power ON Switch Host from standby/off |
 | set_admin_state(DOWN) | Y | Power OFF Switch Host |
 | get_oper_state() | Y | Fetch the operational state of Switch-Host|
-| set_admin_state(RESET) | New | Power cycle Switch Host|
+| set_admin_state(CYCLE) | New | Power cycle Switch Host|
 
 
 Sample Implementation for BMC
@@ -511,7 +509,7 @@ Use it in sonic_platform_daemons:
 
   from sonic_platform import chassis
   platform_chassis = chassis.Chassis()
-  modules = platform_chassis.get_all_modules() // This API should return back two modules (i) BMC module itself. (ii) Switch-Host module
+  modules = platform_chassis.get_all_modules() // In sonic BMC, this API should return two modules (i) BMC module itself. (ii) Switch-Host module.
 
 ```
 
@@ -522,7 +520,7 @@ This base class is already defined in sonic-platform-common.
 
 | Method | Present | Action |
 |---------|---------|----------|
-| get_all_modules() | Y | To get the (i) Switch-Host Module object (ii) BMC module object |
+| get_all_modules() | Y | Fetch managed modules [BMC module object, Switch-Host Module object] |
 
 
 ### 2.3 BMC CLI Commands
