@@ -80,6 +80,7 @@ This HLD proposes adding a new configuration file called `optical_devices.json` 
 ### 5. Requirements
 
 - The HLD should provide support for configuring upcoming generations of hardware using co-packaged optics.
+- The HLD should provide support for both "joint" (OE and ELSFP configuration managed through a single i2c controller) and "separate" (OE and ELSFP configuration managed independently) modes of operation of co-packaged optics hardware.
 - The HLD should provide a mechanism generic enough to cover future hardware with complex topologies where ports/interfaces either share hardware devices, or leverage multiple hardware devices per port/interface.
 - The HLD will not support configuration for ports/interfaces that span multiple CMIS banks (a transceiver wider than 8 lanes for instance).
 
@@ -330,7 +331,7 @@ class ElsfpApi(XcvrApi):
     ...
 ```
 
-Note that the above implementation in `CpoApi` delegates most method calls to the optical engine API by default, since the optical engine reports most information on CPO hardware. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_all_internal_devices()` and `get_internal_device()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_internal_device("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
+Note that the above implementation in `CpoApi` delegates most method calls to the optical engine API by default, since the optical engine reports most information on CPO hardware. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_internal_devices()` and `get_internal_device()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_internal_device("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
 
 ##### 7.3.3 Chassis and Composite SFP Creation
 
@@ -419,7 +420,7 @@ $> sfputil show eeprom-hexdump -p Ethernet4 -d OE1
 ...expected output...
 ```
 
-`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_all_internal_devices()` and `get_internal_device()` methods provided by the `CompositeSfpBase` interface.
+`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_internal_devices()` and `get_internal_device()` methods provided by the `CompositeSfpBase` interface.
 
 `sfputil` will require changes across most, if not all, commands to support the composite SFP abstraction. A separate HLD in the future will cover those changes in greater detail.
 
