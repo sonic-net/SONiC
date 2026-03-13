@@ -59,7 +59,7 @@ This document describes high level design details of SONiC's FRR hardware protec
 | IPinIP       | IP-in-IP Encapsulation |
 
 ## 4. Overview
-SONiC uses ICMP echo request and reply packets to monitor the state of links between server blades and the ToR switches in DualToR architecture. When a link state change is detected, SONiC switches traffic by reprogramming routes and neighbors. This reprogramming involves multiple SAI calls from SONiC, leading to unpredictable delays in switchover time. As a result, switchover performance cannot be guaranteed. FRR hardware protection switching addresses these limitations by handling switchover in hardware as specified by the SAI enhancement related to **SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION**.
+SONiC uses ICMP echo request and reply packets to monitor the connectivity between server blades and the ToR switches in DualToR architecture. When an ICMP session state change is detected, SONiC switches traffic by reprogramming routes and neighbors. This reprogramming involves multiple SAI calls from SONiC, leading to unpredictable delays in switchover time. As a result, switchover performance cannot be guaranteed. FRR hardware protection switching addresses these limitations by handling switchover in hardware as specified by the SAI enhancement related to **SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION**.
 
 ## 5. Requirements
 ### 5.1 SONiC Requirements
@@ -72,11 +72,11 @@ SONiC uses ICMP echo request and reply packets to monitor the state of links bet
   * Backward compatible with existing software based switching. When **switching_mode** is set to **hardware** but the ASIC does not support nexthop protection groups, SONiC will fall back to software based switching transparently.
   * Create nexthop protection group for FRR switchover based on the config.
   * Maintain mapping of mux cable and ICMP echo session object id.
-  * The existing **state** field in App-DB MUX_CABLE_TBL is extended with two new values: **admin_active** and **admin_standby**. LinkMgrd will use these values for admin-initiated switching in both **software** and **hardware** modes. Existing **active**/**standby** values continue to be used for link-state-driven switching, preserving backward compatibility with older LinkMgrd versions.
+  * The existing **state** field in App-DB MUX_CABLE_TBL is extended with two new values: **admin_active** and **admin_standby**. LinkMgrd will use these values for admin-initiated switching in both **software** and **hardware** modes. Existing **active**/**standby** values continue to be used for ICMP session-state-driven switching, preserving backward compatibility with older LinkMgrd versions.
 
 ### 5.2 ASIC Requirements
    * Support **SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION** type of next hop group.
-   * Support **SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE** attribute as this allows SONiC to administratively toggle the protection group members in hardware overriding the automatic toggling of protection group members based on the link state.
+   * Support **SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE** attribute as this allows SONiC to administratively toggle the protection group members in hardware overriding the automatic toggling of protection group members based on the ICMP session state.
    * Support **NO_HOST_ROUTE** SAI neighbor attribute. Hardware based switching mode uses prefix-route based neighbors, which require the platform to support this attribute. If the platform does not support **NO_HOST_ROUTE**, hardware based switching mode cannot be enabled.
    * Support bulk error notifications for nexthop protection groups to report hardware switchover failures back to SONiC (see [Section 12](#12-error-handling-and-failure-scenarios)).
    * Support protection NHG level switchover counters for observability (new SAI specification to be proposed -- see [Section 10](#10-future-enhancements)).
@@ -118,7 +118,7 @@ Following diagram shows MuxOrch component level flow for admin_active/admin_stan
 <div align="center"> <img src=image/config_mux_mode_admin_role.png width=1200 /> </div>
 
 #### 7.1.3 MuxCableOrch
-MuxCableOrch in orchagent is the component responsible for consuming mux state from App DB MUX_CABLE_TABLE and switching traffic. Currently this component updates all routes whenever a traffic switchover is needed. When **switching_mode** is set to **hardware** in MuxOrch, MuxCableOrch will program the routes with the nexthop protection group OID as destination once during initial setup. Since the route destination is the protection NHG OID, subsequent link state changes (`active`/`standby`) are handled entirely in hardware -- MuxCableOrch does not need to reprogram routes or swap next hops during switchover. The only route programming from MuxCableOrch in **hardware** mode occurs during initial route creation and during admin-initiated manual switching (`admin_active`/`admin_standby`).
+MuxCableOrch in orchagent is the component responsible for consuming mux state from App DB MUX_CABLE_TABLE and switching traffic. Currently this component updates all routes whenever a traffic switchover is needed. When **switching_mode** is set to **hardware** in MuxOrch, MuxCableOrch will program the routes with the nexthop protection group OID as destination once during initial setup. Since the route destination is the protection NHG OID, subsequent ICMP session state changes (`active`/`standby`) are handled entirely in hardware -- MuxCableOrch does not need to reprogram routes or swap next hops during switchover. The only route programming from MuxCableOrch in **hardware** mode occurs during initial route creation and during admin-initiated manual switching (`admin_active`/`admin_standby`).
 
 Following diagram shows component level flow for traffic switching.
 <div align="center"> <img src=image/link_stateup_switchover.png width=1200 /> </div>
@@ -138,7 +138,7 @@ In the existing prefix-route mode, switching is done by manipulating what each m
 This means every switchover involves reprogramming prefix routes for each affected mux neighbor.
 
 **New behavior with hardware protection switching:**
-A new neighbor handler will be introduced for hardware protection switching. The new handler will not update the neighbor's prefix route on link-state changes (`active`/`standby`) -- those are handled entirely in hardware by the nexthop protection group. The new handler will act only on admin-initiated state changes and neighbor updates:
+A new neighbor handler will be introduced for hardware protection switching. The new handler will not update the neighbor's prefix route on ICMP session state changes (`active`/`standby`) -- those are handled entirely in hardware by the nexthop protection group. The new handler will act only on admin-initiated state changes and neighbor updates:
 
   * **update (active/standby):** When a neighbor gets updated, the neighbor handler sets the prefix route to the hardware based protection nexthop group comprising of the local neighbor nexthop as its primary member and the tunnel next hop as its secondary member.
   * **admin_active:** The neighbor handler sets the protection NHG's **SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE** attribute to **SAI_NEXT_HOP_GROUP_ADMIN_ROLE_PRIMARY**.
@@ -190,14 +190,14 @@ MUX_CABLE|PORTNAME:
 ```
 
 ### 8.2 App-DB
-The existing **state** field in App DB **MUX_CABLE_TBL** is extended with two new values [admin_active|admin_standby] to differentiate admin-initiated switching from link-state-driven switching:
+The existing **state** field in App DB **MUX_CABLE_TBL** is extended with two new values [admin_active|admin_standby] to differentiate admin-initiated switching from ICMP session-state-driven switching:
 
 ```
 MUX_CABLE_TBL|PORTNAME:
   state: active/standby/admin_active/admin_standby
 ```
 
-  * **active** / **standby** -- link-state-driven switching, written by LinkMgrd when ICMP session state changes. Older LinkMgrd versions continue to use only these values.
+  * **active** / **standby** -- ICMP session-state-driven switching, written by LinkMgrd when ICMP session state changes. Older LinkMgrd versions continue to use only these values.
   * **admin_active** / **admin_standby** -- admin-initiated (config-driven) switching, written by LinkMgrd when the operator manually triggers a switchover. For older neighbor modes in orchagent, these invoke the same routines as `active`/`standby`, preserving backward compatibility.
 
 ### 8.3 State-DB
