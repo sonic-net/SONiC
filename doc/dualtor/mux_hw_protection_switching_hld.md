@@ -78,6 +78,7 @@ SONiC uses ICMP echo request and reply packets to monitor the state of links bet
    * Support **SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION** type of next hop group.
    * Support **SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE** attribute as this allows SONiC to administratively toggle the protection group members in hardware overriding the automatic toggling of protection group members based on the link state.
    * Support **NO_HOST_ROUTE** SAI neighbor attribute as prefix-route based neighbors will be used to work with hardware based nexthop protection group.
+   * Support bulk error notifications for nexthop protection groups to report hardware switchover failures back to SONiC (see [Section 12](#12-error-handling-and-failure-scenarios)).
    * Support protection NHG level switchover counters for observability (new SAI specification to be proposed -- see [Section 10](#10-future-enhancements)).
 
 ## 6. Hardware based Nexthop Protection Group Architecture
@@ -104,9 +105,9 @@ NhgOrch exposes APIs for the following protection NHG operations:
   * Toggling **SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE** for administrative switchover.
   * Removing a nexthop protection group and its members.
 
-MuxOrch is the primary consumer of these APIs for dual-ToR. Other orchagent components can reuse the same interfaces in the future for additional features.
+**ProtNhgOrch** is a separate orch that registers for and processes bulk error notifications from SAI for protection NHGs. When the hardware fails to complete a switchover for one or more protection NHGs, SAI sends a bulk error notification identifying the failed NHG objects. ProtNhgOrch receives this notification, correlates the failed NHG OIDs with the corresponding mux ports, and forwards the failure information to MuxOrch. MuxOrch then handles the retry and failure marking logic (see [Section 12](#12-error-handling-and-failure-scenarios)).
 
-> **Why not a separate ProtNhgOrch?** Protection NHGs for dual-ToR are tightly coupled to the mux neighbor lifecycle and don't need an independent APP_DB table. If a future non-mux use case arises, a ProtNhgOrch can inherit from NhgOrch without changing the protection NHG implementation itself.
+MuxOrch is the primary consumer of NhgOrch APIs for dual-ToR. Other orchagent components can reuse the same interfaces in the future for additional features.
 
 #### 7.1.2 MuxOrch
 This feature introduces a new config knob **switching_mode** to differentiate between normal software based switching and FRR hardware protection switching that will use nexthop protection group to switch traffic. MuxOrch will perform a capability check for hardware protection group support by querying the SAI switch attributes. If the ASIC supports **SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION**, MuxOrch will create nexthop protection group for each mux neighbor and maintain a mapping of mux neighbors and nexthop protection groups based on this config knob. If the capability check fails, MuxOrch will fall back to normal software based switchover.
@@ -180,12 +181,12 @@ Currently LinkMgrd uses a common mux **state** field in MUX_CABLE_TBL with value
 ### 8.1 Config-DB
 A new field switching_mode in **MUX_CABLE** config table to support this feature:
   * **switching_mode**
-    * normal   : Traffic switching with existing mechanism without using nexthop protection group. This is default value.
-    * hardware : Traffic switching using FRR nexthop protection group.
+    * software : Traffic switching with existing mechanism using software based switching. This is default value.
+    * hardware : Traffic switching using hardware based nexthop protection group.
 
 ```
 MUX_CABLE|PORTNAME:
-  switching_mode: normal/hardware // New field to indicate if hardware based protection switching is needed for this mux port
+  switching_mode: software/hardware // New field to indicate hardware based protection switching for this mux port
 ```
 
 ### 8.2 App-DB
@@ -231,7 +232,7 @@ lab-switch-2  10.1.0.33
 port        state    ipv4             ipv6               cable_type     soc_ipv4         switching_mode
 ----------  -------  ---------------  -----------------  -------------  ---------------  --------------
 Ethernet4   auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.0.3/32   hardware
-Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32   normal
+Ethernet8   auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32   software
 ```
 
 ## 10. Future Enhancements
@@ -251,6 +252,7 @@ See [Section 7.1.4.2](#7142-ecmp-route-handling) for the planned enhancement to 
 - **ICMP session creation failure:** If IcmpOrch fails to create the hardware offloaded ICMP session, MuxOrch will not receive the session object id notification. The nexthop protection group member will remain without a monitored object, and traffic switching will fall back to software-based switching for the affected mux port.
 - **ASIC does not support SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION:** If the ASIC returns a failure when creating the nexthop protection group, MuxOrch will log an error and the mux port will continue to operate in software-based switching mode.
 - **Monitored ICMP session deletion:** If the monitored ICMP session is deleted while the nexthop protection group is active, the nexthop protection group member's monitored object attribute will become stale. MuxOrch should handle session deletion notifications from IcmpOrch and update or remove the monitored object attribute accordingly.
+- **Hardware protection switchover failure:** When a hardware-initiated switchover fails for one or more nexthop protection groups, SAI sends a bulk error notification identifying the failed NHGs. ProtNhgOrch processes this bulk notification and forwards the failure information to MuxOrch. MuxOrch then retries the switchover for the failed NHGs by setting **SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE** to force the transition via admin mode. If the admin-mode retry also fails, MuxOrch marks the switchover as failed and the neighbor state as inconsistent. This keeps the failure handling behavior consistent with software-based switching mode, where a failed switchover similarly results in an inconsistent neighbor state that requires operator intervention or a subsequent recovery event.
 
 ## 13. Testing
 - Unit tests for LinkMgrd
