@@ -77,7 +77,7 @@ SONiC uses ICMP echo request and reply packets to monitor the state of links bet
 ### 5.2 ASIC Requirements
    * Support **SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION** type of next hop group.
    * Support **SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE** attribute as this allows SONiC to administratively toggle the protection group members in hardware overriding the automatic toggling of protection group members based on the link state.
-   * Support **NO_HOST_ROUTE** SAI neighbor attribute as prefix-route based neighbors will be used to work with hardware based nexthop protection group.
+   * Support **NO_HOST_ROUTE** SAI neighbor attribute. Hardware based switching mode uses prefix-route based neighbors, which require the platform to support this attribute. If the platform does not support **NO_HOST_ROUTE**, hardware based switching mode cannot be enabled.
    * Support bulk error notifications for nexthop protection groups to report hardware switchover failures back to SONiC (see [Section 12](#12-error-handling-and-failure-scenarios)).
    * Support protection NHG level switchover counters for observability (new SAI specification to be proposed -- see [Section 10](#10-future-enhancements)).
 
@@ -174,7 +174,7 @@ The effective debounce window equals roughly probe interval x retry count (e.g.,
 ### 7.2 LinkMgrd
 LinkMgrd is mostly agnostic to the use of nexthop protection groups; the only adaptation required is the use of extended state values for admin-initiated switching.
 
-Currently LinkMgrd uses a common mux **state** field in MUX_CABLE_TBL with values `active`/`standby` for both manual config-based switching and link-state-based switching. To differentiate between these two types of switching, two new state values are introduced: **admin_active** and **admin_standby**. LinkMgrd will write `admin_active`/`admin_standby` for admin-initiated (config-driven) switching and continue to write `active`/`standby` for link-state-driven switching. Orchagent distinguishes the trigger source by inspecting the state value itself. For older neighbor modes, `admin_active` and `admin_standby` invoke the same active/standby routines, preserving backward compatibility. If the admin-initiated transition fails in orchagent, LinkMgrd reverts the single `state` field to its previous value, keeping rollback simple and atomic.
+Currently LinkMgrd uses a common mux **state** field in MUX_CABLE_TBL with values `active`/`standby` for both manual config-based switching and ICMP session-state based switching. To differentiate between these two types of switching, two new state values are introduced: **admin_active** and **admin_standby**. LinkMgrd will write `admin_active`/`admin_standby` for admin-initiated (config-driven) switching and continue to write `active`/`standby` for ICMP session-state-driven switching. Orchagent distinguishes the trigger source by inspecting the state value itself. For existing neighbor modes, `admin_active` and `admin_standby` invoke the same active/standby routines, preserving backward compatibility.
 
 ## 8. DB Schema Changes
 
