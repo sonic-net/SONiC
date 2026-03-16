@@ -15,7 +15,6 @@
 - [High-Level Design](#high-level-design)
   - [Tier 1: Go-Native API Replacement](#tier-1-go-native-api-replacement)
   - [Tier 2: nsenter for SONiC CLI Tools](#tier-2-nsenter-for-sonic-cli-tools)
-  - [Tier 3: Docker SDK with Container Config Change](#tier-3-docker-sdk-with-container-config-change)
   - [Implementation Architecture](#implementation-architecture)
   - [Migration Strategy](#migration-strategy)
   - [Container Configuration Changes](#container-configuration-changes)
@@ -33,7 +32,7 @@
 
 ## Scope
 
-This document describes the high level design for eliminating the D-Bus dependency between the sonic-gnmi container and the sonic-host-services process. Today, sonic-gnmi delegates 23 operations to sonic-host-services through D-Bus IPC. This design replaces that indirection with a tiered approach: Go-native API calls for generic Linux operations, `nsenter` host command execution for SONiC-specific CLI tools, and the Docker Go SDK for container management.
+This document describes the high level design for eliminating the D-Bus dependency between the sonic-gnmi container and the sonic-host-services process. Today, sonic-gnmi delegates 23 operations to sonic-host-services through D-Bus IPC. This design replaces that indirection with a two-tier approach: Go-native API calls (including Docker Go SDK) for operations that can be expressed as Go library calls, and `nsenter` host command execution for SONiC-specific CLI tools that are impractical to reimplement.
 
 This design supersedes the Docker to Host D-Bus communication path described in the [Docker to Host communication HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md) as it pertains to the gnmi container. Other containers that use D-Bus to host-services are not affected.
 
@@ -127,29 +126,24 @@ This indirection is unnecessary because:
 │        │    • net/http, pkg/sftp downloads      │   │
 │        │    • go-redis for CONFIG_DB reads      │   │
 │        │    • godbus → systemd1 D-Bus directly  │   │
+│        │    • docker/client.ImageLoad()         │   │
+│        │      via /var/run/docker.sock          │   │
 │        │                                       │   │
-│        ├─── Tier 2: nsenter ──────────────────┐│   │
-│        │    • exec.RunHostCommand()            ││   │
-│        │    • nsenter --target 1 --all --      ││   │
-│        │    • config reload/replace/apply-patch││   │
-│        │    • sonic-installer install/list     ││   │
-│        │    • generate_dump                    ││   │
-│        │                                      ││   │
-│        └─── Tier 3: Docker Go SDK ───────────┐││   │
-│             • docker/client.ImageLoad()      │││   │
-│             • via /var/run/docker.sock        │││   │
-└─────────────────────────────────────────────┘│││   │
-                                               │││   │
-                ┌──────────────────────────────┘││   │
-                │ Host namespace (via nsenter)   ││   │
-                │ • config CLI                   ││   │
-                │ • sonic-installer              ││   │
-                │ • generate_dump                ││   │
-                └────────────────────────────────┘│   │
+│        └─── Tier 2: nsenter ──────────────────┐│   │
+│             • exec.RunHostCommand()            ││   │
+│             • nsenter --target 1 --all --      ││   │
+│             • config reload/replace/apply-patch││   │
+│             • sonic-installer install/list     ││   │
+│             • generate_dump                    ││   │
+│             • protected file remove            ││   │
+└────────────────────────────────────────────────┘│   │
                                                   │   │
                 ┌─────────────────────────────────┘   │
-                │ systemd D-Bus (direct)               │
-                │ • org.freedesktop.systemd1            │
+                │ Host namespace (via nsenter)          │
+                │ • config CLI                          │
+                │ • sonic-installer                     │
+                │ • generate_dump                       │
+                │ • protected file remove               │
                 └──────────────────────────────────────┘
 ```
 
@@ -159,7 +153,7 @@ The key architectural change is removing the sonic-host-services process as an i
 
 ### Tier 1: Go-Native API Replacement
 
-These 13 operations are replaced with pure Go implementations — no subprocess, no nsenter. This is the cleanest tier: type-safe, no output parsing, no process spawning.
+These 14 operations are replaced with pure Go implementations — no subprocess, no nsenter. This is the cleanest tier: type-safe, no output parsing, no process spawning.
 
 #### 1.1 Systemd Service Control
 
@@ -254,9 +248,38 @@ The `config save` operation ultimately reads all keys from CONFIG_DB (Redis DB 4
 | HealthzCheck | `debug_info.check` | Return constant `"Artifact ready"` — no host access needed |
 | HealthzAck | `debug_info.ack` | `os.Remove("/mnt/host/tmp/dump/" + artifact)` |
 
+#### 1.5 Docker Image Load
+
+**Current path:** D-Bus → host-services → `subprocess.run(["docker", "load", "-i", path])`
+
+**New path:** Docker Go SDK `client.ImageLoad()` via `/var/run/docker.sock`
+
+This is a Go SDK call — same pattern as godbus for systemd or go-redis for CONFIG_DB. The only infrastructure prerequisite is mounting `/var/run/docker.sock` into the container, which is a one-line change in `docker-gnmi.mk` and a marginal privilege increase given the container's existing access level.
+
+```go
+func (c *DirectClient) LoadDockerImage(imagePath string) error {
+    f, err := os.Open(filepath.Join("/mnt/host", imagePath))
+    if err != nil {
+        return err
+    }
+    defer f.Close()
+    resp, err := c.dockerClient.ImageLoad(context.Background(), f, true)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    io.Copy(io.Discard, resp.Body)
+    return nil
+}
+```
+
+| Operation | D-Bus Method | Go Replacement |
+|---|---|---|
+| LoadDockerImage | `docker_service.load` | `docker/client.ImageLoad()` via Docker Go SDK |
+
 ### Tier 2: nsenter for SONiC CLI Tools
 
-These 8 operations wrap complex SONiC-specific Python tooling (config CLI, sonic-installer, generate_dump) that would be impractical and risky to reimplement in Go. The operations are executed via `exec.RunHostCommand()`, which is already used in production by gNOI reboot and show commands.
+These 9 operations wrap complex SONiC-specific Python tooling (config CLI, sonic-installer, generate_dump) that would be impractical and risky to reimplement in Go, or require host namespace access for protected file operations. The operations are executed via `exec.RunHostCommand()`, which is already used in production by gNOI reboot and show commands.
 
 `RunHostCommand()` (defined in `pkg/exec/command.go`) enters all host namespaces via nsenter:
 ```
@@ -309,30 +332,13 @@ These operations require `sonic-installer` which handles bootloader detection (G
 |---|---|---|
 | HealthzCollect | `debug_info.collect` | `generate_dump` or custom collection commands |
 
-### Tier 3: Docker SDK with Container Config Change
+#### 2.4 Protected File Remove
 
-One operation requires the Docker daemon API. With `github.com/docker/docker` added to go.mod and `/var/run/docker.sock` mounted into the container, this becomes a clean Go SDK call.
+File removal on paths that are not writable from within the container (i.e., outside `/tmp` and `/var/tmp`) requires nsenter to execute `rm` in the host namespace.
 
-| Operation | D-Bus Method | Go SDK Call | Container Change |
-|---|---|---|---|
-| LoadDockerImage | `docker_service.load` | `client.ImageLoad()` | Mount `/var/run/docker.sock` |
-
-```go
-func (c *DirectClient) LoadDockerImage(imagePath string) error {
-    f, err := os.Open(filepath.Join("/mnt/host", imagePath))
-    if err != nil {
-        return err
-    }
-    defer f.Close()
-    resp, err := c.dockerClient.ImageLoad(context.Background(), f, true)
-    if err != nil {
-        return err
-    }
-    defer resp.Body.Close()
-    io.Copy(io.Discard, resp.Body)
-    return nil
-}
-```
+| Operation | D-Bus Method | nsenter Command |
+|---|---|---|
+| RemoveFile (protected) | `file.remove` | `rm <path>` via nsenter fallback |
 
 ### Implementation Architecture
 
@@ -345,7 +351,7 @@ The existing `Service` interface in `sonic_service_client/dbus_client.go` define
 type DirectClient struct {
     dbusConn     *dbus.Conn          // system D-Bus for systemd
     redisClient  *redis.Client       // CONFIG_DB access
-    dockerClient *docker.Client      // Docker daemon (Tier 3)
+    dockerClient *docker.Client      // Docker daemon (Tier 1)
     hostExec     exec.HostExecutor   // nsenter wrapper (Tier 2)
 }
 
@@ -371,15 +377,16 @@ func NewServiceClient() Service {
 - File stat/remove/download via Go stdlib
 - Config save / checkpoint via go-redis
 - HealthzCheck/HealthzAck inline
+- Docker load via Docker Go SDK
+- Mount `/var/run/docker.sock` in container config
 
 **Phase 2** — Tier 2 operations (nsenter, low risk — pattern already in production):
 - Config reload/replace/apply-patch via nsenter
 - Image install/list/set-next-boot via nsenter
 - Debug collect via nsenter
+- Protected file remove via nsenter fallback
 
-**Phase 3** — Tier 3 + cleanup:
-- Docker load via Docker Go SDK
-- Mount `/var/run/docker.sock` in container config
+**Phase 3** — Cleanup:
 - Remove D-Bus socket mount from `docker-gnmi.mk`
 - Remove `dbus_client.go`
 - Remove sonic-host-services dependency from gnmi container
@@ -389,7 +396,7 @@ func NewServiceClient() Service {
 Changes to `rules/docker-gnmi.mk`:
 
 ```makefile
-# Add (Phase 3):
+# Add (Phase 1):
 $(DOCKER_GNMI)_RUN_OPT += -v /var/run/docker.sock:/var/run/docker.sock:rw
 
 # Remove (Phase 3, after full migration):
@@ -424,7 +431,7 @@ Note: During warm boot, the gnmi container follows the existing warm-boot-aware 
 
 2. **nsenter requires --pid=host:** Tier 2 operations depend on the container having `--pid=host` to nsenter into PID 1. This is already configured.
 
-3. **Docker SDK requires docker.sock mount:** Tier 3 Docker operations require mounting `/var/run/docker.sock`. This grants the container full Docker daemon access, which is an accepted trade-off given the container's existing privilege level.
+3. **Docker SDK requires docker.sock mount:** The Tier 1 Docker load operation requires mounting `/var/run/docker.sock`. This grants the container full Docker daemon access, which is an accepted trade-off given the container's existing privilege level.
 
 4. **Config save via go-redis:** The Go-native config save implementation must produce output identical to `sonic-cfggen -d --print-data`. The JSON key ordering and formatting must match to avoid spurious config diffs.
 
