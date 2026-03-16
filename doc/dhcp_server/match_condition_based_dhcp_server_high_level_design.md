@@ -1,6 +1,6 @@
 # IPv4 Match Condition Based DHCP_SERVER in SONiC
 # High Level Design Document
-**Rev 0.4**
+**Rev 0.1**
 
 # Table of Contents
 <!-- TOC -->
@@ -37,9 +37,6 @@
 | Rev |     Date    |       Author       | Change Description                  |
 |:---:|:-----------:|:-------------------|:-----------------------------------|
 | 0.1 |  2026/03/13 |                    | Initial version                     |
-| 0.2 |  2026/03/16 |                    | Unified design — port as match condition |
-| 0.3 |  2026/03/16 |                    | Added MATCH mode for DHCP_SERVER_IPV4 |
-| 0.4 |  2026/03/16 |                    | Use etp naming; simplify examples; remove PORT fallback |
 
 # About this Manual
 
