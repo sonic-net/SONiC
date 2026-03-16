@@ -19,7 +19,7 @@
       - [1.2.2.1 Configuration and Management Requirements](#1221-configuration-and-management-requirements)
 - [2 Design](#2-design)
   - [2.1 LLR High Level Flow](#21-llr-high-level-flow)
-    - [2.1.1 Key Functionalities of LLR Orchestration](#211-key-functionalities-of-llr-orchestration)
+    - [2.1.1 Key Functionalities](#211-key-functionalities)
     - [2.1.2 LLR Orchagent Initialization](#212-llr-orchagent-initialization)
     - [2.1.3 llrmgrd](#213-llrmgrd)
       - [2.1.3.1 llr\_profile\_lookup.ini Format](#2131-llr_profile_lookupini-format)
@@ -28,11 +28,10 @@
   - [2.2 SAI API](#22-sai-api)
   - [2.3 DB schema](#23-db-schema)
     - [2.3.1 CONFIG\_DB](#231-config_db)
-      - [2.3.1.1 New Table LLR\_CONFIG](#2311-new-table-llr_config)
-      - [2.3.1.2 New Table LLR\_PORT](#2312-new-table-llr_port)
-      - [2.3.1.3 New Table LLR\_PROFILE](#2313-new-table-llr_profile)
-      - [2.3.1.4 Extend existing Table FLEX\_COUNTER\_TABLE to poll LLR port counters](#2314-extend-existing-table-flex_counter_table-to-poll-llr-port-counters)
-      - [2.3.1.5 Configuration Sample](#2315-configuration-sample)
+      - [2.3.1.1 New Table LLR\_PORT](#2311-new-table-llr_port)
+      - [2.3.1.2 New Table LLR\_PROFILE](#2312-new-table-llr_profile)
+      - [2.3.1.3 Extend existing Table FLEX\_COUNTER\_TABLE to poll LLR port counters](#2313-extend-existing-table-flex_counter_table-to-poll-llr-port-counters)
+      - [2.3.1.4 Configuration Sample](#2314-configuration-sample)
     - [2.3.2 APPL\_DB](#232-appl_db)
       - [2.3.2.1 LLR\_PORT\_TABLE](#2321-llr_port_table)
       - [2.3.2.2 LLR\_PROFILE\_TABLE](#2322-llr_profile_table)
@@ -43,7 +42,7 @@
     - [2.3.5 COUNTERS\_DB](#235-counters_db)
   - [2.4 CLI](#24-cli)
     - [2.4.1 LLR Configuration Commands](#241-llr-configuration-commands)
-      - [2.4.1.1 LLR Configuration Mode Command](#2411-llr-configuration-mode-command)
+      - [2.4.1.1 LLR Per-Port Mode Configuration Command](#2411-llr-per-port-mode-configuration-command)
       - [2.4.1.2 LLR Port Configuration Commands](#2412-llr-port-configuration-commands)
       - [2.4.1.3 LLR Flex Counter Commands](#2413-llr-flex-counter-commands)
     - [2.4.2 LLR Show Commands](#242-llr-show-commands)
@@ -110,20 +109,18 @@ LLR is standardized in UE SPEC v1.0. This design follows SAI conceptual model de
 ### 1.2.1 Phase I
 #### 1.2.1.1 Configuration and Management Requirements
 
-1. **Configuration Mode**: Support for configuring LLR mode (`static`). In `static` mode, per-port configuration from CONFIG_DB drives LLR enablement.
-2. **Per-Interface Control**: Enable or disable LLR individually on each physical ports (LLR feature operates only on ASIC physical ports).
-3. **LLR Profile Generation and Assignment**: LLR profiles can be generated and assigned to ports through two mechanisms:
+1. **Per-Port Static Configuration**: Enable or disable LLR TX/RX individually on each physical port through CONFIG_DB (static mode). LLR operates only on ASIC physical ports.
+2. **LLR Profile Generation and Assignment**: LLR profiles can be generated and assigned to ports through two mechanisms:
     1. Vendor-defined configuration file: Profiles are created through vendor‑specific INI files in the HWSKU and are automatically assigned to LLR enabled ports based on operational speed and cable length.
     2. User-defined configuration via CONFIG_DB: Operators can define custom LLR profiles in CONFIG_DB and manually assign them to ports. User-defined profiles take precedence over vendor-defined profiles.
-4. **Port-Level Counters**: Offer detailed LLR counters at the port level for enhanced visibility and debugging.
-5. **Show Commands**: Provide CLI commands to display:
-   - LLR configuration mode
-   - Per-port LLR configuration status
+3. **Port-Level Counters**: Offer detailed LLR counters at the port level for enhanced visibility and debugging.
+4. **Show Commands**: Provide CLI commands to display:
+   - Per-port LLR mode and configuration status
    - LLR profiles associated with ports
    - LLR statistics associated with ports
-6. **Config Commands**: Provide CLI commands to configure:
-   - LLR mode `static`
-   - Per-port LLR Rx/Tx enable/disable (only applicable when mode is `static`)
+5. **Config Commands**: Provide CLI commands to configure:
+   - Per-port LLR mode (`static`)
+   - Per-port LLR Rx/Tx enable/disable (only applicable when port mode is `static`)
    - Extend `counterpoll` to enable/disable and polling interval configuration
    - Extend `sonic-clear` command to support LLR counter clearing
 
@@ -138,20 +135,20 @@ LLR is standardized in UE SPEC v1.0. This design follows SAI conceptual model de
 ### 1.2.2 Phase II
 
 #### 1.2.2.1 Configuration and Management Requirements
-1. **Configuration Mode**: Support for LLR in **dynamic mode**, enabling capability negotiation via LLDP.
+1. **Per-Port Dynamic Mode**: Support for per-port LLR in **dynamic mode**, enabling capability negotiation via LLDP.
 2. **Administrator-Initiated Exit from FLUSH State**: The LLR transmitter (TX) can be moved out of the FLUSH state through manual intervention by an administrator, based on configuration.
 
 # 2 Design
 
 ## 2.1 LLR High Level Flow
 
-### 2.1.1 Key Functionalities of LLR Orchestration
+### 2.1.1 Key Functionalities
 
 An LLR manager daemon (llrmgrd) and an LLR orchestration component (llrorch) within orchagent have been introduced to enable the feature.
 
-- llrmgrd: Manages LLR configuration mode and per-port LLR configuration and profiles, auto‑generates profiles from the vendor lookup file if provided, updates APPL_DB with appropriate LLR profile and port configurations.
+- llrmgrd: Handles per-port LLR configuration mode, LLR TX/RX configuration and profiles, auto‑generates profiles from the vendor lookup file if provided, updates APPL_DB with the appropriate LLR profile and port configurations.
 - llrorch: A new orchagent component that listens to LLR tables in APPL_DB, handles creation, update and removal of SAI LLR profile objects and applies profile bindings and LLR TX/RX enables to ports through syncd/SAI.
-- LLR ini file: A vendor-specific configuration file called `llr_profile_lookup.ini` used by llrmgrd to generate LLR profiles. Optionally user-defined profiles can be created via CONFIG_DB, which take precedence over ini file profiles.
+- LLR ini file: A vendor-specific configuration file called `llr_profile_lookup.ini` used by llrmgrd to generate LLR profiles. Optionally user-defined profiles can also be created via CONFIG_DB.
 - LLR stats: FlexCounter support for LLR statistics at the port level.
 
 ###### Figure 1: LLR High Level Flow
@@ -165,8 +162,8 @@ The following is the initialization flow for LLR support in orchagent:
 1. llrorch queries the vendor SAI for LLR capabilities information and updates SWITCH_CAPABILITIES table in STATE_DB with LLR capabilities.
 2. Retrieved capabilities are referenced when applying LLR Profile configurations to ensure compatibility with the underlying hardware.
 3. PortsOrch queries the vendor SAI for LLR port statistics capabilities and updates STATE_DB with the supported counters. This information is used to determine which counters to enable and display in the CLI.
-3. Subscribes to LLR tables in APPL_DB to receive updates.
-4. LLR on ports is disabled by default and must be explicitly enabled via configuration.
+4. Subscribes to LLR tables in APPL_DB to receive updates.
+5. LLR on ports is disabled by default and must be explicitly enabled via configuration.
 
 ###### Figure 2: LLR Orchagent Init Flow
 ```mermaid
@@ -190,9 +187,9 @@ sequenceDiagram
   - `llrmgrd` reads from a vendor-supplied ini file named `llr_profile_lookup.ini` located in the HWSKU directory to generate LLR profile parameters based on port operating speed and cable length.
   - A WARN log is generated if the `llr_profile_lookup.ini` file is missing or inaccessible.
   - Each generated profile is assigned a unique name in the format `llr_<speed>_<cable_len>_profile`.
-  - Additionally, user-defined profiles can be created and assigned to ports via CONFIG_DB, which take precedence over ini file generated profiles. This allows operators to customize LLR behavior beyond the vendor defaults.
-  - `llrmgrd` subscribes to LLR_CONFIG, LLR_PORT and LLR_PROFILE tables in CONFIG_DB to receive LLR mode, per-port LLR configuration and user-defined profile updates and propagates the relevant LLR configuration to APPL_DB.
-      - If the LLR mode is set to `static`, per-port LLR configuration is driven by the `LLR_PORT` entries in CONFIG_DB.
+  - Additionally, user-defined profiles can be created and assigned to ports via CONFIG_DB, which take precedence over INI profiles.
+  - `llrmgrd` subscribes to LLR_PORT and LLR_PROFILE tables in CONFIG_DB to receive per-port LLR mode, configuration and user-defined profile updates, and propagates the relevant LLR configuration to APPL_DB.
+      - If the per-port LLR mode is set to `static`, LLR Rx/Tx enable configuration for that port is driven by its `LLR_PORT` entry fields in CONFIG_DB.
   - `llrmgrd` subscribes to CABLE_LENGTH table in CONFIG_DB for port cable length information. For operational speed updates, it subscribes to the PORT_TABLE in STATE_DB.
 
 ###### Figure 3: LLR Manager Flow
@@ -209,13 +206,12 @@ sequenceDiagram
     rect rgba(245,245,245,0.35)
       note over LLR: Read "llr_profile_lookup.ini" & build internal lookup
 
-      LLR-->>CFG: SUBSCRIBE LLR_CONFIG, LLR_PORT, LLR_PROFILE
+      LLR-->>CFG: SUBSCRIBE LLR_PORT, LLR_PROFILE
       LLR-->>CFG: SUBSCRIBE CABLE_LENGTH
       LLR-->>STATE: SUBSCRIBE PORT_TABLE
     end
 
     %% -------------------- CONFIG_DB change notifications --------------------
-    CFG->>LLR: LLR_CONFIG|GLOBAL
     CFG->>LLR: LLR_PORT|EthernetX
     CFG->>LLR: CABLE_LENGTH|AZURE {"EthernetX": "40m"}
 
@@ -265,11 +261,11 @@ A sample llr_profile_lookup.ini file can be found at `doc/llr/llr_profile_lookup
 
 Sample file snippet:
 ```
-speed    cable  outstanding_frames outstanding_bytes replay_timer replay_count pcs_lost_timeout data_age_timer ctlos_spacing init_action   flush_action
-200000    5m      61                31184             5000         3            50000            20000          2048          best_effort   block
-200000    40m     71                35952             5500         3            55000            24000          2048          best_effort   block
-400000    5m      115               58768             5000         3            50000            20000          2048          best_effort   best_effort
-400000    40m     133               67760             5500         3            55000            24000          2048          best_effort   discard
+speed    cable  outstanding_frames outstanding_bytes replay_timer replay_count pcs_lost_timeout data_age_timeout ctlos_spacing init_action   flush_action
+200000    5m      61                31184             5000         3            50000            20000           2048          best_effort   block
+200000    40m     71                35952             5500         3            55000            24000           2048          best_effort   block
+400000    5m      115               58768             5000         3            50000            20000           2048          best_effort   best_effort
+400000    40m     133               67760             5500         3            55000            24000           2048          best_effort   discard
 ```
 
 Vendors may omit any unsupported field other than the `outstanding_frames` and `outstanding_bytes` by removing the column from the header; llrmgrd will skip setting that field in DB table. This flexible format allows heterogeneous hardware capabilities without requiring code changes.
@@ -297,14 +293,12 @@ sequenceDiagram
 
     %% ===================== ENABLE FLOW =====================
     rect rgba(230,255,230,0.35)
-      note over CLI: LLR Config Flow (Enable)<br/>1) Set LLR Mode Static<br/>2) LLR Enable on Port<br/><br/>Query capability from DB (support config only if capable)
+      note over CLI: LLR Config Flow (Enable)<br/> Set Per-Port LLR Mode Static and LLR Enable<br/><br/>Query capability from DB (support config only if capable)
 
       %% CLI/YANG writes config into CONFIG_DB
-      CLI->>CFG: LLR_CONFIG
       CLI->>CFG: LLR_PORT
 
       %% CONFIG_DB notifies llrmgd
-      CFG-->>LLR: LLR_CONFIG
       CFG-->>LLR: LLR_PORT
 
       %% Optional profile with precedence
@@ -332,7 +326,7 @@ sequenceDiagram
 
     %% ===================== DISABLE FLOW =====================
     rect rgba(255,235,235,0.35)
-      note over CLI: LLR Config Flow (Disable)<br/>LLR Disable on a Port<br/><br/>Query capability from DB (support config only if capable)
+      note over CLI: LLR Config Flow (Disable)<br/>LLR Disable on a port<br/><br/>Query capability from DB (support config only if capable)
 
       %% CLI/YANG updates CONFIG_DB to disable
       CLI->>CFG: LLR_PORT
@@ -387,7 +381,7 @@ The following table lists the SAI APIs used and their relevant attributes.
 |                  |                                       | SAI_PORT_LLR_PROFILE_ATTR_DATA_AGE_TIMEOUT             |
 |                  |                                       | SAI_PORT_LLR_PROFILE_ATTR_INIT_LLR_FRAME_ACTION        |
 |                  |                                       | SAI_PORT_LLR_PROFILE_ATTR_FLUSH_LLR_FRAME_ACTION       |
-|                  |                                       | SAI_PORT_LLR_PROFILE_ATTR_RE_INIT_ON_FLUSH (only TRUE) |
+|                  |                                       | SAI_PORT_LLR_PROFILE_ATTR_RE_INIT_ON_FLUSH             |
 |                  |                                       | SAI_PORT_LLR_PROFILE_ATTR_CTLOS_TARGET_SPACING         |
 
 **SAI Port Attributes:**
@@ -429,42 +423,35 @@ The following table lists the SAI APIs used and their relevant attributes.
 
 ### 2.3.1 CONFIG_DB
 
-#### 2.3.1.1 New Table LLR_CONFIG
-```abnf
-; defines schema for LLR configuration
-
-key                  = LLR_CONFIG | GLOBAL       ; LLR configuration table
-
-; field              = value
-mode                 = "static"  / "dynamic"     ; LLR configuration mode
-                                                 ; - "static" : Use statically configured per-port enable
-                                                 ;              Per-port LLR_PORT entries in CONFIG_DB drive APPL_DB
-                                                 ; - "dynamic": LLDP based LLR negotiation.
-                                                 ;              
-
-```
-
-#### 2.3.1.2 New Table LLR_PORT
+#### 2.3.1.1 New Table LLR_PORT
 ```abnf
 ; defines schema for LLR Port configuration attributes
 key                   = LLR_PORT | ifname       ; Interface name (Ethernet only). Must be unique
 
 ; field               = value
-llr_local             = "enabled" / "disabled"  ; enable LLR reception on the port
-                                                ; Default: "disabled" (Applicable when mode == "static")
-llr_remote            = "enabled" / "disabled"  ; enable LLR transmission on the port
-                                                ; Default: "disabled" (Applicable when mode == "static")
-profile               = 1*64VCHAR               ; LLR Profile name bound to the port
+llr_mode              = "static" / "dynamic"    ; LLR configuration mode for the port
+                                                ; - "static" : Use statically configured per-port LLR enable.
+                                                ;              LLR_PORT entry in CONFIG_DB drives APPL_DB for this port.
+                                                ; - "dynamic": LLDP based LLR negotiation for this port (Phase II).
+                                                ;              llr_local/llr_remote are ignored; LLDP controls enables.
+                                                ; Default: "static"
+llr_local             = "enabled" / "disabled"  ; Enable LLR reception on the port.
+                                                ; Active only when llr_mode == "static" (default).
+                                                ; Ignored when llr_mode == "dynamic" (LLDP controls).
+                                                ; Default: "disabled"
+llr_remote            = "enabled" / "disabled"  ; Enable LLR transmission on the port.
+                                                ; Active only when llr_mode == "static" (default).
+                                                ; Ignored when llr_mode == "dynamic" (LLDP controls).
+                                                ; Default: "disabled"
+llr_profile           = 1*64VCHAR               ; LLR Profile name bound to the port
 
 ```
 
-#### 2.3.1.3 New Table LLR_PROFILE
+#### 2.3.1.2 New Table LLR_PROFILE
 ```abnf
 ; defines schema for LLR profile configuration attributes
 
-key                       = LLR_PROFILE | profile_name  ; User-defined profile. Takes precedence over INI-generated
-                                                        ; profiles when assigned to a port.
-                                                        ; Must be unique
+key                       = LLR_PROFILE | profile_name  ; User-defined LLR profile. Must be unique
 
 ; field                   = value
 max_outstanding_frames    = 1*6DIGIT                    ; Replay buffer size (frames) max unacknowledged
@@ -496,7 +483,7 @@ flush_action              = "discard" /                 ; TX behavior in FLUSH s
 
 ```
 
-#### 2.3.1.4 Extend existing Table FLEX_COUNTER_TABLE to poll LLR port counters
+#### 2.3.1.3 Extend existing Table FLEX_COUNTER_TABLE to poll LLR port counters
 ```abnf
 ; defines schema for LLR Port STAT counter configuration attributes
 key                   = FLEX_COUNTER_TABLE | countername  ; Flex counter name. Must be unique
@@ -509,27 +496,17 @@ POLL_INTERVAL             = 1*10DIGIT                     ; Flex counter polling
 
 ```
 
-#### 2.3.1.5 Configuration Sample
-
-**LLR_CONFIG Table**
-```json
-{
-  "LLR_CONFIG|GLOBAL": {
-    "value": {
-      "mode": "static"
-    }
-  }
-}
-```
+#### 2.3.1.4 Configuration Sample
 
 **LLR_PORT Table**
 ```json
 {
   "LLR_PORT|Ethernet0": {
     "value": {
+      "llr_mode": "static",
       "llr_local": "enabled",
       "llr_remote": "enabled",
-      "profile": "llr_800000_40m_profile"
+      "llr_profile": "llr_800000_40m_profile"
     }
   }
 }
@@ -569,22 +546,51 @@ POLL_INTERVAL             = 1*10DIGIT                     ; Flex counter polling
 
 ### 2.3.2 APPL_DB
 
-`llrmgrd` writes LLR configuration to APPL_DB. For LLR_PORT_TABLE, the configuration is propagated from CONFIG_DB `LLR_PORT` entries. For LLR_PROFILE_TABLE, if the port has a user-defined profile assigned in CONFIG_DB `LLR_PROFILE`, that profile is used; otherwise, the INI-generated profile for the port's (speed, cable length) is used directly. APPL_DB tables mirror the structure of their corresponding CONFIG_DB tables, with only the table names changed. `llrorch` subscribes to these APPL_DB tables.
+`llrmgrd` writes LLR configuration to APPL_DB. For LLR_PORT_TABLE, all fields from CONFIG_DB `LLR_PORT` entries are propagated, including `llr_mode`. For LLR_PROFILE_TABLE, the effective profile (user-defined or INI-generated) for the port is written. `llrorch` subscribes to these APPL_DB tables and skips fields it does not process (e.g. `llr_mode`).
 
 #### 2.3.2.1 LLR_PORT_TABLE
+
+```abnf
+; defines schema for LLR Port in APPL_DB
+key                   = LLR_PORT_TABLE : ifname     ; Interface name (Ethernet only). Must be unique
+
+; field               = value
+llr_mode              = "static" / "dynamic"        ; LLR configuration mode for the port
+                                                    ; (informational; not consumed by llrorch)
+llr_local             = "enabled" / "disabled"      ; LLR local (reception) state on the port
+llr_remote            = "enabled" / "disabled"      ; LLR remote (transmission) state on the port
+llr_profile           = 1*64VCHAR                   ; LLR Profile name bound to the port
+```
 
 **Sample JSON:**
 ```json
 {
   "LLR_PORT_TABLE:Ethernet0": {
+    "llr_mode": "static",
     "llr_local": "enabled",
     "llr_remote": "enabled",
-    "profile": "llr_800000_40m_profile"
+    "llr_profile": "llr_800000_40m_profile"
   }
 }
 ```
 
 #### 2.3.2.2 LLR_PROFILE_TABLE
+
+```abnf
+; defines schema for LLR Profile in APPL_DB
+key                       = LLR_PROFILE_TABLE : profile_name  ; LLR profile name. Must be unique
+
+; field                   = value
+max_outstanding_frames    = 1*6DIGIT                          ; Replay buffer size (frames). Range 0..524288
+max_outstanding_bytes     = 1*10DIGIT                         ; Replay buffer size (bytes). Range 0..4294967295
+max_replay_count          = 1*3DIGIT                          ; Max replays. Range 1..255
+max_replay_timer          = 1*5DIGIT                          ; Maximum replay timer (ns). Range 0..65535
+pcs_lost_timeout          = 1*10DIGIT                         ; Maximum PCS lost status duration (ns). Range 0..4290000000
+data_age_timeout          = 1*10DIGIT                         ; Maximum data age in replay buffer (ns). Range 0..4290000000
+ctlos_spacing_bytes       = 1*5DIGIT                          ; Target CtlOS spacing (bytes). Range 400..16384
+init_action               = "discard" / "block" / "best_effort" ; TX behavior in INIT state
+flush_action              = "discard" / "block" / "best_effort" ; TX behavior in FLUSH state
+```
 
 **Sample JSON:**
 ```json
@@ -724,15 +730,14 @@ LLR per-port statistics are stored in the existing COUNTERS_DB Port Counters tab
 
 **LLR CLI Commands**
 ```
- - show llr 
  - show llr interface [interface-name]
  - show llr profile [profile-name]
  - show llr counters [interface-name]
  - show llr counters detailed [interface-name]
 
- - config llr mode static
- - config llr interface local-state <interface-name> {enabled|disabled} // only applicable when mode == static
- - config llr interface remote-state <interface-name> {enabled|disabled} // only applicable when mode == static
+ - config llr interface mode <interface-name> static
+ - config llr interface local <interface-name> {enabled|disabled} // applicable only when interface llr mode is static
+ - config llr interface remote <interface-name> {enabled|disabled} // applicable only when interface llr mode is static
 
  - counterpoll llr enable
  - counterpoll llr interval 1000
@@ -745,32 +750,33 @@ LLR per-port statistics are stored in the existing COUNTERS_DB Port Counters tab
 
 All LLR configuration commands check LLR capability in STATE_DB `SWITCH_CAPABILITY|switch` table. If the switch does not support LLR, configuration commands will be rejected with an appropriate error message.
 
-#### 2.4.1.1 LLR Configuration Mode Command
-The following command configures the LLR mode. In `static` mode, per-port LLR configuration from CONFIG_DB is used.
+#### 2.4.1.1 LLR Per-Port Mode Configuration Command
+The following command configures the LLR mode on a per-port basis. In `static` mode, per-port LLR configuration from CONFIG_DB is used for that port.
 
-**LLR Config Mode**:
+**LLR Per-Port Config Mode**:
 ```bash
-## config llr mode <static>
-
-config
-|--- llr
-  |--- mode <static>
-```
-#### 2.4.1.2 LLR Port Configuration Commands
-The following commands allow enabling/disabling LLR local and LLR remote separately on a port. As per the UE SPEC, llr_local is set when LLDP negotiation determines that both ends of a link support LLR, and llr_remote is set when negotiation receives indication from the remote end of the link that its llr_local has been set to ON.
-
-In static mode, handling llr_local and llr_remote enablement sequence across the link parts is the responsibility of the network administrator.
-
-**Enable/Disable LLR per Port**:
-```bash
-## config llr interface local-state <interface-name> {enabled|disabled}
-## config llr interface remote-state <interface-name> {enabled|disabled}
+## config llr interface mode <interface-name> <static>
 
 config
 |--- llr
   |--- interface
-    |--- local-state <interface-name> {enabled|disabled}
-    |--- remote-state <interface-name> {enabled|disabled}
+    |--- mode <interface-name> <static>
+```
+#### 2.4.1.2 LLR Port Configuration Commands
+The following commands allow enabling/disabling LLR local and LLR remote separately on a port. As per the UE SPEC, llr_local is set when LLDP negotiation determines that both ends of a link support LLR, and llr_remote is set when negotiation receives indication from the remote end of the link that its llr_local has been set to ON.
+
+When per-port mode is `static`, handling llr_local and llr_remote enablement sequence across the link is the responsibility of the network administrator.
+
+**Enable/Disable LLR per Port**:
+```bash
+## config llr interface local <interface-name> {enabled|disabled}
+## config llr interface remote <interface-name> {enabled|disabled}
+
+config
+|--- llr
+  |--- interface
+    |--- local <interface-name> {enabled|disabled}
+    |--- remote <interface-name> {enabled|disabled}
 ```
 
 #### 2.4.1.3 LLR Flex Counter Commands
@@ -782,12 +788,7 @@ counterpoll llr interval 1000
 
 ### 2.4.2 LLR Show Commands
 
-All the show commands information is retrieved from APPL_DB tables.
-
-```bash
-## show llr 
-  LLR Config Mode :    Static
-```
+`show llr interface` and `show llr profile` commands derive their output from APPL_DB.
 
 ```bash
 ## show llr interface
@@ -795,11 +796,11 @@ All the show commands information is retrieved from APPL_DB tables.
 LLR Interface Configuration
 ----------------------------
 
-PORT          LLR Local    LLR Remote    LLR Profile
-----------    ----------   -----------   ------------------------------
-Ethernet1     enabled      disabled      llr_800000_40m_profile
-Ethernet2     enabled      enabled       llr_800000_40m_profile
-Ethernet3     enabled      enabled       llr_100000_100m_profile
+PORT          LLR Mode    LLR Local    LLR Remote    LLR Profile
+----------    --------    ----------   -----------   ------------------------------
+Ethernet1     static      enabled      disabled      llr_800000_40m_profile
+Ethernet2     static      enabled      enabled       llr_800000_40m_profile
+Ethernet3     static      enabled      enabled       llr_100000_100m_profile
 ```
 
 ```bash
@@ -825,8 +826,8 @@ Ethernet3     enabled      enabled       llr_100000_100m_profile
 +---------------------------------------+--------------+
 | Flush Action                          | best_effort  |
 +---------------------------------------+--------------+
-
 ```
+
 ```bash
 ## The following command shows llr counter configuration:
 
@@ -970,16 +971,35 @@ module sonic-llr-port {
           }
         }
 
+        leaf llr_mode {
+          type enumeration {
+            enum static;
+            enum dynamic;
+          }
+          default "static";
+          description
+            "LLR configuration mode for the port.
+             'static':  per-port LLR configuration from CONFIG_DB llr_local/llr_remote is used.
+             'dynamic': LLDP negotiation drives per-port LLR enables;
+             Default: static.";
+        }
+
         leaf llr_local {
           type stypes:admin_mode;
           default disabled;
-          description "Enable LLR local on the port.";
+          description
+            "Enable LLR local (reception) on the port.
+             Active only when llr_mode is 'static' (default).
+             Ignored when llr_mode is 'dynamic'.";
         }
 
         leaf llr_remote {
           type stypes:admin_mode;
           default disabled;
-          description "Enable LLR remote on the port.";
+          description
+            "Enable LLR remote (transmission) on the port.
+             Active only when llr_mode is 'static' (default).
+             Ignored when llr_mode is 'dynamic'.";
         }
 
         leaf llr_profile {
@@ -999,57 +1019,10 @@ module sonic-llr-port {
 } /* end of module sonic-llr-port */
 ```
 
-New YANG model `sonic-llr-profile.yang` will be added in order to provide support for LLR Port.
+New YANG model `sonic-llr-profile.yang` will be added in order to provide support for LLR profiles.
 
 **Skeleton code:**
 ```yang
-
-module sonic-llr {
-  yang-version 1.1;
-
-  namespace "http://github.com/sonic-net/sonic-llr";
-  prefix llr;
-
-  import sonic-types {
-    prefix stypes;
-  }
-
-  revision 2025-11-06 {
-    description
-      "Initial revision.";
-  }
-
-  description
-    "YANG model for global Link Layer Retry configuration.";
-
-  container sonic-llr {
-    description
-      "Top-level container for LLR global configuration.";
-
-    container LLR_CONFIG {
-      description
-        "LLR global configuration.";
-
-      container GLOBAL {
-        description
-          "Global LLR mode settings.";
-
-        leaf mode {
-          mandatory true;
-          type enumeration {
-            enum static;
-            enum dynamic;
-          }
-          description "LLR configuration mode. 'static': per-port LLR configuration from CONFIG_DB is used. 'dynamic': LLDP negotiation drives per-port LLR enables";
-        }
-      }
-      /* end of container GLOBAL */
-    }
-    /* end of container LLR_CONFIG */
-  }
-  /* end of container sonic-llr */
-}
-/* end of module sonic-llr */
 
 module sonic-llr-profile {
 
@@ -1193,29 +1166,33 @@ Unit Tests and code coverage will be implemented for below components:
 
 **LLR Unit Tests on VS**
 
-1. Enable LLR on a single interface (static mode)
-    - Verify that a new LLR_PROFILE_TABLE entry is created in APPL_DB with the INI‑derived profile values corresponding to the expected speed and cable length.
-    - Verify that LLR_PORT_TABLE|<ifname> in APPL_DB references the expected LLR profile name.
-    - Verify that the LLR profile object is created in ASIC_DB with the correct attribute values.
-    - Verify that the corresponding port entry in ASIC_DB is updated to reference the newly created LLR profile object.
+1. Verify published capabilities
+    - Verify that STATE_DB SWITCH_CAPABILITY|switch contains LLR_CAPABLE set to true.
+    - Verify that STATE_DB SWITCH_CAPABILITY|switch contains LLR_SUPPORTED_PROFILE_ATTRIBUTES with the expected list of supported LLR profile attributes.
+    - Verify that STATE_DB PORT_COUNTER_CAPABILITIES|LLR contains the expected list of supported LLR counters.
 
-2. Disable LLR on the interface
-    - Verify that the corresponding entry is removed from the LLR_PROFILE_TABLE in APPL_DB.
-    - Verify that LLR_PORT_TABLE|<ifname> in APPL_DB is updated with llr_local and llr_remote set to disabled.
-    - Verify in ASIC_DB that both llr_local and llr_remote are set to false.
-    - Verify that the LLR profile object is removed from ASIC_DB.
+2. Enable LLR on a single interface (per-port static mode)
+    - Set `llr_mode` to `static` and `llr_local`, `llr_remote` to `enabled` in CONFIG_DB `LLR_PORT` table.
+    - Verify that a new LLR_PROFILE_TABLE entry is created in APPL_DB with the INI‑derived profile values corresponding to the expected speed and cable length.
+    - Verify that LLR_PORT_TABLE|<ifname> in APPL_DB contains `llr_profile`, references the expected LLR profile name, and has the correct `llr_local`/`llr_remote` values.
+    - Verify that the LLR profile object is created in ASIC_DB with the correct attribute values.
+    - Verify that the corresponding port entry in ASIC_DB has local/remote SAI attributes set to "true" and updated to reference the newly created LLR profile object.
 
 3. Verify profile switch on port cable‑length and operational‑speed changes
     - Change the cable length of port in CONFIG_DB and change the operational speed on a port with LLR enabled.
     - Verify that LLR_PROFILE_TABLE in APPL_DB is updated with the correct profile name and attribute values derived from the INI profile.
+    - Verify that the old LLR profile object is removed from `LLR_PROFILE_TABLE` in APPL_DB and a new profile name is created with the updated INI‑derived values.
+    - Verify that the old LLR profile object is removed from ASIC_DB and a new profile object is created.
     - Verify that LLR_PORT_TABLE|<ifname> in APPL_DB references the new profile name.
     - Verify that the LLR profile object in ASIC_DB reflects the expected attribute values for the new profile.
     - Verify that the port entry in ASIC_DB is updated to reference the newly created LLR profile object.
 
-4. Verify published capabilities
-    - Verify that STATE_DB SWITCH_CAPABILITY|switch contains LLR_CAPABLE set to true.
-    - Verify that STATE_DB SWITCH_CAPABILITY|switch contains LLR_SUPPORTED_PROFILE_ATTRIBUTES with the expected list of supported LLR profile attributes.
-    - Verify that STATE_DB PORT_COUNTER_CAPABILITIES|LLR contains the expected list of supported LLR counters.
+4. Disable LLR on the interface
+    - Set `llr_local` and `llr_remote` to `disabled` in CONFIG_DB `LLR_PORT` table for the same interface.  
+    - Verify that the corresponding profile entry is removed from the `LLR_PROFILE_TABLE` in APPL_DB.
+    - Verify that `LLR_PORT_TABLE|<ifname>` in APPL_DB is updated with `llr_local` and `llr_remote` set to disabled.
+    - Verify in ASIC_DB that both `llr_local` and `llr_remote` are set to false.
+    - Verify that the LLR profile object is removed from ASIC_DB and the port entry is updated to local/remote LLR disabled state.
 
 5. Verify CONFIG_DB LLR profile precedence over INI‑generated profile
     - Add a user‑defined LLR_PROFILE|<profile_name> entry to CONFIG_DB with custom attribute values.
@@ -1225,6 +1202,5 @@ Unit Tests and code coverage will be implemented for below components:
     - Clear the profile assignment on port and remove the `LLR_PROFILE|<profile_name>` entry from CONFIG_DB.
     - Verify that LLR_PROFILE_TABLE in APPL_DB falls back to the INI-generated profile for that port's (speed, cable length).
     - Verify that LLR_PORT_TABLE|<ifname> in APPL_DB references the INI-generated profile name.
-
 
 <!-- /TOC -->

@@ -24,14 +24,14 @@
 # max_replay_timer            <-> replay_timer
 # max_replay_count            <-> replay_count
 # pcs_lost_timeout            <-> pcs_lost_timeout
-# data_age_timer              <-> data_age_timer
+# data_age_timeout              <-> data_age_timeout
 # ctlos_spacing_bytes         <-> ctlos_spacing
 # init_action                 <-> init_action
 # flush_action                <-> flush_action
 #
 # Example values (illustrative only):
 
-speed    cable  outstanding_frames outstanding_bytes replay_timer replay_count pcs_lost_timeout data_age_timer ctlos_spacing init_action   flush_action
+speed    cable  outstanding_frames outstanding_bytes replay_timer replay_count pcs_lost_timeout data_age_timeout ctlos_spacing init_action   flush_action
 200000    5m      61                31184             5000         3            50000            20000          2048          best_effort   block
 200000    40m     71                35952             5500         3            55000            24000          2048          best_effort   block
 400000    5m      115               58768             5000         3            50000            20000          2048          best_effort   best_effort
