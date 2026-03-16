@@ -65,7 +65,7 @@ This indirection is unnecessary because:
 ### Functional Requirements
 
 - All 23 D-Bus operations currently used by sonic-gnmi must continue to function with identical behavior after migration.
-- The existing `Service` interface in `sonic_service_client/dbus_client.go` must be preserved to allow a gradual rollout via feature flag.
+- New implementations live in domain packages under `pkg/host/`. Each gRPC handler is migrated independently, replacing `sonic_service_client` calls directly.
 - Whitelists currently enforced by sonic-host-services (allowed systemd services, Docker containers/images) must be ported to Go and enforced identically.
 
 ### Non-Functional Requirements
@@ -119,7 +119,7 @@ This indirection is unnecessary because:
 │  RPC Handler (gnoi_*.go / mixed_db_client.go)     │
 │        │                                          │
 │        ▼                                          │
-│  DirectClient (direct_client.go)                  │
+│  pkg/host/* packages (direct_client.go)           │
 │        │                                          │
 │        ├─── Tier 1: Go-Native API ────────────┐   │
 │        │    • os.Stat/Remove on /mnt/host      │   │
@@ -164,11 +164,12 @@ These 14 operations are replaced with pure Go implementations — no subprocess,
 The gnmi container already has `/var/run/dbus` mounted rw. The systemd D-Bus interface (`org.freedesktop.systemd1`) is accessible on the same system bus. Instead of routing through host-services as a proxy, we call systemd directly.
 
 ```go
-func (c *DirectClient) RestartService(service string) error {
-    if !allowedSystemdServices[service] {
+// pkg/host/systemd/systemd.go
+func (m *Manager) RestartUnit(service string) error {
+    if !allowedServices[service] {
         return fmt.Errorf("service %q not in whitelist", service)
     }
-    obj := c.dbusConn.Object("org.freedesktop.systemd1",
+    obj := m.conn.Object("org.freedesktop.systemd1",
         "/org/freedesktop/systemd1")
     // Reset failed state first (mirrors host-services behavior)
     obj.Call("org.freedesktop.systemd1.Manager.ResetFailedUnit", 0,
@@ -202,7 +203,8 @@ var allowedSystemdServices = map[string]bool{
 The host filesystem is mounted at `/mnt/host` (read-only), with `/tmp` and `/var/tmp` mounted read-write. File stat operations can read from `/mnt/host` directly. File removal and downloads target writable paths.
 
 ```go
-func (c *DirectClient) GetFileStat(path string) (map[string]string, error) {
+// pkg/host/file/file.go
+func Stat(path string) (map[string]string, error) {
     hostPath := filepath.Join("/mnt/host", path)
     info, err := os.Stat(hostPath)
     if err != nil {
@@ -257,13 +259,14 @@ The `config save` operation ultimately reads all keys from CONFIG_DB (Redis DB 4
 This is a Go SDK call — same pattern as godbus for systemd or go-redis for CONFIG_DB. The only infrastructure prerequisite is mounting `/var/run/docker.sock` into the container, which is a one-line change in `docker-gnmi.mk` and a marginal privilege increase given the container's existing access level.
 
 ```go
-func (c *DirectClient) LoadDockerImage(imagePath string) error {
+// pkg/host/image/docker.go
+func LoadDocker(imagePath string, cli *docker.Client) error {
     f, err := os.Open(filepath.Join("/mnt/host", imagePath))
     if err != nil {
         return err
     }
     defer f.Close()
-    resp, err := c.dockerClient.ImageLoad(context.Background(), f, true)
+    resp, err := cli.ImageLoad(context.Background(), f, true)
     if err != nil {
         return err
     }
@@ -298,12 +301,13 @@ These operations require the full `config` CLI toolchain which involves YANG val
 | ApplyPatchYang | `gcu.apply_patch_yang` | `config apply-patch <file>` |
 
 ```go
-func (c *DirectClient) ConfigReload(fileName string) error {
+// pkg/host/config/reload.go
+func (s *Service) Reload(fileName string) error {
     args := []string{"reload", "-y"}
     if fileName != "" {
         args = append(args, fileName)
     }
-    result, err := c.hostExec.RunHostCommand(ctx, "config", args,
+    result, err := s.hostExec.RunHostCommand(ctx, "config", args,
         &exec.Options{Timeout: 120 * time.Second})
     if err != nil {
         return err
@@ -342,53 +346,114 @@ File removal on paths that are not writable from within the container (i.e., out
 
 ### Implementation Architecture
 
-#### Service Interface Preservation
+#### Package Structure
 
-The existing `Service` interface in `sonic_service_client/dbus_client.go` defines 23 methods. A new `DirectClient` struct implements this same interface, enabling a drop-in replacement.
+Instead of a monolithic `Service` interface with 23 methods in `sonic_service_client/`, the new implementation uses domain-specific packages under `pkg/host/`. Each package has a small, focused API — idiomatic Go.
 
-```go
-// sonic_service_client/direct_client.go
-type DirectClient struct {
-    dbusConn     *dbus.Conn          // system D-Bus for systemd
-    redisClient  *redis.Client       // CONFIG_DB access
-    dockerClient *docker.Client      // Docker daemon (Tier 1)
-    hostExec     exec.HostExecutor   // nsenter wrapper (Tier 2)
-}
-
-// Verify DirectClient satisfies Service interface at compile time
-var _ Service = (*DirectClient)(nil)
+```
+pkg/host/
+├── systemd/      # Service restart/stop via godbus → systemd1
+├── file/         # Stat, Remove, Download (HTTP/SFTP)
+├── config/       # Save (go-redis), Reload/Replace/ApplyPatch (nsenter)
+├── checkpoint/   # Create (go-redis), Delete (os.Remove)
+├── image/        # Download (net/http), Install/List/SetNextBoot (nsenter), LoadDocker (Docker SDK)
+├── health/       # Check, Ack (inline), Collect (nsenter)
+└── reset/        # FactoryReset (unimplemented stub)
 ```
 
-#### Feature Flag
+Each package exposes functions or a small struct — not a 23-method interface. For example:
 
 ```go
-func NewServiceClient() Service {
-    if os.Getenv("GNMI_DIRECT_CLIENT") == "1" {
-        return NewDirectClient()
+// pkg/host/systemd/systemd.go
+package systemd
+
+type Manager struct {
+    conn *dbus.Conn
+}
+
+func New() (*Manager, error) { ... }
+func (m *Manager) RestartUnit(service string) error { ... }
+func (m *Manager) StopUnit(service string) error { ... }
+func (m *Manager) Close() error { ... }
+```
+
+```go
+// pkg/host/file/file.go
+package file
+
+func Stat(path string) (map[string]string, error) { ... }
+func Remove(path string) error { ... }
+func Download(url, dest, protocol string, creds *Credentials) error { ... }
+```
+
+#### Per-Handler Migration
+
+Each gRPC handler file is migrated independently. The handler switches from `ssc.NewDbusClient()` to the appropriate `pkg/host/*` package. No feature flag — the migration is the commit.
+
+Before:
+```go
+// gnmi_server/gnoi_system.go
+import ssc "github.com/sonic-net/sonic-gnmi/sonic_service_client"
+
+func KillOrRestartProcess(restart bool, serviceName string) error {
+    sc, err := ssc.NewDbusClient()
+    if err != nil { return err }
+    defer sc.Close()
+    if restart {
+        return sc.RestartService(serviceName)
     }
-    return NewDbusClient()
+    return sc.StopService(serviceName)
 }
 ```
+
+After:
+```go
+// gnmi_server/gnoi_system.go
+import "github.com/sonic-net/sonic-gnmi/pkg/host/systemd"
+
+func KillOrRestartProcess(restart bool, serviceName string) error {
+    mgr, err := systemd.New()
+    if err != nil { return err }
+    defer mgr.Close()
+    if restart {
+        return mgr.RestartUnit(serviceName)
+    }
+    return mgr.StopUnit(serviceName)
+}
+```
+
+#### Handler → Package Mapping
+
+| Handler File | `pkg/host/*` Package(s) | Operations |
+|---|---|---|
+| `gnmi_server/gnoi_system.go` | `systemd` | Restart, Stop |
+| `gnmi_server/gnoi_file.go` | `file` | Stat, Remove, Download |
+| `gnmi_server/gnoi_os.go` | `image` | Download, Install, List, SetNextBoot, InstallOS |
+| `gnmi_server/gnoi_healthz.go` | `health` | Check, Ack, Collect |
+| `gnmi_server/gnoi_reset.go` | `reset` | FactoryReset (stub) |
+| `gnmi_server/gnoi_containerz.go` | `image` | LoadDocker |
+| `sonic_data_client/mixed_db_client.go` | `config`, `checkpoint` | Save, Reload, Replace, ApplyPatch, CreateCheckpoint, DeleteCheckpoint |
+| `gnmi_server/server.go` | `config`, `systemd` | Save, Restart |
 
 ### Migration Strategy
 
-**Phase 1** — Tier 1 operations (Go-native, lowest risk):
-- Systemd restart/stop via godbus → systemd1
-- File stat/remove/download via Go stdlib
-- Config save / checkpoint via go-redis
-- HealthzCheck/HealthzAck inline
-- Docker load via Docker Go SDK
-- Mount `/var/run/docker.sock` in container config
+Migration proceeds per-gRPC handler. Each handler is switched from `ssc.NewDbusClient()` to the appropriate `pkg/host/*` package in a single commit. No feature flag — the old code path is replaced directly.
 
-**Phase 2** — Tier 2 operations (nsenter, low risk — pattern already in production):
-- Config reload/replace/apply-patch via nsenter
-- Image install/list/set-next-boot via nsenter
-- Debug collect via nsenter
-- Protected file remove via nsenter fallback
+**Phase 1** — Tier 1 packages + handler migration (Go-native, lowest risk):
+- Create `pkg/host/` packages: `systemd`, `file`, `health`, `config` (save only), `checkpoint`, `image` (download + docker load)
+- Mount `/var/run/docker.sock` in container config
+- Migrate handlers one by one, replacing `ssc.NewDbusClient()` calls
+- Unit tests with mocks per package
+
+**Phase 2** — Tier 2 operations + remaining handler migration (nsenter):
+- Add nsenter-based operations to `config` (reload, replace, apply-patch), `image` (install, list, set-next-boot), `health` (collect)
+- Protected file remove via nsenter fallback in `file`
+- Port whitelists from Python to Go constants
+- Migrate remaining handler call sites
 
 **Phase 3** — Cleanup:
+- Remove `sonic_service_client/` package entirely
 - Remove D-Bus socket mount from `docker-gnmi.mk`
-- Remove `dbus_client.go`
 - Remove sonic-host-services dependency from gnmi container
 
 ### Container Configuration Changes
@@ -439,28 +504,27 @@ Note: During warm boot, the gnmi container follows the existing warm-boot-aware 
 
 ### Unit Tests
 
-- `DirectClient` methods tested with mock D-Bus connection, mock Redis, and mock `HostExecutor`.
+- Each `pkg/host/*` package tested independently with mock dependencies (mock D-Bus connection, mock Redis, mock `HostExecutor`).
 - Whitelist enforcement tests for systemd services.
 - Path translation tests for file operations (`/path` → `/mnt/host/path`).
 - Error propagation tests for nsenter failures (non-zero exit codes, timeouts).
 
 ### Integration Tests
 
-- Feature flag toggle: verify both `DbusClient` and `DirectClient` produce identical results for each operation.
-- End-to-end gNOI RPC tests with `DirectClient` enabled:
+- End-to-end gNOI RPC tests with migrated handlers:
   - System.Reboot (already uses nsenter — baseline)
   - File.Stat, File.Remove
   - OS.Install, OS.Activate, OS.Verify
   - Healthz.Get, Healthz.Acknowledge
-- gNMI Set tests with `DirectClient`:
+- gNMI Set tests with migrated handlers:
   - CONFIG_DB incremental update (apply-patch)
   - CONFIG_DB full replace
   - Config save after set
 
 ### Regression Tests
 
-- All existing sonic-mgmt test cases for gNMI/gNOI must pass with `DirectClient` enabled.
-- Verify sonic-host-services is not required to be running when `DirectClient` is active.
+- All existing sonic-mgmt test cases for gNMI/gNOI must pass after each handler migration.
+- Verify sonic-host-services is not required to be running for migrated handlers.
 
 ## Open/Action Items
 
