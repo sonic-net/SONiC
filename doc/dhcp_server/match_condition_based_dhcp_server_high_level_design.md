@@ -1,6 +1,6 @@
 # IPv4 Match Condition Based DHCP_SERVER in SONiC
 # High Level Design Document
-**Rev 0.3**
+**Rev 0.4**
 
 # Table of Contents
 <!-- TOC -->
@@ -39,6 +39,7 @@
 | 0.1 |  2026/03/13 |                    | Initial version                     |
 | 0.2 |  2026/03/16 |                    | Unified design — port as match condition |
 | 0.3 |  2026/03/16 |                    | Added MATCH mode for DHCP_SERVER_IPV4 |
+| 0.4 |  2026/03/16 |                    | Use etp naming; simplify examples; remove PORT fallback |
 
 # About this Manual
 
@@ -83,9 +84,9 @@ This extension introduces a **generalized match condition system** where all mat
 
 In the current design, port identity is determined by matching against the Circuit ID sub-option of DHCP Option 82, which encodes the `hostname:port_alias` of the ingress port. This is fundamentally the same operation as matching any other DHCP option value.
 
-By making `circuit_id` a match condition type alongside `option60`, `option77`, etc., the design achieves full uniformity:
+By making `circuit_id` a match condition type alongside `option60`, the design achieves full uniformity:
 - A port-only assignment is a binding with a single `circuit_id` match
-- A port + vendor class assignment is a binding with `circuit_id` + `option60` matches
+- A port + vendor class assignment is a binding with `circuit_id` + `option60` matches (AND logic)
 - Future match types are added by extending the enumeration — no structural changes required
 
 ## Functional Requirements
@@ -128,16 +129,16 @@ Configuration of match condition feature can be done via:
 The extension adds a new mode and two new Config DB tables:
 
 1. **`MATCH` mode** — A new value for the `mode` field in `DHCP_SERVER_IPV4`, enabling match condition based IP assignment for the VLAN.
-2. **`DHCP_SERVER_IPV4_MATCH`** — Defines named, reusable match conditions (e.g., "match circuit_id equals Ethernet1", "match option60 equals VendorA").
+2. **`DHCP_SERVER_IPV4_MATCH`** — Defines named, reusable match conditions (e.g., "match circuit_id equals etp1", "match option60 equals VendorA").
 3. **`DHCP_SERVER_IPV4_BINDING`** — Associates a (Vlan, BindingName) tuple with one or more match conditions and an IP pool.
 
 Since port identification is a match condition type, port-based and option-based matching are handled identically. A "port + vendor class" assignment is simply a binding with two match conditions: one `circuit_id` and one `option60`.
 
 Example scenario:
-- VendorA devices on Ethernet1 → binding with matches [port_eth1, vendor_a] → Pool A
-- VendorB devices on Ethernet1 → binding with matches [port_eth1, vendor_b] → Pool B
-- Other devices on Ethernet1 → binding with matches [port_eth1] → Pool C (or via existing `PORT` table fallback)
-- Devices on Ethernet2 with no bindings → existing `PORT` table → Pool D (unchanged behavior)
+- VendorA devices on etp1 → binding with matches [port_etp1, vendor_a] → Pool A
+- VendorB devices on etp1 → binding with matches [port_etp1, vendor_b] → Pool B
+- Any device on etp1 (no vendor match) → binding with matches [port_etp1] → default Pool C
+- Any device on etp2 → binding with matches [port_etp2] → Pool D
 
 ## Match Condition Resolution
 
@@ -146,30 +147,30 @@ Example scenario:
 When a binding references multiple match conditions, all conditions must be satisfied:
 
 ```json
-"Vlan100|vendor_a_voip": {
-    "matches": ["port_eth1", "vendor_a", "voip_class"],
-    "ips": ["100.1.1.25"]
+"Vlan100|vendor_a_on_etp1": {
+    "matches": ["port_etp1", "vendor_a"],
+    "ips": ["100.1.1.20"]
 }
 ```
 
-A client must be on Ethernet1 **and** have Option 60 matching "VendorA" **and** Option 77 matching "VoIP" to receive 100.1.1.25.
+A client must be on etp1 **and** have Option 60 matching "VendorA" to receive 100.1.1.20.
 
 ### OR Logic
 
 OR logic is achieved by creating separate bindings that point to the same IP pool:
 
 ```json
-"Vlan100|vendor_a_phones": {
-    "matches": ["port_eth1", "vendor_a"],
+"Vlan100|vendor_a_on_etp1": {
+    "matches": ["port_etp1", "vendor_a"],
     "ips": ["100.1.1.20", "100.1.1.21"]
 },
-"Vlan100|vendor_c_phones": {
-    "matches": ["port_eth1", "vendor_c"],
+"Vlan100|vendor_b_on_etp1": {
+    "matches": ["port_etp1", "vendor_b"],
     "ips": ["100.1.1.20", "100.1.1.21"]
 }
 ```
 
-Either VendorA or VendorC devices on Ethernet1 will receive addresses from that pool.
+Either VendorA or VendorB devices on etp1 will receive addresses from that pool.
 
 ### Specificity Ordering
 
@@ -177,9 +178,8 @@ When a VLAN has multiple bindings with overlapping conditions, more-specific bin
 
 1. Bindings with more match conditions are evaluated first (most specific)
 2. Bindings with fewer match conditions are evaluated next
-3. If a `PORT` entry exists for the same port (from a previous `PORT` mode config or explicit fallback), it may be used as a last-resort fallback
 
-This ensures a "VendorA VoIP device on Ethernet1" (matching 3 conditions) is assigned from the VoIP-specific pool, not the broader "VendorA on Ethernet1" pool.
+For example, a "VendorA device on etp1" matches both a 2-condition binding [port_etp1, vendor_a] and a 1-condition binding [port_etp1]. The more-specific 2-condition binding takes priority.
 
 ## DB Changes
 
@@ -203,7 +203,7 @@ Two new tables are added. One existing table is extended with a new mode value.
 | Field | Type   | Required | Description |
 |-------|--------|----------|-------------|
 | type  | enum   | Yes      | Match type. Currently: `circuit_id`, `option60`. Extensible for future types. |
-| value | string | Yes      | Value to match against (exact match). For `circuit_id`, this is the interface name (e.g., "Ethernet1"). |
+| value | string | Yes      | Value to match against (exact match). For `circuit_id`, this is the port alias (e.g., "etp1"). |
 
 **DHCP_SERVER_IPV4_BINDING** — Associates match condition(s) with an IP pool.
 
@@ -238,21 +238,17 @@ The following existing tables are **not modified**:
       }
   },
   "DHCP_SERVER_IPV4_MATCH": {
-      "port_eth1": {
+      "port_etp1": {
           "type": "circuit_id",
-          "value": "Ethernet1"
+          "value": "etp1"
       },
-      "port_eth2": {
+      "port_etp2": {
           "type": "circuit_id",
-          "value": "Ethernet2"
+          "value": "etp2"
       },
       "vendor_a": {
           "type": "option60",
           "value": "VendorA"
-      },
-      "voip_class": {
-          "type": "option77",
-          "value": "VoIP"
       },
       "vendor_b": {
           "type": "option60",
@@ -260,32 +256,30 @@ The following existing tables are **not modified**:
       }
   },
   "DHCP_SERVER_IPV4_BINDING": {
-      "Vlan100|vendor_a_voip": {
+      "Vlan100|vendor_a_on_etp1": {
           "matches": [
-              "port_eth1",
-              "vendor_a",
-              "voip_class"
-          ],
-          "ips": [
-              "100.1.1.25"
-          ]
-      },
-      "Vlan100|vendor_a_devices": {
-          "matches": [
-              "port_eth1",
+              "port_etp1",
               "vendor_a"
           ],
           "ips": [
               "100.1.1.20"
           ]
       },
-      "Vlan100|vendor_b_devices": {
+      "Vlan100|vendor_b_on_etp1": {
           "matches": [
-              "port_eth1",
+              "port_etp1",
               "vendor_b"
           ],
           "ranges": [
               "range2"
+          ]
+      },
+      "Vlan100|default_etp1": {
+          "matches": [
+              "port_etp1"
+          ],
+          "ips": [
+              "100.1.1.10"
           ]
       }
   }
@@ -335,7 +329,7 @@ container DHCP_SERVER_IPV4_MATCH {
         }
 
         leaf value {
-            description "Value to match against (exact match). For circuit_id, this is the interface name.";
+            description "Value to match against (exact match). For circuit_id, this is the port alias.";
             mandatory true;
             type string {
                 length 1..255 {
@@ -442,14 +436,13 @@ This command is used to add a named match condition.
   Options:
      match_name: Unique name for the match condition. [required]
      type: Match type. Currently 'circuit_id' and 'option60' are supported. [required]
-     value: Value to match against (exact match). For circuit_id, this is the interface name. [required]
+     value: Value to match against (exact match). For circuit_id, this is the port alias. [required]
   ```
 
 - Example
   ```
-  config dhcp_server ipv4 match add port_eth1 --type circuit_id --value "Ethernet1"
+  config dhcp_server ipv4 match add port_etp1 --type circuit_id --value "etp1"
   config dhcp_server ipv4 match add vendor_a --type option60 --value "VendorA"
-  config dhcp_server ipv4 match add voip_class --type option77 --value "VoIP-Device"
   ```
 
 **config dhcp_server ipv4 match del**
@@ -491,17 +484,14 @@ This command is used to add a binding that associates match condition(s) with an
 
 - Example
   ```
-  # Port + vendor class match
-  config dhcp_server ipv4 binding add Vlan100 vendor_a_devices --match port_eth1,vendor_a 100.1.1.20
-
-  # Port + multiple match conditions (AND logic)
-  config dhcp_server ipv4 binding add Vlan100 vendor_a_voip --match port_eth1,vendor_a,voip_class 100.1.1.25
+  # Port + vendor class match (AND logic)
+  config dhcp_server ipv4 binding add Vlan100 vendor_a_on_etp1 --match port_etp1,vendor_a 100.1.1.20
 
   # Using ranges
-  config dhcp_server ipv4 binding add Vlan100 vendor_b_devices --match port_eth1,vendor_b --range range2
+  config dhcp_server ipv4 binding add Vlan100 vendor_b_on_etp1 --match port_etp1,vendor_b --range range2
 
-  # Port-only binding (equivalent to PORT table entry, but via match system)
-  config dhcp_server ipv4 binding add Vlan100 default_eth1 --match port_eth1 100.1.1.10
+  # Port-only binding
+  config dhcp_server ipv4 binding add Vlan100 default_etp1 --match port_etp1 100.1.1.10
   ```
 
 **config dhcp_server ipv4 binding del**
@@ -515,7 +505,7 @@ This command is used to delete a binding.
 
 - Example
   ```
-  config dhcp_server ipv4 binding del Vlan100 vendor_a_devices
+  config dhcp_server ipv4 binding del Vlan100 vendor_a_on_etp1
   ```
 
 ## Show CLI
@@ -532,17 +522,15 @@ This command is used to show defined match conditions.
 - Example
   ```
   show dhcp_server ipv4 match
-  +--------------+------------+--------------+
-  | Match Name   | Type       | Value        |
-  +==============+============+==============+
-  | port_eth1    | circuit_id | Ethernet1    |
-  +--------------+------------+--------------+
-  | vendor_a     | option60   | VendorA      |
-  +--------------+------------+--------------+
-  | voip_class   | option77   | VoIP-Device  |
-  +--------------+------------+--------------+
-  | vendor_b     | option60   | VendorB      |
-  +--------------+------------+--------------+
+  +--------------+------------+---------+
+  | Match Name   | Type       | Value   |
+  +==============+============+=========+
+  | port_etp1    | circuit_id | etp1    |
+  +--------------+------------+---------+
+  | vendor_a     | option60   | VendorA |
+  +--------------+------------+---------+
+  | vendor_b     | option60   | VendorB |
+  +--------------+------------+---------+
 
   show dhcp_server ipv4 match vendor_a
   +--------------+----------+---------+
@@ -564,15 +552,15 @@ This command is used to show bindings.
 - Example
   ```
   show dhcp_server ipv4 binding Vlan100
-  +----------------------------+-------------------------------+--------------+
-  | Binding                    | Matches                       | Bind         |
-  +============================+===============================+==============+
-  | Vlan100|vendor_a_voip      | port_eth1,vendor_a,voip_class | 100.1.1.25   |
-  +----------------------------+-------------------------------+--------------+
-  | Vlan100|vendor_a_devices   | port_eth1,vendor_a            | 100.1.1.20   |
-  +----------------------------+-------------------------------+--------------+
-  | Vlan100|vendor_b_devices   | port_eth1,vendor_b            | range2       |
-  +----------------------------+-------------------------------+--------------+
+  +----------------------------+--------------------+--------------+
+  | Binding                    | Matches            | Bind         |
+  +============================+====================+==============+
+  | Vlan100|vendor_a_on_etp1   | port_etp1,vendor_a | 100.1.1.20   |
+  +----------------------------+--------------------+--------------+
+  | Vlan100|vendor_b_on_etp1   | port_etp1,vendor_b | range2       |
+  +----------------------------+--------------------+--------------+
+  | Vlan100|default_etp1       | port_etp1          | 100.1.1.10   |
+  +----------------------------+--------------------+--------------+
   ```
 
 # Test
