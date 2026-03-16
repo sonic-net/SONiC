@@ -1,6 +1,6 @@
 # IPv4 Match Condition Based DHCP_SERVER in SONiC
 # High Level Design Document
-**Rev 0.2**
+**Rev 0.3**
 
 # Table of Contents
 <!-- TOC -->
@@ -38,6 +38,7 @@
 |:---:|:-----------:|:-------------------|:-----------------------------------|
 | 0.1 |  2026/03/13 |                    | Initial version                     |
 | 0.2 |  2026/03/16 |                    | Unified design — port as match condition |
+| 0.3 |  2026/03/16 |                    | Added MATCH mode for DHCP_SERVER_IPV4 |
 
 # About this Manual
 
@@ -94,8 +95,9 @@ By making `circuit_id` a match condition type alongside `option60`, `option77`, 
 3. Support DHCP Option 60 (Vendor Class Identifier) as a match condition type.
 4. Support combining multiple match conditions per binding (AND logic).
 5. Support assigning different IP pools to different conditions within the same VLAN.
-6. Maintain backward compatibility — existing port-only assignments via `DHCP_SERVER_IPV4_PORT` continue to work unchanged.
-7. Extensible design for adding new match types in the future.
+6. Introduce a new `MATCH` mode for `DHCP_SERVER_IPV4` to enable match condition based assignment.
+7. Maintain backward compatibility — existing `PORT` mode assignments continue to work unchanged.
+8. Extensible design for adding new match types in the future.
 
 ## Configuration and Management Requirements
 
@@ -107,13 +109,13 @@ Configuration of match condition feature can be done via:
 
 ## Design Considerations
 
-* This feature is an **additive extension** to the existing port-based DHCP server. All existing Config DB tables, CLI commands, and YANG models remain unchanged.
+* This feature is an **additive extension** to the existing port-based DHCP server. All existing CLI commands and YANG models remain backward compatible.
+
+* **New `MATCH` mode.** The `DHCP_SERVER_IPV4` table's `mode` field gains a new enum value `MATCH`. When `mode=MATCH`, the DHCP server reads from `DHCP_SERVER_IPV4_MATCH` and `DHCP_SERVER_IPV4_BINDING` tables. When `mode=PORT`, behavior is unchanged. Different VLANs can use different modes independently.
 
 * **Match conditions are the building blocks.** Each condition tests a single DHCP packet field. Conditions are composed via AND logic in bindings. This includes port identity — `circuit_id` is a match type, not a structural key.
 
 * **Unified design.** Port identification and DHCP option matching use the same `DHCP_SERVER_IPV4_MATCH` table and `DHCP_SERVER_IPV4_BINDING` table. There is no separate port-coupled table for match bindings.
-
-* The existing `DHCP_SERVER_IPV4_PORT` table remains as-is for backward compatibility. It serves as a simpler way to configure port-only assignments without needing explicit match conditions. When a VLAN has both `PORT` entries and `BINDING` entries for the same port, bindings from `BINDING` are evaluated first, with the `PORT` entry serving as fallback for unmatched clients.
 
 * **Match bindings use AND logic** — when multiple match conditions are specified in a single binding, the client must satisfy ALL conditions.
 
@@ -123,10 +125,11 @@ Configuration of match condition feature can be done via:
 
 ## Design Overview
 
-The extension adds two new Config DB tables:
+The extension adds a new mode and two new Config DB tables:
 
-1. **`DHCP_SERVER_IPV4_MATCH`** — Defines named, reusable match conditions (e.g., "match circuit_id equals Ethernet1", "match option60 equals VendorA").
-2. **`DHCP_SERVER_IPV4_BINDING`** — Associates a (Vlan, BindingName) tuple with one or more match conditions and an IP pool.
+1. **`MATCH` mode** — A new value for the `mode` field in `DHCP_SERVER_IPV4`, enabling match condition based IP assignment for the VLAN.
+2. **`DHCP_SERVER_IPV4_MATCH`** — Defines named, reusable match conditions (e.g., "match circuit_id equals Ethernet1", "match option60 equals VendorA").
+3. **`DHCP_SERVER_IPV4_BINDING`** — Associates a (Vlan, BindingName) tuple with one or more match conditions and an IP pool.
 
 Since port identification is a match condition type, port-based and option-based matching are handled identically. A "port + vendor class" assignment is simply a binding with two match conditions: one `circuit_id` and one `option60`.
 
@@ -174,7 +177,7 @@ When a VLAN has multiple bindings with overlapping conditions, more-specific bin
 
 1. Bindings with more match conditions are evaluated first (most specific)
 2. Bindings with fewer match conditions are evaluated next
-3. The default port pool (from `DHCP_SERVER_IPV4_PORT`) is used last as fallback
+3. If a `PORT` entry exists for the same port (from a previous `PORT` mode config or explicit fallback), it may be used as a last-resort fallback
 
 This ensures a "VendorA VoIP device on Ethernet1" (matching 3 conditions) is assigned from the VoIP-specific pool, not the broader "VendorA on Ethernet1" pool.
 
@@ -182,7 +185,16 @@ This ensures a "VendorA VoIP device on Ethernet1" (matching 3 conditions) is ass
 
 ### Config DB
 
-Two new tables are added. All existing tables remain unchanged.
+Two new tables are added. One existing table is extended with a new mode value.
+
+#### Modified Tables
+
+**DHCP_SERVER_IPV4** — The `mode` field gains a new enum value `MATCH`.
+
+| Mode    | Description |
+|---------|-------------|
+| `PORT`  | Existing behavior. IP assignment based on `DHCP_SERVER_IPV4_PORT` table. |
+| `MATCH` | New. IP assignment based on `DHCP_SERVER_IPV4_MATCH` + `DHCP_SERVER_IPV4_BINDING` tables. |
 
 #### New Tables
 
@@ -208,8 +220,7 @@ Key format: `<vlan>|<binding_name>`
 #### Unchanged Tables
 
 The following existing tables are **not modified**:
-- `DHCP_SERVER_IPV4` — DHCP interface configuration
-- `DHCP_SERVER_IPV4_PORT` — Port-to-IP bindings (acts as default/fallback when bindings exist)
+- `DHCP_SERVER_IPV4_PORT` — Port-to-IP bindings (used when `mode=PORT`)
 - `DHCP_SERVER_IPV4_RANGE` — Named IP ranges
 - `DHCP_SERVER_IPV4_CUSTOMIZED_OPTIONS` — DHCP option definitions
 
@@ -217,6 +228,15 @@ The following existing tables are **not modified**:
 
 ```JSON
 {
+  "DHCP_SERVER_IPV4": {
+      "Vlan100": {
+          "gateway": "100.1.1.1",
+          "lease_time": "3600",
+          "mode": "MATCH",
+          "netmask": "255.255.255.0",
+          "state": "enabled"
+      }
+  },
   "DHCP_SERVER_IPV4_MATCH": {
       "port_eth1": {
           "type": "circuit_id",
@@ -274,9 +294,18 @@ The following existing tables are **not modified**:
 
 #### Yang Model
 
-The following YANG containers are added to the existing `sonic-dhcp-server-ipv4` module:
+The existing `DHCP_SERVER_IPV4` mode enum is extended with `MATCH`. The following new YANG containers are added to the `sonic-dhcp-server-ipv4` module:
 
 ```yang
+/* Extension to existing DHCP_SERVER_IPV4_LIST mode leaf */
+leaf mode {
+    description "DHCP server mode";
+    type enumeration {
+        enum PORT;
+        enum MATCH;
+    }
+}
+
 container DHCP_SERVER_IPV4_MATCH {
 
     description "DHCP_SERVER_IPV4_MATCH part of config_db.json";
