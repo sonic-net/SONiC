@@ -58,7 +58,11 @@ This indirection is unnecessary because:
 
 2. **D-Bus adds complexity without security benefit.** The container can already execute any host command via `nsenter --target 1`. The D-Bus path through host-services is a middleman that adds IPC latency, a failure domain (host-services must be running), and debugging complexity.
 
-3. **Many operations can use Go-native APIs.** Instead of D-Bus → Python → `subprocess.run("systemctl restart ...")`, the gnmi container can call the systemd D-Bus interface directly via the already-present `godbus/dbus/v5` library. Similarly for file I/O, HTTP downloads, and Redis access.
+3. **sonic-host-services is single-threaded and blocks on subprocesses.** The service runs a GLib main loop (`GObject.MainLoop`) with `dbus-python` bindings. D-Bus method handlers execute synchronously on the main loop — a long-running `subprocess.run()` (e.g., `sonic-installer install`, `generate_dump`, `config apply-patch`) blocks the entire service, preventing all other D-Bus method calls from being dispatched until it completes. Only `reboot` and `gnoi_reset` spawn background threads; the remaining 10 modules (including all config, image, file, and debug operations) block the main loop directly. This means a single slow operation (image install can take minutes) stalls all concurrent gNMI/gNOI requests that route through host-services.
+
+4. **KubeSonic portability.** In KubeSonic deployments, the gnmi container is shipped independently and may run against older host OS versions where sonic-host-services has a different (or missing) set of D-Bus modules. Operations that depend on host-services D-Bus interfaces will silently lose support. Eliminating the dependency allows the gnmi container to be self-contained and version-independent.
+
+5. **Many operations can use Go-native APIs.** Instead of D-Bus → Python → `subprocess.run("systemctl restart ...")`, the gnmi container can call the systemd D-Bus interface directly via the already-present `godbus/dbus/v5` library. Similarly for file I/O, HTTP downloads, and Redis access.
 
 ## Requirements
 
