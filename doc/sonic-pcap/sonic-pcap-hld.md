@@ -578,7 +578,7 @@ No impact. sonic-pcap creates ephemeral mirror sessions for debugging. Sessions 
 
 ## 18. Open Questions
 
-1. **SAI vendor support timeline**: Which vendors will implement `MONITOR_PORT=CPU` first? Cisco Silicon One is the most likely candidate (IOS-XR EPC on same hardware proves NPU capability).
+1. **SAI vendor support timeline**: Which vendors will implement `MONITOR_PORT=CPU` first? Each vendor already has ASIC-to-CPU infrastructure that could be extended.
 
 2. **Netdev naming convention**: Should the CPU mirror netdev be standardized as `mirror0` across all vendors, or should sonic-pcap discover it dynamically? Current design supports both (checks known names, falls back to config file).
 
