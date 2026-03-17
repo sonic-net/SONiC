@@ -111,6 +111,8 @@ Configuration of match condition feature can be done via:
 
 * **New `MATCH` mode.** The `DHCP_SERVER_IPV4` table's `mode` field gains a new enum value `MATCH`. When `mode=MATCH`, the DHCP server reads from `DHCP_SERVER_IPV4_MATCH` and `DHCP_SERVER_IPV4_BINDING` tables. When `mode=PORT`, behavior is unchanged. Different VLANs can use different modes independently.
 
+* **Mode switching.** When a VLAN's mode is changed from `PORT` to `MATCH`, the `DHCP_SERVER_IPV4_PORT` entries for that VLAN are ignored and the server is reconfigured using `BINDING` entries only. Active leases are not revoked — they expire naturally per their lease time. Operators should configure `BINDING` entries before switching modes to avoid a gap in service.
+
 * **Match conditions are the building blocks.** Each condition tests a single DHCP packet field. Conditions are composed via AND logic in bindings. This includes port identity — `circuit_id` is a match type, not a structural key.
 
 * **Unified design.** Port identification and DHCP option matching use the same `DHCP_SERVER_IPV4_MATCH` table and `DHCP_SERVER_IPV4_BINDING` table. There is no separate port-coupled table for match bindings.
@@ -178,6 +180,8 @@ When a VLAN has multiple bindings with overlapping conditions, more-specific bin
 
 For example, a "VendorA device on etp1" matches both a 2-condition binding [port_etp1, vendor_a] and a 1-condition binding [port_etp1]. The more-specific 2-condition binding takes priority.
 
+**Note:** Operators should avoid creating multiple bindings with the same number of conditions that can both match the same client. If such an overlap exists, the behavior is non-deterministic. This is considered a misconfiguration.
+
 ## DB Changes
 
 ### Config DB
@@ -200,7 +204,7 @@ Two new tables are added. One existing table is extended with a new mode value.
 | Field | Type   | Required | Description |
 |-------|--------|----------|-------------|
 | type  | enum   | Yes      | Match type. Currently: `circuit_id`, `option60`. Extensible for future types. |
-| value | string | Yes      | Value to match against (exact match). For `circuit_id`, this is the port alias (e.g., "etp1"). |
+| value | string | Yes      | Value to match against (exact match). For `circuit_id`, the user configures the **port alias** (e.g., "etp1"); the implementation constructs the full on-wire Circuit ID (`hostname:port_alias`) internally, consistent with existing `PORT` mode behavior. |
 
 **DHCP_SERVER_IPV4_BINDING** — Associates match condition(s) with an IP pool.
 
@@ -211,8 +215,8 @@ Key format: `<vlan>|<binding_name>`
 | Field   | Type      | Required | Description |
 |---------|-----------|----------|-------------|
 | matches | leaf-list | Yes      | One or more references to `DHCP_SERVER_IPV4_MATCH` entries. Combined with AND logic. |
-| ips     | leaf-list | No       | Direct IP assignment. Mutually exclusive with `ranges`. |
-| ranges  | leaf-list | No       | Range references. Mutually exclusive with `ips`. |
+| ips     | leaf-list | No       | Direct IP assignment. Mutually exclusive with `ranges`. At least one of `ips` or `ranges` must be provided (enforced at application level). |
+| ranges  | leaf-list | No       | Range references. Mutually exclusive with `ips`. At least one of `ips` or `ranges` must be provided (enforced at application level). |
 
 #### Unchanged Tables
 
