@@ -78,73 +78,35 @@ This indirection is unnecessary because:
 
 ### Current Architecture (D-Bus)
 
-```
-┌─────────────────────────────────────────────────┐
-│                 gnmi container                   │
-│                                                  │
-│  gNMI/gNOI Client Request                        │
-│        │                                         │
-│        ▼                                         │
-│  RPC Handler (gnoi_*.go / mixed_db_client.go)    │
-│        │                                         │
-│        ▼                                         │
-│  DbusClient (dbus_client.go)                     │
-│        │                                         │
-│        │ D-Bus IPC over /var/run/dbus             │
-└────────┼─────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────┐
-│              Host (outside container)             │
-│                                                  │
-│  sonic-host-services (Python)                    │
-│        │                                         │
-│        ▼                                         │
-│  Handler Module (config_handler.py, etc.)        │
-│        │                                         │
-│        ▼                                         │
-│  subprocess.run() / os.stat() / docker API       │
-└─────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph gnmi container
+        A[gNMI/gNOI Client Request] --> B[RPC Handler<br/>gnoi_*.go / mixed_db_client.go]
+        B --> C[DbusClient<br/>dbus_client.go]
+    end
+
+    C -- "D-Bus IPC over /var/run/dbus" --> D
+
+    subgraph Host
+        D[sonic-host-services<br/>Python] --> E[Handler Module<br/>config_handler.py, etc.]
+        E --> F["subprocess.run() / os.stat() / docker API"]
+    end
 ```
 
 ### Proposed Architecture (Direct)
 
-```
-┌──────────────────────────────────────────────────┐
-│                 gnmi container                    │
-│                                                   │
-│  gNMI/gNOI Client Request                         │
-│        │                                          │
-│        ▼                                          │
-│  RPC Handler (gnoi_*.go / mixed_db_client.go)     │
-│        │                                          │
-│        ▼                                          │
-│  pkg/host/* packages (direct_client.go)           │
-│        │                                          │
-│        ├─── Tier 1: Go-Native API ────────────┐   │
-│        │    • os.Stat/Remove on /mnt/host      │   │
-│        │    • net/http, pkg/sftp downloads      │   │
-│        │    • go-redis for CONFIG_DB reads      │   │
-│        │    • godbus → systemd1 D-Bus directly  │   │
-│        │    • docker/client.ImageLoad()         │   │
-│        │      via /var/run/docker.sock          │   │
-│        │                                       │   │
-│        └─── Tier 2: nsenter ──────────────────┐│   │
-│             • exec.RunHostCommand()            ││   │
-│             • nsenter --target 1 --all --      ││   │
-│             • config reload/replace/apply-patch││   │
-│             • sonic-installer install/list     ││   │
-│             • generate_dump                    ││   │
-│             • protected file remove            ││   │
-└────────────────────────────────────────────────┘│   │
-                                                  │   │
-                ┌─────────────────────────────────┘   │
-                │ Host namespace (via nsenter)          │
-                │ • config CLI                          │
-                │ • sonic-installer                     │
-                │ • generate_dump                       │
-                │ • protected file remove               │
-                └──────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph gnmi container
+        A[gNMI/gNOI Client Request] --> B[RPC Handler<br/>gnoi_*.go / mixed_db_client.go]
+        B --> C["pkg/host/* packages"]
+
+        C --> T1["Tier 1: Go-Native API<br/>os.Stat/Remove on /mnt/host<br/>net/http, pkg/sftp downloads<br/>go-redis for CONFIG_DB<br/>godbus → systemd1 D-Bus<br/>docker/client.ImageLoad()"]
+
+        C --> T2["Tier 2: nsenter<br/>exec.RunHostCommand()<br/>nsenter --target 1 --all --"]
+    end
+
+    T2 --> H["Host namespace<br/>config CLI<br/>sonic-installer<br/>generate_dump<br/>protected file remove"]
 ```
 
 The key architectural change is removing the sonic-host-services process as an intermediary. The gnmi container directly performs operations using the access it already has.
