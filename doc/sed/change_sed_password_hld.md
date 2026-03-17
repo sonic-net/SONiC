@@ -4,93 +4,121 @@
 
 | Rev | Date | Author | Change Description |
 |:---:|:----:|:------:|:-------------------|
-| 0.1 | 01/2026 | | Initial version |
+| 0.1 | 03/2026 | | Initial version |
 
 ## 2. Scope
 
-This document describes the high-level design for "Change SED (Self-Encrypting Drive) password" in SONiC.
-It covers the ability to change and reset SED passwords through SONiC CLI commands using the platform API.
+This document describes the high-level design for SED (Self-Encrypting Drive) password management in SONiC.
+It covers changing and resetting SED passwords via SONiC CLI using the platform API.
 
 ## 3. Definitions/Abbreviations
 
 | Definitions/Abbreviation | Description |
 |--------------------------|-------------|
 | SED | Self-Encrypting Drive |
+| TPM | Trusted Platform Module |
+| PBA | Pre-boot Authentication |
 
 ## 4. Overview
 
-Self-Encrypting Drives (SEDs) provide hardware-based encryption for storage devices, protecting all data on the drive.
-SEDs are typically enabled at the factory, and come with a default password. Without the correct password, the drive remains locked and data is inaccessible.
-There is a dedicated software which responsible for unlocking the disk before the boot (PBA - Pre-boot Authentication) - It doesn't part of the NOS.
+Self-Encrypting Drives (SEDs) provide hardware-based encryption for storage devices.
+SEDs are typically enabled at the factory with a default password. Without the correct password, the drive remains locked and data is inaccessible.
+A dedicated pre-boot component (PBA) is responsible for unlocking the disk before the OS boots; that component is outside SONiC.
 
-A key use case is replacing the default password to improve security.
-While it is technically possible to change the SED password using external tools such as sedutil-cli, it is safer and more consistent to provide a SONiC CLI that wraps this functionality.
+A key use case is replacing the default password for security. SONiC provides a CLI that wraps SED password change and reset.
+The design is largely common across platforms:
+shared scripts and a recovery service use TPM banks to store and recover the SED password, with platform-specific values supplied via configuration and a small platform layer.
 
-SONiC's responsibility is to provide the CLI infrastructure to change and reset the SED password using a new SONiC CLI.
-This feature introduces vendor-agnostic CLI commands.
-The CLI provides a consistent interface, while the underlying implementation is platform-specific,
-allowing each vendor to integrate with its own tooling, secure storage mechanisms, and boot-time unlock flows according to the platform capabilities.
+- **Common:** CLI, `SedMgmtBase` API, `sedutil` package, scripts (`sed_pw_change.sh`, `sed_pw_reset.sh`, `sed_pw_utils.sh`, `sed_pw_tpm_recovery.sh`),
+recovery systemd service, and config file format (`/etc/sonic/sed_config.conf` for TPM bank addresses).
+- **Platform-specific:** Chassis returns a `SedMgmt` instance (or `None`), implementation of abstract getters (password length bounds, default password), and any platform-only scripts.
 
 ## 5. Requirements
 
 | Requirement | Description |
 |-------------|-------------|
-| SSD | SSD with an activated SED support (LockingEnabled = Y LockingSupported = Y) |
-| Platform Support | Platform must implement chassis APIs for SED management (`change_sed_password`, `reset_sed_password`) |
+| SSD | SSD with SED support enabled (e.g. LockingEnabled = Y, LockingSupported = Y) |
+| Platform support | Platform that supports SED management provides a `SedMgmt` implementation and exposes it via `chassis.get_sed_mgmt()`. |
+| TPM / config | For TPM-based platforms: TPM banks for current SED password (A/B). Config file `/etc/sonic/sed_config.conf` supplies `tpm_bank_a` and `tpm_bank_b` where applicable. |
 
 ## 6. Architecture Design
 
-The SED password management feature integrates with SONiC's existing platform API architecture. The CLI commands interact with the platform's chassis object to perform SED password operations.
+The feature integrates with SONiC's platform API:
 
-## 7. High-Level Design
-
-This feature is generic at the CLI and API level, but necessarily platform-specific at the execution layer.
-This is because SED enablement, tooling, cryptography, secret storage, and boot-time unlock flows are all vendor-defined and highly platform-dependent.
-This design follows the standard SONiC model:
-Common user interface + Abstract platform API + Vendor-owned implementation.
+- **CLI** (`config sed change-password`, `config sed reset-password`) obtains the chassis and calls `chassis.get_sed_mgmt()`.
+If the result is `None`, the CLI reports that SED management is not supported. Otherwise it calls `sed_mgmt.change_sed_password(password)` or `sed_mgmt.reset_sed_password()`.
+- **SedMgmtBase** (common) implements `change_sed_password` and `reset_sed_password` by validating input, gathering parameters from abstract getters, and invoking the common shell scripts.
+- **Platform** provides a concrete `SedMgmt` that implements the abstract getters (min/max password length, default password).
+- **Scripts** are common and parameterized: they receive TPM bank addresses and passwords as arguments or from the config file.
+- **Recovery service** It runs a common script to align the TPM banks in case one of them is corrupted.
 
 ![SED High Level Design](../../images/sed/sed_hld.png)
 
-### Module Elements Breakdown
+## 7. High-Level Design
 
-1. SONiC CLI creates a chassis object of the current platform (platform API).
-2. If the chassis object of the current platform has implementation for `change_sed_password`, it will be called.
-   Otherwise: "Error: SED management not supported on this platform"
-3. The same applies for `reset_sed_password`.
+### 7.1 API and Class Hierarchy
+
+- **ChassisBase** defines `get_sed_mgmt()` returning `self._sed_mgmt` (default `None`). Platforms that support SED override it to return a `SedMgmt` instance.
+- **SedMgmtBase** (common) defines the behavior of change and reset and relies on the following abstract getters implemented by the platform:
+  - `get_min_sed_password_len()` → int
+  - `get_max_sed_password_len()` → int
+  - `get_default_sed_password()` → str
+- **SedMgmt** extends `SedMgmtBase`, implements the abstract getters.
+
+### 7.2 Common Components
+
+| Component | Description |
+|-----------|-------------|
+| sed_pw_change.sh | Common script to change SED password. Invoked with `-a <tpm_bank_a> -b <tpm_bank_b> -p <new_password>`. |
+| sed_pw_reset.sh | Common script to reset SED password to a given value. Invoked with `-a -b -p <default_password>`; |
+| sed_pw_tpm_recovery.sh | Common recovery script: reads `tpm_bank_a` and `tpm_bank_b` from `/etc/sonic/sed_config.conf`; It runs TPM bank validation and recovery. |
+| sed-pw-tpm-recovery.service | Systemd oneshot service; runs `sed_pw_tpm_recovery.sh`. |
+
+### 7.3 Change Password Flow
+
+1. User runs `config sed change-password -p <NEW_PASSWORD>`.
+2. CLI gets chassis, then `chassis.get_sed_mgmt()`.
+3. CLI calls `sed_mgmt.change_sed_password(new_password)`.
+4. `SedMgmtBase.change_sed_password` validates length using `get_min_sed_password_len()` and `get_max_sed_password_len()`, then gets `get_tpm_bank_a_address()` and `get_tpm_bank_b_address()`.
+5. Base runs: `sed_pw_change.sh -a <bank_a> -b <bank_b> -p <new_password>`.
+
+![Change SED Password](../../images/sed/change_sed_pw.png)
+
+### 7.4 Reset Password Flow
+
+1. User runs `config sed reset-password`.
+2. CLI gets chassis, then `chassis.get_sed_mgmt()`.
+3. CLI calls `sed_mgmt.reset_sed_password()`.
+4. `SedMgmtBase.reset_sed_password` gets default password via `get_default_sed_password()` and TPM bank addresses;
+5. Base runs: `sed_pw_reset.sh -a <bank_a> -b <bank_b> -p <default_password>`.
+
+### 7.5 TPM Recovery Service Flow
+
+1. At boot, `sed-pw-tpm-recovery.service` runs `sed_pw_tpm_recovery.sh`.
+
+![SED TPM recovery](../../images/sed/sed_tpm_recovery.png)
 
 **Change SED Password:**
 ```python
 chassis = platform.Platform().get_chassis()
-chassis.change_sed_password(password)
+sed_mgmt = chassis.get_sed_mgmt()
+if sed_mgmt is None:
+    return
+sed_mgmt.change_sed_password(password)
 ```
 
 **Reset SED Password:**
 ```python
 chassis = platform.Platform().get_chassis()
-chassis.reset_sed_password()
+sed_mgmt = chassis.get_sed_mgmt()
+if sed_mgmt is None:
+    return
+sed_mgmt.reset_sed_password()
 ```
 
-### Change Password Flow
+## 8. CLI Reference
 
-The change password CLI command allows the user to set a new SED password.
-
-**CLI Command:**
-```
-config sed change-password -p <NEW_PASSWORD>
-```
-
-### Reset Password Flow
-
-The reset password CLI command allows the user to reset the SED password to default.
-
-**CLI Command:**
-```
-config sed reset-password
-```
-
-## 8. CLI Enhancements
-
-### Change Password CLI
+### 8.1 Change Password CLI
 
 Change the SED password to a new value:
 
@@ -111,9 +139,9 @@ admin@sonic:~$ config sed change-password -p <NEW_PASSWORD>
 SED password change process completed successfully
 ```
 
-### Reset Password CLI
+### 8.2 Reset Password CLI
 
-Reset the SED password to a default value
+Reset the SED password to the platform default:
 
 ```
 admin@sonic:~$ config sed reset-password --help
