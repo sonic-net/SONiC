@@ -24,9 +24,11 @@
         * [2.2.2.1 DB schema](#2221-db-schema)        
       * [2.2.3 Hw watchdog](#223-hw-watchdog)
       * [2.2.4 Platform APIs](#224-platform-apis)
-    * [2.3 BMC CLI Commands](#22-bmc-cli-commands)
+    * [2.3 BMC CLI Commands](#23-bmc-cli-commands)
       * [2.3.1 Config commands](#231-config-commands)
       * [2.3.2 Show commands](#232-show-commands)
+    * [2.4 Switch-Host and BMC platform management interaction](#24-switch-host-and-bmc-platform-management-interaction)
+    * [2.5 Firmware upgrade](#25-firmware-upgrade)
   * [3 Future Items](#3-future-items)
 
       
@@ -51,22 +53,21 @@ This document provides design requirements and interactions between platform dri
 ### 1.1. Functional Requirements
 This section captures the functional requirements for platform capabilities in sonic BMC
 
-Common requirements
+General requirements
 * BMC has a SONiC instance running independently of SONiC running in Switch-Host
 * BMC can access Switch-Host redis DB over this internal Host-Bmc-Link and viceversa.
 * BMC will manage the Switch Host to support operations like soft reboot, power up/down, power-cycle, get operational status.
 * BMC and Switch-Host shall enable an independent Hw watchdog timer.
 * BMC and Switch-Host can be power ON and OFF independently.
 * BMC shall remain operational (UP) during system leak events, power or voltage faults affecting the host system, provided standby power rail remains available
-* Firmware upgrade of components is done on Switch-Host or BMC (based on who owns the component, eg: Leak CPLD could be owned and upgraded from BMC)
-  The upgrade process could be either during sonicimage-install or using fwutil cli.
+* Firmware upgrade of components is done on Switch-Host or BMC based on who owns the component
 
-Liquid cooled sku
+Liquid cooled sku requirements
 * BMC will manage leak detection, read local leak sensors, its severity and enforces mitigation actions according to system-wide SONiC policy.
 * BMC will get inputs from external Rack Manager on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure and Rack level Leak. It takes action based on policy.  
 * Switch-Host has thermalctld managing its thermal sensors and automatically power down when any sensor temperature exceeds the critical thresholds.
 
-Air cooled sku
+Air cooled sku requirements
 * Switch-Host has thermalctld managing its thermal sensors and control the fan/cooling as done today.
     
 ### 1.2. BMC Platform Stack
@@ -251,7 +252,7 @@ The Leak detection is applicable only to Liquid cooling platform. The action is 
 #### 2.1.6 BMC event logging
 
 The general syslogs will be placed in /var/log/syslog where /var/log directory will be mounted on **tmpfs**. Syslogs will be sent to remote server as well.
-The Leak, Switch-Host state and interactions, Rack-manager interactions will be persistently stored on disk/eMMC in "/host/bmc.log" with log rotation enabled.
+The Leak, Switch-Host state and interactions, Rack-manager interactions will be persistently stored on disk/eMMC in "/host/bmc/event.log" with log rotation enabled.
 
 
 ### 2.2 BMC Platform Management
@@ -433,9 +434,10 @@ This base class is already defined in sonic-platform-common. Additional new plat
 | get_name() | Y | Get leak sensor name |
 | is_leak() | Y | Is there a leak detected? **Applies debounce logic before reporting or clearing a leak** |
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
-| get_type() | New | What type of leak sensor is this rope, flex, spot etc |
-| get_location() | New | Location of leak sensor |
-| get_severity() | New | Get the severity based on the criticality of the zone |
+| get_leak_sensor_type() | New | What type of leak sensor is this rope, flex, spot etc |
+| get_leak_sensor_location() | New | Location of leak sensor |
+| get_leak_severity() | New | Get the severity based on the criticality of the zone |
+| get_leak_profile() | New | Returns the leak sensor profile associated with this sensor |
 
 
 #### LeakSensorProfileBase
@@ -443,8 +445,7 @@ This base class is for getting the platform specific leak sensor profile
 
 | Method | Present | Action |
 |---------|---------|----------|
-| get_leak_sensor_type() | New | What type of leak sensor is this rope, flex, spot etc |
-| get_leak_max_minor_duration_sec() | New | Get MAX-T time before which a minor leak can be marked CRITICAL |
+| get_leak_max_minor_duration_sec() | New | Get MAX time before which a minor leak can be marked CRITICAL |
 
 
 #### LiquidCoolingBase
@@ -622,5 +623,23 @@ leak_sensors2    NO           OK                 rope           NA
 leak_sensorsX    Yes          OK                 flex           CRITICAL
 
 ```
+
+#### 2.4 Switch-Host and BMC platform management interaction
+
+
+
+#### 2.5 Firmware upgrade
+
+Firmware upgrade of components is done on Switch-Host or BMC (based on who owns the component, eg: Leak CPLD could be owned and upgraded from BMC).
+The upgrade process could be either during sonicimage-install or using fwutil cli.
+
+Below is a sample reference,
+
+| Firmware upgrade   | Switch-Host reset required | BMC reset required | Who does FW upgrade |
+|--------------------|----------------------------|--------------------|---------------------|
+| BMC Uboot          |         No                 |         Yes        |    BMC              |
+| CPU CPLD           |         Yes                |         No         |    Switch-Host      |
+| Leak CPLD FW       |         No                 |         Yes        |    BMC              |
+| Switch FPGA/CPLD   |         Yes                |         No         |    Switch-Host      |
 
 ## 3 Future Items
