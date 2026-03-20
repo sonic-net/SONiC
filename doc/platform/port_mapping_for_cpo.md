@@ -183,7 +183,11 @@ The key details of this configuration approach are as follows:
 * platform.json remains the same, providing information about how ASIC lanes map to interfaces, what breakout modes are supported and mapping information about interfaces to physical front-panel ports.
 * A new file called optical_devices.json is introduced. This file describes all the optical devices present in the chassis in the "devices" section. It also describes how each of those devices are used by the interfaces defined in platform.json in the "interfaces" section.
 * The association of CMIS banks for each device is also encoded in the "interfaces" section of the optical_devices.json file. This can be used by banking logic in SONiC platform APIs, per the [banking HLD](https://github.com/sonic-net/SONiC/pull/2183).
-* `optical_devices.json` will be located in `/usr/share/sonic/device/<platform>/`, alongside `platform.json`.
+* `optical_devices.json` supports a two-stage lookup to accommodate hwsku-specific port mappings. Different SKUs under the same platform may wire logical interfaces to physical optical devices differently, so the file can be placed in either the hwsku or platform directory:
+  1. First, look for `optical_devices.json` in the current hwsku directory: `/usr/share/sonic/device/<platform>/<hwsku>/optical_devices.json`. If found, use it.
+  2. If no hwsku-specific file is found, fall back to the platform directory: `/usr/share/sonic/device/<platform>/optical_devices.json`.
+
+  This allows a single file to be shared across many hwskus under the same platform while still permitting per-hwsku overrides when the port mapping differs.
 
 #### **7.2 Future Proofing**
 
