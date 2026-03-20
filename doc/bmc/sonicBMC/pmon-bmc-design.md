@@ -28,6 +28,8 @@
       * [2.3.1 Config commands](#231-config-commands)
       * [2.3.2 Show commands](#232-show-commands)
     * [2.4 Switch-Host and BMC platform management interaction](#24-switch-host-and-bmc-platform-management-interaction)
+      * [2.4.1 pmon/thermalctld](#241-pmonthermalctld)
+      * [2.4.2 CLI commands](#242-cli-commands)
     * [2.5 Firmware upgrade](#25-firmware-upgrade)
   * [3 Future Items](#3-future-items)
 
@@ -36,7 +38,8 @@
 
  | Rev |     Date    |       Author                                                         | Change Description                |
  |:---:|:-----------:|:--------------------------------------------------------------------:|-----------------------------------|
- | 1.0 |             |                                                                      | Initial version                   |
+ | 1.0 |             |       Judy Joseph                                                    | Initial version                   |
+
 
 # Scope
 This document provides design requirements and interactions between platform drivers and PMON for SONiC on BMC 
@@ -60,7 +63,7 @@ General requirements
 * BMC and Switch-Host shall enable an independent Hw watchdog timer.
 * BMC and Switch-Host can be power ON and OFF independently.
 * BMC shall remain operational (UP) during system leak events, power or voltage faults affecting the host system, provided standby power rail remains available
-* Firmware upgrade of components is done on Switch-Host or BMC based on who owns the component
+* Firmware upgrade of components is done on Switch-Host or BMC based on who owns the component and what needs a reboot.
 
 Liquid cooled sku requirements
 * BMC will manage leak detection, read local leak sensors, its severity and enforces mitigation actions according to system-wide SONiC policy.
@@ -230,8 +233,8 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 || Switch Host State (Start) | Event | Action | Switch Host State (Final) 
 |--|---|---|---|---|
 |1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, Power OFF Switch Host | OFFLINE 
-|2| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog, graceful-shutdown Switch Host | OFFLINE 
-|3| ONLINE  | RACK_MGR POWER OFF request | Syslog, graceful-shutdown Switch Host | OFFLINE 
+|2| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event + Syslog the thermal sensor data | ONLINE
+|3| ONLINE  | RACK_MGR SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE
 |4| ONLINE  | CHASSIS_MODULE admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE 
 |5| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, External monitoring tool take action | ONLINE
 |6| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, External monitoring tool to take action | ONLINE
@@ -288,7 +291,7 @@ NO External/Local_System LEAK present
 
 Subscribe to RACK_MANAGER_COMMAND table, CHASSIS_MODULE table, RACK_MANAGER_ALERT* tables and SYSTEM_LEAK_STATUS table in STATE_DB 
 On an Event 
-  - if POWER_OFF request or CRITICAL Alert from Rack Manager (SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands))
+  - if SHUTDOWN command from Rack manager
       - JUMP to --> **GRACEFUL_SHUT_DOWN_SWITCH_HOST:
       - update the HOST_STATE|switch-host with the device_power_state.
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
@@ -303,16 +306,17 @@ On an Event
       - JUMP to --> **GRACEFUL_SHUT_DOWN_SWITCH_HOST:
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if Local SYSTEM_LEAK
+  - if CRITICAL Local SYSTEM_LEAK event
       - SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands)
       - Call the platform API module->set_admin_state(DOWN) to power OFF the Switch-Host
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if MINOR Local OR External leak
+  - if MINOR Local OR External-Rack-Mgr leak event
       - SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands)
       - Syslog, and let the external monitoring Tool isolate the device.
 
-  - if CLEAR of MINOR/CRITICAL Local AND External leak
+  - if CLEAR of MINOR/CRITICAL Local AND External-Rack-Mgr leak
+      - No Local action on BMC
       - POWER_ON to be controlled by an External tool/user CLI.
 
 
@@ -341,7 +345,7 @@ boot_delay                = float                        ; Time in secs after po
 key                       = HOST_STATE|switch-host       ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
 device_power_state        = POWER_ON | POWER_OFF         ; What was the last action done on Switch-Host
-device_status             = ONLINE | OFFLINE             ; current oper status of device
+device_status             = ONLINE | OFFLINE             ; current oper status of device, can use the platform API module->get_oper_state()
 last_change_timestamp     = STR
 
 
@@ -465,10 +469,10 @@ Switch-Host can be modelled as a Module object and the APIs to control power on/
 
 | Method | Present | Action |
 |---------|---------|----------|
-| set_admin_state(UP) | Y | Power ON Switch Host from standby/off |
-| set_admin_state(DOWN) | Y | Power OFF Switch Host |
+| set_admin_state(up=True) | Y | Power ON Switch Host from standby/off |
+| set_admin_state(up=False) | Y | Power OFF Switch Host |
 | get_oper_state() | Y | Fetch the operational state of Switch-Host|
-| set_admin_state(CYCLE) | New | Power cycle Switch Host|
+| do_power_cycle() | New | Power cycle Switch Host|
 
 
 Sample Implementation for BMC
@@ -525,12 +529,16 @@ This base class is already defined in sonic-platform-common.
 
 
 ### 2.3 BMC CLI Commands
-CLI commands to support BMC operation are below
+
+Following is the config and show CLI commands which are either newly added or needs a change to support BMC.
+The keywords LC:Liquid Cooled , AC:Air Cooled is used to denote which sku these CLIs are applicable.
 
 #### 2.3.1 Config commands
 
-1. CLI to enable user to graceful power on/off the Switch-Host. 
-   This could be used in an **Air cooled switch** also to recover the Switch-Host in case of a software failure.
+* config chassis modules startup/shutdown <Switch-Host>
+
+CLI to enable user to graceful power on/off the Switch-Host. 
+Applicable to (LC, AC)
 
 ```
 config chassis modules startup <Switch-Host>
@@ -552,12 +560,14 @@ config chassis modules shutdown <Switch-Host>
     }    
 ```
 
-2 CLI to control the Local leak, Rack-Manager external leak policy apply
-  This is applicable only to **liquid cooled switch**
+* config liquidcool leak-control
+
+CLI to control the Local leak, Rack-Manager leak policy enforcement
+Applicable to (LC)
 
 ```
 config liquidcool leak-control [local|rack_mgr] [enabled|disabled]
-   - This command helps user to enable and disable local/external leak policy application in BMC
+   - This command helps user to enable and disable local/rack-mgr-external leak policy application in BMC
    - Default is enabled.
 ```
 
@@ -573,7 +583,28 @@ config liquidcool leak-control [local|rack_mgr] [enabled|disabled]
 
 ##### 2.3.2 Show commands 
 
-* Command to show the status of BMC and Switch-Host 
+* show version 
+
+This command to display the Serial number of both BMC and Switch-Host. 
+There is a new field named "Switch-Host Serial Number" which will show the Switch serial number
+
+```
+show version 
+
+.....
+ASIC Count: 1
+Serial Number: <BMC serial number>
+Switch-Host Serial Number: <Switch serial number>
+Model Number: <>
+...
+
+```
+
+* show chassis module status
+ 
+Command to show the status of BMC and Switch-Host(using the platform API module->get_oper_state())
+ 
+Applicable to (LC, AC)
 
 ```
 show chassis module status
@@ -585,7 +616,10 @@ show chassis module status
 
 ```
 
-* Command to show leak control policy configuration
+* show platform leak control_policy
+
+Command to show leak control policy configuration
+Applicable to (LC)
 
 ```
 
@@ -595,7 +629,10 @@ show platform leak control_policy
 
 ```
 
-* Command to show leak rack-manager alerts
+* show platform leak rack-manager alerts
+
+Command to show leak rack-manager alerts
+Applicable to (LC)
 
 ```
 show platform leak rack-manager alerts
@@ -603,7 +640,10 @@ show platform leak rack-manager alerts
 
 ```
 
-* Command to show the leak profiles in system
+* show platform leak profiles
+
+Command to show the leak profiles in system
+Applicable to (LC)
 
 ```
 show platform leak profiles
@@ -611,21 +651,73 @@ show platform leak profiles
 
 ```
 
-* Command to display leak will be enhanced with more fields
+* show platform leak status
+
+Command to display leak will be enhanced with more fields
+Applicable to (LC)
 
 ```
 show platform leak status
 Name             Leak  Leak-sensor-status leak-sensor-type leak-severity
 ---------      ------- ------------------- ---------------- -------------
 leak_sensors1    NO           OK                 rope           NA
-leak_sensors2    NO           OK                 rope           NA
+leak_sensors2    NO           FAULTY             rope           NA
 ...
 leak_sensorsX    Yes          OK                 flex           CRITICAL
 
 ```
 
+* show platform temperature
+
+Command to display thermals on the Switch-Host in BMC
+Applicable to (LC, AC)
+
+```
+show platform temperature
+             Sensor    Temperature    High TH    Low TH    Crit High TH    Crit Low TH    Warning          Timestamp
+-------------------  -------------  ---------  --------  --------------  -------------  ---------  -----------------
+ Thermal sensor1         26.375         90         0             100             -15      False       20260319 22:46:58
+ Thermal sensor2         23.5           90         0             100             -15      False       20260319 22:46:58
+ Thermal sensor3         35.125         90         0             100             -15      False       20260319 22:46:58
+```
+
+
 #### 2.4 Switch-Host and BMC platform management interaction
 
+There are following enhancements planned in pmon running on SONiC in Switch-Host
+
+##### 2.4.1 pmon/thermalctld
+
+The thermalctld daemon will sent the thermal sensors polled and stored locally in redis-DB to redis-DB in the BMC also.
+
+BMC would use this thermal data to record the critical thermal deviation which can be used to either
+   (i) syslog which could be used for alert 
+   (ii) take action like shut the Switch-Host proactively before Switch-Host will be shutdown by hardware thermal trip.
+
+**Note:** In first phase we will just syslog the thermel sensor deviation in BMC event log and not trigger any action.
+
+![Thermal sensor data pushed to BMC](images/thermal_sensor.png)
+
+
+##### 2.4.2 CLI commands
+
+All SONiC commands are supported on Switch-Host. The following command needs enhancement.
+
+* show reboot-cause history
+
+Enhance the reboot reason to include the shutdown/powercycle commands from BMC 
+Applicable to (LC, AC)
+
+```
+show reboot-cause history 
+Name                 Cause                                                                 Time                             User    Comment
+-------------------  --------------------------------------------------------------------  -------------------------------  ------  ---------
+2026_03_18_04_38_17  reboot                                                                Wed Mar 18 04:37:21 AM UTC 2026  admin   N/A
+2026_03_18_02_06_06  shutdown from BMC                                                     Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
+2026_03_18_02_06_06  powercycle from BMC                                                   Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
+....
+
+```
 
 
 #### 2.5 Firmware upgrade
@@ -635,11 +727,14 @@ The upgrade process could be either during sonicimage-install or using fwutil cl
 
 Below is a sample reference,
 
-| Firmware upgrade   | Switch-Host reset required | BMC reset required | Who does FW upgrade |
+| Firmware upgrade   |      Switch-Host reboot    |     BMC reboot     | Who does FW upgrade |
 |--------------------|----------------------------|--------------------|---------------------|
 | BMC Uboot          |         No                 |         Yes        |    BMC              |
-| CPU CPLD           |         Yes                |         No         |    Switch-Host      |
+| CPU CPLD           |         Yes                |         Yes        |    Switch-Host      |
 | Leak CPLD FW       |         No                 |         Yes        |    BMC              |
 | Switch FPGA/CPLD   |         Yes                |         No         |    Switch-Host      |
+
+In case of a firmware upgrade which needs reboot of both Switch-Host and BMC, will do a FW upgrade on Switch-Host during a maintenance window. 
+
 
 ## 3 Future Items
