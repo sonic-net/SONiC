@@ -311,6 +311,12 @@ On an Event
       - Call the platform API module->set_admin_state(DOWN) to power OFF the Switch-Host
       - update the HOST_STATE|switch-host with the device_power_state.
 
+  - if CRITICAL External Rack-Manager Alert
+      - SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands)
+      - Syslog both the CRITICAL Rack Manager Alert message and Switch-Host thermal sensors which are above threshold
+      - No explicit Switch-host shutdown; It relies on thermal protection mechanisms to trip and shut down
+        if temperatures exceed critical thresholds.
+
   - if MINOR Local OR External-Rack-Mgr leak event
       - SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands)
       - Syslog, and let the external monitoring Tool isolate the device.
