@@ -233,14 +233,18 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 || Switch Host State (Start) | Event | Action | Switch Host State (Final) 
 |--|---|---|---|---|
 |1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, Power OFF Switch Host | OFFLINE 
-|2| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event + Syslog the thermal sensor data | ONLINE
-|3| ONLINE  | RACK_MGR SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE
-|4| ONLINE  | CHASSIS_MODULE admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE 
-|5| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, External monitoring tool take action | ONLINE
-|6| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, External monitoring tool to take action | ONLINE
-|7| OFFLINE  | POWER ON request | Power ON Switch Host, Syslog | ONLINE
+|2| ONLINE  | RACK_MGR_SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE
+|3| ONLINE  | CHASSIS_MODULE_admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE
+|4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and hot thermal sensors, External monitoring tool to take action | ONLINE
+|5| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, External monitoring tool to take action | ONLINE
+|6| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, External monitoring tool take action | ONLINE
+|7| OFFLINE  | RACK_MGR_ POWERON command | Power ON Switch Host, Syslog | ONLINE
+|8| OFFLINE  | CHASSIS_MODULE_admin_up user request | Power ON Switch Host, Syslog | ONLINE
 
 The BMC remains POWERED ON in all above scenarios.
+
+The Switch-Host will go and remain OFFLINE with events viz. LOCAL_LEAK_CRITICAL_EVENT, RACK_MGR_SHUTDOWN command, CHASSIS_MODULE_admin_down.
+It will be powered ON and come ONLINE only with external tool/user sending RACK_MGR_POWER_ON command or CHASSIS_MODULE_admin_up user request
 
 #### 2.1.5 BMC Leak detection and thermal policy
 
