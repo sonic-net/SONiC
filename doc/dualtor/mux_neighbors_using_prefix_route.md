@@ -23,6 +23,7 @@ Prefix based mux neighbors is an optimization of mux neighbors for dual ToR topo
     - [7.2.2 State-DB](#722-state-db)
   - [7.3 Utilities](#73-utilities)
     - [7.3.1 Dualtor neighbor check](#731-dualtor-neighbor-check)
+    - [7.3.2 Show CLI](#732-show-cli)
 - [8. Warm Reboot Support](#8-warm-reboot-support)
 
 <!-- /TOC -->
@@ -144,6 +145,20 @@ NEIGHBOR      MAC                PORT         MUX_STATE    IN_MUX_TOGGLE    NEIG
 192.168.0.9   fe:5b:87:84:a8:81  Ethernet24   active       no               yes                 no                consistent
 192.168.0.11  f6:56:ef:ae:8b:c3  Ethernet32   standby      no               no                  yes               consistent
 ```
+
+##### 7.3.2 Show CLI
+Existing CLI to show muxcable config will be enhanced to show the new field 'neighbor_mode'.
+```
+SWITCH_NAME    PEER_TOR
+-------------  ----------
+tor40-1        10.1.0.32
+port         state    ipv4             ipv6               cable_type     soc_ipv4         soc_ipv6    prober_type    neighbor_mode
+-----------  -------  ---------------  -----------------  -------------  ---------------  ----------  -------------  ---------------
+Ethernet0    auto     192.168.0.2/32   fc02:1000::2/128   active-active  192.168.0.3/32               software       host-route
+Ethernet8    auto     192.168.0.4/32   fc02:1000::4/128   active-active  192.168.0.5/32               software       prefix-route
+Ethernet16   auto     192.168.0.6/32   fc02:1000::6/128   active-active  192.168.0.7/32               software       prefix-route
+```
+
 ## 8 Warm Reboot Support
 TBD
 
