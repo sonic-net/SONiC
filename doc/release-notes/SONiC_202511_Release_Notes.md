@@ -1,4 +1,4 @@
-# SONiC 202511 Release Notes (Draft)
+# SONiC 202511 Release Notes (Review Draft)
 
 This document captures the new features added and enhancements done on existing features/sub-features for the SONiC [202511](https://github.com/orgs/sonic-net/projects/35/) release.
 
@@ -64,7 +64,7 @@ Note : The kernel version is migrated to the version that is mentioned in the fi
 | ***HLD Add multifpgapci module***  | This feature extends the PDDF framework to support multiple PCIe FPGAs in the system, expanding the current single‑FPGA capability and enabling full multi‑FPGA management within SONiC. | [2006](https://github.com/sonic-net/SONiC/pull/2006) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
 | ***Single-ASIC VOQ proposal*** | This feature adds support for operating SONiC in VOQ mode on single‑ASIC switch systems, enabling the required architecture and behavior for VOQ‑based operation. | [2008](https://github.com/sonic-net/SONiC/pull/2008) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
 | ***Enhancement: Make thermalctld polling intervals configurable*** | This feature makes the thermalctld polling intervals configurable, allowing vendors to adjust monitoring frequency based on their specific platform requirements.  | [24035](https://github.com/sonic-net/sonic-buildimage/issues/24035) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
-| ***Add HLD for Reboot support BlockingMode in SONiC*** | TThis feature introduces a blocking mode for the reboot script, replacing the current non‑blocking behavior to enable automation systems to reliably determine the success of reboot operations.  | [2016](https://github.com/sonic-net/SONiC/pull/2016) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
+| ***Add HLD for Reboot support BlockingMode in SONiC*** | This feature introduces a blocking mode for the reboot script, replacing the current non‑blocking behavior to enable automation systems to reliably determine the success of reboot operations.  | [2016](https://github.com/sonic-net/SONiC/pull/2016) | [Alpha](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC%20feature%20quality%20definition.md)  |
 
 
 Note : The HLD PR's have been updated in ""HLD PR / PR tracking"" coloumn. The code PR's part of the features are mentioned within the HLD PRs. The code PRs not mentioned in HLD PRs are updated in "HLD PR / PR tracking" coloumn along with HLD PRs.
