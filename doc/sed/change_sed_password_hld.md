@@ -76,7 +76,7 @@ If the result is `None`, the CLI reports that SED management is not supported. O
 
 ### 7.3 Change Password Flow
 
-1. User runs `config sed change-password -p <NEW_PASSWORD>`.
+1. User runs `config sed change-password` (with interactive prompt for the new password).
 2. CLI gets chassis, then `chassis.get_sed_mgmt()`.
 3. CLI calls `sed_mgmt.change_sed_password(new_password)`.
 4. `SedMgmtBase.change_sed_password` validates length using `get_min_sed_password_len()` and `get_max_sed_password_len()`, then gets `get_tpm_bank_a_address()` and `get_tpm_bank_b_address()`.
@@ -135,7 +135,8 @@ Options:
 
 Example:
 ```
-admin@sonic:~$ config sed change-password -p <NEW_PASSWORD>
+admin@sonic:~$ config sed change-password
+New SED password:
 SED password change process completed successfully
 ```
 
