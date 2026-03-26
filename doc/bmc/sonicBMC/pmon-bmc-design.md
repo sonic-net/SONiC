@@ -234,16 +234,20 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 
 | Event | Source | Description |
 |-------|--------|-------------|
-| `LOCAL_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on local leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table in [2.2.2.1 DB schema](#2221-db-schema). |
-| `LOCAL_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table in [2.2.2.1 DB schema](#2221-db-schema). |
-| `RACK_MGR_CRITICAL_EVENT` | External Rack Manager | A CRITICAL severity alert posted by the Rack Manager via Redfish (e.g. inlet temperature, flow rate, pressure, or rack-level leak). See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table in [2.1.2.1 DB schema](#2121-db-schema). |
-| `RACK_MGR_MINOR_EVENT` | External Rack Manager | A MINOR severity alert posted by the Rack Manager via Redfish. See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table in [2.1.2.1 DB schema](#2121-db-schema). |
-| `RACK_MGR_SHUTDOWN command` | External Rack Manager | An explicit `ComputerSystem.Reset` power-off command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table in [2.1.2.1 DB schema](#2121-db-schema). |
-| `RACK_MGR_POWERON command` | External Rack Manager | An explicit `ComputerSystem.Reset` power-on command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table in [2.1.2.1 DB schema](#2121-db-schema). |
-| `RACK_MGR_POWER_CYCLE command` | External Rack Manager | An explicit power-cycle command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table in [2.1.2.1 DB schema](#2121-db-schema). |
-| `CHASSIS_MODULE_admin_down` | User CLI | User issues `config chassis modules shutdown <Switch-Host>` on BMC. Written to `CHASSIS_MODULE` table in CONFIG_DB. See [2.3.1 Config commands](#231-config-commands). |
-| `CHASSIS_MODULE_admin_up` | User CLI | User issues `config chassis modules startup <Switch-Host>` on BMC. Written to `CHASSIS_MODULE` table in CONFIG_DB. See [2.3.1 Config commands](#231-config-commands). |
+| `LOCAL_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on local leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
+| `LOCAL_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table. |
+| `RACK_MGR_CRITICAL_EVENT` |  Rack Manager | A CRITICAL severity alert posted by the Rack Manager via Redfish (e.g. inlet temperature, flow rate, pressure, or rack-level leak). See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
+| `RACK_MGR_MINOR_EVENT` |  Rack Manager | A MINOR severity alert posted by the Rack Manager via Redfish. See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
+| `RACK_MGR_SHUTDOWN command` |  Rack Manager | An explicit `ComputerSystem.Reset` power-off command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
+| `RACK_MGR_POWERON command` |  Rack Manager | An explicit `ComputerSystem.Reset` power-on command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
+| `RACK_MGR_POWER_CYCLE command` |  Rack Manager | An explicit power-cycle command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
+| `CHASSIS_MODULE_admin_down` | User CLI | User issues `config chassis modules shutdown <Switch-Host>` on BMC. Written to `CHASSIS_MODULE` table. |
+| `CHASSIS_MODULE_admin_up` | User CLI | User issues `config chassis modules startup <Switch-Host>` on BMC. Written to `CHASSIS_MODULE` table. |
 
+&nbsp;
+&nbsp;
+
+**State Transitions**
 
 || Switch Host State (Start) | Event in BMC | Action taken in BMC | Switch Host State (Final) 
 |--|---|---|---|---|
@@ -356,17 +360,19 @@ On an Event
 - if action == `graceful_shutdown` &rarr; ==> **`GRACEFUL_SHUT_DOWN_SWITCH_HOST`**
 - if action == `power_off`         &rarr; Call platform API `module->set_admin_state(DOWN)` to power OFF the Switch-Host
 
+&nbsp;
+
+**`GRACEFUL_SHUT_DOWN_SWITCH_HOST:`**
 ```
-**GRACEFUL_SHUT_DOWN_SWITCH_HOST:
   - use GNOI framework to issue remote SOFT shutdown. The gnmi and sysmgr docker needs to be running on Switch-Host
     REF: https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/gnoi_system_hld.md, https://github.com/sonic-net/SONiC/pull/1489
   - start a timer based on shutdown_delay configured in SWITCH_HOST_SHUTDOWN_TIMEOUT|default table.
     - Timer expiry Handler, check the Switch-Host state using platform API.
   - if no response for GNOI request, call platform API module->set_admin_state(DOWN) to power down the Switch-Host
   - update the HOST_STATE|switch-host with the device_power_state.
-  
+```  
+&nbsp;
 
-```
 
 ![bmcctld events](images/bmcctld_events.png)
 
@@ -480,7 +486,7 @@ This base class is already defined in sonic-platform-common. Additional new plat
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
 | get_leak_sensor_type() | New | What type of leak sensor is this rope, flex_pcb, spot etc |
 | get_leak_sensor_location() | New | Location of leak sensor |
-| get_leak_severity() | New | Get the severity based on the criticality of the zone , or criticality of leak for a sensor for eg: more liquid presence |
+| get_leak_severity() | New | Get the severity based on the criticality of the zone or how sever is the leak for a sensor for eg: more liquid presence |
 | get_leak_profile() | New | Returns the leak sensor profile associated with this sensor |
 
 
@@ -621,6 +627,7 @@ config liquidcool leak-action local    critical [syslog_only|graceful_shutdown|p
 config liquidcool leak-action local    minor    [syslog_only|graceful_shutdown|power_off]
 config liquidcool leak-action rack_mgr critical_alert [syslog_only|graceful_shutdown|power_off]
 config liquidcool leak-action rack_mgr minor_alert    [syslog_only|graceful_shutdown|power_off]
+
    - syslog_only      : Log the event; no Switch-Host power action taken.
    - graceful_shutdown: Issue a graceful GNOI shutdown to Switch-Host; force power-off after SWITCH_HOST_SHUTDOWN_TIMEOUT if unresponsive.
    - power_off        : Immediately power off Switch-Host via platform API module->set_admin_state(DOWN).
@@ -790,11 +797,11 @@ Applicable to (LC, AC)
 
 ```
 show reboot-cause history 
-Name                 Cause                                                                 Time                             User    Comment
--------------------  --------------------------------------------------------------------  -------------------------------  ------  ---------
-2026_03_18_04_38_17  reboot                                                                Wed Mar 18 04:37:21 AM UTC 2026  admin   N/A
-2026_03_18_02_06_06  graceful shutdown from BMC                                            Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
-2026_03_18_02_06_06  power down request from BMC                                           Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
+Name                 Cause                                             Time                             User    Comment
+-------------------  -----------------------------------------------  -------------------------------  ------  ---------
+2026_03_18_04_38_17  reboot                                            Wed Mar 18 04:37:21 AM UTC 2026  admin   N/A
+2026_03_18_02_06_06  graceful shutdown from BMC                        Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
+2026_03_18_02_06_06  power down request from BMC                       Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
 ....
 
 ```
