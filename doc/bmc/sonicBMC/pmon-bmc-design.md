@@ -80,14 +80,14 @@ The SONiC in BMC interoperate with the SONiC in Switch-Host as in below diagram.
 
 ## 2. Detailed Architecture and workflows
 ### 2.1 BMC platform
-Update the vendor/platform/platform_env.conf with the following flags,
+Update the <vendor>/<platform>/platform_env.conf with the following flags,
 ```
-Switch_Host=1
-Liquid_cooled=true
+switch_host=1
+liquid_cooled=true
 ```
 ```
-Switch_BMC=1
-Liquid_cooled=true
+switch_bmc=1
+liquid_cooled=true
 ```
 
 "Liquid_cooled" flag is set to true on a liquid cooled switch.
@@ -118,7 +118,7 @@ Few of the URIs which needs to be supported in BMC are below,
     2. GET /redfish/v1/UpdateService/FirmwareInventory  
              -- Rack Manager to get switch firmware details
     3. POST /redfish/v1/Systems/System/Actions/ComputerSystem.Reset  
-             -- Rack Manager to power off/on Main_cpu_switch_board
+             -- Rack Manager to power on/off Switch-Host
     4. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitAlert
              -- Rack manager to post a critical alert to BMC
     5. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitTelemetry
@@ -138,7 +138,7 @@ Rack Manager command and state
 ```
 key                       = RACK_MANAGER_COMMAND|CMD_<command_id>         ; Commands from Rack Manager in STATE_DB in BMC
 ; field                   = value                                         ; e.g. ComputerSystem.Reset
-command                   = POWER_ON | POWER_OFF
+command                   = POWER_ON | POWER_OFF | POWER_CYCLE
 status                    = PENDING | IN_PROGRESS | DONE | FAILED         ; status of the command
 result                    = SUCCESS | ERROR_CODE | STRING                 ; was the command successfull
 timestamp                 = STR
@@ -230,16 +230,32 @@ The Switch-Host and BMC communicate over the Host-Bmc-Link for accessing redis D
 
 BMC controls the State of the Switch-Host based on various factors/events. Defining the various events, the start, final states of Switch-Host here,
 
-|| Switch Host State (Start) | Event | Action | Switch Host State (Final) 
+**Event Definitions**
+
+| Event | Source | Description |
+|-------|--------|-------------|
+| `LOCAL_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on local leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table in [2.2.2.1 DB schema](#2221-db-schema). |
+| `LOCAL_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table in [2.2.2.1 DB schema](#2221-db-schema). |
+| `RACK_MGR_CRITICAL_EVENT` | External Rack Manager | A CRITICAL severity alert posted by the Rack Manager via Redfish (e.g. inlet temperature, flow rate, pressure, or rack-level leak). See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table in [2.1.2.1 DB schema](#2121-db-schema). |
+| `RACK_MGR_MINOR_EVENT` | External Rack Manager | A MINOR severity alert posted by the Rack Manager via Redfish. See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table in [2.1.2.1 DB schema](#2121-db-schema). |
+| `RACK_MGR_SHUTDOWN command` | External Rack Manager | An explicit `ComputerSystem.Reset` power-off command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table in [2.1.2.1 DB schema](#2121-db-schema). |
+| `RACK_MGR_POWERON command` | External Rack Manager | An explicit `ComputerSystem.Reset` power-on command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table in [2.1.2.1 DB schema](#2121-db-schema). |
+| `RACK_MGR_POWER_CYCLE command` | External Rack Manager | An explicit power-cycle command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table in [2.1.2.1 DB schema](#2121-db-schema). |
+| `CHASSIS_MODULE_admin_down` | User CLI | User issues `config chassis modules shutdown <Switch-Host>` on BMC. Written to `CHASSIS_MODULE` table in CONFIG_DB. See [2.3.1 Config commands](#231-config-commands). |
+| `CHASSIS_MODULE_admin_up` | User CLI | User issues `config chassis modules startup <Switch-Host>` on BMC. Written to `CHASSIS_MODULE` table in CONFIG_DB. See [2.3.1 Config commands](#231-config-commands). |
+
+
+|| Switch Host State (Start) | Event in BMC | Action taken in BMC | Switch Host State (Final) 
 |--|---|---|---|---|
-|1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, Power OFF Switch Host | OFFLINE 
+|1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, Action configurable via `local_critical_leak_action` in LEAK_CONTROL_POLICY (default: Power OFF Switch Host) | OFFLINE
 |2| ONLINE  | RACK_MGR_SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE
 |3| ONLINE  | CHASSIS_MODULE_admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE
-|4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and hot thermal sensors, External monitoring tool to take action | ONLINE
-|5| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, External monitoring tool to take action | ONLINE
-|6| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, External monitoring tool take action | ONLINE
-|7| OFFLINE  | RACK_MGR_ POWERON command | Power ON Switch Host, Syslog | ONLINE
-|8| OFFLINE  | CHASSIS_MODULE_admin_up user request | Power ON Switch Host, Syslog | ONLINE
+|4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and hot thermal sensors, Action configurable via `rack_mgr_critical_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
+|5| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, Action configurable via `rack_mgr_minor_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
+|6| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, Action configurable via `local_minor_leak_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
+|7| OFFLINE  | RACK_MGR_POWERON command | Power ON Switch Host, Syslog | ONLINE
+|8| -  | RACK_MGR_POWER_CYCLE command | Power CYCLE Switch Host, Syslog | ONLINE
+|9| OFFLINE  | CHASSIS_MODULE_admin_up user request | Power ON Switch Host, Syslog | ONLINE
 
 The BMC remains POWERED ON in all above scenarios.
 
@@ -268,7 +284,7 @@ Switch-Host and BMC could be modeled as a "Module" using "ModuleBase" (https://g
 
 **Pmon** is a critical container, it has the following daemons viz. thermalctld, syseepropmd, stormond. 
 
-A new daemon **"bmcctld"** will be introduced to do power-control actions on Switch-Host based on either local system leaks, external rack-manager leak events/commands or admin-user power off/on commands.
+A new daemon **"bmcctld"** will be introduced to do power-control actions on Switch-Host based on either local system leaks, external rack-manager leak events/commands or admin-user power off/on commands. Both **bmcctld** and **thermalctld** are critical processes in pmon container.
 
 
 #### 2.2.1 BMC controller - bmcctld
@@ -282,7 +298,7 @@ The bmc controller daemon "bmcctld" is started first in BMC pmon container. It a
 Detailed workflow below
 
 ```
-Sleep for BMC_BOOTUP_TIMEOUT (this is configurable value in config_db)
+Sleep for SWITCH_HOST_POWER_ON_DELAY (this is configurable value in config_db)
 This is to make sure the Rack Manager is up and Liquid flow rate is good. 
 
 Check for any CIRITICAL alert/leak in RACK_MANAGER_ALERT* tables or local SYSTEM_LEAK_STATUS table in STATE_DB
@@ -296,7 +312,7 @@ NO External/Local_System LEAK present
 Subscribe to RACK_MANAGER_COMMAND table, CHASSIS_MODULE table, RACK_MANAGER_ALERT* tables and SYSTEM_LEAK_STATUS table in STATE_DB 
 On an Event 
   - if SHUTDOWN command from Rack manager
-      - JUMP to --> **GRACEFUL_SHUT_DOWN_SWITCH_HOST:
+      - ==> GRACEFUL_SHUT_DOWN_SWITCH_HOST
       - update the HOST_STATE|switch-host with the device_power_state.
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
 
@@ -307,29 +323,40 @@ On an Event
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
 
   - if CHASSIS_MODULE admin_down request
-      - JUMP to --> **GRACEFUL_SHUT_DOWN_SWITCH_HOST:
+      - ==> GRACEFUL_SHUT_DOWN_SWITCH_HOST
       - update the HOST_STATE|switch-host with the device_power_state.
 
   - if CRITICAL Local SYSTEM_LEAK event
-      - SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands)
-      - Call the platform API module->set_admin_state(DOWN) to power OFF the Switch-Host
+      - SKIP if `local_system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
+      - Read local_critical_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(local_critical_leak_action)
       - update the HOST_STATE|switch-host with the device_power_state.
 
   - if CRITICAL External Rack-Manager Alert
-      - SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands)
+      - SKIP if `rack_mgr_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Syslog both the CRITICAL Rack Manager Alert message and Switch-Host thermal sensors which are above threshold
-      - No explicit Switch-host shutdown; It relies on thermal protection mechanisms to trip and shut down
-        if temperatures exceed critical thresholds.
+      - Read rack_mgr_critical_alert_action from LEAK_CONTROL_POLICY; ==> dispatch_action(rack_mgr_critical_alert_action)
+      - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if MINOR Local OR External-Rack-Mgr leak event
-      - SKIP if disabled in LEAK_CONTROL_POLICY table [2.3.1 Config commands](#231-config-commands)
-      - Syslog, and let the external monitoring Tool isolate the device.
+  - if MINOR Local leak event
+      - SKIP if `local_system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
+      - Read local_minor_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(local_minor_leak_action)
+
+  - if MINOR External-Rack-Mgr Alert event
+      - SKIP if `rack_mgr_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
+      - Read rack_mgr_minor_alert_action from LEAK_CONTROL_POLICY; ==> dispatch_action(rack_mgr_minor_alert_action)
 
   - if CLEAR of MINOR/CRITICAL Local AND External-Rack-Mgr leak
       - No Local action on BMC
       - POWER_ON to be controlled by an External tool/user CLI.
 
+```
 
+**`dispatch_action(action):`**
+- if action == `syslog_only`       &rarr; Syslog the event; no further Switch-Host action.
+- if action == `graceful_shutdown` &rarr; ==> **`GRACEFUL_SHUT_DOWN_SWITCH_HOST`**
+- if action == `power_off`         &rarr; Call platform API `module->set_admin_state(DOWN)` to power OFF the Switch-Host
+
+```
 **GRACEFUL_SHUT_DOWN_SWITCH_HOST:
   - use GNOI framework to issue remote SOFT shutdown. The gnmi and sysmgr docker needs to be running on Switch-Host
     REF: https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/gnoi_system_hld.md, https://github.com/sonic-net/SONiC/pull/1489
@@ -343,26 +370,29 @@ On an Event
 
 ![bmcctld events](images/bmcctld_events.png)
 
+**Note** The events in the image above is the default action which could be changed by updating the LEAK_CONTROL_POLICY via CLI or redis-DB
+
 ###### DB schema
 This section covers the various tables which this daemon creates/uses in Redis DB on BMC
 
 ```
-key                       = BMC_BOOTUP_TIMEOUT|default   ; Config DB on BMC
+key                       = SWITCH_HOST_POWER_ON_DELAY |default   ; Config DB on BMC
 ; field                   = value
-boot_delay                = float                        ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
-                                                         ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events, Switch-Host will be powered on
+boot_delay                = float                                 ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
+                                                                  ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events, Switch-Host will be powered on
 
 key                       = HOST_STATE|switch-host       ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
-device_power_state        = POWER_ON | POWER_OFF         ; What was the last action done on Switch-Host
-device_status             = ONLINE | OFFLINE             ; current oper status of device, can use the platform API module->get_oper_state()
+device_power_state        = POWER_ON | POWER_OFF|POWER_CYCLE  ; What was the last action done on Switch-Host
+device_status             = ONLINE | OFFLINE                  ; current oper status of device, can use the platform API module->get_oper_state()
 last_change_timestamp     = STR
 
 
 key                       = SWITCH_HOST_SHUTDOWN_TIMEOUT|default ; Config DB on BMC
 ; field                   = value
 shutdown_delay            = float                                ; Time in secs the BMC will wait after SHUTDOWN command send to Switch-Host. ( default = 2 min ).
-                                                                 ; if this timer expires, BMC will go ahead and POWER OFF switch-host
+                                                                 ; if this timer expires, BMC will go ahead and direct POWER OFF switch-host with platform API
+                                                                 ; if shutdown_delay is 0, BMC will NOT do a gracefull shutdown, instead will do POWER_OFF with platform API
 
 ```
 
@@ -417,7 +447,7 @@ severity                  = "status"                                  ;CRITICAL/
 key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in CONFIG_DB
 ; field                   = value
 leak_type                 = STR                                       ; Leak sensor type
-max_minor_duration_sec    = float                                     ; MAX-T mins defined before which a MINOR leak can be considered CRITICAL
+max_minor_duration_sec    = float                                     ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
 
 
 key                       = SYSTEM_LEAK_STATUS|local                  ; local bmc leak status in STATE DB
@@ -448,9 +478,9 @@ This base class is already defined in sonic-platform-common. Additional new plat
 | get_name() | Y | Get leak sensor name |
 | is_leak() | Y | Is there a leak detected? **Applies debounce logic before reporting or clearing a leak** |
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
-| get_leak_sensor_type() | New | What type of leak sensor is this rope, flex, spot etc |
+| get_leak_sensor_type() | New | What type of leak sensor is this rope, flex_pcb, spot etc |
 | get_leak_sensor_location() | New | Location of leak sensor |
-| get_leak_severity() | New | Get the severity based on the criticality of the zone |
+| get_leak_severity() | New | Get the severity based on the criticality of the zone , or criticality of leak for a sensor for eg: more liquid presence |
 | get_leak_profile() | New | Returns the leak sensor profile associated with this sensor |
 
 
@@ -581,12 +611,32 @@ config liquidcool leak-control [local|rack_mgr] [enabled|disabled]
    - Default is enabled.
 ```
 
+* config liquidcool leak-action
+
+CLI to configure the action taken when a leak event is detected. Actions are applied only when the corresponding leak-control policy is enabled.
+Applicable to (LC)
+
+```
+config liquidcool leak-action local    critical [syslog_only|graceful_shutdown|power_off]
+config liquidcool leak-action local    minor    [syslog_only|graceful_shutdown|power_off]
+config liquidcool leak-action rack_mgr critical_alert [syslog_only|graceful_shutdown|power_off]
+config liquidcool leak-action rack_mgr minor_alert    [syslog_only|graceful_shutdown|power_off]
+   - syslog_only      : Log the event; no Switch-Host power action taken.
+   - graceful_shutdown: Issue a graceful GNOI shutdown to Switch-Host; force power-off after SWITCH_HOST_SHUTDOWN_TIMEOUT if unresponsive.
+   - power_off        : Immediately power off Switch-Host via platform API module->set_admin_state(DOWN).
+   - Defaults: local critical=power_off, local minor=syslog_only, rack_mgr critical_alert=syslog_only, rack_mgr minor_alert=syslog_only.
+```
+
 ##### DB schema
 
 ```
   "LEAK_CONTROL_POLICY": {
-      "local_system_leak_policy": "enabled"
-      "rack_mgr_leak_policy": "enabled"
+      "local_system_leak_policy":       "enabled",
+      "local_critical_leak_action":     "power_off",
+      "local_minor_leak_action":        "syslog_only",
+      "rack_mgr_leak_policy":           "enabled",
+      "rack_mgr_critical_alert_action": "syslog_only",
+      "rack_mgr_minor_alert_action":    "syslog_only"
   }
 
 ```
@@ -605,10 +655,12 @@ show version
 ASIC Count: 1
 Serial Number: <BMC serial number>
 Switch-Host Serial Number: <Switch serial number>
-Model Number: <>
+Model Number: <Switch model number>
 ...
 
 ```
+**Note** Here the assumption is that both Switch and BMC will share a common model number 
+
 
 * show chassis module status
  
@@ -626,16 +678,20 @@ show chassis module status
 
 ```
 
-* show platform leak control_policy
+* show platform leak control-policy
 
 Command to show leak control policy configuration
 Applicable to (LC)
 
 ```
 
-show platform leak control_policy
- local_system_leak_policy : enabled
- rack_mgr_leak_policy : enabled
+show platform leak control-policy
+ local_system_leak_policy       : enabled
+ local_critical_leak_action     : power_off
+ local_minor_leak_action        : syslog_only
+ rack_mgr_leak_policy           : enabled
+ rack_mgr_critical_alert_action : syslog_only
+ rack_mgr_minor_alert_action    : syslog_only
 
 ```
 
@@ -646,7 +702,13 @@ Applicable to (LC)
 
 ```
 show platform leak rack-manager alerts
- - Display the RACK_MANAGER_ALERT table contents
+Alert                        Severity    Timestamp
+---------------------------  ----------  -------------------------
+Inlet_liquid_temperature     NORMAL      2026-03-25 22:10:00
+Inlet_liquid_flow_rate       MINOR       2026-03-25 22:10:00
+Inlet_liquid_pressure        NORMAL      2026-03-25 22:10:00
+Rack_level_leak              CRITICAL    2026-03-25 22:10:00
+Rack_level_leak_rope_break   NORMAL      2026-03-25 22:10:00
 
 ```
 
@@ -657,7 +719,11 @@ Applicable to (LC)
 
 ```
 show platform leak profiles
- - Display the LEAK_PROFILE table contents
+Sensor-Type    Max-Minor-Duration-Sec
+-----------    ----------------------
+rope                        300
+spot                        600
+flex_pcb                    180
 
 ```
 
@@ -670,10 +736,10 @@ Applicable to (LC)
 show platform leak status
 Name             Leak  Leak-sensor-status leak-sensor-type leak-severity
 ---------      ------- ------------------- ---------------- -------------
-leak_sensors1    NO           OK                 rope           NA
-leak_sensors2    NO           FAULTY             rope           NA
+leak_sensors1    YES         OK                 rope           MINOR
+leak_sensors2    NO          FAULTY             spot           NA
 ...
-leak_sensorsX    Yes          OK                 flex           CRITICAL
+leak_sensorsX    Yes         OK                 flex_pcb       CRITICAL
 
 ```
 
@@ -715,7 +781,11 @@ All SONiC commands are supported on Switch-Host. The following command needs enh
 
 * show reboot-cause history
 
-Enhance the reboot reason to include the shutdown/powercycle commands from BMC 
+Enhance the reboot reason in Switch-Host to include the graceful_shutdown/power_down requests from BMC. 
+
+ - The GNOI request handler should update the reboot cause file as part of the graceful shutdown sequence.
+ - If the shutdown is down by the platform API ( which is a non-graceful shutdown), the API should update the reboot cause file.
+
 Applicable to (LC, AC)
 
 ```
@@ -723,12 +793,11 @@ show reboot-cause history
 Name                 Cause                                                                 Time                             User    Comment
 -------------------  --------------------------------------------------------------------  -------------------------------  ------  ---------
 2026_03_18_04_38_17  reboot                                                                Wed Mar 18 04:37:21 AM UTC 2026  admin   N/A
-2026_03_18_02_06_06  shutdown from BMC                                                     Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
-2026_03_18_02_06_06  powercycle from BMC                                                   Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
+2026_03_18_02_06_06  graceful shutdown from BMC                                            Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
+2026_03_18_02_06_06  power down request from BMC                                           Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
 ....
 
 ```
-
 
 #### 2.5 Firmware upgrade
 
@@ -737,12 +806,12 @@ The upgrade process could be either during sonicimage-install or using fwutil cl
 
 Below is a sample reference,
 
-| Firmware upgrade   |      Switch-Host reboot    |     BMC reboot     | Who does FW upgrade |
-|--------------------|----------------------------|--------------------|---------------------|
-| BMC Uboot          |         No                 |         Yes        |    BMC              |
-| CPU CPLD           |         Yes                |         Yes        |    Switch-Host      |
-| Leak CPLD FW       |         No                 |         Yes        |    BMC              |
-| Switch FPGA/CPLD   |         Yes                |         No         |    Switch-Host      |
+| Firmware upgrade   | Who can upgrade   | Switch-Host reboot | BMC reboot | Who does FW upgrade |
+|--------------------|-------------------|--------------------|------------|---------------------|
+| BMC Uboot          | BMC               | No                 | Yes        | BMC                 |
+| CPU CPLD           | Switch-Host       | Yes                | Yes        | Switch-Host         |
+| Leak CPLD FW       | Switch-Host/BMC   | No                 | Yes        | BMC                 |
+| Switch FPGA/CPLD   | Switch-Host       | Yes                | No         | Switch-Host         |
 
 In case of a firmware upgrade which needs reboot of both Switch-Host and BMC, will do a FW upgrade on Switch-Host during a maintenance window. 
 
