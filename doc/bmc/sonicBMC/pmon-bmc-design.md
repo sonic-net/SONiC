@@ -239,7 +239,7 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 
 | Event | Source | Description |
 |-------|--------|-------------|
-| `SYSTEM_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on system leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
+| `SYSTEM_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
 | `SYSTEM_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table. |
 | `RACK_MGR_CRITICAL_EVENT` |  Rack Manager | A CRITICAL severity alert posted by the Rack Manager via Redfish (e.g. inlet temperature, flow rate, pressure, or rack-level leak). See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
 | `RACK_MGR_MINOR_EVENT` |  Rack Manager | A MINOR severity alert posted by the Rack Manager via Redfish. See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
@@ -426,14 +426,14 @@ The main thermalctld daemon will run the sonic thermal policy based on the numbe
     - Subscribe to LIQUID_COOLING_DEVICE to check if there is any change in leak sensor status 
     - Apply the System leak severity detection algorithm as below
        
-       +--------------------------------------+---------------------------+-------------------------------+
-       | Leak Sensor Condition                | Sensor Severity (Input)   | System Leak Severity (Output) |
-       +--------------------------------------+---------------------------+-------------------------------+
-       | 1 Critical leak                      | CRITICAL                  | CRITICAL_SYSTEM_LEAK          |
-       | 2 or more leaks (any severity)       | MIXED                     | CRITICAL_SYSTEM_LEAK          |
-       | 1 Minor leak > MAX-T                 | MINOR                     | CRITICAL_SYSTEM_LEAK          |
-       | 1 Minor leak detected                | MINOR                     | MINOR_SYSTEM_LEAK             |
-       +--------------------------------------+---------------------------+-------------------------------+
+       +--------------------------------------+-------------------------------------------+-------------------------------+
+       | Induvidual Leak Sensor Condition     | Induvidual Leak Sensor Severity (Input)   | System Leak Severity (Output) |
+       +--------------------------------------+-------------------------------------------+-------------------------------+
+       | 1 Critical leak                      |                   CRITICAL                | CRITICAL_SYSTEM_LEAK          |
+       | 2 or more leaks (any severity)       |                 Any Severity              | CRITICAL_SYSTEM_LEAK          |
+       | 1 Minor leak staying for MAX-T secs  |                   MINOR                   | CRITICAL_SYSTEM_LEAK          |
+       | 1 Minor leak detected                |                   MINOR                   | MINOR_SYSTEM_LEAK             |
+       +--------------------------------------+-------------------------------------------+-------------------------------+
 
     - Additional considerations, the timers can be configured per leak sensor profile.
        - MAX-T mins defined before which a MINOR leak can be considered CRITICAL.
@@ -459,7 +459,6 @@ key                       = LEAK_PROFILE|<sensor_type>                ; LEAK pro
 ; field                   = value
 leak_type                 = STR                                       ; Leak sensor type
 max_minor_duration_sec    = float                                     ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
-
 
 key                       = SYSTEM_LEAK_STATUS|system                  ; system bmc leak status in STATE DB
 ; field                   = value
@@ -657,31 +656,27 @@ config liquidcool leak-control [system|rack_mgr] [enabled|disabled]
 
 * config liquidcool leak-action
 
-CLI to configure the action taken when a leak event is detected. Actions are applied only when the corresponding leak-control policy is enabled.
+CLI to configure the action taken when a critical/minor event is detected. Actions are applied only when the corresponding leak-control policy is enabled.
 Applicable to (LC)
 
 ```
-config liquidcool system-leak-action   critical       [syslog_only|graceful_shutdown|power_off]
-config liquidcool system-leak-action   minor          [syslog_only|graceful_shutdown|power_off]
-config liquidcool rack-mgr-leak-action critical-alert [syslog_only|graceful_shutdown|power_off]
-config liquidcool rack-mgr-leak-action minor-alert    [syslog_only|graceful_shutdown|power_off]
+config liquidcool leak-action [system|rack_mgr] [critical|minor]  [syslog_only|graceful_shutdown|power_off]
 
    - syslog_only      : Log the event; no Switch-Host power action taken.
    - graceful_shutdown: Issue a graceful GNOI shutdown to Switch-Host; force power-off after SWITCH_HOST_SHUTDOWN_TIMEOUT if unresponsive.
    - power_off        : Immediately power off Switch-Host via platform API module->set_admin_state(DOWN).
-   - Defaults: system critical=power_off, system minor=syslog_only, rack_mgr critical_alert=syslog_only, rack_mgr minor_alert=syslog_only.
 ```
 
 ##### DB schema
 
 ```
   "LEAK_CONTROL_POLICY": {
-      "system_leak_policy"            : "enabled",
-      "system_critical_leak_action"   : "power_off",
-      "system_minor_leak_action"      : "syslog_only",
-      "rack_mgr_leak_policy"          : "enabled",
-      "rack_mgr_critical_alert_action": "syslog_only",
-      "rack_mgr_minor_alert_action"   : "syslog_only"
+      "system_leak_policy"            : "enabled",             ; enabled by default
+      "system_critical_leak_action"   : "power_off",           ; default is power_off   
+      "system_minor_leak_action"      : "syslog_only",         ; default is syslog_only
+      "rack_mgr_leak_policy"          : "enabled",             ; enabled by default
+      "rack_mgr_critical_alert_action": "syslog_only",         ; default is syslog_only
+      "rack_mgr_minor_alert_action"   : "syslog_only"          ; default is syslog_only
   }
 
 ```
@@ -731,12 +726,12 @@ Applicable to (LC)
 ```
 
 show platform leak control-policy
- system_leak_policy       : enabled
+ system_leak_policy              : enabled
  system_critical_leak_action     : power_off
  system_minor_leak_action        : syslog_only
- rack_mgr_leak_policy           : enabled
- rack_mgr_critical_alert_action : syslog_only
- rack_mgr_minor_alert_action    : syslog_only
+ rack_mgr_leak_policy            : enabled
+ rack_mgr_critical_alert_action  : syslog_only
+ rack_mgr_minor_alert_action     : syslog_only
 
 ```
 
