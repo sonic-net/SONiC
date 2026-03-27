@@ -66,7 +66,7 @@ General requirements
 * Firmware upgrade of components is done on Switch-Host or BMC based on who owns the component and what needs a reboot.
 
 Liquid cooled sku requirements
-* BMC will manage leak detection, read local leak sensors, its severity and enforces mitigation actions according to system-wide SONiC policy.
+* BMC will manage leak detection, read system leak sensors, its severity and enforces mitigation actions according to system-wide SONiC policy.
 * BMC will get inputs from external Rack Manager on Inlet Liquid temperature, Inlet Liquid flow rate, Inlet Liquid Pressure and Rack level Leak. It takes action based on policy.  
 * Switch-Host has thermalctld managing its thermal sensors and automatically power down when any sensor temperature exceeds the critical thresholds.
 
@@ -90,8 +90,8 @@ switch_bmc=1
 liquid_cooled=true
 ```
 
-"Liquid_cooled" flag is set to true on a liquid cooled switch.
-"Switch_Host" flag is set to 1 on the switch host, "Switch_BMC" flag is set to 1 on the switch BMC.
+"liquid_cooled" flag is set to true on a liquid cooled switch.
+"switch_host" flag is set to 1 on the switch host, "switch_bmc" flag is set to 1 on the switch BMC.
 
 
 #### 2.1.1 BMC platform power up
@@ -100,7 +100,7 @@ When device is powered ON, the BMC powers first, boots up the sonic BMC which st
 If it is Air cooled switch the Switch-Host is powered on immediately.
 
 If it is liquid cooled, the following actions are done before the Switch-Host is powered on.
-* Check local system leaks and external Leaks if any reported by Rack Manager
+* Check system leaks and external Leaks if any reported by Rack Manager
 * Send a POWER_ON command to Switch-host if all clear. 
 
 ![BMC platform power up](images/sonic-bmc-bootup.png)
@@ -116,11 +116,13 @@ Few of the URIs which needs to be supported in BMC are below,
     1. GET /redfish/v1   
              -- Rack Manager to get switchBMC type eg: "SONiCBMC"
     2. GET /redfish/v1/UpdateService/FirmwareInventory  
-             -- Rack Manager to get switch firmware details
+             -- Rack Manager to get switch firmware details, follow DMTF standards.
     3. POST /redfish/v1/Systems/System/Actions/ComputerSystem.Reset  
              -- Rack Manager to power on/off Switch-Host
+             -- Support reset_type --> ForceOn, ForceOff, Powercycle
     4. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitAlert
-             -- Rack manager to post a critical alert to BMC
+             -- Rack manager send Alert when there is deviation in Inlet Liquid temperature, Inlet Liquid flow rate,
+                Inlet Liquid Pressure, Leak
     5. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitTelemetry
              -- Rack manager send periodic telemetry data of Inlet Liquid temperature, Inlet Liquid flow rate,
                 Inlet Liquid Pressure, Leak information
@@ -129,6 +131,9 @@ Few of the URIs which needs to be supported in BMC are below,
              -- Leak sensor can be modelled under /redfish/v1/Chassis/BMC/ThermalSubsystem/LeakDetection/LeakDetectors/<ID>
              -- redfish server in BMC response back to https://<rack-mgr-ip>:<port>/Events or which ever "destination"
                 Rack Manager sends in the event subscription request
+
+**Note:** More details available in redfish HLD (https://github.com/sonic-net/sonic-redfish/pull/2)
+
 
 #### 2.1.2.1 DB schema
 
@@ -234,8 +239,8 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 
 | Event | Source | Description |
 |-------|--------|-------------|
-| `LOCAL_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on local leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
-| `LOCAL_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table. |
+| `SYSTEM_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on system leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
+| `SYSTEM_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table. |
 | `RACK_MGR_CRITICAL_EVENT` |  Rack Manager | A CRITICAL severity alert posted by the Rack Manager via Redfish (e.g. inlet temperature, flow rate, pressure, or rack-level leak). See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
 | `RACK_MGR_MINOR_EVENT` |  Rack Manager | A MINOR severity alert posted by the Rack Manager via Redfish. See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
 | `RACK_MGR_SHUTDOWN command` |  Rack Manager | An explicit `ComputerSystem.Reset` power-off command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
@@ -251,27 +256,27 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 
 || Switch Host State (Start) | Event in BMC | Action taken in BMC | Switch Host State (Final) 
 |--|---|---|---|---|
-|1| ONLINE  | LOCAL_LEAK_CRITICAL_EVENT | Syslog, Action configurable via `local_critical_leak_action` in LEAK_CONTROL_POLICY (default: Power OFF Switch Host) | OFFLINE
+|1| ONLINE  | SYSTEM_LEAK_CRITICAL_EVENT | Syslog, Action configurable via `system_critical_leak_action` in LEAK_CONTROL_POLICY (default: Power OFF Switch Host) | OFFLINE
 |2| ONLINE  | RACK_MGR_SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE
 |3| ONLINE  | CHASSIS_MODULE_admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE
 |4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and hot thermal sensors, Action configurable via `rack_mgr_critical_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
 |5| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, Action configurable via `rack_mgr_minor_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
-|6| ONLINE  | LOCAL_LEAK_MINOR_EVENT | Syslog, Action configurable via `local_minor_leak_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
+|6| ONLINE  | SYSTEM_LEAK_MINOR_EVENT | Syslog, Action configurable via `system_minor_leak_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
 |7| OFFLINE  | RACK_MGR_POWERON command | Power ON Switch Host, Syslog | ONLINE
 |8| -  | RACK_MGR_POWER_CYCLE command | Power CYCLE Switch Host, Syslog | ONLINE
 |9| OFFLINE  | CHASSIS_MODULE_admin_up user request | Power ON Switch Host, Syslog | ONLINE
 
 The BMC remains POWERED ON in all above scenarios.
 
-The Switch-Host will go and remain OFFLINE with events viz. LOCAL_LEAK_CRITICAL_EVENT, RACK_MGR_SHUTDOWN command, CHASSIS_MODULE_admin_down.
+The Switch-Host will go and remain OFFLINE with events viz. SYSTEM_LEAK_CRITICAL_EVENT, RACK_MGR_SHUTDOWN command, CHASSIS_MODULE_admin_down.
 It will be powered ON and come ONLINE only with external tool/user sending RACK_MGR_POWER_ON command or CHASSIS_MODULE_admin_up user request
 
 #### 2.1.5 BMC Leak detection and thermal policy
 
 The Leak detection is applicable only to Liquid cooling platform. The action is based on alerts from two different sources 
 
-(i) Local leak detection uses the leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X}.
-    The result ( whether it is critical/minor ) will be updated in LEAK_STATUS table defined in [2.2.2.1 DB schema](#2221-db-schema)
+(i) System leak detection uses the leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X}.
+    The result (`CRITICAL_SYSTEM_LEAK` or `MINOR_SYSTEM_LEAK`) will be updated in `SYSTEM_LEAK_STATUS` table defined in [2.2.2.1 DB schema](#2221-db-schema)
         
 (ii) External Rack manager alert status is updated by redfish/bmcweb in RACK_MANAGER_ALERT table defined in [2.1.2.1 DB schema](#2121-db-schema).
     
@@ -288,14 +293,14 @@ Switch-Host and BMC could be modeled as a "Module" using "ModuleBase" (https://g
 
 **Pmon** is a critical container, it has the following daemons viz. thermalctld, syseepropmd, stormond. 
 
-A new daemon **"bmcctld"** will be introduced to do power-control actions on Switch-Host based on either local system leaks, external rack-manager leak events/commands or admin-user power off/on commands. Both **bmcctld** and **thermalctld** are critical processes in pmon container.
+A new daemon **"bmcctld"** will be introduced to do power-control actions on Switch-Host based on either system leaks, external rack-manager leak events/commands or admin-user power off/on commands. Both **bmcctld** and **thermalctld** are critical processes in pmon container.
 
 
 #### 2.2.1 BMC controller - bmcctld
 
 ##### 2.2.1.1 bmcctld on BMC
 
-The bmc controller daemon "bmcctld" is started first in BMC pmon container. It acts on the commands/alerts from External rack manager and local system leaks reported by 'thermalctld'.
+The bmc controller daemon "bmcctld" is started first in BMC pmon container. It acts on the commands/alerts from External rack manager and system leaks reported by 'thermalctld'.
 
 ![bmcctld interactions](images/bmcctld.png)
 
@@ -305,8 +310,8 @@ Detailed workflow below
 Sleep for SWITCH_HOST_POWER_ON_DELAY (this is configurable value in config_db)
 This is to make sure the Rack Manager is up and Liquid flow rate is good. 
 
-Check for any CIRITICAL alert/leak in RACK_MANAGER_ALERT* tables or local SYSTEM_LEAK_STATUS table in STATE_DB
-NO External/Local_System LEAK present
+Check for any CRITICAL alert/leak in RACK_MANAGER_ALERT* tables or system SYSTEM_LEAK_STATUS table (device_leak_status == CRITICAL_SYSTEM_LEAK) in STATE_DB
+NO External/System LEAK present
 {
   - Check the oper_status of Switch-Host
     - if Switch-Host is Offline, Call the platform API to power ON the Switch-Host.
@@ -321,7 +326,7 @@ On an Event
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
 
   - if POWER_ON request
-      - Check for any CIRITICAL alert/leak in RACK_MANAGER_ALERT* tables or local SYSTEM_LEAK_STATUS table in STATE_DB
+      - Check for any CRITICAL alert/leak in RACK_MANAGER_ALERT* tables or system SYSTEM_LEAK_STATUS table (device_leak_status == CRITICAL_SYSTEM_LEAK) in STATE_DB
       - if NO LEAK, Call the platform API module->set_admin_state(UP) to power ON the Switch-Host
       - update the HOST_STATE|switch-host with the device_power_state.
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
@@ -330,9 +335,9 @@ On an Event
       - ==> GRACEFUL_SHUT_DOWN_SWITCH_HOST
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if CRITICAL Local SYSTEM_LEAK event
-      - SKIP if `local_system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
-      - Read local_critical_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(local_critical_leak_action)
+  - if CRITICAL_SYSTEM_LEAK (device_leak_status == CRITICAL_SYSTEM_LEAK in SYSTEM_LEAK_STATUS)
+      - SKIP if `system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
+      - Read system_critical_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(system_critical_leak_action)
       - update the HOST_STATE|switch-host with the device_power_state.
 
   - if CRITICAL External Rack-Manager Alert
@@ -341,16 +346,16 @@ On an Event
       - Read rack_mgr_critical_alert_action from LEAK_CONTROL_POLICY; ==> dispatch_action(rack_mgr_critical_alert_action)
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if MINOR Local leak event
-      - SKIP if `local_system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
-      - Read local_minor_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(local_minor_leak_action)
+  - if MINOR_SYSTEM_LEAK (device_leak_status == MINOR_SYSTEM_LEAK in SYSTEM_LEAK_STATUS)
+      - SKIP if `system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
+      - Read system_minor_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(system_minor_leak_action)
 
   - if MINOR External-Rack-Mgr Alert event
       - SKIP if `rack_mgr_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Read rack_mgr_minor_alert_action from LEAK_CONTROL_POLICY; ==> dispatch_action(rack_mgr_minor_alert_action)
 
-  - if CLEAR of MINOR/CRITICAL Local AND External-Rack-Mgr leak
-      - No Local action on BMC
+  - if CLEAR of MINOR_SYSTEM_LEAK/CRITICAL_SYSTEM_LEAK System AND External-Rack-Mgr leak
+      - No System action on BMC
       - POWER_ON to be controlled by an External tool/user CLI.
 
 ```
@@ -409,9 +414,9 @@ There is a thread to check the leak sensors and store it in the LIQUID_COOLING_D
 
 ```
 Loop on this logic 
-  (i) Check local leak sensors using platform API
+  (i) Check system leak sensors using platform API
          -- store the result in LIQUID_COOLING_DEVICE table
-         -- Leak severity can either be CRITICAL or MINOR
+         -- Per-sensor leak_severity can be CRITICAL or MINOR (sensor-level assessment)
 
 ```
 
@@ -421,25 +426,25 @@ The main thermalctld daemon will run the sonic thermal policy based on the numbe
     - Subscribe to LIQUID_COOLING_DEVICE to check if there is any change in leak sensor status 
     - Apply the System leak severity detection algorithm as below
        
-       +--------------------------------------+-----------------------------+
-       | Leak sensor data                     | System Local Leak Severity  |
-       +--------------------------------------+-----------------------------+
-       | 1 Critical leak                      |        CRITICAL             |
-       | 2 or more leaks with any Severity    |        CRITICAL             |
-       | 1 Minor leak stay leaking for MAX-T  |        CRITICAL             |
-       | 1 Minor leak detected                |        MINOR                |
-       +--------------------------------------+-----------------------------+
+       +--------------------------------------+---------------------------+-------------------------------+
+       | Leak Sensor Condition                | Sensor Severity (Input)   | System Leak Severity (Output) |
+       +--------------------------------------+---------------------------+-------------------------------+
+       | 1 Critical leak                      | CRITICAL                  | CRITICAL_SYSTEM_LEAK          |
+       | 2 or more leaks (any severity)       | MIXED                     | CRITICAL_SYSTEM_LEAK          |
+       | 1 Minor leak > MAX-T                 | MINOR                     | CRITICAL_SYSTEM_LEAK          |
+       | 1 Minor leak detected                | MINOR                     | MINOR_SYSTEM_LEAK             |
+       +--------------------------------------+---------------------------+-------------------------------+
 
     - Additional considerations, the timers can be configured per leak sensor profile.
        - MAX-T mins defined before which a MINOR leak can be considered CRITICAL.
 
-    - Update the local SYSTEM_LEAK_STATUS table with the severity of leak. This will be used in bmcctld process.
+    - Update the system SYSTEM_LEAK_STATUS table with the severity of leak. This will be used in bmcctld process.
 
 ```
  
 #### 2.2.2.1 DB schema
 
-This LIQUID_COOLING_DEVICE table is already populated by thermalctld. New field **severity ** is introduced.
+This LIQUID_COOLING_DEVICE table is already populated by thermalctld. New field **leak_severity** is introduced to capture per-sensor severity.
 ```
 key                       = LIQUID_COOLING_DEVICE|leakage_sensors{X}  ; leak data in STATE_DB per sensor
  ; field                  = value
@@ -448,7 +453,7 @@ leaking                   = STR                                       ; Yes or N
 leak_sensor_status        = STR                                       ; Is Leak sensor good or faulty.
 type                      = STR                                       ; leak sensor type
 location                  = STR                                       ; leak sensor location
-severity                  = "status"                                  ;CRITICAL/MINOR
+leak_severity             = "status"                                  ; CRITICAL/MINOR (per-sensor level)
 
 key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in CONFIG_DB
 ; field                   = value
@@ -456,9 +461,9 @@ leak_type                 = STR                                       ; Leak sen
 max_minor_duration_sec    = float                                     ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
 
 
-key                       = SYSTEM_LEAK_STATUS|local                  ; local bmc leak status in STATE DB
+key                       = SYSTEM_LEAK_STATUS|system                  ; system bmc leak status in STATE DB
 ; field                   = value
-device_leak_status        = "status"                                  ;CRITICAL/MINOR
+device_leak_status        = "status"                                  ; CRITICAL_SYSTEM_LEAK/MINOR_SYSTEM_LEAK (system aggregate level)
 timestamp                 = STR                                       ; timestamp when this status is recorded.
 ```     
 
@@ -477,7 +482,9 @@ Reference doc:
 
 
 ####  LeakageSensorBase
-This base class is already defined in sonic-platform-common. Additional new platform APIs defined.
+
+This class defines the APIs available per leak sensor.
+This base class is already defined in sonic-platform-common, additional new platform APIs are inroduced.
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -489,9 +496,20 @@ This base class is already defined in sonic-platform-common. Additional new plat
 | get_leak_severity() | New | Get the severity based on the criticality of the zone or how sever is the leak for a sensor for eg: more liquid presence |
 | get_leak_profile() | New | Returns the leak sensor profile associated with this sensor |
 
+**Note**
+
+The get_leak_severity() API call have to determine whether any condition indicates a severe leak detected from a leak sensor.This decision could be based on:
+
+(i) Zone criticality:
+The physical location of the leak sensor. For example, if a spot leak sensor is located near critical components (ASIC/CPU) and the measured value (e.g. resistance or other leak-detection metric) crosses a platform-defined threshold, it should be treated as a critical leak.
+
+(ii) Extent of liquid detection:
+Even if the sensor is located farther from critical components (e.g., a rope/cable leak sensor), the severity may still be considered critical if the sensor indicates a large or expanding leak. For example, multiple segments of the cable detecting liquid or leak detection along a significant portion of the sensing cable.
+
 
 #### LeakSensorProfileBase
-This base class is for getting the platform specific leak sensor profile
+This base class is for getting the platform specific leak sensor profile.
+This profile will be per leak sensor type and it will contain tunable parameters per leak sensor type.
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -529,34 +547,54 @@ Sample Implementation for BMC
 device/<vendor>/<platform>/sonic_platform/
   __init__.py
   chassis.py
-  switch_host_module.py
+  module.py
+
+module.py
+----------
+
+class Module(ModuleBase):
+
+    def __init__(self, module_index, module_name, module_type):
+        super(Module, self).__init__()
+        self.module_index = module_index
+        self.module_name = module_name
+        self.module_type = module_type
 
 
-switch_host_module.py:
+chassis.py
+----------
 
-  from sonic_platform_base.module_base import ModuleBase
-  class SwitchHostModule(ModuleBase):
-    def __init__(self, index):
-        super().__init__()
-        self._index = index
+class Chassis(ChassisBase):
 
-
-chassis.py:
-
-  from sonic_platform_base.chassis_base import ChassisBase
-  from .switch_host_module import SwitchHostModule
-  class Chassis(ChassisBase):
     def __init__(self):
-        super().__init__()
+        ChassisBase.__init__(self)
 
-        # Create Switch Host module object
-        self._switch_host_module = SwitchHostModule(index=0)
+        # Module list
+        # self._get_module_list()
+        self._module_list = []
+
+    def _get_module_list(self):
+
+        index = 0
+        bmc = Module(index, ModuleBase.MODULE_TYPE_BMC, ModuleBase.MODULE_TYPE_BMC)
+
+        index = 1
+        switch_host = Module(index, ModuleBase.MODULE_TYPE_SWITCH_HOST, ModuleBase.MODULE_TYPE_SWITCH_HOST)
+
+        self._module_list.append(bmc) 
+        self._module_list.append(switch_host)
+
+        return self._module_list
+
+    def get_num_modules(self):
+        return (len(self._get_module_list()))
 
     def get_all_modules(self):
-        return [self._switch_host_module]
+        return (self._get_module_list())
 
 
 Use it in sonic_platform_daemons:
+---------------------------------
 
   from sonic_platform import chassis
   platform_chassis = chassis.Chassis()
@@ -608,12 +646,12 @@ config chassis modules shutdown <Switch-Host>
 
 * config liquidcool leak-control
 
-CLI to control the Local leak, Rack-Manager leak policy enforcement
+CLI to control the System leak, Rack-Manager leak policy enforcement
 Applicable to (LC)
 
 ```
-config liquidcool leak-control [local|rack_mgr] [enabled|disabled]
-   - This command helps user to enable and disable local/rack-mgr-external leak policy application in BMC
+config liquidcool leak-control [system|rack_mgr] [enabled|disabled]
+   - This command helps user to enable and disable system/rack-mgr-external leak policy application in BMC
    - Default is enabled.
 ```
 
@@ -623,27 +661,27 @@ CLI to configure the action taken when a leak event is detected. Actions are app
 Applicable to (LC)
 
 ```
-config liquidcool leak-action local    critical [syslog_only|graceful_shutdown|power_off]
-config liquidcool leak-action local    minor    [syslog_only|graceful_shutdown|power_off]
-config liquidcool leak-action rack_mgr critical_alert [syslog_only|graceful_shutdown|power_off]
-config liquidcool leak-action rack_mgr minor_alert    [syslog_only|graceful_shutdown|power_off]
+config liquidcool system-leak-action   critical       [syslog_only|graceful_shutdown|power_off]
+config liquidcool system-leak-action   minor          [syslog_only|graceful_shutdown|power_off]
+config liquidcool rack-mgr-leak-action critical-alert [syslog_only|graceful_shutdown|power_off]
+config liquidcool rack-mgr-leak-action minor-alert    [syslog_only|graceful_shutdown|power_off]
 
    - syslog_only      : Log the event; no Switch-Host power action taken.
    - graceful_shutdown: Issue a graceful GNOI shutdown to Switch-Host; force power-off after SWITCH_HOST_SHUTDOWN_TIMEOUT if unresponsive.
    - power_off        : Immediately power off Switch-Host via platform API module->set_admin_state(DOWN).
-   - Defaults: local critical=power_off, local minor=syslog_only, rack_mgr critical_alert=syslog_only, rack_mgr minor_alert=syslog_only.
+   - Defaults: system critical=power_off, system minor=syslog_only, rack_mgr critical_alert=syslog_only, rack_mgr minor_alert=syslog_only.
 ```
 
 ##### DB schema
 
 ```
   "LEAK_CONTROL_POLICY": {
-      "local_system_leak_policy":       "enabled",
-      "local_critical_leak_action":     "power_off",
-      "local_minor_leak_action":        "syslog_only",
-      "rack_mgr_leak_policy":           "enabled",
+      "system_leak_policy"            : "enabled",
+      "system_critical_leak_action"   : "power_off",
+      "system_minor_leak_action"      : "syslog_only",
+      "rack_mgr_leak_policy"          : "enabled",
       "rack_mgr_critical_alert_action": "syslog_only",
-      "rack_mgr_minor_alert_action":    "syslog_only"
+      "rack_mgr_minor_alert_action"   : "syslog_only"
   }
 
 ```
@@ -693,9 +731,9 @@ Applicable to (LC)
 ```
 
 show platform leak control-policy
- local_system_leak_policy       : enabled
- local_critical_leak_action     : power_off
- local_minor_leak_action        : syslog_only
+ system_leak_policy       : enabled
+ system_critical_leak_action     : power_off
+ system_minor_leak_action        : syslog_only
  rack_mgr_leak_policy           : enabled
  rack_mgr_critical_alert_action : syslog_only
  rack_mgr_minor_alert_action    : syslog_only
@@ -824,3 +862,5 @@ In case of a firmware upgrade which needs reboot of both Switch-Host and BMC, wi
 
 
 ## 3 Future Items
+
+1. Add support in thermalctld to take a json file as input to let user modify the system leak severity detection policy.
