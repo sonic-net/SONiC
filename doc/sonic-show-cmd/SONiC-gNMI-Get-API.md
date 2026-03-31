@@ -38,7 +38,7 @@ Today, data collection generally happens in two ways:
 Below is the diagram for current execution paths.
 
 ## Current flow diagram
-![Current Flow](https://microsoft.sharepoint.com/:i:/t/Aznet/IQDNfCwS9H8fTpUN0eg-_69iAUhdl4jJVCjtCFIuzg_LCgA?e=kYVQWU)
+![Current Flow](CurrentFlow.jpg)
 
 # What we bring in
 1. Enable gNMI protocol support for on-demand retrieval/streaming of device data.
@@ -51,7 +51,7 @@ Below is the diagram for current execution paths.
 6. Enable top-level AAA integration so automation can access data without interactive shell login.
 
 ## New flow (desired) diagram
-![New Flow](https://microsoft.sharepoint.com/:i:/t/Aznet/IQBg1L-WMkr9Q5dD8ypgWGe9AVlX9ADRiyqlhWYSsZ7Lgoo?e=8B1QDv)
+![New Flow](NewFlow.jpg)
 
 # Use case
 A system issue is detected (reactive or proactive signal). As a first-level check, operators commonly run commands such as:
@@ -119,7 +119,7 @@ Once certificates are configured, the gNMI client communicates with the gNMI ser
 # New design (HLD)
 **TODO:** Replace with final HLD diagram image/link.
 
-![HLD](https://microsoft.sharepoint.com/:i:/t/Aznet/IQCdYjwiFfnAQottXCMk2z94AeGgbtNZvsIwzRlswSU-iS0?e=tFk9u4)
+![HLD](HLD-Image.jpg)
 
 # Details
 Show commands retrieve data from multiple backends:
