@@ -63,7 +63,7 @@ General requirements
 * BMC and Switch-Host shall enable an independent Hw watchdog timer.
 * BMC and Switch-Host can be power ON and OFF independently.
 * BMC shall remain operational (UP) during system leak events, power or voltage faults affecting the host system, provided standby power rail remains available
-* Firmware upgrade of components is done on Switch-Host or BMC based on who owns the component and what needs a reboot.
+* Firmware upgrade of components is done on Switch-Host or BMC based on who owns the component and who needs a reboot.
 
 Liquid cooled sku requirements
 * BMC will manage leak detection, read system leak sensors, its severity and enforces mitigation actions according to system-wide SONiC policy.
@@ -72,6 +72,10 @@ Liquid cooled sku requirements
 
 Air cooled sku requirements
 * Switch-Host has thermalctld managing its thermal sensors and control the fan/cooling as done today.
+
+Hybrid cooled sku requirements
+* Sku with Liquid cooling and Air cooling for certian components(eg: CPU, ASIC etc) - will follow Liquid cooling sku requirements
+* The thermalctld daemon in Switch-Host will run the thermal algorithm to control fan speed as applicable.
     
 ### 1.2. BMC Platform Stack
 The SONiC in BMC interoperate with the SONiC in Switch-Host as in below diagram.
@@ -90,8 +94,8 @@ switch_bmc=1
 liquid_cooled=true
 ```
 
-"liquid_cooled" flag is set to true on a liquid cooled switch.
-"switch_host" flag is set to 1 on the switch host, "switch_bmc" flag is set to 1 on the switch BMC.
+* "liquid_cooled" flag is set to true on a liquid cooled switch OR hybrid cooled switch.
+* "switch_host" flag is set to 1 on the switch host, "switch_bmc" flag is set to 1 on the switch BMC.
 
 
 #### 2.1.1 BMC platform power up
@@ -119,7 +123,11 @@ Few of the URIs which needs to be supported in BMC are below,
              -- Rack Manager to get switch firmware details, follow DMTF standards.
     3. POST /redfish/v1/Systems/System/Actions/ComputerSystem.Reset  
              -- Rack Manager to power on/off Switch-Host
-             -- Support reset_type --> ForceOn, ForceOff, Powercycle
+             -- Support following reset_types
+                 •	On: Turn on the unit.
+                 •	ForceOff: Turn off the unit immediately (non-graceful).
+                 •	GracefulShutdown: Graceful shutdown and power off.
+                 •	PowerCycle: Power cycle the Switch
     4. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitAlert
              -- Rack manager send Alert when there is deviation in Inlet Liquid temperature, Inlet Liquid flow rate,
                 Inlet Liquid Pressure, Leak
@@ -143,7 +151,7 @@ Rack Manager command and state
 ```
 key                       = RACK_MANAGER_COMMAND|CMD_<command_id>         ; Commands from Rack Manager in STATE_DB in BMC
 ; field                   = value                                         ; e.g. ComputerSystem.Reset
-command                   = POWER_ON | POWER_OFF | POWER_CYCLE
+command                   = POWER_ON | POWER_OFF | GRACEFUL_SHUT| POWER_CYCLE
 status                    = PENDING | IN_PROGRESS | DONE | FAILED         ; status of the command
 result                    = SUCCESS | ERROR_CODE | STRING                 ; was the command successfull
 timestamp                 = STR
@@ -243,7 +251,7 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 | `SYSTEM_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table. |
 | `RACK_MGR_CRITICAL_EVENT` |  Rack Manager | A CRITICAL severity alert posted by the Rack Manager via Redfish (e.g. inlet temperature, flow rate, pressure, or rack-level leak). See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
 | `RACK_MGR_MINOR_EVENT` |  Rack Manager | A MINOR severity alert posted by the Rack Manager via Redfish. See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
-| `RACK_MGR_SHUTDOWN command` |  Rack Manager | An explicit `ComputerSystem.Reset` power-off command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
+| `RACK_MGR_SHUTDOWN command` |  Rack Manager | An explicit `ComputerSystem.Reset` shutdown command (by default assumed graceful) sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
 | `RACK_MGR_POWERON command` |  Rack Manager | An explicit `ComputerSystem.Reset` power-on command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
 | `RACK_MGR_POWER_CYCLE command` |  Rack Manager | An explicit power-cycle command sent by the Rack Manager via Redfish. See `RACK_MANAGER_COMMAND` table. |
 | `CHASSIS_MODULE_admin_down` | User CLI | User issues `config chassis modules shutdown <Switch-Host>` on BMC. Written to `CHASSIS_MODULE` table. |
@@ -372,10 +380,13 @@ On an Event
   - use GNOI framework to issue remote SOFT shutdown. The gnmi and sysmgr docker needs to be running on Switch-Host
     REF: https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/gnoi_system_hld.md, https://github.com/sonic-net/SONiC/pull/1489
   - start a timer based on shutdown_delay configured in SWITCH_HOST_SHUTDOWN_TIMEOUT|default table.
-    - Timer expiry Handler, check the Switch-Host state using platform API.
-  - if no response for GNOI request, call platform API module->set_admin_state(DOWN) to power down the Switch-Host
+  - if GNOI request came back SUCCESS or No response for GNOI request + Timer expired
+      - call platform API module->set_admin_state(DOWN) to power down the Switch-Host
   - update the HOST_STATE|switch-host with the device_power_state.
 ```  
+
+**Note** The remote shutdown on the Switch-Host could be as simple as :1. Unmount filesystems 2. interface shut 3. reboot cause update.
+
 &nbsp;
 
 
@@ -392,10 +403,10 @@ key                       = SWITCH_HOST_POWER_ON_DELAY |default   ; Config DB on
 boot_delay                = float                                 ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
                                                                   ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events, Switch-Host will be powered on
 
-key                       = HOST_STATE|switch-host       ; STATE_DB on BMC to store state of Switch-Host
+key                       = HOST_STATE|switch-host                             ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
-device_power_state        = POWER_ON | POWER_OFF|POWER_CYCLE  ; What was the last action done on Switch-Host
-device_status             = ONLINE | OFFLINE                  ; current oper status of device, can use the platform API module->get_oper_state()
+device_power_state        = POWER_ON | POWER_OFF| GRACEFUL_SHUT | POWER_CYCLE  ; What was the last action done on Switch-Host
+device_status             = ONLINE | OFFLINE                                   ; current oper status of device, can use the platform API module->get_oper_state()
 last_change_timestamp     = STR
 
 
@@ -488,12 +499,12 @@ This base class is already defined in sonic-platform-common, additional new plat
 | Method | Present | Action |
 |---------|---------|----------|
 | get_name() | Y | Get leak sensor name |
-| is_leak() | Y | Is there a leak detected? **Applies debounce logic before reporting or clearing a leak** |
+| is_leak() | Y | Is there a leak detected? **Applies debounce logic defined by <vendor>platform before reporting or clearing a leak** |
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
 | get_leak_sensor_type() | New | What type of leak sensor is this rope, flex_pcb, spot etc |
 | get_leak_sensor_location() | New | Location of leak sensor |
 | get_leak_severity() | New | Get the severity based on the criticality of the zone or how sever is the leak for a sensor for eg: more liquid presence |
-| get_leak_profile() | New | Returns the leak sensor profile associated with this sensor |
+| get_leak_profile() | New | Returns the leak sensor profile associated with this leak sensor type. there will be a profile created per lear sensor type rope, flex_pcb, spot etc  |
 
 **Note**
 
@@ -508,11 +519,11 @@ Even if the sensor is located farther from critical components (e.g., a rope/cab
 
 #### LeakSensorProfileBase
 This base class is for getting the platform specific leak sensor profile.
-This profile will be per leak sensor type and it will contain tunable parameters per leak sensor type.
+This profile is created per leak sensor type )and it will contain tunable parameters per leak sensor type.
 
 | Method | Present | Action |
 |---------|---------|----------|
-| get_leak_max_minor_duration_sec() | New | Get MAX time before which a minor leak can be marked CRITICAL |
+| get_leak_max_minor_duration_sec() | New | Get MAX time in secs before which a minor leak can be marked CRITICAL. This API could return back 0 if a platform don't support this concept of minor severity leak gets critical over time |
 
 
 #### LiquidCoolingBase
@@ -530,12 +541,12 @@ This base class is already defined in sonic-platform-common.
 This base class is already defined in sonic-platform-common.
 Switch-Host can be modelled as a Module object and the APIs to control power on/off/cycle the Switch-Host are as below,
 
-| Method | Present | Action |
-|---------|---------|----------|
-| set_admin_state(up=True) | Y | Power ON Switch Host from standby/off |
-| set_admin_state(up=False) | Y | Power OFF Switch Host |
-| get_oper_state() | Y | Fetch the operational state of Switch-Host|
-| do_power_cycle() | New | Power cycle Switch Host|
+| Method                    | Present | Action |
+|---------------------------|---------|--------|
+| set_admin_state(up=True)  | Y       | Hardware power **ON** the Switch Host from standby/off. The Switch Host transitions to **ONLINE** (powered on). |
+| set_admin_state(up=False) | Y       | Hardware power **OFF** the Switch Host. The Switch Host transitions to **OFFLINE** (powered off). |
+| get_oper_state()          | Y       | Returns the **hardware operational (power) state** of the Switch Host (ONLINE/OFFLINE). This API reflects **power state only** and does **not** infer software or OS readiness. |
+| do_power_cycle()          | New     | Performs a **hardware power cycle** of the Switch Host. |
 
 
 Sample Implementation for BMC
@@ -650,13 +661,14 @@ Applicable to (LC)
 
 ```
 config liquidcool leak-control [system|rack_mgr] [enabled|disabled]
-   - This command helps user to enable and disable system/rack-mgr-external leak policy application in BMC
+   - enabled  : enable the enforcement of system/rack-mgr-external leak policy application in BMC
+   - disabled : disable the enforcement of system/rack-mgr-external leak policy application in BMC
    - Default is enabled.
 ```
 
 * config liquidcool leak-action
 
-CLI to configure the action taken when a critical/minor event is detected. Actions are applied only when the corresponding leak-control policy is enabled.
+CLI to configure the action taken when a critical/minor event is detected. Actions are applied only when the corresponding leak-control policy is enabled with "config liquidcool leak-control".
 Applicable to (LC)
 
 ```
@@ -699,7 +711,9 @@ Model Number: <Switch model number>
 ...
 
 ```
-**Note** Here the assumption is that both Switch and BMC will share a common model number 
+**Note** 
+1. Here the assumption is that both Switch and BMC will share a common model number
+2. Update the following commands "sudo decode-syseeprom", "show platform summary"
 
 
 * show chassis module status
@@ -859,3 +873,7 @@ In case of a firmware upgrade which needs reboot of both Switch-Host and BMC, wi
 ## 3 Future Items
 
 1. Add support in thermalctld to take a json file as input to let user modify the system leak severity detection policy.
+2. Add support for more Rack manager commands via Redfish for reset_type like ForceRestart, GracefulRestart
+3. Add support for ipv6 address to Host-Bmc-Link
+4. Introduced the Hybrid cooling skus in this design document. Add more details on requirments and actions of various platform daemons in Switch-Host.
+   
