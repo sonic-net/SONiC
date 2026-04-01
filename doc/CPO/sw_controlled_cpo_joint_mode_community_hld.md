@@ -40,7 +40,7 @@ At the hardware level, a CPO module is composed of:
 * **External Laser Source (ELS)** — providing continuous laser light used by the Optical Engines for transmission.
 
 CPO systems support two operational models:
-* **Separate Mode**, where the host directly accesses and manages the underlying components (e.g., OEs and ELSs). See *port_mapping_for_cpo.md* section 2 and *CPO-support-in-SONiC.mds* section 2.
+* **Separate Mode**, where the host directly accesses and manages the underlying components (e.g., OEs and ELSs). See *port_mapping_for_cpo.md* section 2.
 * **Joint Mode**, where the host interacts with aCPO module abstraction, without directly managing the underlying components.
 
 To preserve compatibility with existing SONiC and SAI workflows, we introduce a **Virtual CPO Module (or vModule)** that mimcs the behavior of a trandtional optical module by providing a logical abstraction that exposes a single unified CMIS interface for both the integrated Optical Engine (OE) and External Laser Sources (ELS).
@@ -74,7 +74,7 @@ A vModule exposes **32 lanes**, compared to 8 lanes in standard pluggable module
 
 This document defines the **SW-controlled CPO in Joint Mode**, where SONiC sees CPO modules and interacts with them through the CPO abstraction layer, leveraging the existing CMIS-based host management flows.
 
-Note: the **Separate Mode**, where the host system directly interacts with and manages the underlying optical hardware components is defined in *port_mapping_for_cpo.md* section 2 and *CPO-support-in-SONiC.mds* section 2.
+Note: the **Separate Mode**, where the host system directly interacts with and manages the underlying optical hardware components is defined in *port_mapping_for_cpo.md* section 2.
 
 The main objective of this document is to demonstrate that supporting Joint Mode:
 * Does **not require fundamental changes** to the SONiC architecture.
@@ -84,7 +84,6 @@ The main objective of this document is to demonstrate that supporting Joint Mode
 This document builds on existing community HLDs and extends them to support Joint Mode, without redefining them:
 * [port_mapping_for_cpo](https://github.com/nexthop-ai/SONiC/blob/274228b44de9edbbf6f1585c9bb7392853cbbc08/doc/platform/port_mapping_for_cpo.md)
 * [cmis_banking_support](https://github.com/bobby-nexthop/SONiC/blob/0b09f1cc3e91853fcbabb29efb76fa6ea4b9647d/doc/layer1/cmis_banking_support.md)
-* [CPO-support-in-SONiC](https://github.com/KroosMicas/SONiC/blob/41a20d3a4bd62a56292c58f5813e6dd6f58a109f/doc/cpo/CPO-support-in-SONiC.md)  
 
 ### Out of Scope (Current Revision):
 
@@ -120,11 +119,40 @@ The following aspects are **not covered in this revision**, are currently **unde
 
 ## 7. High-Level Design
 
-In Joint Mode, SONiC continues to operate using the existing CMIS host management architecture, using exactly the same xcvrd threads, without introducing changes to the overall control flow.
+In Joint Mode, SONiC continues to operate using the existing CMIS host management architecture, using exactly the same xcvrd logic, without introducing changes to the overall control flow.
 
 As a result, the following extensions are needed:
 
-**1. Extending the module type ID ↔ transceiver API mapping** to include the CPO module type 0x80 (xcvr_api_factory).
+### 7.1 CMIS State Machine Thread for CPO Modules
+
+The CMIS state machine thread is responsible for module configuration. It orchestrates the bring-up of a CMIS transceiver, transitioning it from the inserted state to a ready-for-traffic state.
+
+A new thread, `CmisCpoManagerTask`, will be introduced in `xcvrd` to handle this flow specifically for CPO modules. This thread reuses the existing CMIS logic by inheriting from `CmisManagerTask`, with only minimal adjustments.
+
+The intent is to keep CPO handling fully isolated from the existing logic for pluggable modules.
+
+The `CmisCpoManagerTask` thread is instantiated only in Joint Mode. This is controlled via a new flag — *"is_joint_mode"* — added to `pmon_daemon_control.json` (located at `/usr/share/sonic/device/[PLATFORM]/pmon_daemon_control.json`). When *"is_joint_mode": true*, the `CmisCpoManagerTask` thread is initialized.
+
+```python
+def run(self):
+    # Start the CMIS cpo manager
+    cmis_cpo_manager = None
+    if self.is_joint_mode:
+        cmis_cpo_manager = CmisCpoManagerTask(...)
+        cmis_cpo_manager.start()
+        self.threads.append(cmis_cpo_manager)
+```
+
+The only functional difference is the set of supported module types. While `CmisManagerTask` handles multiple module types (e.g., QSFP-DD, OSFP, QSFP+), `CmisCpoManagerTask` is restricted to CPO modules only:
+
+```python
+CMIS_MODULE_TYPES = ['CPO']
+```  
+
+
+### 7.2 Module Type ID ↔ Transceiver API Mapping
+
+to include the CPO module type 0x80 (xcvr_api_factory).
 
 ```python
 def create_xcvr_api(self):
@@ -141,18 +169,15 @@ def create_xcvr_api(self):
 This change also introduces a new memory map: **CmisCpoMemoryMap**.
 
 The EEPROM exposes both the standard CMIS data and additional ELS-related information. To support this, CmisCpoMemoryMap extends the existing CMIS memory map by:
-* Incorporating ELS-related fields based on the ELSFP specification.
-* Allowing vendor-specific fields to be defined and accessed through this memory map.
+
+- Incorporating ELS-related fields based on the ELSFP specification.
+- Allowing vendor-specific fields to be defined and accessed through this memory map.
 
 Unlike existing generic CMIS memory maps, the CPO memory map supports vendor-specific fields. It accepts an optional dictionary of field definitions at init time, allowing each vendor to inject its own page layouts.
 
-Note: This simplifies things to the NOS in comparison to Separate mode, where two new memory maps are suggested - see section 6.2.5 in *CPO-support-in-SONiC.md*.
-
-
-**2. Extending the list of recognized CMIS module types** to allow CPO modules to be handled by the CMIS state machine.  
 <br>
 
-**Platform Implementation Alignment**  
+### Platform Implementation Alignment  
 From the platform implementation perspective, the design aligns completely with the approaches described in the community HLDs:
 
 * As described in the *cmis_banking_support.md* (section 7.8.2), the platform will expose one SFP object per bank. This structure in Joint mode is illustrated below:
@@ -179,7 +204,7 @@ From the platform implementation perspective, the design aligns completely with 
 
 ### 9.2. CLI/YANG model Enhancements
 
-In addition to the bank-aware EEPROM access commands introduced in *cmis_banking_support.md* (section 7.9), and the `show interfaces transceiver` CLI enhancements introduced in *CPO-support-in-SONiC.md* (section 6.2.11), this design introduces an update to the following CLI command for monitoring CPO-specific error statuses:
+In addition to the bank-aware EEPROM access commands introduced in *cmis_banking_support.md* (section 7.9), this design introduces an update to the following CLI command for monitoring CPO-specific error statuses:
 
 **Syntax:**
 `show interfaces transceiver error-status [<interface_name>] [-hw]`
