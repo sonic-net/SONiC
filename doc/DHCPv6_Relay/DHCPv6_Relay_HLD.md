@@ -41,7 +41,7 @@
 This document provides an overview of the implementation and integration of DHCP Relay for IPv6 feature in SONiC.
 
 # Scope
-This document describes the high level design of the DHCP Relay for IPv6 feature in SONiC.
+This document describes the high level design of the DHCP Relay for IPv6 feature in SONiC. The relay agent supports both VLAN interfaces and routed ports.
 
 # Definitions/Abbreviation
 | Abbreviation  | Description                               |
@@ -60,23 +60,37 @@ DHCP Relay for IPv6 feature in SONiC should meet the following high-level functi
 
 ## 1.2 Configuration and Management Requirements
 
-- DHCPv6 trap should be enabled through the COPP manager when the DHCP relay feature is enabled and vice versa. 
-- Downstream network is the VLAN interface with the relay configuration. Global IPv6 address is required to be configured on that interface. 
-- Config DB schema should meet the following format:
+- DHCPv6 trap should be enabled through the COPP manager when the DHCP relay feature is enabled and vice versa.
+- Downstream network can be a VLAN interface or routed port with the relay configuration. Global IPv6 address is required to be configured on that interface.
+- Config DB schema should meet the following format for VLAN interfaces:
 ```
 {
 "VLAN": {
   "Vlan1000": {
     "dhcp_servers": [
-      "192.0.0.1", 
-      "192.0.0.2", 
-    ], 
-    "dhcpv6_servers": [ 
-      "21da:d3:0:2f3b::7", 
-      "21da:d3:0:2f3b::6", 
-    ], 
-    "vlanid": "1000" 
-    } 
+      "192.0.0.1",
+      "192.0.0.2",
+    ],
+    "dhcpv6_servers": [
+      "21da:d3:0:2f3b::7",
+      "21da:d3:0:2f3b::6",
+    ],
+    "vlanid": "1000"
+    }
+  }
+}
+```
+
+- Config DB schema for routed ports:
+```
+{
+"INTERFACE": {
+  "Ethernet4": {
+    "dhcpv6_servers": [
+      "21da:d3:0:2f3b::7",
+      "21da:d3:0:2f3b::6",
+    ]
+    }
   }
 }
 ```
@@ -92,7 +106,7 @@ The DHCP Relay for IPv6 feature, same as the IPv4 version, will be based on the 
 ## 2.2 DHCP Relay for IPv6 process in dhcp-relay container
 
 A new process will run in parallel to the other process for IPv4 support.
-The new process will listen to DHCP packets for IPv6 and forward them to the relevant interface according to the configuration.
+The new process will listen to DHCP packets for IPv6 and forward them to the relevant interface (VLAN or routed port) according to the configuration.
 For example, from the configuration described on the previous section, the following daemon will start:
 ```
 admin@sonic:/# /usr/sbin/dhcrelay -6 -d --name-alias-map-file /tmp/port-name-alias-map.txt -l Vlan1000 -u 21da:d3:0:2f3b::7%Ethernet28 -u 21da:d3:0:2f3b::6%Ethernet28
@@ -104,7 +118,7 @@ The existing DHCP monitor will be enhanced in order to support monitoring for DH
 
 ## 3 CLI
 
-The existing CLI will be enhanced to support configuring DHCP IPv6 along with the IPv4 support.
+The existing CLI will be enhanced to support configuring DHCP IPv6 along with the IPv4 support on both VLAN interfaces and routed ports.
 
 **config vlan dhcp_relay add**
 
@@ -129,6 +143,32 @@ Example:
 ```
 admin@sonic:~$ sudo config vlan dhcp_relay del 1000 21da:d3:0:2f3b::7
 Removed DHCP relay destination address 21da:d3:0:2f3b::7 from Vlan1000
+Restarting DHCP relay service...
+```
+
+**config interface dhcp_relay add (for routed ports)**
+
+Usage:
+```
+config interface dhcp_relay add <interface_name> <dhcp_relay_destination_ipv6>
+```
+Example:
+```
+admin@sonic:~$ sudo config interface dhcp_relay add Ethernet4 21da:d3:0:2f3b::7
+Added DHCP relay destination address 21da:d3:0:2f3b::7 to Ethernet4
+Restarting DHCP relay service...
+```
+
+**config interface dhcp_relay delete (for routed ports)**
+
+Usage:
+```
+config interface dhcp_relay del <interface_name> <dhcp_relay_destination_ipv6>
+```
+Example:
+```
+admin@sonic:~$ sudo config interface dhcp_relay del Ethernet4 21da:d3:0:2f3b::7
+Removed DHCP relay destination address 21da:d3:0:2f3b::7 from Ethernet4
 Restarting DHCP relay service...
 ```
 
