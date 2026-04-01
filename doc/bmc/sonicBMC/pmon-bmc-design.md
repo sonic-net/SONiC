@@ -58,7 +58,7 @@ This section captures the functional requirements for platform capabilities in s
 
 General requirements
 * BMC has a SONiC instance running independently of SONiC running in Switch-Host
-* BMC can access Switch-Host redis DB over this internal Host-Bmc-Link and viceversa.
+* BMC can access Switch-Host redis DB over this internal Host-Bmc-Link and vice versa.
 * BMC will manage the Switch Host to support operations like soft reboot, power up/down, power-cycle, get operational status.
 * BMC and Switch-Host shall enable an independent Hw watchdog timer.
 * BMC and Switch-Host can be power ON and OFF independently.
@@ -74,11 +74,11 @@ Air cooled sku requirements
 * Switch-Host has thermalctld managing its thermal sensors and control the fan/cooling as done today.
 
 Hybrid cooled sku requirements
-* Sku with Liquid cooling and Air cooling for certian components(eg: CPU, ASIC etc) - will follow Liquid cooling sku requirements
+* Sku with Liquid cooling and Air cooling for certain components(eg: CPU, ASIC etc) - will follow Liquid cooling sku requirements
 * The thermalctld daemon in Switch-Host will run the thermal algorithm to control fan speed as applicable.
     
 ### 1.2. BMC Platform Stack
-The SONiC in BMC interoperate with the SONiC in Switch-Host as in below diagram.
+The SONiC in BMC interoperates with the SONiC in Switch-Host as in below diagram.
  
 ![BMC Platform Stack](images/sonic-bmc-arch.png)
 
@@ -99,9 +99,9 @@ liquid_cooled=true
 
 
 #### 2.1.1 BMC platform power up
-When device is powered ON, the BMC powers first, boots up the sonic BMC which starts the various cointainers   
+When device is powered ON, the BMC powers first, boots up the sonic BMC which starts the various containers
 
-If it is Air cooled switch the Switch-Host is powered on immediately.
+If it is an Air cooled switch, the Switch-Host is powered on immediately.
 
 If it is liquid cooled, the following actions are done before the Switch-Host is powered on.
 * Check system leaks and external Leaks if any reported by Rack Manager
@@ -113,7 +113,7 @@ If it is liquid cooled, the following actions are done before the Switch-Host is
 #### 2.1.2 BMC - External Rack Manager Interaction
 The new docker container "redfish" in sonicBMC will have openbmc/bmcweb service which terminates the redfish calls from the external Rack Manager Node.
 
-**Note: Redish docker to be enabled only on Liquid cooling platform.**
+**Note: Redfish docker to be enabled only on Liquid cooling platform.**
 
 Few of the URIs which needs to be supported in BMC are below,
 
@@ -129,10 +129,10 @@ Few of the URIs which needs to be supported in BMC are below,
                  •	GracefulShutdown: Graceful shutdown and power off.
                  •	PowerCycle: Power cycle the Switch
     4. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitAlert
-             -- Rack manager send Alert when there is deviation in Inlet Liquid temperature, Inlet Liquid flow rate,
+             -- Rack Manager sends an Alert when there is deviation in Inlet Liquid temperature, Inlet Liquid flow rate,
                 Inlet Liquid Pressure, Leak
     5. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitTelemetry
-             -- Rack manager send periodic telemetry data of Inlet Liquid temperature, Inlet Liquid flow rate,
+             -- Rack Manager sends periodic telemetry data of Inlet Liquid temperature, Inlet Liquid flow rate,
                 Inlet Liquid Pressure, Leak information
     6. POST /redfish/v1/EventService/Subscriptions  
              -- Rack manager to subscribe for events like Leak from switchBMC.
@@ -145,7 +145,7 @@ Few of the URIs which needs to be supported in BMC are below,
 
 #### 2.1.2.1 DB schema
 
-Redis DB will be used to store the command/data send from external Rack manager for the platform daemons to act upon.
+Redis DB will be used to store the command/data sent from the external Rack Manager for the platform daemons to act upon.
 
 Rack Manager command and state
 ```
@@ -153,11 +153,11 @@ key                       = RACK_MANAGER_COMMAND|CMD_<command_id>         ; Comm
 ; field                   = value                                         ; e.g. ComputerSystem.Reset
 command                   = POWER_ON | POWER_OFF | GRACEFUL_SHUT| POWER_CYCLE
 status                    = PENDING | IN_PROGRESS | DONE | FAILED         ; status of the command
-result                    = SUCCESS | ERROR_CODE | STRING                 ; was the command successfull
+result                    = SUCCESS | ERROR_CODE | STRING                 ; was the command successful
 timestamp                 = STR
 
 
-key                       = RACK_MANAGER_STATE|rack-manager               ; STATE_DB on BMC to store rechability of RackManager
+key                       = RACK_MANAGER_STATE|rack-manager               ; STATE_DB on BMC to store reachability of RackManager
 ; field                   = value
 reachability              = REACHABLE | UNREACHABLE
 last_change_timestamp     = STR
@@ -224,13 +224,13 @@ timestamp                 = STR
 #### 2.1.3 Host-Bmc-Link
 There is ethernet link between the Switch-Host and Switch-BMC ( eg: Ethernet over USB )
 
-The BMC and Switch-Host will intialize the usb netdev dring the inital platform bringup and name it as bmc0.
+The BMC and Switch-Host will initialize the usb netdev during the initial platform bringup and name it as bmc0.
 
 IP address to be configured on the Switch-Host end and Switch-Bmc end can be defined sonic wide unique in file "files/image_config/constants/bmc.json" as below
 ```
 {
     "bmc_if_name": "bmc0",
-    "bmc_if_addr": "169.254.100.2",    #Address on Switch-Host end
+    "bmc_if_addr": "169.254.100.2",    # Address on Switch-Host end
     "bmc_addr": "169.254.100.1",       # Address on the BMC end
     "bmc_net_mask": "255.255.255.252"
 }
@@ -262,12 +262,12 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 
 **State Transitions**
 
-|| Switch Host State (Start) | Event in BMC | Action taken in BMC | Switch Host State (Final) 
+| Switch Host State (Start) | Event in BMC | Action taken in BMC | Switch Host State (Final) 
 |--|---|---|---|---|
 |1| ONLINE  | SYSTEM_LEAK_CRITICAL_EVENT | Syslog, Action configurable via `system_critical_leak_action` in LEAK_CONTROL_POLICY (default: Power OFF Switch Host) | OFFLINE
 |2| ONLINE  | RACK_MGR_SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE
 |3| ONLINE  | CHASSIS_MODULE_admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE
-|4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and hot thermal sensors, Action configurable via `rack_mgr_critical_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
+|4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and host thermal sensors, Action configurable via `rack_mgr_critical_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
 |5| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, Action configurable via `rack_mgr_minor_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
 |6| ONLINE  | SYSTEM_LEAK_MINOR_EVENT | Syslog, Action configurable via `system_minor_leak_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
 |7| OFFLINE  | RACK_MGR_POWERON command | Power ON Switch Host, Syslog | ONLINE
@@ -277,7 +277,7 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 The BMC remains POWERED ON in all above scenarios.
 
 The Switch-Host will go and remain OFFLINE with events viz. SYSTEM_LEAK_CRITICAL_EVENT, RACK_MGR_SHUTDOWN command, CHASSIS_MODULE_admin_down.
-It will be powered ON and come ONLINE only with external tool/user sending RACK_MGR_POWER_ON command or CHASSIS_MODULE_admin_up user request
+It will be powered ON and come ONLINE only with external tool/user sending RACK_MGR_POWERON command or CHASSIS_MODULE_admin_up user request
 
 #### 2.1.5 BMC Leak detection and thermal policy
 
@@ -401,7 +401,7 @@ This section covers the various tables which this daemon creates/uses in Redis D
 key                       = SWITCH_HOST_POWER_ON_DELAY |default   ; Config DB on BMC
 ; field                   = value
 boot_delay                = float                                 ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
-                                                                  ; If BMC receive POWER ON from Rack manager before this timeout + ther are no critical events, Switch-Host will be powered on
+                                                                  ; If BMC receives POWER ON from Rack manager before this timeout + there are no critical events, Switch-Host will be powered on
 
 key                       = HOST_STATE|switch-host                             ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
@@ -412,9 +412,9 @@ last_change_timestamp     = STR
 
 key                       = SWITCH_HOST_SHUTDOWN_TIMEOUT|default ; Config DB on BMC
 ; field                   = value
-shutdown_delay            = float                                ; Time in secs the BMC will wait after SHUTDOWN command send to Switch-Host. ( default = 2 min ).
+shutdown_delay            = float                                ; Time in secs the BMC will wait after SHUTDOWN command sent to Switch-Host. ( default = 2 min ).
                                                                  ; if this timer expires, BMC will go ahead and direct POWER OFF switch-host with platform API
-                                                                 ; if shutdown_delay is 0, BMC will NOT do a gracefull shutdown, instead will do POWER_OFF with platform API
+                                                                 ; if shutdown_delay is 0, BMC will NOT do a graceful shutdown, instead will do POWER_OFF with platform API
 
 ```
 
@@ -438,7 +438,7 @@ The main thermalctld daemon will run the sonic thermal policy based on the numbe
     - Apply the System leak severity detection algorithm as below
        
        +--------------------------------------+-------------------------------------------+-------------------------------+
-       | Induvidual Leak Sensor Condition     | Induvidual Leak Sensor Severity (Input)   | System Leak Severity (Output) |
+       | Individual Leak Sensor Condition     | Individual Leak Sensor Severity (Input)   | System Leak Severity (Output) |
        +--------------------------------------+-------------------------------------------+-------------------------------+
        | 1 Critical leak                      |                   CRITICAL                | CRITICAL_SYSTEM_LEAK          |
        | 2 or more leaks (any severity)       |                 Any Severity              | CRITICAL_SYSTEM_LEAK          |
@@ -447,7 +447,7 @@ The main thermalctld daemon will run the sonic thermal policy based on the numbe
        +--------------------------------------+-------------------------------------------+-------------------------------+
 
     - Additional considerations, the timers can be configured per leak sensor profile.
-       - MAX-T mins defined before which a MINOR leak can be considered CRITICAL.
+       - MAX-T secs defined before which a MINOR leak can be considered CRITICAL.
 
     - Update the system SYSTEM_LEAK_STATUS table with the severity of leak. This will be used in bmcctld process.
 
@@ -483,7 +483,7 @@ This will do a CPU reset when OS hangs or becomes unresponsive and fails to serv
 
 #### 2.2.4 Platform APIs
 
-# Platform APIs Used
+#### Platform APIs Used
 
 Listing down the platform APIs both already defined and newly planned for sonic bmc support. 
 
@@ -494,7 +494,7 @@ Reference doc:
 ####  LeakageSensorBase
 
 This class defines the APIs available per leak sensor.
-This base class is already defined in sonic-platform-common, additional new platform APIs are inroduced.
+This base class is already defined in sonic-platform-common, additional new platform APIs are introduced.
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -503,12 +503,12 @@ This base class is already defined in sonic-platform-common, additional new plat
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
 | get_leak_sensor_type() | New | What type of leak sensor is this rope, flex_pcb, spot etc |
 | get_leak_sensor_location() | New | Location of leak sensor |
-| get_leak_severity() | New | Get the severity based on the criticality of the zone or how sever is the leak for a sensor for eg: more liquid presence |
-| get_leak_profile() | New | Returns the leak sensor profile associated with this leak sensor type. there will be a profile created per lear sensor type rope, flex_pcb, spot etc  |
+| get_leak_severity() | New | Get the severity based on the criticality of the zone or how severe the leak is for a sensor for eg: more liquid presence |
+| get_leak_profile() | New | Returns the leak sensor profile associated with this leak sensor type. there will be a profile created per leak sensor type rope, flex_pcb, spot etc  |
 
 **Note**
 
-The get_leak_severity() API call have to determine whether any condition indicates a severe leak detected from a leak sensor.This decision could be based on:
+The get_leak_severity() API call has to determine whether any condition indicates a severe leak detected from a leak sensor.This decision could be based on:
 
 (i) Zone criticality:
 The physical location of the leak sensor. For example, if a spot leak sensor is located near critical components (ASIC/CPU) and the measured value (e.g. resistance or other leak-detection metric) crosses a platform-defined threshold, it should be treated as a critical leak.
@@ -519,7 +519,7 @@ Even if the sensor is located farther from critical components (e.g., a rope/cab
 
 #### LeakSensorProfileBase
 This base class is for getting the platform specific leak sensor profile.
-This profile is created per leak sensor type )and it will contain tunable parameters per leak sensor type.
+This profile is created per leak sensor type and it will contain tunable parameters per leak sensor type.
 
 | Method | Present | Action |
 |---------|---------|----------|
@@ -683,17 +683,17 @@ config liquidcool leak-action [system|rack_mgr] [critical|minor]  [syslog_only|g
 
 ```
   "LEAK_CONTROL_POLICY": {
-      "system_leak_policy"            : "enabled",             ; enabled by default
-      "system_critical_leak_action"   : "power_off",           ; default is power_off   
-      "system_minor_leak_action"      : "syslog_only",         ; default is syslog_only
-      "rack_mgr_leak_policy"          : "enabled",             ; enabled by default
-      "rack_mgr_critical_alert_action": "syslog_only",         ; default is syslog_only
-      "rack_mgr_minor_alert_action"   : "syslog_only"          ; default is syslog_only
+      "system_leak_policy"            : "enabled | disabled",   ; enabled by default
+      "system_critical_leak_action"   : "power_off",            ; default is power_off   
+      "system_minor_leak_action"      : "syslog_only",          ; default is syslog_only
+      "rack_mgr_leak_policy"          : "enabled | disabled",   ; enabled by default
+      "rack_mgr_critical_alert_action": "syslog_only",          ; default is syslog_only
+      "rack_mgr_minor_alert_action"   : "syslog_only"           ; default is syslog_only
   }
 
 ```
 
-##### 2.3.2 Show commands 
+#### 2.3.2 Show commands 
 
 * show version 
 
@@ -818,13 +818,13 @@ There are following enhancements planned in pmon running on SONiC in Switch-Host
 
 ##### 2.4.1 pmon/thermalctld
 
-The thermalctld daemon will sent the thermal sensors polled and stored locally in redis-DB to redis-DB in the BMC also.
+The thermalctld daemon sends the thermal sensors polled and stored locally in redis-DB to redis-DB in the BMC also.
 
 BMC would use this thermal data to record the critical thermal deviation which can be used to either
    (i) syslog which could be used for alert 
    (ii) take action like shut the Switch-Host proactively before Switch-Host will be shutdown by hardware thermal trip.
 
-**Note:** In first phase we will just syslog the thermel sensor deviation in BMC event log and not trigger any action.
+**Note:** In first phase we will just syslog the thermal sensor deviation in BMC event log and not trigger any action.
 
 ![Thermal sensor data pushed to BMC](images/thermal_sensor.png)
 
@@ -838,7 +838,7 @@ All SONiC commands are supported on Switch-Host. The following command needs enh
 Enhance the reboot reason in Switch-Host to include the graceful_shutdown/power_down requests from BMC. 
 
  - The GNOI request handler should update the reboot cause file as part of the graceful shutdown sequence.
- - If the shutdown is down by the platform API ( which is a non-graceful shutdown), the API should update the reboot cause file.
+ - If the shutdown is done by the platform API ( which is a non-graceful shutdown), the API should update the reboot cause file.
 
 Applicable to (LC, AC)
 
@@ -875,5 +875,5 @@ In case of a firmware upgrade which needs reboot of both Switch-Host and BMC, wi
 1. Add support in thermalctld to take a json file as input to let user modify the system leak severity detection policy.
 2. Add support for more Rack manager commands via Redfish for reset_type like ForceRestart, GracefulRestart
 3. Add support for ipv6 address to Host-Bmc-Link
-4. Introduced the Hybrid cooling skus in this design document. Add more details on requirments and actions of various platform daemons in Switch-Host.
+4. Introduced the Hybrid cooling skus in this design document. Add more details on requirements and actions of various platform daemons in Switch-Host.
    
