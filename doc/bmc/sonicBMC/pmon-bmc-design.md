@@ -140,7 +140,7 @@ Few of the URIs which needs to be supported in BMC are below,
              -- redfish server in BMC response back to https://<rack-mgr-ip>:<port>/Events or which ever "destination"
                 Rack Manager sends in the event subscription request
 
-**Note:** More details available in redfish HLD (https://github.com/sonic-net/sonic-redfish/pull/2)
+**Note:** More details available in [redfish HLD](https://github.com/sonic-net/SONiC/pull/2281)
 
 
 #### 2.1.2.1 DB schema
@@ -184,7 +184,6 @@ timestamp                 = STR
 key                       = RACK_MANAGER_ALERT|Rack_level_leak             ; Alert data from Rack Manager in STATE_DB
 ; field                   = value
 leak                      = status                                         ;CRITICAL/MAJOR/MINOR
-leak_rope_break           = status                                         ;CRITICAL/MAJOR/MINOR
 timestamp                 = STR
 ```
 
@@ -217,7 +216,6 @@ timestamp                 = STR
 key                       = RACK_MANAGER_DATA|Rack_level_leak             ; Telemetry data from Rack Manager in STATE_DB
 ; field                   = value
 leak                      = status                                         ;CRITICAL/MAJOR/MINOR/NORMAL
-leak_rope_break           = status                                         ;CRITICAL/MAJOR/MINOR/NORMAL
 timestamp                 = STR
 ```  
 
@@ -262,17 +260,17 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 
 **State Transitions**
 
-| Switch Host State (Start) | Event in BMC | Action taken in BMC | Switch Host State (Final) 
+|| Switch Host State (Start) | Event in BMC | Action taken in BMC | Switch Host State (Final) |
 |--|---|---|---|---|
-|1| ONLINE  | SYSTEM_LEAK_CRITICAL_EVENT | Syslog, Action configurable via `system_critical_leak_action` in LEAK_CONTROL_POLICY (default: Power OFF Switch Host) | OFFLINE
-|2| ONLINE  | RACK_MGR_SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE
-|3| ONLINE  | CHASSIS_MODULE_admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE
-|4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and host thermal sensors, Action configurable via `rack_mgr_critical_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
-|5| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, Action configurable via `rack_mgr_minor_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
-|6| ONLINE  | SYSTEM_LEAK_MINOR_EVENT | Syslog, Action configurable via `system_minor_leak_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE
-|7| OFFLINE  | RACK_MGR_POWERON command | Power ON Switch Host, Syslog | ONLINE
-|8| -  | RACK_MGR_POWER_CYCLE command | Power CYCLE Switch Host, Syslog | ONLINE
-|9| OFFLINE  | CHASSIS_MODULE_admin_up user request | Power ON Switch Host, Syslog | ONLINE
+|1| ONLINE  | SYSTEM_LEAK_CRITICAL_EVENT | Syslog, Action configurable via `system_critical_leak_action` in LEAK_CONTROL_POLICY (default: Power OFF Switch Host) | OFFLINE|
+|2| ONLINE  | RACK_MGR_SHUTDOWN command | Syslog, graceful-shutdown Switch Host | OFFLINE|
+|3| ONLINE  | CHASSIS_MODULE_admin_down user request | Syslog, graceful-shutdown Switch Host | OFFLINE|
+|4| ONLINE  | RACK_MGR_CRITICAL_EVENT | Syslog this event and host thermal sensors, Action configurable via `rack_mgr_critical_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE|
+|5| ONLINE  | RACK_MGR_MINOR_EVENT | Syslog, Action configurable via `rack_mgr_minor_alert_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE|
+|6| ONLINE  | SYSTEM_LEAK_MINOR_EVENT | Syslog, Action configurable via `system_minor_leak_action` in LEAK_CONTROL_POLICY (default: syslog_only) | ONLINE|
+|7| OFFLINE  | RACK_MGR_POWERON command | Power ON Switch Host, Syslog | ONLINE|
+|8| -  | RACK_MGR_POWER_CYCLE command | Power CYCLE Switch Host, Syslog | ONLINE|
+|9| OFFLINE  | CHASSIS_MODULE_admin_up user request | Power ON Switch Host, Syslog | ONLINE|
 
 The BMC remains POWERED ON in all above scenarios.
 
@@ -283,7 +281,7 @@ It will be powered ON and come ONLINE only with external tool/user sending RACK_
 
 The Leak detection is applicable only to Liquid cooling platform. The action is based on alerts from two different sources 
 
-(i) System leak detection uses the leak status in LIQUID_COOLING_DEVICE|leakage_sensors{X}.
+(i) System leak detection uses the leak status in LIQUID_COOLING_INFO|leakage_sensors{X}.
     The result (`CRITICAL_SYSTEM_LEAK` or `MINOR_SYSTEM_LEAK`) will be updated in `SYSTEM_LEAK_STATUS` table defined in [2.2.2.1 DB schema](#2221-db-schema)
         
 (ii) External Rack manager alert status is updated by redfish/bmcweb in RACK_MANAGER_ALERT table defined in [2.1.2.1 DB schema](#2121-db-schema).
@@ -421,12 +419,12 @@ shutdown_delay            = float                                ; Time in secs 
 #### 2.2.2 thermalctld
 In Liquid cooled platform, thermalctld will skip the PSU, FAN, SFP thermals but have additional responsibilities to check leak sensors and apply leak policy.
 
-There is a thread to check the leak sensors and store it in the LIQUID_COOLING_DEVICE table
+There is a thread to check the leak sensors and store it in the LIQUID_COOLING_INFO table
 
 ```
 Loop on this logic 
   (i) Check system leak sensors using platform API
-         -- store the result in LIQUID_COOLING_DEVICE table
+         -- store the result in LIQUID_COOLING_INFO table
          -- Per-sensor leak_severity can be CRITICAL or MINOR (sensor-level assessment)
 
 ```
@@ -434,7 +432,7 @@ Loop on this logic
 The main thermalctld daemon will run the sonic thermal policy based on the number and severity of leak sensors with leak
 
 ```
-    - Subscribe to LIQUID_COOLING_DEVICE to check if there is any change in leak sensor status 
+    - Subscribe to LIQUID_COOLING_INFO to check if there is any change in leak sensor status 
     - Apply the System leak severity detection algorithm as below
        
        +--------------------------------------+-------------------------------------------+-------------------------------+
@@ -455,9 +453,9 @@ The main thermalctld daemon will run the sonic thermal policy based on the numbe
  
 #### 2.2.2.1 DB schema
 
-This LIQUID_COOLING_DEVICE table is already populated by thermalctld. New field **leak_severity** is introduced to capture per-sensor severity.
+This LIQUID_COOLING_INFO table is already populated by thermalctld. New field **leak_severity** is introduced to capture per-sensor severity.
 ```
-key                       = LIQUID_COOLING_DEVICE|leakage_sensors{X}  ; leak data in STATE_DB per sensor
+key                       = LIQUID_COOLING_INFO|leakage_sensors{X}  ; leak data in STATE_DB per sensor
  ; field                  = value
 name                      = STR                                       ; sensor name
 leaking                   = STR                                       ; Yes or No to indicate leak status
@@ -488,8 +486,7 @@ This will do a CPU reset when OS hangs or becomes unresponsive and fails to serv
 Listing down the platform APIs both already defined and newly planned for sonic bmc support. 
 
 Reference doc:
-* https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md 
-
+* [leak HLD](https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md)
 
 ####  LeakageSensorBase
 
@@ -629,7 +626,7 @@ The keywords LC:Liquid Cooled , AC:Air Cooled is used to denote which sku these 
 
 #### 2.3.1 Config commands
 
-* config chassis modules startup/shutdown <Switch-Host>
+* **config chassis modules startup/shutdown <Switch-Host>**
 
 CLI to enable user to graceful power on/off the Switch-Host. 
 Applicable to (LC, AC)
@@ -654,7 +651,7 @@ config chassis modules shutdown <Switch-Host>
     }    
 ```
 
-* config liquidcool leak-control
+* **config liquidcool leak-control**
 
 CLI to control the System leak, Rack-Manager leak policy enforcement
 Applicable to (LC)
@@ -666,7 +663,7 @@ config liquidcool leak-control [system|rack_mgr] [enabled|disabled]
    - Default is enabled.
 ```
 
-* config liquidcool leak-action
+* **config liquidcool leak-action**
 
 CLI to configure the action taken when a critical/minor event is detected. Actions are applied only when the corresponding leak-control policy is enabled with "config liquidcool leak-control".
 Applicable to (LC)
@@ -695,10 +692,14 @@ config liquidcool leak-action [system|rack_mgr] [critical|minor]  [syslog_only|g
 
 #### 2.3.2 Show commands 
 
-* show version 
+* **show version**
 
 This command to display the Serial number of both BMC and Switch-Host. 
-There is a new field named "Switch-Host Serial Number" which will show the Switch serial number
+There is a new field named "Switch-Host Serial Number" which will show the Switch serial number.
+
+**Note**
+  1. Here the assumption is that both Switch and BMC will share a common model number
+  2. Update the following commands "sudo decode-syseeprom", "show platform summary"
 
 ```
 show version 
@@ -711,12 +712,14 @@ Model Number: <Switch model number>
 ...
 
 ```
-**Note** 
-1. Here the assumption is that both Switch and BMC will share a common model number
-2. Update the following commands "sudo decode-syseeprom", "show platform summary"
+To get the Switch-Host serial number use the following suggested steps 
+```
+  1. index = platform_chassis.get_module_index("SWITCH_HOST")
+  2. module = platform_chassis.get_module(index)
+  3. serial_num = module.get_serial()
+```
 
-
-* show chassis module status
+* **show chassis module status**
  
 Command to show the status of BMC and Switch-Host(using the platform API module->get_oper_state())
  
@@ -732,7 +735,7 @@ show chassis module status
 
 ```
 
-* show platform leak control-policy
+* **show platform leak control-policy**
 
 Command to show leak control policy configuration
 Applicable to (LC)
@@ -749,7 +752,7 @@ show platform leak control-policy
 
 ```
 
-* show platform leak rack-manager alerts
+* **show platform leak rack-manager alerts**
 
 Command to show leak rack-manager alerts
 Applicable to (LC)
@@ -762,11 +765,9 @@ Inlet_liquid_temperature     NORMAL      2026-03-25 22:10:00
 Inlet_liquid_flow_rate       MINOR       2026-03-25 22:10:00
 Inlet_liquid_pressure        NORMAL      2026-03-25 22:10:00
 Rack_level_leak              CRITICAL    2026-03-25 22:10:00
-Rack_level_leak_rope_break   NORMAL      2026-03-25 22:10:00
-
 ```
 
-* show platform leak profiles
+* **show platform leak profiles**
 
 Command to show the leak profiles in system
 Applicable to (LC)
@@ -781,7 +782,7 @@ flex_pcb                    180
 
 ```
 
-* show platform leak status
+* **show platform leak status**
 
 Command to display leak will be enhanced with more fields
 Applicable to (LC)
@@ -797,7 +798,7 @@ leak_sensorsX    Yes         OK                 flex_pcb       CRITICAL
 
 ```
 
-* show platform temperature
+* **show platform temperature**
 
 Command to display thermals on the Switch-Host in BMC
 Applicable to (LC, AC)
