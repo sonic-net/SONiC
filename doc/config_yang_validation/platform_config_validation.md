@@ -1,58 +1,75 @@
 # Platform Specific Config Validation via YANG Models
 
 ## Table of Contents
-- [Revision](#revision)
-- [Scope](#scope)
-- [Abbreviations](#abbreviations)
-- [1. Overview](#1-overview)
-- [2. Requirements](#2-requirements)
-- [3. Architecture Design](#3-architecture-design)
-  - [3.1 Validation Flow](#31-validation-flow)
-- [4. High-Level Design](#4-high-level-design)
-  - [4.1 Framework](#41-framework)
-  - [4.2 Directory Structure](#42-directory-structure)
-  - [4.3 Implementation Details](#43-implementation-details)
-- [5. Configuration and Management](#5-configuration-and-management)
-- [6. YANG Model Enhancements](#6-yang-model-enhancements)
-- [7. Restrictions/Limitations](#7-restrictionslimitations)
-- [8. Testing Requirements/Design](#8-testing-requirementsdesign)
-  - [8.1 Framework Testing](#81-framework-testing)
-  - [8.2 Validation Testing](#82-validation-testing)
-  - [8.3 Extending to New Features](#83-extending-to-new-features)
+- [1. Revision](#1-revision)
+- [2. Scope](#2-scope)
+- [3. Definitions/Abbreviations](#3-definitionsabbreviations)
+- [4. Overview](#4-overview)
+- [5. Requirements](#5-requirements)
+- [6. Architecture Design](#6-architecture-design)
+  - [6.1 Validation Flow](#61-validation-flow)
+- [7. High-Level Design](#7-high-level-design)
+  - [7.1 Framework](#71-framework)
+  - [7.2 Directory Structure](#72-directory-structure)
+  - [7.3 Implementation Details](#73-implementation-details)
+  - [7.4 `feature_capabilities.json` schema](#74-feature_capabilitiesjson-schema)
+  - [7.5 Design alternative considered: custom validation handlers](#75-design-alternative-considered-custom-validation-handlers)
+- [8. SAI API](#8-sai-api)
+- [9. Configuration and management](#9-configuration-and-management)
+  - [9.1 CLI / YANG model enhancements](#91-cli--yang-model-enhancements)
+  - [9.2 Upgrade, downgrade and rollback behavior](#92-upgrade-downgrade-and-rollback-behavior)
+- [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
+- [11. Memory Consumption](#11-memory-consumption)
+- [12. Restrictions/Limitations](#12-restrictionslimitations)
+- [13. Testing Requirements/Design](#13-testing-requirementsdesign)
+  - [13.1 Unit Test cases](#131-unit-test-cases)
+  - [13.2 System Test cases](#132-system-test-cases)
+  - [13.3 Extending to New Features](#133-extending-to-new-features)
+- [14. Open / Action items](#14-open--action-items)
 
-## Revision
+## 1. Revision
 
 | Rev | Date       | Author   | Change Description |
-|-----|------------|----------|-------------------|
-| v0.1 | 2025-11-18 | Rajath V | Initial version   |
+|-----|------------|----------|--------------------|
+| v0.1 | 2025-11-18 | Rajath V | Initial version |
 | v0.2 | 2025-11-23 | Rajath V | Updated HLD with code snippets and expected behavior |
+| v0.3 | 2026-05-19 | Rajath V | Restructured to match `hld_template.md`. Addressed review feedback: hardened postinst (platform name resolution, atomic YANG generation), added `feature_capabilities.json` schema, expanded testing matrix, called out CVL/`config load` gaps as explicit limitations, clarified upgrade/rollback behavior. |
 
-## Scope
+## 2. Scope
 
 This document describes the design for platform-specific configuration validation in SONiC using YANG models generated per platform. The scope includes:
 
-- Platform-specific constraint validation based on vendor requirements / platforms
+- Platform-specific constraint validation for CONFIG_DB writes that go through the python YANG validation path (`config apply-patch`, `config reload`, `config replace`, gNMI native writes).
 
-## Abbreviations
+This document explicitly does **not** cover:
+- Validation on the `go`-based CVL path used by RESTCONF and gNMI translib writes (see section 12).
+- A generic ASIC capability-query framework (see section 14 — kept as a future direction).
+
+## 3. Definitions/Abbreviations
 
 | Abbreviation | Description |
 |--------------|-------------|
 | YANG | Yet Another Next Generation (data modeling language) |
 | gNMI | gRPC Network Management Interface |
+| CVL | Configuration Validation Library — go-based YANG validator used by translib/CVL clients |
 | ARS  | Adaptive Routing and Switching |
+| BPF  | Buffer Profile |
+| MMU  | Memory Management Unit (ASIC buffer subsystem) |
+| postinst | Debian package post-installation script |
 
-## 1. Overview
+## 4. Overview
 
-This document describes the broad guidelines to support platform-specific config validation on SONiC for YANG models. The goal of this framework is to provide an easy way to have simple validation checks for new features based on platform constraints.
+This document describes the design and guidelines to support platform-specific config validation on SONiC via YANG. The goal is to provide an easy way to add simple, declarative validation checks for new features whose valid ranges differ per platform.
 
-The current YANG validation design is platform agnostic, since the YANG file is global and does not have a way to handle platform level changes for values. With this design, we can now add YANG models at the first boot which have values specific to that model, instead of the generic values handled before.
+Today, SONiC's YANG models are platform-agnostic — the YANG file is global and has no way of expressing platform-level value differences. With this design, platform-specific YANG deviation modules are generated at package install/upgrade time, then loaded alongside the base models so validation honors platform-specific constraints.
 
-**Example Use Case:**
+**Example use case**
 
 Consider a buffer profile configuration where `dynamic_th` can take different ranges per platform:
 - Tomahawk5: `dynamic_th` range is -7 to 3
 - Tomahawk6: `dynamic_th` range is -1 to 3
-(Indicative numbers specified, real values could differ)
+
+(Indicative numbers; real values may differ.)
 
 ```json
 {
@@ -68,119 +85,124 @@ Consider a buffer profile configuration where `dynamic_th` can take different ra
 }
 ```
 
-While CLI handlers could implement checks for constraints based on platform, JSON/gNMI relies entirely on YANG models for validation. This framework enables platform-specific YANG validation.
+CLI handlers can implement bespoke per-platform checks, but JSON/gNMI write paths rely entirely on YANG models for validation. This framework brings platform-specific YANG validation to those paths.
 
-## 2. Requirements
+## 5. Requirements
 
 The platform-specific config validation framework shall provide:
 
-1. **Runtime YANG Generation**: Generate platform-specific YANG models at package install time using jinja2 templates
-2. **Platform Awareness**: Support different constraint ranges for different platforms via `feature_capabilities.json`
-3. **Backward Compatibility**: Existing validation remains unchanged for platforms without capability definitions
-4. **Framework Extensibility**: Easy addition of new platform-specific checks by feature owners
-5. **Seamless Integration**: Integrate with existing YANG validation flow, allowing for additional checks for generated YANG models if platform specific yang models folder is present.
+1. **Install-time YANG generation**: Generate platform-specific YANG models at package install/upgrade time via jinja2 templates.
+2. **Platform awareness**: Support different constraint ranges per platform via `feature_capabilities.json`.
+3. **Backward compatibility**: Platforms without `feature_capabilities.json` see no behavior change.
+4. **Framework extensibility**: New platform-specific checks can be added by feature owners with a single template plus a JSON entry.
+5. **Seamless integration**: Plug into the existing python YANG validation flow; load generated YANG models if `/usr/local/platform-yang-models` exists.
+6. **Atomic install**: A broken render must not produce a half-installed `.yang` file that breaks model loading.
 
-## 3. Architecture Design
+## 6. Architecture Design
 
 The framework is based on two key components:
-1. **feature_capabilities.json**: Platform-specific files containing constraint definitions
-2. **Jinja2 templates**: YANG templates that generate platform-specific deviation modules at runtime
 
-This approach allows checks to be added only on platforms that need them, eliminating unnecessary overhead for platforms that can use default values.
+1. **`feature_capabilities.json`** — Platform-specific files containing constraint definitions.
+2. **Jinja2 templates** — YANG deviation templates that get rendered at package install time into platform-specific YANG modules.
 
-This is especially important for features like ARS where limits are specified per platform. Without this framework, CONFIG_DB accepts all data, but functionality fails silently with errors only visible in syslogs. A better approach is to guardrail at the YANG validation level, rejecting out-of-bound values before they reach CONFIG_DB.
+This approach allows constraints to be added only on platforms that need them, eliminating unnecessary overhead for platforms that can use default values.
 
-### 3.1 Validation Flow
+This is especially important for features like ARS where valid limits are platform-specific. Without this framework, CONFIG_DB accepts all data and the feature fails silently with errors visible only in syslogs. The framework guardrails at the YANG validation level, rejecting out-of-bound values before they reach CONFIG_DB.
+
+### 6.1 Validation Flow
 
 The following diagram illustrates the platform-specific validation flow:
 
 ```mermaid
 flowchart TD
-    A[First boot] --> B{feature_capabilities.json<br/>exists?}
-    B -->|No| C[Use Default YANG Models]
-    B -->|Yes| D[postinst Hook Triggered]
+    A[Platform .deb install/upgrade] --> B{feature_capabilities.json<br/>exists for this platform?}
+    B -->|No| C[Use default YANG models only]
+    B -->|Yes| D[postinst hook runs]
 
     D --> E{platform-yang-templates<br/>directory exists?}
     E -->|No| C
-    E -->|Yes| F[Render Jinja2 Templates]
+    E -->|Yes| F[Render Jinja2 templates<br/>to temp files]
+    F --> F2{Render succeeded<br/>+ pyang validates?}
+    F2 -->|No| F3[Log warning,<br/>discard temp file]
+    F2 -->|Yes| G[mv into<br/>/usr/local/platform-yang-models/]
 
-    F --> G[Generate Platform-Specific<br/>YANG Deviation Modules]
-    G --> H[Install to<br/>/usr/local/platform-yang-models/]
-
-    H --> I[Runtime Config Change]
+    G --> I[Runtime config change]
     C --> I
+    F3 --> I
 
-    I --> J{Config Source?}
-    J -->|gNMI| K[YANG Validation]
-    J -->|config reload/replace| K
+    I --> J{Config source?}
+    J -->|gNMI native write| K[python YANG validation]
+    J -->|config reload / replace| K
     J -->|config apply-patch| K
-    J -->|CLI| L[Implementation dependent validation]
-    J -->|Direct CONFIG_DB| M[No Validation]
+    J -->|CLI| L[Validation depends on CLI handler]
+    J -->|config load| M[No YANG validation]
+    J -->|Direct CONFIG_DB write| M
+    J -->|RESTCONF / gNMI translib| N[CVL go-based validation<br/>see limitation in §12]
 
-    K --> N{Platform YANG<br/>Models Loaded?}
-    N -->|Yes| O[Apply Platform-Specific<br/>Constraints]
-    N -->|No| P[Apply Default<br/>Constraints]
+    K --> O{platform-yang-models<br/>directory loaded?}
+    O -->|Yes| P[Apply platform-specific<br/>+ default constraints]
+    O -->|No| Q[Apply default<br/>constraints]
 
-    O --> Q{Validation<br/>Passed?}
-    P --> Q
+    P --> R{Validation passed?}
+    Q --> R
 
-    Q -->|Yes| R[Write to CONFIG_DB]
-    Q -->|No| S[Reject Config with<br/>Error Message]
+    R -->|Yes| S[Write to CONFIG_DB]
+    R -->|No| T[Reject with error message]
 
-    L --> R
-    M --> R
+    L --> S
+    M --> S
+    N --> S
 ```
 
 The flow can be summarized as:
 
-**feature_capabilities.json + YANG template -> Generated YANG -> Runtime validation**
+**`feature_capabilities.json` + YANG template → generated platform YANG → runtime validation on python paths**
 
-## 4. High-Level Design
+## 7. High-Level Design
 
-### 4.1 Framework
+### 7.1 Framework
 
-The design follows the current YANG validation flow and appends additional checks. A postinst hook is implemented that is platform-specific, checking whether a `feature_capabilities.json` file exists to generate the YANG file using jinja2 templates.
+The design appends an additional set of YANG modules (rendered at install/upgrade time) to the existing python YANG validation flow. A platform `.deb` postinst hook reads the platform's `feature_capabilities.json` and renders one or more jinja2 templates into deviation YANG modules. The python YANG loader picks these up from `/usr/local/platform-yang-models/` on next load.
 
-### 4.2 Directory Structure
+### 7.2 Directory Structure
 
-**Source Directory Structure:**
+**Source layout (in `sonic-buildimage`):**
 
-```bash
+```text
 src/sonic-yang-models/
-├── yang-models/                    # Static YANG files
+├── yang-models/                    # Static YANG files (existing)
 │   ├── sonic-buffer-profile.yang
 │   ├── sonic-vlan.yang
 │   └── ...
 ├── yang-templates/                 # Build-time templates (existing)
-│   ├── sonic-acl.yang.j2          # Rendered during build for py/cvl variants
+│   ├── sonic-acl.yang.j2
 │   ├── sonic-extension.yang.j2
 │   └── ...
-├── platform-yang-templates/        # NEW: Runtime templates
-│   ├── sonic-buffer-profile-capabilities.yang.j2
-│
+├── platform-yang-templates/        # NEW: install-time templates
+│   └── sonic-buffer-profile-capability.yang.j2
 └── setup.py                        # Modified to package platform-yang-templates/
 ```
 
-**Runtime Directory Structure (after postinst hook):**
+**Runtime layout (after postinst hook):**
 
-```bash
+```text
 /usr/local/
-├── yang-models/                      # Base YANG models (from wheel)
+├── yang-models/                            # Base YANG models (from wheel)
 │   ├── sonic-ars.yang
 │   ├── sonic-port.yang
 │   └── ...
-├── platform-yang-templates/          # Platform-specific templates (from wheel)
-│   ├── sonic-buffer-profile-capabilities.yang.j2
-└── platform-yang-models/            # Generated YANG (created at install time)
-    ├── sonic-buffer-profile-capabilities.yang
+├── platform-yang-templates/                # Templates (from wheel)
+│   └── sonic-buffer-profile-capability.yang.j2
+└── platform-yang-models/                   # Generated YANG (created at install time)
+    └── sonic-buffer-profile-capability.yang
 
 /usr/share/sonic/device/x86_64-<platform>/
-├── feature_capabilities.json         # Input data for templates
+├── feature_capabilities.json               # Input data for templates
 ├── hwsku.json
 └── ...
 ```
 
-### 4.3 Implementation Details
+### 7.3 Implementation Details
 
 **postinst hook for platform-specific YANG generation:**
 
@@ -190,48 +212,67 @@ src/sonic-yang-models/
 # Generate platform-specific YANG models from templates
 TEMPLATE_DIR="/usr/local/platform-yang-templates"
 OUTPUT_DIR="/usr/local/platform-yang-models"
-# Dynamically determine platform name from the script name.
-SCRIPT_NAME=$(basename "$0")
-PLATFORM_SUFFIX=$(echo "$SCRIPT_NAME" | sed 's/^sonic-platform-//' | sed 's/\.postinst$//')
-PLATFORM_NAME="x86_64-${PLATFORM_SUFFIX}"
-PLATFORM_NAME=$(echo "$PLATFORM_NAME" | sed 's/nexthop-/nexthop_/')
+
+# Resolve the canonical platform name. sonic-cfggen is not yet available at
+# postinst time. Prefer /host/machine.conf (onie_platform); fall back to
+# parsing the postinst script filename.
+PLATFORM_NAME=""
+if [ -f /host/machine.conf ]; then
+    PLATFORM_NAME=$(awk -F= '/^onie_platform=/{print $2}' /host/machine.conf)
+fi
+if [ -z "$PLATFORM_NAME" ]; then
+    SCRIPT_NAME=$(basename "$0")
+    PLATFORM_SUFFIX=$(echo "$SCRIPT_NAME" | sed 's/^sonic-platform-//' | sed 's/\.postinst$//')
+    PLATFORM_NAME="x86_64-${PLATFORM_SUFFIX}"
+    PLATFORM_NAME=$(echo "$PLATFORM_NAME" | sed 's/nexthop-/nexthop_/')
+fi
 FEATURE_CAPABILITIES_JSON="/usr/share/sonic/device/${PLATFORM_NAME}/feature_capabilities.json"
 
-# Check if all required components exist
-if [ -d "$TEMPLATE_DIR" ] && [ -f "$FEATURE_CAPABILITIES_JSON" ] && command -v j2 >/dev/null 2>&1; then
+if [ -n "$PLATFORM_NAME" ] && [ -d "$TEMPLATE_DIR" ] && [ -f "$FEATURE_CAPABILITIES_JSON" ] && command -v j2 >/dev/null 2>&1; then
     mkdir -p "$OUTPUT_DIR"
 
-    # Generate YANG files from templates
+    # Generate YANG files atomically: render to a temp file in the same dir,
+    # validate it is non-empty (and parseable by pyang when available), then
+    # mv into place. This prevents a half-baked .yang from being loaded by
+    # sonic_yang at validation time.
     for template in "$TEMPLATE_DIR"/*.yang.j2; do
         [ -e "$template" ] || continue
         filename=$(basename "$template" .j2)
         output_file="$OUTPUT_DIR/$filename"
+        tmp_out=$(mktemp "${OUTPUT_DIR}/.${filename}.XXXXXX")
 
-        if j2 "$template" "$FEATURE_CAPABILITIES_JSON" > "$output_file" 2>/dev/null; then
+        if j2 "$template" "$FEATURE_CAPABILITIES_JSON" > "$tmp_out" 2>/dev/null \
+            && [ -s "$tmp_out" ] \
+            && { ! command -v pyang >/dev/null 2>&1 || pyang -p "$OUTPUT_DIR:/usr/local/yang-models" "$tmp_out" >/dev/null 2>&1; }; then
+            mv "$tmp_out" "$output_file"
             echo "Generated: $output_file"
         else
-            echo "Warning: Failed to generate $output_file" >&2
+            rm -f "$tmp_out"
+            echo "Warning: failed to generate or validate $output_file" >&2
         fi
     done
 fi
 ```
 
-Note: The above snippet uses `PLATFORM_SUFFIX` and `PLATFORM_NAME` to dynamically determine the platform name from the postinst script name. This assumes the postinst script name follows a specific naming convention (e.g., `sonic-platform-nexthop-4010-r0.postinst`).
+Notes:
+- The `postinst` script runs on every package install **and** upgrade. It does not run on rollback to an earlier image (the previous `.deb`'s postinst was already executed when that image was first installed). See section 9.2 for the upgrade/rollback story.
+- Platform name resolution prefers `/host/machine.conf` over filename parsing because the filename heuristic is vendor-naming-specific. The script-name fallback is kept for environments where `/host/machine.conf` isn't populated yet.
+- Generation is **atomic**: each `.yang.j2` is rendered to a hidden temp file in the same directory, validated (non-empty + `pyang` parse if available), and `mv`'d into place. A render failure leaves the previous good file untouched and logs a warning to the postinst log.
 
-**Example feature_capabilities.json:**
+**Example `feature_capabilities.json`:**
 
 ```json
 {
     "mmu_capabilities": {
-            "bpf_dynamic_th_low": -7,
-            "bpf_dynamic_th_high": 3
+        "bpf_dynamic_th_low": -7,
+        "bpf_dynamic_th_high": 3
     }
 }
 ```
 
-**Example jinja2 template:**
+**Example jinja2 template (`sonic-buffer-profile-capability.yang.j2`):**
 
-```json
+```yang
 module sonic-buffer-profile-capability {
     yang-version 1.1;
     namespace "http://github.com/sonic-net/sonic-buffer-profile-capability";
@@ -241,10 +282,10 @@ module sonic-buffer-profile-capability {
         prefix bpf;
     }
 
-    description "SONIC buffer profile platform-specific YANG model - generated from feature_capabilities.json";
+    description "SONiC buffer profile platform-specific YANG model - generated from feature_capabilities.json";
 
     revision 2025-11-12 {
-        description "Initial revision Generated from feature_capabilities.json at installation time";
+        description "Initial revision generated from feature_capabilities.json at installation time";
     }
 
     {% if mmu_capabilities is defined %}
@@ -270,14 +311,16 @@ module sonic-buffer-profile-capability {
 
 **Additional required changes:**
 
-1. Ensure the new jinja2 templates are packaged by `sonic-yang-models` wheel by adding to `setup.py`:
+1. Ensure the jinja2 templates are packaged by the `sonic-yang-models` wheel via `setup.py`:
+
 ```python
     data_files=[
         ('platform-yang-templates', glob.glob('./platform-yang-templates/*.yang.j2')),
     ],
 ```
 
-2. Modify `sonic_yang.py` and `sonic_yang_ext.py` to load generated YANG files from `/usr/local/platform-yang-models/`:
+2. Modify `sonic_yang.py` and `sonic_yang_ext.py` to additionally load generated YANG files from `/usr/local/platform-yang-models/`:
+
 ```python
     generated_yang_dir = "/usr/local/platform-yang-models"
     if os.path.exists(generated_yang_dir):
@@ -285,52 +328,146 @@ module sonic-buffer-profile-capability {
         py.extend(generated_yang)
 ```
 
-## 5. Configuration and Management
+### 7.4 `feature_capabilities.json` schema
 
-**Cases where the new framework will be triggered:**
+`feature_capabilities.json` is a flat JSON object whose top-level keys group capabilities by feature area. Each top-level key follows the naming convention `<feature>_capabilities` and maps to a dict of scalar values consumed by that feature's template.
+
+```text
+{
+    "<feature_a>_capabilities": {
+        "<knob_1>": <int|string|bool>,
+        "<knob_2>": <int|string|bool>,
+        ...
+    },
+    "<feature_b>_capabilities": {
+        ...
+    }
+}
+```
+
+Rules:
+- Top-level keys are optional. A template that doesn't see its expected key must render to a no-op (the `{% else %}` branch in the BPF template is the canonical example).
+- Values must be scalars or simple lists — no nested dicts. Each feature's template is the source of truth for what knobs it consumes.
+- Unknown keys are ignored. This allows a single `feature_capabilities.json` to carry capabilities for multiple features without coupling them.
+
+A formal JSON Schema is intentionally not committed yet — each feature owner documents its own capability keys in the template's header comment until the set stabilizes (see section 14).
+
+### 7.5 Design alternative considered: custom validation handlers
+
+@venkatmahalingam suggested implementing platform-specific value-range checks through the custom validation handler mechanism in `sonic-extension.yang.j2` (a python callout invoked from YANG). This was considered and not adopted as the primary mechanism because:
+
+- Custom validation handlers are imperative python and require coordinating cross-repo changes for each new check.
+- YANG `deviation` statements are the canonical YANG-native mechanism for narrowing a base type's range per platform; they keep the constraint declarative and discoverable via standard YANG tooling (`pyang`, `libyang`).
+- The two approaches are complementary. Constraints that **can** be expressed as deviations are expressed as deviations (this framework). Constraints that need cross-table or stateful logic should still be implemented as custom handlers.
+
+## 8. SAI API
+
+No new SAI APIs are introduced or modified. This framework validates CONFIG_DB inputs in user space (libyang via python) before any SAI call is made.
+
+A future-scope discussion of using SAI capability queries as a stronger source of truth for validation lives in section 14; it is not in scope for this design.
+
+## 9. Configuration and management
+
+**Triggers that exercise the new framework (python YANG path):**
 
 1. `config apply-patch`
 2. `config reload -y`
 3. `config replace`
-4. `gNMI` related config changes (like `gnmi_set`)
+4. gNMI **native** write path (e.g. `gnmi_set` against sonic-net's native gNMI server)
 
-**Cases where the new framework will NOT be triggered:**
+**Triggers that do NOT exercise it (see §12 limitations):**
 
-1. CLI based config - CLI can have validation checks in code itself if need be, depends on how the feature was implemented in the first place.
-2. Manual writes to CONFIG_DB - no validation is hit, invalid values only appear in syslogs
-3. `config load` - bypasses all validation, so YANG checks are never hit
+1. CLI based config — validation depends on the CLI handler.
+2. Direct CONFIG_DB writes — no YANG validation at all.
+3. `config load` — bypasses YANG validation.
+4. RESTCONF and gNMI **translib** write paths — these run on the `go`-based CVL stack which is independent of this framework.
 
-## 6. YANG Model Enhancements
+### 9.1 CLI / YANG model enhancements
 
-Platform-specific YANG deviation modules are generated at runtime from jinja2 templates. No changes to existing static YANG models are required.
+No CLI changes. Generated YANG deviation modules are picked up automatically by `sonic_yang.py` and `sonic_yang_ext.py` once `/usr/local/platform-yang-models/` exists.
 
-The generated YANG modules use the YANG `deviation` statement to override constraints in base YANG models for specific platforms.
+### 9.2 Upgrade, downgrade and rollback behavior
 
-## 7. Restrictions/Limitations
+- **Fresh install**: postinst runs, generates and installs platform YANG into `/usr/local/platform-yang-models/`.
+- **Image upgrade**: the new image's platform `.deb` postinst runs and **re-renders** all templates against the new `feature_capabilities.json`. Generation is atomic, so a failed render leaves the previous good YANG file in place.
+- **Downgrade / rollback to a previous image**: the previous image already has its own `/usr/local/platform-yang-models/` baked in; the running rootfs swap restores those files. No re-execution of postinst is needed.
+- **Feature capability removed across images**: if a future image drops a `<feature>_capabilities` key from `feature_capabilities.json`, the template's `{% else %}` branch renders an empty no-op YANG module. The generated `.yang` file may still exist on disk from a previous install, but it carries no `deviation` statements and is therefore a no-op for validation. Operators should not see a behavior change.
+- **Template removed across images**: if a template is removed from `platform-yang-templates/`, the corresponding generated `.yang` is not rewritten by the new postinst run, but it also won't be regenerated. It can be left in place as a stale no-op or cleaned up by a future image's postinst (out of scope here).
 
-- CLI-based config bypasses YANG validation (handled by CLI code)
-- Manual CONFIG_DB writes bypass validation
-- `config load` bypasses all validation
-- Platform must have `feature_capabilities.json` defined for platform-specific validation to apply
+## 10. Warmboot and Fastboot Design Impact
 
-## 8. Testing Requirements/Design
+No impact. The framework affects user-space CONFIG_DB validation at configuration time only. YANG model loading happens lazily when `sonic_yang.SonicYang` is instantiated; it does not run in the warmboot / fastboot critical path and adds no warmboot or fastboot delay.
 
-### 8.1 Framework Testing
-- Verify jinja2 template rendering with feature_capabilities.json
-- Test postinst hook execution on package installation
-- Validate generated YANG file loading by sonic_yang.py
+## 11. Memory Consumption
 
-### 8.2 Validation Testing
-- Test out-of-range values are rejected with appropriate error messages
-- Verify `config apply-patch` triggers platform-specific validation
-- Verify `config reload` triggers platform-specific validation
-- Test gNMI config changes trigger platform-specific validation
-- Verify platforms without feature_capabilities.json use default validation
+Minimal. Each generated `.yang` file is on the order of 1–2 KB on disk and adds a comparable footprint to the libyang module tree when loaded. With one template per feature area and a small number of feature areas, the steady-state increase is well under 100 KB of RAM per process that instantiates `SonicYang`.
 
-### 8.3 Extending to New Features
+## 12. Restrictions/Limitations
+
+| # | Limitation | Notes / mitigation |
+|---|------------|--------------------|
+| 1 | CLI-based config bypasses YANG validation | Existing limitation; CLI handlers do their own checks |
+| 2 | Direct CONFIG_DB writes bypass YANG validation | Existing limitation; out of scope |
+| 3 | `config load` bypasses all YANG validation | Operators are recommended to use `config apply-patch` or `config replace` instead. Closing this gap requires changes to the `config load` codepath and is tracked as a follow-up (see §14). |
+| 4 | RESTCONF / gNMI **translib** writes use the `go`-based CVL stack and do **not** load these generated deviation modules | Significant gap given gNMI translib's growing usage. The CVL stack would need a parallel deviation-loading mechanism (or a shared library) to pick up `/usr/local/platform-yang-models/`. Tracked in §14. |
+| 5 | A platform without `feature_capabilities.json` gets no platform-specific validation | By design; preserves backward compatibility |
+| 6 | Operators see an additional `platform-yang-models/` directory of generated artifacts | Acceptable cost for declarative platform constraints. Files are clearly marked as generated in their `description` field |
+| 7 | postinst depends on `j2` (jinja2 CLI) being on the runtime image | `j2` is part of the standard SONiC image. Postinst no-ops if absent rather than failing the package install |
+
+## 13. Testing Requirements/Design
+
+### 13.1 Unit Test cases
+
+**Template rendering:**
+- Render `sonic-buffer-profile-capability.yang.j2` with a full `feature_capabilities.json` (both `bpf_dynamic_th_low` and `bpf_dynamic_th_high` present) → produces a `deviation` block with the expected range.
+- Render with `mmu_capabilities` absent → template hits the `{% else %}` branch and produces a no-op module.
+- Render with `mmu_capabilities` present but missing one of `bpf_dynamic_th_low` / `bpf_dynamic_th_high` → render fails or template generates a clearly invalid range; postinst's `pyang` check should reject it.
+
+**Postinst hardening:**
+- `/host/machine.conf` missing → falls back to script-name parsing.
+- `feature_capabilities.json` missing → postinst is a no-op (no generated files, no error).
+- `feature_capabilities.json` contains corrupt JSON → `j2` exits non-zero, temp file is discarded, previous good `.yang` is preserved.
+- `j2` not installed → postinst skips generation cleanly with a warning.
+
+**Loader:**
+- `sonic_yang.py` and `sonic_yang_ext.py` correctly enumerate `*.yang` files in `/usr/local/platform-yang-models/` when present, and skip the load when the directory does not exist.
+
+### 13.2 System Test cases
+
+**Positive:**
+- On a platform with `feature_capabilities.json`, `config apply-patch` with an in-range `dynamic_th` succeeds and writes to CONFIG_DB.
+- `config reload -y` of a sound config succeeds.
+- gNMI native `gnmi_set` with an in-range value succeeds.
+
+**Negative:**
+- `config apply-patch` with `dynamic_th` outside the platform range is rejected with the error message defined in the `deviation`.
+- `config replace` with an out-of-range value is rejected at validation time before CONFIG_DB is touched.
+- gNMI native `gnmi_set` with an out-of-range value returns an error and CONFIG_DB is unchanged.
+
+**Backward compatibility:**
+- On a platform without `feature_capabilities.json`, validation behavior matches the pre-framework image.
+
+**Upgrade:**
+- Image A (range -7..3) → Image B (range -1..3): after upgrade, a value of `-5` that was valid in A is rejected by `config apply-patch` in B.
+
+### 13.3 Extending to New Features
 
 New feature owners can extend the framework by following these steps:
 
-1. Check if the platform postinst file already has the code for checking and generating platform-specific YANG files. If not, add this code.
-2. Create a new `feature_capabilities.json` file or add to the existing file. Add a key `<feature>_capabilities` with values being the custom ranges or non-default values for that platform.
-3. Create a `sonic-<feature>-capability.yang.j2` file in `sonic-buildimage/src/sonic-yang-models/platform-yang-templates/` directory. This will be used to generate the new `<feature>-capability.yang` in the `/usr/local/platform-yang-models` directory on the box.
+1. Ensure the target platform's postinst already contains the generation block. If not, add it (it's identical across platforms).
+2. Create or append to `/usr/share/sonic/device/<platform>/feature_capabilities.json` with a `<feature>_capabilities` top-level key and the scalar knobs that template will consume.
+3. Add `sonic-<feature>-capability.yang.j2` to `src/sonic-yang-models/platform-yang-templates/`. The template should:
+    - Wrap its `deviation` statements in `{% if <feature>_capabilities is defined %}` so platforms without the capability render a no-op.
+    - Document the expected `feature_capabilities.json` keys in a header comment.
+4. Add unit tests covering both the populated and the `{% else %}` no-op rendering of the new template.
+
+## 14. Open / Action items
+
+1. **Close the CVL (translib) gap (limitation §12.4).** Either teach the `go` CVL stack to load deviation modules from `/usr/local/platform-yang-models/`, or expose a shared validation library that both python and CVL clients use. Owner / timeline TBD.
+2. **Close the `config load` gap (limitation §12.3).** Either route `config load` through the same YANG validation pipeline, or document operator guidance to use `config apply-patch` / `config replace`.
+3. **Formalize the `feature_capabilities.json` schema.** Once a few features have on-boarded onto this framework, capture the shared shape in a JSON Schema and validate `feature_capabilities.json` at postinst time before rendering.
+4. **SAI capability querying as a long-term direction.** A more robust capability framework would query SAI/ASIC capabilities at runtime, publish them to `STATE_DB`, and have the validation layer consult that. This is independent of the present design but worth pursuing as a follow-on:
+    - Add SAI APIs (or wrappers) to query ASIC-specific capabilities.
+    - Populate STATE_DB from those queries (likely `orchagent`).
+    - Extend the python YANG validation layer to consult STATE_DB at validation time, so checks reflect actual ASIC capabilities rather than baked-in JSON.
+    - Mirror the same on the CVL/translib side once §14.1 lands.
