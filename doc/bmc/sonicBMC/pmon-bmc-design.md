@@ -626,9 +626,9 @@ The keywords LC:Liquid Cooled , AC:Air Cooled is used to denote which sku these 
 
 #### 2.3.1 Config commands
 
-* **config chassis modules startup/shutdown <Switch-Host>**
+* **config chassis modules [startup|shutdown|power-on-delay|shutdown-timeout] <Switch-Host>**
 
-CLI to enable user to graceful power on/off the Switch-Host. 
+CLI to enable user to graceful power on/off the Switch-Host, and to configure power-on and shutdown timing parameters.
 Applicable to (LC, AC)
 
 ```
@@ -638,6 +638,18 @@ config chassis modules startup <Switch-Host>
 config chassis modules shutdown <Switch-Host>
    - This command is to graceful POWER OFF the Switch Host from BMC
 
+config chassis modules power-on-delay <Switch-Host> <seconds>
+   - Configure the delay (in seconds) BMC waits after device power-on before powering on the Switch-Host.
+   - Default = 300 (5 min). Must be a non-negative float value.
+   - If BMC receives a POWER ON from Rack Manager before this timeout elapses (and no critical events exist),
+     Switch-Host will be powered on immediately.
+
+config chassis modules shutdown-timeout <Switch-Host> <seconds>
+   - Configure the graceful-shutdown timeout (in seconds) BMC waits after sending a shutdown command
+     to the Switch-Host before forcing a hard power-off via the platform API.
+   - Default = 120 (2 min). Must be a non-negative float value.
+   - If set to 0, BMC will immediately power off Switch-Host without waiting for graceful shutdown.
+
 ```
 
 
@@ -646,7 +658,9 @@ config chassis modules shutdown <Switch-Host>
 ```
     "CHASSIS_MODULE": {
         "SWITCH-HOST": {
-            "admin_status": "up"
+            "admin_status": "up",
+            "power_on_delay": "300",    ; Time in secs BMC waits before powering on Switch-Host (default = 5 min)
+            "shutdown_timeout": "120"   ; Time in secs BMC waits for graceful shutdown before forcing power-off (default = 2 min)
         }
     }    
 ```
