@@ -19,6 +19,7 @@
   - [8.1 Framework Testing](#81-framework-testing)
   - [8.2 Validation Testing](#82-validation-testing)
   - [8.3 Extending to New Features](#83-extending-to-new-features)
+- [9. Future Scope and long-term plans](#9-future-scope-and-long-term-plans)
 
 ## Revision
 
@@ -218,6 +219,8 @@ fi
 
 Note: The above snippet uses `PLATFORM_SUFFIX` and `PLATFORM_NAME` to dynamically determine the platform name from the postinst script name. This assumes the postinst script name follows a specific naming convention (e.g., `sonic-platform-nexthop-4010-r0.postinst`).
 
+**Note** - Failures in any `postinst` installation / `j2` file generation will be logged as part of the postinst logs themselves. If there is a failure here and the file generated is half-baked, we could potentially have errors in `YANG` model loading at config validation time, but the error would show what happened and could be corrected later.
+
 **Example feature_capabilities.json:**
 
 ```json
@@ -292,13 +295,14 @@ module sonic-buffer-profile-capability {
 1. `config apply-patch`
 2. `config reload -y`
 3. `config replace`
-4. `gNMI` related config changes (like `gnmi_set`)
+4. `gNMI` related config changes (like `gnmi_set`) through the native write path.
 
 **Cases where the new framework will NOT be triggered:**
 
 1. CLI based config - CLI can have validation checks in code itself if need be, depends on how the feature was implemented in the first place.
 2. Manual writes to CONFIG_DB - no validation is hit, invalid values only appear in syslogs
 3. `config load` - bypasses all validation, so YANG checks are never hit
+4. `RESTCONF / gNMI` translib write paths - these use the existing `go` based `CVL` validation flow.
 
 ## 6. YANG Model Enhancements
 
@@ -312,6 +316,8 @@ The generated YANG modules use the YANG `deviation` statement to override constr
 - Manual CONFIG_DB writes bypass validation
 - `config load` bypasses all validation
 - Platform must have `feature_capabilities.json` defined for platform-specific validation to apply
+- There could be possible confusion in the way `YANG` model maintenance changes due to this - since we add a new `platform-yang-models` directory with more `YANG` models to maintain. However, it is an acceptable change to incorporate robustness in platform-specific validation.
+- Upgrades to the image should ideally not affect these new `YANG` models, and if any features are disabled that created these models, they will remain redundant. There should be no operational difference or change in determinism with respect to config validation in this case.
 
 ## 8. Testing Requirements/Design
 
@@ -334,3 +340,15 @@ New feature owners can extend the framework by following these steps:
 1. Check if the platform postinst file already has the code for checking and generating platform-specific YANG files. If not, add this code.
 2. Create a new `feature_capabilities.json` file or add to the existing file. Add a key `<feature>_capabilities` with values being the custom ranges or non-default values for that platform.
 3. Create a `sonic-<feature>-capability.yang.j2` file in `sonic-buildimage/src/sonic-yang-models/platform-yang-templates/` directory. This will be used to generate the new `<feature>-capability.yang` in the `/usr/local/platform-yang-models` directory on the box.
+
+
+## 9. Future scope and long term plans
+
+Platform-specific YANG model generation works well with the current YANG model scenarios. However, there is a need to have a more robust capability based checking for config applications on SONiC. For this, the following model is proposed and will be taken up in the future as a long-term architectural change:
+
+1. Add support in `SAI` to query for ASIC-specific capabilities. This includes capabilities for features and configs that could be platform-specific or otherwise. 
+2. Populate the `STATE_DB` with these capabilities (possibly using `orchagent`) - so that there is a central source of truth that can be leveraged by any config validation architecture.
+3. Along with this structural change, the current python-based validation framework must be revamped to include ways to query the `STATE_DB` for any capabilities and use them as the global source of truth at the config validation stage. Current YANG-based implementations simply load the YANG modules, create the trees and perform validation on these models. The architecture proposed here will add additional checks from the `STATE_DB` querying as a stronger validation based on actual ASIC capabilities. 
+4. Akin to what `CVL` validation is doing with existing `gNMI` translib write paths, we could have architectural changes in python to start enforcing state-based checks for config validation once the `SAI` capability querying is added in.
+
+For now, the current implementation of generating platform-specific `YANG` models works as an addendum to existing `YANG` validation flows, and the future scope presented above will enforce stricter, more robust checks overall once the architecture is up and running.
