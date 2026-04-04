@@ -42,8 +42,8 @@
 	- buffermgrd - manager for buffer management - Reads buffer profile config file and programs it in ConfigDB and then listens (at runtime) for cable length change and speed change in ConfigDB, and sets the same into buffer profile table ConfigDB.
 	- teammgrd - team/portchannel management - Listens to portchannel related config changes in ConfigDB and  runs the teamd process for each port channel. Note that teammgrd will be executed inside teamd container (not inside swss container).
 	- intfmgrd - manager for interfaces - Listens for IP address changes and VRF name changes for the interfaces in ConfigDB and programs the same in linux using "/sbin/ip" command and writes into APP_DB.
-    - vlanmgrd - manager for VLAN - Listens for VLAN related changes in ConfigDB and programs the same in linux using "bridge" & "ip" commands and writes into APP_DB
-    - vrfmgrd - manager for VRF - Listens for VRF changes in ConfigDB and programs the same in linux and writes into APP_DB.
+	- vlanmgrd - manager for VLAN - Listens for VLAN related changes in ConfigDB and programs the same in linux using "bridge" & "ip" commands and writes into APP_DB
+	- vrfmgrd - manager for VRF - Listens for VRF changes in ConfigDB and programs the same in linux and writes into APP_DB.
 	
   - fpmsyncd - this folder contains the code to build the "fpmsynd" process that runs in bgp container. This process runs a TCP server and listens for messages from Zebra for route changes (in the form of netlink messages) and it writes the routes to APP_DB. It also waits for clients to connect to it and then provides the route updates to those clients.
   - neighsyncd - this folder contains the code to build the "neighsyncd" process. Listens for ARP/ND specific netlink messages from the kernel for dynamically learnt ARP/ND and programs the same into APP_DB.
