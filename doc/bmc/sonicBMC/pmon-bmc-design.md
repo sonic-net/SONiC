@@ -295,7 +295,7 @@ The Leak, Switch-Host state and interactions, Rack-manager interactions will be 
 
 ### 2.2 BMC Platform Management
 
-Switch-Host and BMC could be modeled as a "Module" using "ModuleBase" (https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/module_base.py)
+Switch-Host is modeled as a "Module" using [ModuleBase](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/module_base.py)
 
 **Pmon** is a critical container, it has the following daemons viz. thermalctld, syseepropmd, stormond. 
 
@@ -580,15 +580,9 @@ class Chassis(ChassisBase):
         # self._get_module_list()
         self._module_list = []
 
-    def _get_module_list(self):
-
+    def _get_module_list(self):       
         index = 0
-        bmc = Module(index, ModuleBase.MODULE_TYPE_BMC, ModuleBase.MODULE_TYPE_BMC)
-
-        index = 1
         switch_host = Module(index, ModuleBase.MODULE_TYPE_SWITCH_HOST, ModuleBase.MODULE_TYPE_SWITCH_HOST)
-
-        self._module_list.append(bmc) 
         self._module_list.append(switch_host)
 
         return self._module_list
@@ -605,7 +599,7 @@ Use it in sonic_platform_daemons:
 
   from sonic_platform import chassis
   platform_chassis = chassis.Chassis()
-  modules = platform_chassis.get_all_modules() // In sonic BMC, this API should return two modules (i) BMC module itself. (ii) Switch-Host module.
+  modules = platform_chassis.get_all_modules() // In sonic BMC this API returns the module it controls, viz. Switch-Host module.
 
 ```
 
@@ -616,7 +610,7 @@ This base class is already defined in sonic-platform-common.
 
 | Method | Present | Action |
 |---------|---------|----------|
-| get_all_modules() | Y | Fetch managed modules [BMC module object, Switch-Host Module object] |
+| get_all_modules() | Y | Fetch managed modules here, Switch-Host Module object |
 
 
 ### 2.3 BMC CLI Commands
@@ -640,7 +634,7 @@ config chassis modules shutdown <Switch-Host>
 
 config chassis modules power-on-delay <Switch-Host> <seconds>
    - Configure the delay (in seconds) BMC waits after device power-on before powering on the Switch-Host.
-   - Default = 300 (5 min). Must be a non-negative float value.
+   - Default = 0 sec . Must be a non-negative float value.
    - If BMC receives a POWER ON from Rack Manager before this timeout elapses (and no critical events exist),
      Switch-Host will be powered on immediately.
 
@@ -665,25 +659,25 @@ config chassis modules shutdown-timeout <Switch-Host> <seconds>
     }    
 ```
 
-* **config liquidcool leak-control**
+* **config liquid-cool leak-control**
 
 CLI to control the System leak, Rack-Manager leak policy enforcement
 Applicable to (LC)
 
 ```
-config liquidcool leak-control [system|rack_mgr] [enabled|disabled]
+config liquid-cool leak-control [system|rack_mgr] [enabled|disabled]
    - enabled  : enable the enforcement of system/rack-mgr-external leak policy application in BMC
    - disabled : disable the enforcement of system/rack-mgr-external leak policy application in BMC
    - Default is enabled.
 ```
 
-* **config liquidcool leak-action**
+* **config liquid-cool leak-action**
 
 CLI to configure the action taken when a critical/minor event is detected. Actions are applied only when the corresponding leak-control policy is enabled with "config liquidcool leak-control".
 Applicable to (LC)
 
 ```
-config liquidcool leak-action [system|rack_mgr] [critical|minor]  [syslog_only|graceful_shutdown|power_off]
+config liquid-cool leak-action [system|rack_mgr] [critical|minor]  [syslog_only|graceful_shutdown|power_off]
 
    - syslog_only      : Log the event; no Switch-Host power action taken.
    - graceful_shutdown: Issue a graceful GNOI shutdown to Switch-Host; force power-off after SWITCH_HOST_SHUTDOWN_TIMEOUT if unresponsive.
@@ -743,9 +737,7 @@ Applicable to (LC, AC)
 show chassis module status
         Name             Description   oper status       Serial
 ------------  ----------------------  -------------  -----------
-         BMC   Board Management Card         Online           <>
  Switch-Host      Switch Host System        Offline           <>
-
 
 ```
 
