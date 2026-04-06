@@ -14,29 +14,30 @@
    3. [Compatibility & Out-of-Scope Items](#53-compatibility--out-of-scope-items)
 6. [Architecture Design](#6-architecture-design)
    1. [Deployment in SONiC / BMC Environment](#61-deployment-in-sonic--bmc-environment)
-   2. [Layered Architecture](#62-layered-architecture)
-      1. [Core Components](#621-core-components)
-         1. [ConfigManager](#6211-configmanager)
-         2. [BridgeApp](#6212-bridgeapp-orchestrator)
-         3. [types.hpp](#6213-typeshpp-data-types)
-      2. [Data Adapters](#622-data-adapters)
-         1. [PlatformJsonAdapter](#6221-platformjsonadapter)
-         2. [RedisAdapter](#6222-redisadapter)
-         3. [FruAdapter](#6223-fruadapter)
-      3. [Model and Update Components](#623-model-and-update-components)
-         1. [InventoryModelBuilder](#6231-inventorymodelbuilder)
-         2. [UpdateEngine](#6232-updateengine)
-         3. [RedisStateSubscriber](#6233-redisstatesubscriber)
-      4. [D-Bus Export Components](#624-d-bus-export-components)
-         1. [DBusExporter](#6241-dbusexporter)
-         2. [ObjectMapperService](#6242-objectmapperservice)
-         3. [StateManager](#6243-statemanager)
-      5. [Data Source Adapters - Detailed Implementation](#625-data-source-adapters---detailed-implementation)
-      6. [Inventory Model Builder - Detailed Implementation](#626-inventory-model-builder---detailed-implementation)
-      7. [Update Engine & Redis Event Subscriber - Detailed Implementation](#627-update-engine--redis-event-subscriber---detailed-implementation)
-      8. [D-Bus Services - Detailed Implementation](#628-d-bus-services---detailed-implementation)
-      9. [ObjectMapper Integration - Detailed Implementation](#629-objectmapper-integration---detailed-implementation)
-   3. [External Dependencies and Interfaces](#63-external-dependencies-and-interfaces-redis-dbus-daemon-bmcweb)
+   2. [Docker Container Deployment (docker-redfish)](#62-docker-container-deployment-docker-redfish)
+      1. [Container Structure](#621-container-structure)
+      2. [Process Architecture](#622-process-architecture)
+      3. [Runtime Verification](#623-runtime-verification)
+      4. [Resource Utilization](#624-resource-utilization)
+      5. [Docker Resource Utilization on BMC](#625-docker-resource-utilization-on-bmc)
+   3. [Layered Architecture](#63-layered-architecture)
+      1. [Core Components](#631-core-components)
+         1. [ConfigManager](#6311-configmanager)
+         2. [BridgeApp](#6312-bridgeapp-orchestrator)
+         3. [Types](#6313-types-data-types)
+      2. [Data Adapters](#632-data-adapters)
+         1. [PlatformJsonAdapter](#6321-platformjsonadapter)
+         2. [RedisAdapter](#6322-redisadapter)
+         3. [FruAdapter](#6323-fruadapter)
+      3. [Model and Update Components](#633-model-and-update-components)
+         1. [InventoryModelBuilder](#6331-inventorymodelbuilder)
+         2. [UpdateEngine](#6332-updateengine)
+         3. [RedisStateSubscriber](#6333-redisstatesubscriber)
+      4. [D-Bus Export Components](#634-d-bus-export-components)
+         1. [DBusExporter](#6341-dbusexporter)
+         2. [ObjectMapperService](#6342-objectmapperservice)
+         3. [StateManager](#6343-statemanager)
+   4. [External Dependencies and Interfaces](#64-external-dependencies-and-interfaces-redis-dbus-daemon-bmcweb)
 7. [High-Level Design](#7-high-level-design)
    1. [Module Responsibilities](#71-module-responsibilities-bridgeapp-adapters-model-exporter-statemanager-etc)
    2. [Startup Flow](#72-startup-flow-initial-inventory-build--object-creation)
@@ -44,6 +45,7 @@
    4. [Host Power Control Flow](#74-host-power-control-flow-requestedhosttransition--redis--host)
    5. [Error Handling and Health Reporting](#75-error-handling-and-health-reporting)
    6. [Scalability and Performance Considerations](#76-scalability-and-performance-considerations)
+   7. [Redfish to RedisDB mapping](#77-redfish-to-redisdb-mapping)
 8. [Memory Consumption](#8-memory-consumption)
 9. [Restrictions / Limitations](#9-restrictions--limitations)
 10. [Open / Action Items](#10-open--action-items-if-any)
@@ -55,7 +57,7 @@
 | Version | Date        | Author      | Description                               |
 | --------- | ------------- | ------------- | ------------------------------------------- |
 | 0.1     | 10-Mar-2026 | Chinmoy Dey | Initial design document for sonic-redfish |
-| | |
+|         |             |             |                                           |
 
 ### 1.1 Related documents
 
@@ -63,10 +65,10 @@
 | Document Name                                | Link                                                                                                     |
 | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
 | SONiC-BMC-OS HLD                             | [https://github.com/sonic-net/SONiC/pull/2043](https://github.com/sonic-net/SONiC/pull/2043)             |
-| sonic-redfish HLD                            | [https://github.com/sonic-net/sonic-redfish/pull/2](https://github.com/sonic-net/sonic-redfish/pull/2)   |
+| sonic-redfish HLD                            | [https://github.com/sonic-net/SONiC/pull/2281](https://github.com/sonic-net/SONiC/pull/2281)             |
 | SONiC BMC Redfish API and D-Bus test plan    | [https://github.com/sonic-net/sonic-mgmt/pull/23346](https://github.com/sonic-net/sonic-mgmt/pull/23346) |
 | SONiC BMC platform management and monitoring | [https://github.com/sonic-net/SONiC/pull/2215](https://github.com/sonic-net/SONiC/pull/2215)             |
-| | |
+|                                              |                                                                                                          |
 
 ## 2. Scope
 
@@ -103,13 +105,15 @@ The following Redfish API endpoints will be supported (in v0.1) for Rack Manager
 
 #### System Power Control
 
-- **POST /redfish/v1/Systems/System/Actions/ComputerSystem.Reset**
+- **POST /redfish/v1/Systems/{SystemId}/Actions/ComputerSystem.Reset**
+  - **Example**: `POST /redfish/v1/Systems/1/Actions/ComputerSystem.Reset`
   - **Purpose**: System reset and power control operations
   - **Use Case**: Rack Manager controls power state of Main_cpu_switch_board
   - **Supported Reset Types**:
-    - `ForceOn` - Power on the system
-    - `ForceOff` - Immediate power off
-    - `PowerCycle` - Immediate restart
+    - `On` - Turn on the unit
+    - `ForceOff` - Turn off the unit immediately (non-graceful)
+    - `GracefulShutdown` - Graceful shutdown and power off
+    - `PowerCycle` - Power cycle the Switch
 
 #### Alert Management
 
@@ -236,77 +240,139 @@ At a high level, `sonic-dbus-bridge`:
 
 > The **`sonic-dbus-bridge`** service is the only new component introduced in this design. It will be added without modifying any existing components.
 
-### 6.2 Layered Architecture
+### 6.2 Docker Container Deployment (docker-redfish)
+
+The `sonic-redfish` components are packaged and deployed as a single Docker container named **docker-redfish** (`docker-sonic-redfish`), which is included in the SONiC BMC image (`sonic-aspeed-arm64.bin`). This follows the standard SONiC containerization model.
+
+#### 6.2.1 Container Structure
+
+The `docker-redfish` container bundles all components required for Redfish API support:
+
+
+| Component         | Package                             | Description                                                            |
+| :------------------ | :------------------------------------ | :----------------------------------------------------------------------- |
+| bmcweb            | `bmcweb_1.0.0_arm64.deb`            | Upstream OpenBMC Redfish HTTP server (unmodified or minimally patched) |
+| sonic-dbus-bridge | `sonic-dbus-bridge_1.0.0_arm64.deb` | SONiC-to-OpenBMC D-Bus bridge daemon                                   |
+| dbus-daemon       | System dependency                   | D-Bus system message bus for IPC between bmcweb and sonic-dbus-bridge  |
+| supervisord       | System dependency                   | Process manager for container services (standard SONiC pattern)        |
+
+#### 6.2.2 Process Architecture
+
+Inside the `docker-redfish` container, **supervisord** manages the following processes:
+
+![docker-redfish process list](./images/docker-redfish-processes.png)
+
+
+| Process                       | Description                                             |
+| :------------------------------ | :-------------------------------------------------------- |
+| supervisord                   | Process manager (PID 1)                                 |
+| supervisor-proc-exit-listener | Monitors process exits for the redfish container        |
+| sonic-dbus-bridge             | Reads SONiC data sources, exposes OpenBMC D-Bus objects |
+| bmcweb                        | Redfish HTTP server (HTTPS on port 443)                 |
+
+#### 6.2.3 Runtime Verification
+
+After booting the SONiC BMC image, the container and its services can be verified:
+
+```bash
+# Verify container is running
+docker ps | grep redfish
+
+# Check process status inside the container
+docker exec docker-redfish supervisorctl status
+```
+
+#### 6.2.4 Resource Utilization
+
+The `redfish` container is designed for minimal resource consumption on the constrained BMC hardware (Aspeed AST2720/AST2700, typically 4 GB RAM).
+
+**Design considerations for resource efficiency:**
+
+- All Redis and D-Bus operations use non-blocking I/O via Boost.Asio.
+- Event-driven updates (Redis keyspace notifications) minimize CPU usage compared to polling.
+- The number of D-Bus objects is small and bounded (chassis, system, host state, plus optional users/software).
+- No large in-memory caches — the InventoryModel holds only the current snapshot of a small, fixed set of inventory fields.
+
+#### 6.2.5 Docker Resource Utilization on BMC
+
+The following measurements were captured on BMC hardware (Aspeed AST2720, 4 GB RAM) showing CPU, memory usage, and container sizes for all SONiC BMC Docker containers including `redfish`.
+
+**Docker Stats (CPU and Memory Usage):**
+
+![Docker resource stats](./images/docker-resource-stats.png)
+
+### 6.3 Layered Architecture
 
 The `sonic-dbus-bridge `architecture consists of the following key components:
 
-#### 6.2.1 Core Components
+#### 6.3.1 Core Components
 
-##### 6.2.1.1 ConfigManager
+##### 6.3.1.1 ConfigManager
 
 - Loads (or defaults) configuration for Redis, platform files, logging, and feature flags.
 - Provides configuration to BridgeApp so other components don’t need to parse config themselves.
 
-##### 6.2.1.2 BridgeApp (orchestrator)
+##### 6.3.1.2 BridgeApp (orchestrator)
 
 - Main process entry point.
 - Initializes config, connects to D-Bus, creates data adapters and model.
 - Builds the initial inventory, creates D-Bus objects.
 - Starts UpdateEngine and RedisStateSubscriber, and manages shutdown.
 
-##### 6.2.1.3 Types (data types)
+##### 6.3.1.3 Types (data types)
 
 - Defines normalized data structures (DeviceMetadata, ChassisState, ChassisInfo, SystemInfo, InventoryModel, etc.) used across all layers.
 
-#### 6.2.2 Data Adapters
+#### 6.3.2 Data Adapters
 
-##### 6.2.2.1 PlatformJsonAdapter
+##### 6.3.2.1 PlatformJsonAdapter
 
 - Reads static platform description from `platform.json` (chassis name, PSU/fan lists, etc.).
 - Exposes it in a normalized form to the model layer.
 
-##### 6.2.2.2 RedisAdapter
+##### 6.3.2.2 RedisAdapter
 
 - Connects to SONiC Redis (CONFIG_DB and STATE_DB).
 - Reads hashes like `DEVICE_METADATA|localhost` and `CHASSIS_STATE|chassis0`.
 - Returns typed DeviceMetadata and ChassisState structures.
 
-##### 6.2.2.3 FruAdapter
+##### 6.3.2.3 FruAdapter
 
 - Reads FRU EEPROMs to extract serial number, part number, manufacturer, and related FRU data.
 - Used to enrich inventory information.
+- The EEPROM information for both the BMC serial number and the Switch-Host serial number can be read from the Redis database, where it is populated.
 
-#### 6.2.3 Model and Update Components
+#### 6.3.3 Model and Update Components
 
-##### 6.2.3.1 InventoryModelBuilder
+##### 6.3.3.1 InventoryModelBuilder
 
 - Merges data from Redis, FRU, and platform.json into a single InventoryModel.
 - Applies explicit precedence rules (Redis > FRU > platform.json > defaults).
 - Tracks the source of each field.
 
-##### 6.2.3.2 UpdateEngine
+##### 6.3.3.2 UpdateEngine
 
 - Maintains a cached view of key Redis data.
 - On changes (from Redis events), it recomputes the InventoryModel.
 - Asks DBusExporter to refresh D-Bus objects when something actually changed.
 
-##### 6.2.3.3 RedisStateSubscriber
+##### 6.3.3.3 RedisStateSubscriber
 
 - Subscribes to STATE_DB keyspace notifications for keys such as `DEVICE_METADATA`, `CHASSIS_STATE`, and `SWITCH_HOST_STATE`.
 
-#### 6.2.4 D-Bus Export Components
+#### 6.3.4 D-Bus Export Components
 
-##### 6.2.4.1 DBusExporter
+##### 6.3.4.1 DBusExporter
 
 - Owns and updates the OpenBMC style D-Bus objects for chassis, system, and chassis state (inventory and power).
 - Maps fields from InventoryModel into D-Bus properties.
 
-##### 6.2.4.2 ObjectMapperService
+##### 6.3.4.2 ObjectMapperService
 
 - Registers all `sonic-dbus-bridge` objects under the `xyz.openbmc_project.ObjectMapper` service.
 - Enables bmcweb to discover them via `GetSubTree*` calls.
 
-##### 6.2.4.3 StateManager
+##### 6.3.4.3 StateManager
 
 - Exposes the host state object (`/xyz/openbmc_project/state/host0`) implementing `xyz.openbmc_project.State.Host`.
 - Translates `RequestedHostTransition` into host reset commands.
@@ -427,6 +493,50 @@ For `/redfish/v1/Chassis`, bmcweb will still discover the chassis object via Obj
 - All Redis and D-Bus operations use non-blocking I/O via Boost.Asio.
 - The number of D-Bus objects is currently small and bounded (one chassis, one system, one chassis state, one host state plus optional users/software).
 - Event-driven updates minimize Redis load compared to periodic polling.
+
+### 7.7 SONiC Redfish to RedisDB mapping
+
+
+| Redfish API Endpoint                                                                | Redfish Property    | Redis Database | Redis Key         | Redis Field | D-Bus Path                                      | D-Bus Interface                                         | D-Bus Property                                    |
+| ------------------------------------------------------------------------------------- | --------------------- | ---------------- | ------------------- | ------------- | ------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------- |
+| **CHASSIS**                                                                         |                     |                |                   |             |                                                 |                                                         |                                                   |
+| `/redfish/v1/Chassis/{ChassisId}`                                                   | `SerialNumber`      | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `serial_number`                                 | `/xyz/openbmc_project/inventory/system/chassis`         | `xyz.openbmc_project.Inventory.Decorator.Asset`   |
+| `/redfish/v1/Chassis/{ChassisId}`                                                   | `PartNumber`        | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `part_number`                                   | `/xyz/openbmc_project/inventory/system/chassis`         | `xyz.openbmc_project.Inventory.Decorator.Asset`   |
+| `/redfish/v1/Chassis/{ChassisId}`                                                   | `Manufacturer`      | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `manufacturer`                                  | `/xyz/openbmc_project/inventory/system/chassis`         | `xyz.openbmc_project.Inventory.Decorator.Asset`   |
+| `/redfish/v1/Chassis/{ChassisId}`                                                   | `Model`             | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `model`                                         | `/xyz/openbmc_project/inventory/system/chassis`         | `xyz.openbmc_project.Inventory.Decorator.Model`   |
+| `/redfish/v1/Chassis/{ChassisId}`                                                   | `AssetTag`          | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `mac`                                           | -                                                       | -                                                 |
+| `/redfish/v1/Chassis/{ChassisId}`                                                   | `ChassisType`       | -              | -                 | -           | `/xyz/openbmc_project/inventory/system/chassis` | `xyz.openbmc_project.Inventory.Item.Chassis`            | `Type`                                            |
+| `/redfish/v1/Chassis/{ChassisId}`                                                   | `PowerState`        | STATE_DB (6)   | `CHASSIS_STATE    | chassis0`   | `-`                                             | `/xyz/openbmc_project/state/chassis0`                   | `xyz.openbmc_project.State.Chassis`               |
+| **SYSTEM**                                                                          |                     |                |                   |             |                                                 |                                                         |                                                   |
+| `/redfish/v1/Systems/{SystemId}`                                                    | `SerialNumber`      | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost   | `-`                                             | `/xyz/openbmc_project/inventory/system/system0`         | `xyz.openbmc_project.Inventory.Decorator.Asset`   |
+| `/redfish/v1/Systems/{SystemId}`                                                    | `Manufacturer`      | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `manufacturer`                                  | `/xyz/openbmc_project/inventory/system/system0`         | `xyz.openbmc_project.Inventory.Decorator.Asset`   |
+| `/redfish/v1/Systems/{SystemId}`                                                    | `Model`             | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `model`                                         | `/xyz/openbmc_project/inventory/system/system0`         | `xyz.openbmc_project.Inventory.Decorator.Model`   |
+| `/redfish/v1/Systems/{SystemId}`                                                    | `HostName`          | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `hostname`                                      | `/xyz/openbmc_project/network/config`                   | `xyz.openbmc_project.Network.SystemConfiguration` |
+| `/redfish/v1/Systems/{SystemId}`                                                    | `SystemType`        | CONFIG_DB (4)  | `DEVICE_METADATA  | localhost`  | `type`                                          | -                                                       | -                                                 |
+| **FIRMWARE INVENTORY**                                                              |                     |                |                   |             |                                                 |                                                         |                                                   |
+| `/redfish/v1/UpdateService/FirmwareInventory/{Id}`                                  | `Id`                | STATE_DB (6)   | `BMC_FW_INVENTORY | {id}`       | -                                               | `/xyz/openbmc_project/software/{id}`                    | -                                                 |
+| `/redfish/v1/UpdateService/FirmwareInventory/{Id}`                                  | `Version`           | STATE_DB (6)   | `BMC_FW_INVENTORY | {id}`       | `version`                                       | `/xyz/openbmc_project/software/{id}`                    | `xyz.openbmc_project.Software.Version`            |
+| `/redfish/v1/UpdateService/FirmwareInventory/{Id}`                                  | `Updateable`        | -              | -                 | -           | `/xyz/openbmc_project/software/{id}`            | `xyz.openbmc_project.Software.Activation`               | `Activation`                                      |
+| `/redfish/v1/UpdateService/FirmwareInventory/{Id}`                                  | -                   | -              | -                 | -           | `/xyz/openbmc_project/software/{id}`            | `xyz.openbmc_project.Software.Version`                  | `Purpose`                                         |
+| **LEAK DETECTION**                                                                  |                     |                |                   |             |                                                 |                                                         |                                                   |
+| `/redfish/v1/Chassis/{ChassisId}/ThermalSubsystem/LeakDetection`                    | `Status`            | STATE_DB (6)   | `LEAK_SENSOR      | {id}`       | `state`                                         | `/xyz/openbmc_project/sensors/leak/{id}`                | `xyz.openbmc_project.Inventory.Item.LeakDetector` |
+| `/redfish/v1/Chassis/{ChassisId}/ThermalSubsystem/LeakDetection/LeakDetectors/{Id}` | `LeakDetectorType`  | -              | -                 | -           | `/xyz/openbmc_project/sensors/leak/{id}`        | `xyz.openbmc_project.Inventory.Item.LeakDetector`       | `Type`                                            |
+| `/redfish/v1/Chassis/{ChassisId}/ThermalSubsystem/LeakDetection/LeakDetectors/{Id}` | `DetectorState`     | STATE_DB (6)   | `LEAK_SENSOR      | {id}`       | `state`                                         | `/xyz/openbmc_project/sensors/leak/{id}`                | `xyz.openbmc_project.Inventory.Item.LeakDetector` |
+| `/redfish/v1/Chassis/{ChassisId}/ThermalSubsystem/LeakDetection/LeakDetectors/{Id}` | `Status.State`      | -              | -                 | -           | `/xyz/openbmc_project/sensors/leak/{id}`        | `xyz.openbmc_project.Inventory.Item`                    | `Present`                                         |
+| `/redfish/v1/Chassis/{ChassisId}/ThermalSubsystem/LeakDetection/LeakDetectors/{Id}` | `Status.Health`     | -              | -                 | -           | `/xyz/openbmc_project/sensors/leak/{id}`        | `xyz.openbmc_project.State.Decorator.OperationalStatus` | `Functional`                                      |
+| **REDFISH EVENTS**                                                                  |                     |                |                   |             |                                                 |                                                         |                                                   |
+| EventService → Subscribers                                                         | `MessageId`         | -              | -                 | -           | `/xyz/openbmc_project/sensors/leak/{id}`        | D-Bus Signal: PropertiesChanged                         | `DetectorState`                                   |
+| EventService → Subscribers                                                         | `OriginOfCondition` | -              | -                 | -           | -                                               | -                                                       | -                                                 |
+
+## NOTE
+
+- This section needs to be updated in line with the latest SONiC-Redfish API implementation.
+- **CONFIG_DB**: Redis Database 4 (User configuration)
+- **STATE_DB**: Redis Database 6 (Runtime state)
+- **`-`**: Not applicable or derived/hardcoded value, or Yet to be finalize.
+- **`{id}`**: Variable identifier (e.g., `leak_sensor_1`, `bmc`, `bios`)
+- **`{ChassisId}`**: Chassis identifier (e.g., `chassis`, `BMC`)
+- **`{SystemId}`**: System identifier (e.g., `system`, `system0`)
 
 ## 8. Memory Consumption
 
