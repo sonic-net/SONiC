@@ -16,14 +16,13 @@
 # List of Tables
   * [Table 1: Abbreviations](#table-1-abbreviations) 
   * [Table 2: Component Basic Information Mapping](#component-basic-information-mapping) 
-  * [Table 3: Memory Information Mapping](#memory-information-mapping) 
-  * [Table 4: Temperature Information Mapping](#temperature-information-mapping) 
-  * [Table 5: Power Supply Information Mapping](#power-supply-information-mapping) 
-  * [Table 6: Fan Information Mapping](#fan-information-mapping) 
-  * [Table 7: CPU Information Mapping](#cpu-information-mapping) 
-  * [Table 8: Transceiver Information Mapping](#transceiver-information-mapping) 
-  * [Table 9: Component Type to DB Table Mapping](#component-type-to-db-table-mapping) 
-  * [Table 10: Transceiver Threshold Field Mapping](#334-transceiver-threshold-field-mapping) 
+  * [Table 3: Temperature Information Mapping](#temperature-information-mapping) 
+  * [Table 4: Power Supply Information Mapping](#power-supply-information-mapping) 
+  * [Table 5: Fan Information Mapping](#fan-information-mapping) 
+  * [Table 6: CPU Information Mapping](#cpu-information-mapping) 
+  * [Table 7: Transceiver Information Mapping](#transceiver-information-mapping) 
+  * [Table 8: Component Type to DB Table Mapping](#component-type-to-db-table-mapping) 
+  * [Table 9: Transceiver Threshold Field Mapping](#334-transceiver-threshold-field-mapping) 
 
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
@@ -31,13 +30,13 @@
 | 0.1 | 08/24/2025  | Anukul Verma | Initial version                   |
 
 # About this Manual
-This document provides general information about the OpenConfig configuration/management of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
+This document provides general information about the OpenConfig monitoring of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
 
 # Scope
-- This document describes the high level design of OpenConfig configuration/management of Platform components via gNMI/REST in SONiC.
+- This document describes the high level design of OpenConfig monitoring of Platform components via gNMI/REST in SONiC.
 - This does not cover the SONiC KLISH CLI.
 - Openconfig-platform.yang version latest from openconfig yang repo is considered.
-- Currently only EEPROM component is supported using Custom app approach (pfm_app.go). New implementation will be done using common app approach.
+- Previous implementation supported only EEPROM component using Custom app approach (pfm_app.go). This new implementation uses common app (transformer) approach and extends support to all listed component types.
 - Supported attributes in OpenConfig YANG tree:
 ```
 module: openconfig-platform
@@ -68,16 +67,20 @@ module: openconfig-platform
         |  |  +--ro max?               decimal64
         |  |  +--ro alarm-status?      boolean
         |  |  +--ro alarm-threshold?   uint32
-        |  +--ro memory
-        |     +--ro available?   uint64
-        |     +--ro utilized?    uint64
         +--rw power-supply
         |  +--ro state
-        |     +--ro oc-platform-psu:enabled?    boolean
-        |     +--ro oc-platform-psu:capacity?   oc-types:ieeefloat32
+        |     +--ro oc-platform-psu:enabled?          boolean
+        |     +--ro oc-platform-psu:capacity?         oc-types:ieeefloat32
+        |     +--ro oc-platform-psu:input-voltage?    oc-types:ieeefloat32
+        |     +--ro oc-platform-psu:input-current?    oc-types:ieeefloat32
+        |     +--ro oc-platform-psu:output-voltage?   oc-types:ieeefloat32
+        |     +--ro oc-platform-psu:output-current?   oc-types:ieeefloat32
+        |     +--ro oc-platform-psu:output-power?     oc-types:ieeefloat32
         +--rw fan
         |  +--ro state
-        |     +--ro oc-fan:speed?   uint32
+        |     +--ro oc-fan:speed?                      uint32
+        |     +--ro oc-platform-ext:speed-percentage?   uint32
+        |     +--ro oc-platform-ext:direction?           enumeration
         +--rw cpu
         |  +--rw config
         |  +--ro state
@@ -155,15 +158,13 @@ module: openconfig-platform
 ## 1.1 Requirements
 ### 1.1.1 Functional Requirements
 1. Provide support for OpenConfig Platform YANG models.
-2. Implement transformer support for Openconfig platform model to have following supports:  
-    Configure/Set Platform component attributes.  
-    Subscribe Platform component attributes for telemetry.
+2. Implement transformer support for Openconfig platform model to have following supports:
+    - Get Platform component state attributes via REST and gNMI.
+    - Subscribe Platform component attributes for telemetry via gNMI.
 3. Add support for following Platform component types:
     * chassis
     * cpu
     * eeprom (System EEPROM)
-    * memory (Physical, Buffer, Swap, Cached, Virtual, Shared)
-    * disk
     * power-supply (PSU)
     * fan
     * fantray
@@ -173,21 +174,20 @@ module: openconfig-platform
     * Basic component information (name, type, description, manufacturer, etc.)
     * Operational status and health monitoring
     * Temperature monitoring with thresholds and alarm status
-    * Memory utilization statistics
     * CPU utilization statistics
     * Power supply capacity and status
     * Fan speed monitoring
     * Transceiver information and DOM (Digital Optical Monitoring) data
 
 ### 1.1.2 Configuration and Management Requirements
-The Platform configuration/management can be done via REST and gNMI. The implementation will return an error if configuration is not allowed due to misconfiguration or un-supported node is accessed.
+The Platform module is read-only (monitoring only). Get and Subscribe operations are supported via REST and gNMI. Set operations (PATCH/PUT/DELETE) are not supported; the implementation will return an error if a Set operation is attempted on any platform component path.
 
 ### 1.1.3 Scalability Requirements
 The maximum number of components depends on the hardware platform capabilities and the number of physical components present in the system.
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-SONiC already supports framework for Get, Patch and Delete via REST and gNMI. This feature adds support for OpenConfig based YANG models using transformer based implementation for Platform features.
+SONiC already supports a management framework for REST and gNMI operations. This feature adds read-only support for OpenConfig based YANG models using transformer based implementation for Platform features. Only Get and Subscribe operations are supported; Set operations (PATCH/PUT/DELETE) are not supported for the platform module.
 
 ### 1.2.2 Container
 The code changes for this feature are part of *Management Framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
@@ -213,24 +213,23 @@ There are no changes to APP DB schema definition.
 ### 3.2.3 STATE DB
 The following existing STATE DB tables are utilized for platform component information:
 - EEPROM_INFO
-- MEMORY_STATS
 - PHYSICAL_ENTITY_INFO
 - TEMPERATURE_INFO
 - TRANSCEIVER_INFO
 - TRANSCEIVER_DOM_THRESHOLD
 - TRANSCEIVER_DOM_SENSOR
-- MOUNT_POINTS
 - PSU_INFO
 - FAN_INFO
 - FAN_DRAWER_INFO
 - CHASSIS_INFO
-- CPU_STATS (new table will be added to support this)
+- CPU_STATS (new table; sonic-host-services will have changes to populate this)
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
 
 ### 3.2.5 COUNTER DB
-There are no changes to COUNTER DB schema definition.
+The following existing COUNTER DB table is utilized for chassis utilization resource information:
+- CRM|STATS (used for fib4, fib6, and lpm resource utilization via crm_stats_ipv4_route_used, crm_stats_ipv4_route_available, crm_stats_ipv6_route_used, crm_stats_ipv6_route_available fields)
 
 ## 3.3 User Interface
 ### 3.3.1 Data Models
@@ -242,9 +241,9 @@ Openconfig-platform.yang and its submodules will be used as user interfacing mod
 - openconfig-platform-cpu.yang
 - openconfig-platform-common.yang
 - openconfig-platform-types.yang
+- openconfig-platform-ext.yang (extensions for fan speed-percentage and direction)
 - openconfig-platform-annotation.yang
 - openconfig-platform-deviation.yang
-- openconfig-platform-ext.yang
 
 ### 3.3.2 Database Table and Field Mapping
 The following sections provide detailed mapping between OpenConfig YANG paths and SONiC STATE DB tables and fields for each component type.
@@ -256,8 +255,9 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
+| `/components/component/state/name` | - | Component key | Name |
 | `/components/component/state/type` | - | - | Fixed: CHASSIS |
-| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/description` | - | - | Fixed: "Chassis component" |
 | `/components/component/state/serial-no` | CHASSIS_INFO | serial |
 | `/components/component/state/hardware-version` | CHASSIS_INFO | revision |
 | `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
@@ -273,124 +273,105 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
 | `/components/component/state/type` | - | - | Fixed: CPU |
-| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/description` | CPU_STATS | vendor_id, model_name | Derived: "{vendor_id}: {model_name}" |
 | `/components/component/state/model-name` | CPU_STATS | model_name | CPU model information |
+| `/components/component/state/mfg-name` | CPU_STATS | vendor_id | CPU vendor identifier |
 | `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
 | `/components/component/state/empty` | - | - | Fixed: false |
 | `/components/component/state/removable` | - | - | Fixed: false |
-| `/components/component/cpu/utilization/state/instant` | CPU_STATS | load | Current CPU load |
-| `/components/component/cpu/utilization/state/avg` | CPU_STATS | load | Calculated average |
-| `/components/component/cpu/utilization/state/min` | CPU_STATS | load | Calculated minimum |
-| `/components/component/cpu/utilization/state/max` | CPU_STATS | load | Calculated maximum |
+| `/components/component/cpu/utilization/state/instant` | CPU_STATS | load | Last value from load JSON array (most recent sample) |
+| `/components/component/cpu/utilization/state/avg` | CPU_STATS | load | Average of all samples in load JSON array over the interval |
+| `/components/component/cpu/utilization/state/min` | CPU_STATS | load | Minimum of all samples in load JSON array over the interval |
+| `/components/component/cpu/utilization/state/max` | CPU_STATS | load | Maximum of all samples in load JSON array over the interval |
+| `/components/component/cpu/utilization/state/interval` | - | - | Fixed: 60000000000 ns (60 seconds). The load field is a JSON array of CPU load samples collected over this 1-minute window. |
 
 #### 3.3.2.3 EEPROM Component Mapping
 **Database Table:** EEPROM_INFO  
 **Key Pattern:** "System Eeprom"  
-**Component Type:** openconfig-platform-types:STORAGE
+**Component Type:** openconfig-platform-types:SENSOR
 
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
-| `/components/component/state/id` | - | - | Fixed: "System Eeprom" |
-| `/components/component/state/name` | - | - | Same as id |
-| `/components/component/state/type` | - | - | Fixed: STORAGE |
-| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/id` | EEPROM_INFO | 0x21 | Product name |
+| `/components/component/state/name` | - | - | Fixed: "System Eeprom" |
+| `/components/component/state/type` | - | - | Fixed: SENSOR |
+| `/components/component/state/description` | EEPROM_INFO | 0x28 | Platform name |
 | `/components/component/state/part-no` | EEPROM_INFO | 0x22 | Product part number |
-| `/components/component/state/serial-no` | EEPROM_INFO | 0x23 | Serial number |
+| `/components/component/state/serial-no` | EEPROM_INFO | 0x23 | Serial number (fallback: 0x2f Service Tag) |
 | `/components/component/state/mfg-date` | EEPROM_INFO | 0x25 | Manufacturing date |
-| `/components/component/state/hardware-version` | EEPROM_INFO | 0x27 | Hardware revision |
-| `/components/component/state/mfg-name` | EEPROM_INFO | 0x2b | Manufacturer name |
-| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Usually chassis |
-| `/components/component/state/location` | PHYSICAL_ENTITY_INFO | parent_name | Location information |
+| `/components/component/state/hardware-version` | EEPROM_INFO | 0x27 | Label revision |
+| `/components/component/state/mfg-name` | EEPROM_INFO | 0x2b | Manufacturer name (fallback: 0x2d Vendor) |
+| `/components/component/state/location` | - | - | Fixed: "Slot 1" |
 | `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
 | `/components/component/state/empty` | - | - | Fixed: false |
 | `/components/component/state/removable` | - | - | Fixed: false |
 
-#### 3.3.2.4 Memory Component Mapping
-**Database Table:** MEMORY_STATS  
-**Key Patterns:** "*Memory" (e.g., "Physical Memory", "Buffer Memory", "Swap Memory", "Cached Memory", "Virtual Memory", "Shared Memory")  
-**Component Type:** openconfig-platform-types:STORAGE
-
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
-|---------------------|----------------|----------------|--------|
-| `/components/component/state/id` | - | Component key | Generated from memory key |
-| `/components/component/state/name` | - | Component key | Same as id |
-| `/components/component/state/type` | - | - | Fixed: STORAGE |
-| `/components/component/state/description` | - | - | Memory type description |
-| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
-| `/components/component/state/empty` | - | - | Fixed: false |
-| `/components/component/state/removable` | - | - | Fixed: false |
-| `/components/component/state/memory/available` | MEMORY_STATS | 1K-blocks | Available memory in bytes |
-| `/components/component/state/memory/utilized` | MEMORY_STATS | Used | Used memory in bytes |
-
-#### 3.3.2.5 Disk Component Mapping
-**Database Table:** MOUNT_POINTS  
-**Key Pattern:** "/" (root filesystem)  
-**Component Type:** openconfig-platform-types:STORAGE
-
-| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
-|---------------------|----------------|----------------|--------|
-| `/components/component/state/id` | - | - | Fixed: "Disk" |
-| `/components/component/state/name` | - | - | Same as id |
-| `/components/component/state/type` | - | - | Fixed: STORAGE |
-| `/components/component/state/description` | - | - | Static description |
-| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
-| `/components/component/state/empty` | - | - | Fixed: false |
-| `/components/component/state/removable` | - | - | Fixed: false |
-| `/components/component/state/memory/available` | MOUNT_POINTS | 1K-blocks | Available disk space |
-| `/components/component/state/memory/utilized` | MOUNT_POINTS | Used | Used disk space |
-
-#### 3.3.2.6 Power Supply (PSU) Component Mapping
+#### 3.3.2.4 Power Supply (PSU) Component Mapping
 **Database Table:** PSU_INFO  
-**Key Pattern:** "PSU *" (e.g., "PSU 1", "PSU 2")  
+**Key Pattern:** "PSU*" (e.g., "PSU 1", "PSU 2")  
 **Component Type:** openconfig-platform-types:POWER_SUPPLY
 
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
 | `/components/component/state/name` | - | Component key | Name |
 | `/components/component/state/type` | - | - | Fixed: POWER_SUPPLY |
-| `/components/component/state/description` | - | - | PSU description |
+| `/components/component/state/description` | - | - | Same as component key |
+| `/components/component/state/serial-no` | PSU_INFO | serial | Serial number |
+| `/components/component/state/hardware-version` | PSU_INFO | revision | Hardware revision |
+| `/components/component/state/model-name` | PSU_INFO | model | Model name |
 | `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Usually chassis |
 | `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
-| `/components/component/state/oper-status` | PSU_INFO | status | Operational status |
-| `/components/component/state/empty` | - | - | Calculated from status |
-| `/components/component/state/removable` | - | - | Fixed: true |
-| `/components/component/power-supply/state/capacity` | PSU_INFO | max_power | Maximum power capacity |
-| `/components/component/power-supply/state/enabled` | PSU_INFO | status | PSU enabled status |
+| `/components/component/state/oper-status` | PSU_INFO | presence, status | Derived from presence + status fields |
+| `/components/component/state/empty` | PSU_INFO | presence | Negation of presence field |
+| `/components/component/state/removable` | PSU_INFO | is_replaceable | From is_replaceable field |
+| `/components/component/power-supply/state/capacity` | PSU_INFO | max_power | Maximum power capacity (ieeefloat32) |
+| `/components/component/power-supply/state/enabled` | PSU_INFO | presence, status | Derived from oper-status (true if ACTIVE) |
+| `/components/component/power-supply/state/input-voltage` | PSU_INFO | input_voltage | Input voltage (ieeefloat32) |
+| `/components/component/power-supply/state/input-current` | PSU_INFO | input_current | Input current (ieeefloat32) |
+| `/components/component/power-supply/state/output-voltage` | PSU_INFO | voltage | Output voltage (ieeefloat32) |
+| `/components/component/power-supply/state/output-current` | PSU_INFO | current | Output current (ieeefloat32) |
+| `/components/component/power-supply/state/output-power` | PSU_INFO | power | Output power (ieeefloat32) |
 
-#### 3.3.2.7 Fan Component Mapping
+#### 3.3.2.5 Fan Component Mapping
 **Database Table:** FAN_INFO  
-**Key Pattern:** "*fan*" (e.g., "fan1", "PSU1.fan1")  
+**Key Pattern:** "fantray\*.fan\*" or "PSU\*.fan\*" (e.g., "fantray1.fan1", "PSU1.fan1")  
 **Component Type:** openconfig-platform-types:FAN
 
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
 | `/components/component/state/name` | - | Component key | Name |
 | `/components/component/state/type` | - | - | Fixed: FAN |
-| `/components/component/state/description` | - | - | Fan description |
+| `/components/component/state/description` | - | - | Same as component key |
+| `/components/component/state/serial-no` | FAN_INFO | serial | Serial number |
+| `/components/component/state/model-name` | FAN_INFO | model | Model name |
 | `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
 | `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
-| `/components/component/state/oper-status` | FAN_INFO | status | Operational status |
-| `/components/component/state/empty` | - | - | Calculated from status |
-| `/components/component/state/removable` | - | - | Fixed: true |
-| `/components/component/fan/state/speed` | FAN_INFO | speed | Fan speed in RPM |
+| `/components/component/state/oper-status` | FAN_INFO | presence, status | Derived from presence + status fields |
+| `/components/component/state/empty` | FAN_INFO | presence | Negation of presence field |
+| `/components/component/state/removable` | FAN_INFO | is_replaceable | From is_replaceable field |
+| `/components/component/fan/state/speed` | FAN_INFO | speed_in_rpm | Fan speed in RPM |
+| `/components/component/fan/state/speed-percentage` | FAN_INFO | speed | Fan speed as percentage |
+| `/components/component/fan/state/direction` | FAN_INFO | direction | Fan airflow direction |
 
-#### 3.3.2.8 Fan Tray Component Mapping
+#### 3.3.2.6 Fan Tray Component Mapping
 **Database Table:** FAN_DRAWER_INFO  
 **Key Pattern:** "fantray*" (e.g., "fantray1", "fantray2")  
-**Component Type:** openconfig-platform-types:FAN
+**Component Type:** openconfig-platform-types:FAN_TRAY
 
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
 | `/components/component/state/name` | - | Component key | Name |
-| `/components/component/state/type` | - | - | Fixed: FANTRAY |
-| `/components/component/state/description` | - | - | Fan tray description |
+| `/components/component/state/type` | - | - | Fixed: FAN_TRAY |
+| `/components/component/state/description` | - | - | Same as component key |
+| `/components/component/state/serial-no` | FAN_DRAWER_INFO | serial | Serial number |
+| `/components/component/state/model-name` | FAN_DRAWER_INFO | model | Model name |
 | `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Usually chassis |
 | `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
-| `/components/component/state/oper-status` | FAN_DRAWER_INFO | status | Operational status |
-| `/components/component/state/empty` | - | - | Calculated from status |
-| `/components/component/state/removable` | - | - | Fixed: true |
+| `/components/component/state/oper-status` | FAN_DRAWER_INFO | presence, status | Derived from presence + status fields |
+| `/components/component/state/empty` | FAN_DRAWER_INFO | presence | Negation of presence field |
+| `/components/component/state/removable` | FAN_DRAWER_INFO | is_replaceable | From is_replaceable field |
 
-#### 3.3.2.9 Temperature Component Mapping
+#### 3.3.2.7 Temperature Component Mapping
 **Database Table:** TEMPERATURE_INFO  
 **Key Pattern:** Various sensor names (e.g., "temp1", "cpu-thermal", "NPU0_TEMP_0")  
 **Component Type:** openconfig-platform-types:SENSOR
@@ -399,19 +380,19 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 |---------------------|----------------|----------------|--------|
 | `/components/component/state/name` | - | Component key | Name |
 | `/components/component/state/type` | - | - | Fixed: SENSOR |
-| `/components/component/state/description` | - | - | Temperature sensor description |
+| `/components/component/state/description` | - | - | Derived: "Temperature Sensor - {key}" |
 | `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
 | `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
 | `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
 | `/components/component/state/empty` | - | - | Fixed: false |
-| `/components/component/state/removable` | - | - | Fixed: false |
-| `/components/component/state/temperature/instant` | TEMPERATURE_INFO | temperature | Current temperature |
-| `/components/component/state/temperature/min` | TEMPERATURE_INFO | minimum_temperature | Minimum temperature |
-| `/components/component/state/temperature/max` | TEMPERATURE_INFO | maximum_temperature | Maximum temperature |
+| `/components/component/state/removable` | TEMPERATURE_INFO | is_replaceable | From is_replaceable field |
+| `/components/component/state/temperature/instant` | TEMPERATURE_INFO | temperature | Current temperature reading |
+| `/components/component/state/temperature/min` | TEMPERATURE_INFO | minimum_temperature | Minimum temperature recorded since system boot (maintained by platform thermalctld) |
+| `/components/component/state/temperature/max` | TEMPERATURE_INFO | maximum_temperature | Maximum temperature recorded since system boot (maintained by platform thermalctld) |
 | `/components/component/state/temperature/alarm-status` | TEMPERATURE_INFO | warning_status | Temperature alarm status |
 | `/components/component/state/temperature/alarm-threshold` | TEMPERATURE_INFO | critical_high_threshold | Critical threshold |
 
-#### 3.3.2.10 Transceiver Component Mapping
+#### 3.3.2.8 Transceiver Component Mapping
 **Database Tables:** TRANSCEIVER_INFO, TRANSCEIVER_DOM_SENSOR, TRANSCEIVER_DOM_THRESHOLD  
 **Key Pattern:** "Ethernet*" (e.g., "Ethernet0", "Ethernet1/1")  
 **Component Type:** openconfig-platform-types:TRANSCEIVER
@@ -420,26 +401,26 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 |---------------------|----------------|----------------|--------|
 | `/components/component/state/name` | - | Component key | Name |
 | `/components/component/state/type` | - | - | Fixed: TRANSCEIVER |
-| `/components/component/state/description` | - | - | Transceiver description |
+| `/components/component/state/description` | TRANSCEIVER_INFO | type | Derived: "Transceiver {key} - Type: {type}" |
 | `/components/component/state/serial-no` | TRANSCEIVER_INFO | serial | Serial number |
 | `/components/component/state/hardware-version` | TRANSCEIVER_INFO | hardware_rev | Hardware revision |
 | `/components/component/state/mfg-name` | TRANSCEIVER_INFO | manufacturer | Manufacturer name |
 | `/components/component/state/model-name` | TRANSCEIVER_INFO | model | Model name |
 | `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
 | `/components/component/state/location` | PHYSICAL_ENTITY_INFO | position_in_parent | Location information |
-| `/components/component/state/oper-status` | TRANSCEIVER_INFO | presence | Operational status |
-| `/components/component/state/empty` | TRANSCEIVER_INFO | presence | Calculated from presence |
-| `/components/component/state/removable` | - | - | Fixed: true |
+| `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
+| `/components/component/state/empty` | - | - | Fixed: false |
+| `/components/component/state/removable` | TRANSCEIVER_INFO | is_replaceable | From is_replaceable field |
 
 ##### Transceiver State Information
 
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
-| `/transceiver/state/enabled` | TRANSCEIVER_INFO | presence | Enabled status |
-| `/transceiver/state/form-factor-preconf` | TRANSCEIVER_INFO | ext_identifier | Pre-configured form factor |
-| `/transceiver/state/present` | TRANSCEIVER_INFO | presence | Presence status |
-| `/transceiver/state/form-factor` | TRANSCEIVER_INFO | ext_identifier | Current form factor |
-| `/transceiver/state/connector-type` | TRANSCEIVER_INFO | connector | Connector type |
+| `/transceiver/state/enabled` | - | - | Fixed: true (assumed enabled if present in table) |
+| `/transceiver/state/form-factor-preconf` | TRANSCEIVER_INFO | type | Mapped to OC form factor identity (e.g., QSFP28, OSFP) |
+| `/transceiver/state/present` | - | - | Fixed: "PRESENT" (assumed present if in table) |
+| `/transceiver/state/form-factor` | TRANSCEIVER_INFO | type | Mapped to OC form factor identity (e.g., QSFP28, OSFP) |
+| `/transceiver/state/connector-type` | TRANSCEIVER_INFO | connector | Mapped to OC connector type identity (e.g., LC, MPO) |
 | `/transceiver/state/vendor-rev` | TRANSCEIVER_INFO | vendor_rev | Vendor revision |
 | `/transceiver/state/serial-no` | TRANSCEIVER_INFO | serial | Serial number |
 | `/transceiver/state/date-code` | TRANSCEIVER_INFO | vendor_date | Manufacturing date code |
@@ -480,9 +461,26 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/transceiver/physical-channels/channel[index=N]/state/output-power/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}power | TX power for channel N |
 | `/transceiver/physical-channels/channel[index=N]/state/laser-bias-current/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}bias | TX bias current for channel N |
 
+#### 3.3.2.9 Chassis Utilization Resources Mapping
+**Database Table:** CRM|STATS (COUNTERS_DB)  
+**Key Pattern:** "chassis *" (parent chassis component)  
+**Supported Resources:** fib4, fib6, lpm
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/chassis/utilization/resources/resource[name=fib4]/state/name` | - | - | Fixed: "fib4" |
+| `/components/component/chassis/utilization/resources/resource[name=fib4]/state/used` | CRM\|STATS | crm_stats_ipv4_route_used | IPv4 routes used |
+| `/components/component/chassis/utilization/resources/resource[name=fib4]/state/free` | CRM\|STATS | crm_stats_ipv4_route_available | IPv4 routes available |
+| `/components/component/chassis/utilization/resources/resource[name=fib6]/state/name` | - | - | Fixed: "fib6" |
+| `/components/component/chassis/utilization/resources/resource[name=fib6]/state/used` | CRM\|STATS | crm_stats_ipv6_route_used | IPv6 routes used |
+| `/components/component/chassis/utilization/resources/resource[name=fib6]/state/free` | CRM\|STATS | crm_stats_ipv6_route_available | IPv6 routes available |
+| `/components/component/chassis/utilization/resources/resource[name=lpm]/state/name` | - | - | Fixed: "lpm" |
+| `/components/component/chassis/utilization/resources/resource[name=lpm]/state/used` | CRM\|STATS | crm_stats_ipv4_route_used + crm_stats_ipv6_route_used | Sum of IPv4 and IPv6 routes used |
+| `/components/component/chassis/utilization/resources/resource[name=lpm]/state/free` | CRM\|STATS | crm_stats_ipv4_route_available + crm_stats_ipv6_route_available | Sum of IPv4 and IPv6 routes available |
+
 ### 3.3.4 REST API Support
 #### 3.3.4.1 GET Operations
-Supported at various levels:
+Supported at various levels (read-only):
 - Component list level: `/openconfig-platform:components`
 - Individual component level: `/openconfig-platform:components/component={name}`
 - Specific state information: `/openconfig-platform:components/component={name}/state/{leaf}`
@@ -545,33 +543,6 @@ Sample GET output for CPU component with utilization:
       }
     }
   ]
-}
-```
-
-Sample GET output for Memory component:
-```json
-{
-  "openconfig-platform:components/component": {
-    "openconfig-platform:component": [
-      {
-        "config": {
-          "name": "Physical Memory"
-        },
-        "name": "Physical Memory",
-        "state": {
-          "description": "Physical Memory",
-          "empty": false,
-          "memory": {
-            "available": "20014612",
-            "utilized": "6550668"
-          },
-          "name": "Physical Memory",
-          "oper-status": "openconfig-platform-types:ACTIVE",
-          "type": "openconfig-platform-types:STORAGE"
-        }
-      }
-    ]
-  }
 }
 ```
 
@@ -707,6 +678,9 @@ Sample GET output for Transceiver component:
 }
 ```
 
+#### 3.3.4.2 SET Operations
+Set operations (PATCH/PUT/POST/DELETE) are **not supported** for the platform module. All platform component data is read-only state information sourced from STATE DB tables. Any Set request on platform component paths will return an error.
+
 ### 3.3.5 gNMI Support
 #### 3.3.5.1 Capabilities
 The gNMI server exposes platform component capabilities through the standard capabilities RPC.
@@ -714,11 +688,13 @@ The gNMI server exposes platform component capabilities through the standard cap
 #### 3.3.5.2 Get Operations
 Full support for gNMI Get operations on all supported platform component paths.
 
-#### 3.3.5.3 Subscribe Operations
+#### 3.3.5.3 Set Operations
+gNMI Set operations are **not supported** for the platform module. All platform component data is read-only state information. Any gNMI Set request on platform component paths will return an error.
+
+#### 3.3.5.4 Subscribe Operations
 Support for gNMI Subscribe operations for real-time monitoring of:
 - Temperature readings
 - CPU utilization
-- Memory usage
 - Fan speeds
 - Power supply status
 - Transceiver DOM data
@@ -764,6 +740,19 @@ Support for gNMI Subscribe operations for real-time monitoring of:
   ]
 }
 ```
+
+#### 3.3.5.5 Wildcard Subscription Support
+
+The platform module supports wildcard (`*`) subscriptions, allowing clients to subscribe to all instances of a component type without enumerating individual keys.
+
+**Some example supported wildcard xpaths:**
+
+| Wildcard Path | Description |
+|---|---|
+| `/components/component[name=*.fan*]` | All fan components |
+| `/components/component[name=PSU *]` | All power supply units |
+| `/components/component[name=TEMPERATURE:*]` | All temperature sensors |
+
 ## 3.4 Implementation Details
 ### 3.4.1 Component Type Detection
 Component types are determined based on YANG key patterns:
@@ -773,10 +762,8 @@ Component types are determined based on YANG key patterns:
 | "chassis *" | Chassis | "chassis 1" |
 | "CPU*" | CPU | "CPU0", "CPU1" |
 | "System Eeprom" | EEPROM | "System Eeprom" |
-| "*Memory" | Memory | "Physical Memory", "Buffer Memory", "Swap Memory", "Cached Memory", "Virtual Memory", "Shared Memory" |
-| "/" | Disk | "/dev/vda3" |
-| "PSU *" | PSU | "PSU 1", "PSU 2" |
-| "*fan*" | Fan | "fan1", "PSU1.fan1" |
+| "PSU*" | PSU | "PSU 1", "PSU 2" |
+| "fantray\*.fan\*" or "PSU\*.fan\*" | Fan | "fantray1.fan1", "PSU1.fan1" |
 | "fantray*" | Fantray | "fantray1", "fantray2" |
 | "Ethernet*" | Transceiver | "Ethernet0", "Ethernet4" |
 | Others | Temperature | "temp1", "cpu-thermal", "NPU0_TEMP_0" |
