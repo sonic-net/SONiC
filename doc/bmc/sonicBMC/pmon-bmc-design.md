@@ -201,14 +201,14 @@ timestamp                 = STR
 
 key                       = RACK_MANAGER_DATA|Inlet_liquid_flow_rate      ; Telemetry data from Rack Manager in STATE_DB
 ; field                   = value
-value                     = FLOAT
+value                     = float
 unit                      = gallons_per_min
 severity                  = status                                         ;CRITICAL/MAJOR/MINOR/NORMAL
 timestamp                 = STR
 
 key                       = RACK_MANAGER_DATA|Inlet_liquid_pressure       ; Telemetry data from Rack Manager in STATE_DB
 ; field                   = value
-value                     = FLOAT
+value                     = float
 unit                      = psi
 severity                  = status                                         ;CRITICAL/MAJOR/MINOR/NORMAL
 timestamp                 = STR
@@ -377,7 +377,7 @@ On an Event
 ```
   - use GNOI framework to issue remote SOFT shutdown. The gnmi and sysmgr docker needs to be running on Switch-Host
     REF: https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/gnoi_system_hld.md, https://github.com/sonic-net/SONiC/pull/1489
-  - start a timer based on shutdown_delay configured in SWITCH_HOST_SHUTDOWN_TIMEOUT|default table.
+  - start a timer based on graceful_shutdown_timeout configured in SWITCH_HOST_SHUTDOWN_TIMEOUT|default table.
   - if GNOI request came back SUCCESS or No response for GNOI request + Timer expired
       - call platform API module->set_admin_state(DOWN) to power down the Switch-Host
   - update the HOST_STATE|switch-host with the device_power_state.
@@ -398,8 +398,8 @@ This section covers the various tables which this daemon creates/uses in Redis D
 ```
 key                       = SWITCH_HOST_POWER_ON_DELAY |default   ; Config DB on BMC
 ; field                   = value
-boot_delay                = float                                 ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = 5 min ).   
-                                                                  ; If BMC receives POWER ON from Rack manager before this timeout + there are no critical events, Switch-Host will be powered on
+power_on_delay            = integer                               ; Time in secs after power on the device, switch BMC can power on the Switch-Host. ( default = -1, Switch-Host remain powered off ).   
+                                                                  ; If BMC receives POWER ON from Rack manager before this timeout + there are no critical events, BMC will power on Switch-Host.
 
 key                       = HOST_STATE|switch-host                             ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
@@ -410,9 +410,9 @@ last_change_timestamp     = STR
 
 key                       = SWITCH_HOST_SHUTDOWN_TIMEOUT|default ; Config DB on BMC
 ; field                   = value
-shutdown_delay            = float                                ; Time in secs the BMC will wait after SHUTDOWN command sent to Switch-Host. ( default = 2 min ).
+graceful_shutdown_timeout = integer                              ; Time in secs the BMC will wait after SHUTDOWN command sent to Switch-Host. ( default = 120 sec ).
                                                                  ; if this timer expires, BMC will go ahead and direct POWER OFF switch-host with platform API
-                                                                 ; if shutdown_delay is 0, BMC will NOT do a graceful shutdown, instead will do POWER_OFF with platform API
+                                                                 ; if shutdown_timeout is 0, BMC will NOT do a graceful shutdown, instead will do POWER_OFF with platform API
 
 ```
 
@@ -467,7 +467,7 @@ leak_severity             = "status"                                  ; CRITICAL
 key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in CONFIG_DB
 ; field                   = value
 leak_type                 = STR                                       ; Leak sensor type
-max_minor_duration_sec    = float                                     ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
+max_minor_duration_sec    = integer                                   ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
 
 key                       = SYSTEM_LEAK_STATUS|system                  ; system bmc leak status in STATE DB
 ; field                   = value
@@ -634,14 +634,14 @@ config chassis modules shutdown <Switch-Host>
 
 config chassis modules power-on-delay <Switch-Host> <seconds>
    - Configure the delay (in seconds) BMC waits after device power-on before powering on the Switch-Host.
-   - Default = 0 sec . Must be a non-negative float value.
+   - Default = -1, Switch-Host remain powered off.
    - If BMC receives a POWER ON from Rack Manager before this timeout elapses (and no critical events exist),
      Switch-Host will be powered on immediately.
 
 config chassis modules shutdown-timeout <Switch-Host> <seconds>
    - Configure the graceful-shutdown timeout (in seconds) BMC waits after sending a shutdown command
      to the Switch-Host before forcing a hard power-off via the platform API.
-   - Default = 120 (2 min). Must be a non-negative float value.
+   - Default = 120sec. 
    - If set to 0, BMC will immediately power off Switch-Host without waiting for graceful shutdown.
 
 ```
@@ -653,8 +653,8 @@ config chassis modules shutdown-timeout <Switch-Host> <seconds>
     "CHASSIS_MODULE": {
         "SWITCH-HOST": {
             "admin_status": "up",
-            "power_on_delay": "300",    ; Time in secs BMC waits before powering on Switch-Host (default = 5 min)
-            "shutdown_timeout": "120"   ; Time in secs BMC waits for graceful shutdown before forcing power-off (default = 2 min)
+            "power_on_delay": "300",              ; Time in secs BMC waits before powering on Switch-Host (default = -1, Switch-Host remain powered off)
+            "graceful_shutdown_timeout" : "120"   ; Time in secs BMC waits for graceful shutdown before forcing power-off (default = 120sec)
         }
     }    
 ```
@@ -680,7 +680,7 @@ Applicable to (LC)
 config liquid-cool leak-action [system|rack_mgr] [critical|minor]  [syslog_only|graceful_shutdown|power_off]
 
    - syslog_only      : Log the event; no Switch-Host power action taken.
-   - graceful_shutdown: Issue a graceful GNOI shutdown to Switch-Host; force power-off after SWITCH_HOST_SHUTDOWN_TIMEOUT if unresponsive.
+   - graceful_shutdown: Issue a graceful GNOI shutdown to Switch-Host; force power-off after SWITCH_HOST_SHUTDOWN_TIMEOUT/graceful_shutdown_timeout if unresponsive.
    - power_off        : Immediately power off Switch-Host via platform API module->set_admin_state(DOWN).
 ```
 
