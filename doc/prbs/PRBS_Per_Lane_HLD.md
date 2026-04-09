@@ -59,11 +59,11 @@ This document describes the implementation of PRBS (Pseudo-Random Bit Sequence) 
 
 PRBS (Pseudo-Random Bit Sequence) is a critical diagnostic tool used to test the integrity of high-speed serial links by generating and checking random data patterns. It validates SerDes performance and physical connectivity between network devices.
 
-This feature extends SONiC to provide comprehensive PRBS diagnostics with per-lane visibility, enabling operators to:
+This feature extends SONiC to provide comprehensive PRBS diagnostics with per-lane visibility when the underlying SAI implementation exposes per-lane attributes, and with graceful degradation to port-aggregated results when only port-level PRBS statistics are supported, enabling operators to:
 - Configure PRBS tests on network interfaces with flexible mode (RX/TX/both) and polynomial pattern selection
 - Monitor running PRBS tests with elapsed time tracking
-- Capture and analyze detailed per-lane results including lock status, error counts, and BER metrics
-- Identify lane-specific issues that may be masked in port-level statistics
+- Capture and analyze per-lane results (lock status, error counts, and BER per lane) when **get** `SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST` succeeds, and port-level lock and error totals from `SAI_PORT_ATTR_PRBS_RX_STATE`
+- Identify lane-specific issues that may be masked in port-level statistics on platforms that report per-lane data
 
 The implementation follows an approach where PRBS tests run continuously, and results are captured only when the test is disabled, ensuring accurate and consistent measurements.
 
@@ -85,7 +85,9 @@ The implementation follows an approach where PRBS tests run continuously, and re
    - Display PRBS test status (Running/Interrupted/Errored/Completed) across all ports
 
 3. **PRBS Result Capture**
-   - Capture per-lane results automatically when PRBS is disabled
+   - After PRBS is disabled (RX or both), capture results from SAI in a defined order with port-level fallback (see [Section 8 — SAI API](#8-sai-api))
+   - When **get** `SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST` succeeds: populate `PORT_PRBS_LANE_RESULT` (and attempt **get** `SAI_PORT_ATTR_PRBS_PER_LANE_BER_LIST` for per-lane BER fields); derive or align port summary fields in `PORT_PRBS_RESULTS` from that data and/or `SAI_PORT_ATTR_PRBS_RX_STATE` per handler logic
+   - When **get** `SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST` fails or is unsupported: omit `PORT_PRBS_LANE_RESULT` keys for that disable cycle; still query `SAI_PORT_ATTR_PRBS_RX_STATE` and populate `PORT_PRBS_RESULTS` with port-level lock status and error count when that get succeeds
    - Store results in STATE_DB for repeated queries
    - Provide per-lane RX status, error counts, and BER metrics
    - Compute port-level summary statistics (locked lanes, error-free lanes, total errors) at CLI level
@@ -157,7 +159,7 @@ This is a built-in SONiC feature that adds PRBS diagnostic capabilities through 
 - Set `SAI_PORT_ATTR_PRBS_CONFIG`
 - Query `SAI_PORT_ATTR_PRBS_PATTERN` to get actual value used
 - Set `SAI_PORT_ATTR_PRBS_CONFIG` to `SAI_PORT_PRBS_CONFIG_DISABLE`
-- Query `SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST`, `SAI_PORT_ATTR_PRBS_PER_LANE_BER_LIST` and `SAI_PORT_ATTR_PRBS_RX_STATE`
+- Query result attributes in this order: **get** `SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST`; only if that **get** succeeds, **get** `SAI_PORT_ATTR_PRBS_PER_LANE_BER_LIST` (for BER in lane rows). If the RX state list **get** fails or is unsupported, skip writing `PORT_PRBS_LANE_RESULT` for this disable. Always **get** `SAI_PORT_ATTR_PRBS_RX_STATE` for port-level lock status and error count and populate `PORT_PRBS_RESULTS` when that query succeeds
 
 **PrbsHandler → STATE_DB:**
 - Write: `PORT_PRBS_TEST`, `PORT_PRBS_RESULTS`, and `PORT_PRBS_LANE_RESULT` tables
@@ -312,8 +314,8 @@ key                   = PORT_PRBS_RESULTS | ifname   ; Interface name. Must be u
 
 ; field               = value
 rx_status             = "OK" / "LOCK_WITH_ERRORS" / "NOT_LOCKED" / "LOST_LOCK"
-                                                 ; Aggregate RX status across all lanes
-error_count           = 1*20DIGIT                ; Total error count across all lanes
+                                                 ; Port-level RX status from SAI 
+error_count           = 1*20DIGIT                ; Port-level error count
 total_lanes           = 1*2DIGIT                 ; Number of serdes lanes (1..16)
 ```
 
@@ -369,6 +371,7 @@ ber_exponent          = 1*5DIGIT                 ; BER exponent (scientific nota
 **Schema Notes:**
 - Results are stored in STATE_DB until next PRBS enable (allows repeated queries)
 - TX-only mode does not create PORT_PRBS_RESULTS or PORT_PRBS_LANE_RESULT entries
+- Port-level-only ASICs: after disable, expect `PORT_PRBS_RESULTS` only (no `PORT_PRBS_LANE_RESULT*` keys) until per-lane SAI support is added on that platform
 - `sonic-clear prbs results` deletes PORT_PRBS_TEST, PORT_PRBS_RESULTS, and PORT_PRBS_LANE_RESULT keys from STATE_DB
 
 #### 7.4 Sequence Diagram
@@ -486,12 +489,14 @@ sequenceDiagram
     prbshandler->>SAI: Set SAI_PORT_ATTR_PRBS_CONFIG
     SAI-->>prbshandler: success
     prbshandler->>SAI: Get SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST
-    SAI-->>prbshandler: success
-    prbshandler->>SAI: Get SAI_PORT_ATTR_PRBS_PER_LANE_BER_LIST
-    SAI-->>prbshandler: success
+    SAI-->>prbshandler: success or failure
+    alt Get SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST succeeded
+        prbshandler->>SAI: Get SAI_PORT_ATTR_PRBS_PER_LANE_BER_LIST
+        SAI-->>prbshandler: success or failure
+    end
     prbshandler->>SAI: Get SAI_PORT_ATTR_PRBS_RX_STATE
     SAI-->>prbshandler: success
-    prbshandler->>STATE_DB: Update PORT_PRBS_TEST|EthernetXX, PORT_PRBS_RESULTS|EthernetXX and PORT_PRBS_LANE_RESULT|EthernetXX|X
+    prbshandler->>STATE_DB: Update PORT_PRBS_TEST|EthernetXX, PORT_PRBS_RESULTS|EthernetXX <br/> (and PORT_PRBS_LANE_RESULT|EthernetXX|X if Get SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST succeeded)
     prbshandler-->>portsorch: success
 
     portsorch->>SAI: Restore port admin state
@@ -628,8 +633,8 @@ Ethernet16   tx      PRBS31     Completed  --             --             2026-02
 ```
 
 Column descriptions:
-- **Lock Status**: Port-level lock summary derived from per-lane results. `--` when test is Running/Interrupted/Errored or mode is TX-only.
-- **Error Count**: Total error count across all lanes. `--` when results are not available.
+- **Lock Status**: Port-level lock summary from `PORT_PRBS_RESULTS`.
+- **Error Count**: From `PORT_PRBS_RESULTS`. `--` when results are not available.
 
 **Status derivation logic:**
 - **Errored**: `prbs_status == errored` (independent of oper_status)
