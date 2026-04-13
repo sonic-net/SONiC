@@ -9,6 +9,12 @@
 5. [Requirements](#5-requirements)
 6. [Architecture Design](#6-architecture-design)
 7. [High-Level Design](#7-high-level-design)
+   - 7.1 [CMIS State Machine Thread for CPO Modules](#71-cmis-state-machine-thread-for-cpo-modules)
+   - 7.2 [Module Type ID ↔ Transceiver API Mapping](#72-module-type-id--transceiver-api-mapping)
+   - 7.3 [DOM: CPO Telemetry Statistics](#73-dom-cpo-telemetry-statistics)
+     - 7.3.1 [Class Hierarchy](#731-class-hierarchy)
+     - 7.3.2 [Memory Map - VmoduleCmisMemMap](#732-memory-map---vmodulecmismemmap)
+     - 7.3.3 [API - VmoduleCmisApi](#733-api---vmodulecmisapi)
 8. [SAI API](#8-sai-api)
 9. [Configuration and management](#9-configuration-and-management)
    - 9.1. [Manifest (if the feature is an Application Extension)](#91-manifest-if-the-feature-is-an-application-extension)
@@ -28,6 +34,7 @@
 | Rev | Date       | Author       | Change Description |
 |-----|------------|--------------|--------------------|
 | 0.1 | 2026-03-31 | Tomer Shalvi | Initial version.   |
+| 0.2 | 2026-04-12 | Natanel Gerbi | DOM: CPO telemetry statistics design. Vendor extension framework separated into [standalone HLD](https://github.com/sonic-net/SONiC/pull/2291) |
 
 <br>
 
@@ -66,6 +73,9 @@ A vModule exposes **32 lanes**, compared to 8 lanes in standard pluggable module
 | SW     | Software |
 | EEPROM | Electrically Erasable Programmable Read-Only Memory |
 | DOM    | Digital Optical Monitoring |
+| VDM    | Versatile Diagnostics Monitoring |
+| CDB    | Command Data Block |
+| ELSFP  | External Laser Source Forward Path |
 
 <br>
 
@@ -85,15 +95,21 @@ This document builds on existing community HLDs and extends them to support Join
 * [port_mapping_for_cpo](https://github.com/nexthop-ai/SONiC/blob/274228b44de9edbbf6f1585c9bb7392853cbbc08/doc/platform/port_mapping_for_cpo.md)
 * [cmis_banking_support](https://github.com/bobby-nexthop/SONiC/blob/0b09f1cc3e91853fcbabb29efb76fa6ea4b9647d/doc/layer1/cmis_banking_support.md)
 
+This document also depends on:
+* [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291) - Defines the generic `CmisExtendedMemMap`/`CmisExtendedApi` vendor extension framework that CPO telemetry builds on top of.
+
 ### Out of Scope (Current Revision):
 
 This revision of the HLD focuses on the **link-up flow for SW-controlled CPO ports in Joint Mode**.  
 The following aspects are **not covered in this revision**, are currently **under development**, and will be addressed in future updates:
 
-* DOM: Future support will extend the existing DOM flow to include additional ELS monitoring statistics, requiring access to ELS data exposed via the CPO abstraction EEPROM and publishing it to the relevant databases.  
 * Error handling: A protection mechanism will be introduced to handle CPO-related faults (e.g., thermal events and laser power anomalies).  
 * Firmware upgrade: Firmware upgrade support for CPO modules is out of scope for this revision and will be defined in a future update.  
 * CLI enhancements: Additional CLI command for CPO vendor-specific error statuses.  
+
+### Added in Rev 0.2:
+
+* DOM: CPO telemetry statistics design, extending the existing DOM flow to include ELS monitoring statistics via the CPO abstraction EEPROM. See Section 7.3. The generic vendor extension framework (`CmisVendorExtension`, `CmisExtendedMemMap`, `CmisExtendedApi`) is defined in a separate HLD: [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291).
 
 <br>
 
@@ -105,8 +121,10 @@ The following aspects are **not covered in this revision**, are currently **unde
 * While working in CPO Joint Mode, the system shall work directly with the CPO abstraction.
 * The system shall support correct instantiation of the transceiver object for CPO modules (module type id 0x80).
 * The system shall allow CPO modules to be configured via the existing CMIS state machine.
-* The system shall support a CPO-specific CMIS memory map, extending the standard CMIS memory map to include ELS-related fields and support vendor-specific field definitions.
-* The system shall support vendor-specific EEPROM layouts within the CPO memory map.
+* The system shall support a CPO-specific CMIS memory map (`VmoduleCmisMemMap`).
+* The system shall support the vendor extension framework (see [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291)) to include Vendor Specific fields.
+* The system shall support vendor-specific EEPROM layouts within the CPO memory map, using the vendor extension framework.
+* The system shall collect and publish CPO-specific ELSFP telemetry (temperature, voltage, laser monitors) to STATE_DB via the existing DOM polling mechanism.
 
 **Non-Functional Requirements:**
 * The solution shall maximize the reuse of existing CMIS infrastructure to avoid changing generic code.
@@ -147,12 +165,12 @@ The only functional difference is the set of supported module types. While `Cmis
 
 ```python
 CMIS_MODULE_TYPES = ['CPO']
-```  
+```
 
 
 ### 7.2 Module Type ID ↔ Transceiver API Mapping
 
-to include the CPO module type 0x80 (xcvr_api_factory).
+Extending the module type ID to transceiver API mapping to include the CPO module type 0x80 (xcvr_api_factory).
 
 ```python
 def create_xcvr_api(self):
@@ -161,23 +179,120 @@ def create_xcvr_api(self):
     id_mapping = {
         0x18: (self._create_cmis_api, ()),
         0x19: (self._create_cmis_api, ()),
-        0x80: (self._create_cmis_api, (CmisCpoMemoryMap)),
+        0x80: (self._create_cmis_cpo_api, ()),
         ...
     }
 ```
 
-This change also introduces a new memory map: **CmisCpoMemoryMap**.
+The factory introduces `_create_cmis_cpo_api`, which creates the CPO API with vendor extension and bank support. The factory exposes a generic `set_xcvr_params(**kwargs)` method that allows the platform to inject general purpose parameters (such as bank_id, vendor specific class, etc.) after construction, without modifying the SFP inheritance chain. The factory stores them in `_xcvr_params` and reads them when creating the API:
 
-The EEPROM exposes both the standard CMIS data and additional ELS-related information. To support this, CmisCpoMemoryMap extends the existing CMIS memory map by:
+```python
+# In xcvr_api_factory (common code)
+def set_xcvr_params(self, **kwargs):
+    self._xcvr_params.update(kwargs)
 
-- Incorporating ELS-related fields based on the ELSFP specification.
-- Allowing vendor-specific fields to be defined and accessed through this memory map.
+def _create_cmis_cpo_api(self):
+    vendor_ext = self._xcvr_params.get('vendor_ext', None)
+    bank_id = self._xcvr_params.get('bank_id', None)
+    if bank_id is None:
+        logger.warning("CPO module created without bank_id, defaulting to 0")
+        bank_id = 0
+    mem_map = VmoduleCmisMemMap(CmisCodes, vendor_ext=vendor_ext)
+    eeprom = XcvrEeprom(self.reader, self.writer, mem_map)
+    return VmoduleCmisApi(eeprom, bank_id=bank_id)
+```
 
-Unlike existing generic CMIS memory maps, the CPO memory map supports vendor-specific fields. It accepts an optional dictionary of field definitions at init time, allowing each vendor to inject its own page layouts.
+```python
+# Platform SFP object (e.g., sfp.py)
+class CpoPort(SFP):
+    def __init__(self, sfp_index, bank_id=0, asic_id='asic0'):
+        super().__init__(sfp_index, asic_id=asic_id)
+        self._xcvr_api_factory.set_xcvr_params(
+            vendor_ext=MyCpoVendorExtension(),
+            bank_id=bank_id,
+        )
+```
+
+The `bank_id` parameter (0-3) identifies which 8-lane bank this SFP object represents within the 32-lane CPO module. It is used by `VmoduleCmisApi` for CDB commands that require a lane bank selector.
+
+This change also introduces a new memory map: **`VmoduleCmisMemMap`**, built on the vendor extension framework through a two-layer inheritance hierarchy:
+
+1. **`CmisExtendedMemMap`** (inherits from `CmisMemMap`) - the general-purpose vendor extension layer defined in [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291). It accepts an optional `vendor_ext` object at init time and dynamically injects vendor-specific field definitions into the memory map. This layer is not CPO-specific.
+
+2. **`VmoduleCmisMemMap`** (inherits from `CmisExtendedMemMap`) - adds the **ELSFP pages 0x1A/0x1B** (lane monitors, flags, thresholds, setpoints) as defined in the OIF-CMIS-ELSFP specification. This is the CPO vModule-specific layer.
+
+The same two-layer pattern applies to the API side: `CmisExtendedApi` -> `VmoduleCmisApi` (see Section 7.3 for details).
+
+Note: This simplifies things to the NOS in comparison to Separate mode, where two new memory maps are suggested - see section 6.2.5 in *CPO-support-in-SONiC.md*.
+
+### 7.3 DOM: CPO Telemetry Statistics
+
+CPO telemetry builds on the generic vendor extension framework defined in [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291). This section covers only the CPO-specific vModule layer that sits on top of that framework.
+
+#### 7.3.1 Class Hierarchy
+
+```mermaid
+flowchart LR
+    subgraph MemMap ["Memory Map"]
+        CMM["CmisMemMap"] --> CEM["CmisExtendedMemMap\n+ vendor_ext"] --> VMM["VmoduleCmisMemMap\n+ ELSFP"]
+    end
+    subgraph API ["API"]
+        CA["CmisApi"] --> CEA["CmisExtendedApi\n+ vendor getters"] --> VA["VmoduleCmisApi\n+ ELSFP"]
+    end
+    EXT["CmisVendorExtension\n(platform)"] -.-> CEM
+    EXT -.-> CEA
+
+    style CEM fill:#90EE90
+    style CEA fill:#90EE90
+
+    linkStyle 0,1,2,3 stroke:#333
+```
+
+The green nodes (`CmisExtendedMemMap`, `CmisExtendedApi`) are defined in the [companion HLD](https://github.com/sonic-net/SONiC/pull/2291). CPO adds one layer on top:
+
+- **`VmoduleCmisMemMap`** (inherits from `CmisExtendedMemMap`) - adds ELSFP pages 0x1A/0x1B (lane monitors, flags, thresholds, setpoints) as defined in the OIF-CMIS-ELSFP specification.
+- **`VmoduleCmisApi`** (inherits from `CmisExtendedApi`) - extends aggregators with ELSFP inline getters. Accepts a `bank_id` (0-3) parameter per CpoPort, used by CDB commands to request the correct 8-lane bank.
+
+#### 7.3.2 Memory Map - VmoduleCmisMemMap
+
+```python
+class VmoduleCmisMemMap(CmisExtendedMemMap):
+    def __init__(self, codes, vendor_ext=None):
+        super().__init__(codes, vendor_ext)
+
+        # ELSFP 0x1A - thresholds, flags, lane state
+        self.ELSFP_THRESH = RegGroupField(..., self.getaddr(0x1A, 128), ...)
+        self.ELSFP_FLAGS  = RegGroupField(..., self.getaddr(0x1A, 192), ...)
+
+        # ELSFP 0x1B - lane monitors, setpoints
+        self.ELSFP_LANE_MONITORS = RegGroupField(..., self.getaddr(0x1B, 128), ...)
+        self.ELSFP_SETPOINTS     = RegGroupField(..., self.getaddr(0x1B, 192), ...)
+```
+
+#### 7.3.3 API - VmoduleCmisApi
+
+Each aggregator override calls `super()` (which already includes general CMIS + vendor data from `CmisExtendedApi`) and adds ELSFP inline getters (0x1A/0x1B).
+
+```python
+class VmoduleCmisApi(CmisExtendedApi):
+    def __init__(self, xcvr_eeprom, bank_id=0):
+        super().__init__(xcvr_eeprom)
+        self.bank_id = bank_id
+
+    def get_transceiver_dom_real_value(self):
+        result = super().get_transceiver_dom_real_value()
+        result.update(self._get_elsfp_lane_monitors())
+        return result
+
+    def _get_elsfp_lane_monitors(self):
+        return self.xcvr_eeprom.read('ELSFP_LANE_MONITORS')
+
+    # Same pattern for other aggregators with ELSFP-specific getters
+```
 
 <br>
 
-### Platform Implementation Alignment  
+### Platform Implementation Alignment
 From the platform implementation perspective, the design aligns completely with the approaches described in the community HLDs:
 
 * As described in the *cmis_banking_support.md* (section 7.8.2), the platform will expose one SFP object per bank. This structure in Joint mode is illustrated below:
@@ -239,4 +354,3 @@ No Config DB changes are required (Except for the *associated_devices* field add
 ## 13. Testing Requirements/Design
 
 ## 14. Open/Action items - if any
-
