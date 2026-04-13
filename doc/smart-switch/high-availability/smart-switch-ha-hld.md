@@ -1745,7 +1745,9 @@ During the whole process, probe states are never changed, hence transition shoul
 
 #### 10.1.7. Force exit standalone (WIP)
 
-### 10.2. Force shutdown (WIP)
+### 10.2. Force shutdown
+
+We provide a knob (`disabled` in `DASH_HA_SCOPE_CONFIG_TABLE`) for the operator to force shutdown a HA scope when unplanned events happened and the ha scope cannot be recovered gracefully. Whenever the `disabled` is set, the HA scope should transit into `Dead` state and activate `Dead` role on the DPU immediately regardless of the current state. The force shutdown method should only be used for unexpected failure scenarios that cannot be handled by planned shutdown.
 
 ## 11. Flow tracking and replication (Steady State)
 
