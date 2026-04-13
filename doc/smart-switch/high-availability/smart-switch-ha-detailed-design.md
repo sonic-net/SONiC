@@ -353,7 +353,7 @@ The following tables will be programmed either by SDN controller or by the netwo
 | --- | --- | --- | --- |
 | DASH_HA_GLOBAL_CONFIG | N/A | | HA global configurations. |
 | | | cp_data_channel_port | The port of control plane data channel, used for bulk sync. |
-| | | dp_channel_dst_port | The destination port used when tunneling packets via DPU-to-DPU data plane channel. |
+| | | dp_channel_dst_port | The destination port used for tunneling packets and in-line sync packets via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_min | The min source port used when tunneling packets via DPU-to-DPU data plane channel. |
 | | | dp_channel_src_port_max | The max source port used when tunneling packets via DPU-to-DPU data plane channel. |
 | | | dp_channel_probe_interval_ms | The interval of sending each DPU-to-DPU data path probe. |
