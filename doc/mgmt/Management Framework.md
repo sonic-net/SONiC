@@ -2834,11 +2834,11 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 	5. Status being returned from Redis.
 	6. Status being returned from DB access layer.
 	7. Translib then invokes the prepareUpdate() API on the App module (If Rollback is Enabled). For Update, Replace, or Delete operations keys are constructed based on the original request keys and existing row entry of corresponding key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.
-    8. Translib invokes the processWrite() API on the App module.
-	1. App modules perform actual writes of the translated data to the DB access layer.
-	2. DB access layer caches the writes.
-	3. Status being returned from DB access layer.
-	4. Status being returned from App module.
+	8. Translib invokes the processWrite() API on the App module.
+		1. App modules perform actual writes of the translated data to the DB access layer.
+		2. DB access layer caches the writes.
+		3. Status being returned from DB access layer.
+		4. Status being returned from App module.
 19. If operations were successful, Translib infra invokes the commit transaction on the DB access layer.
 20. If any operation is failed, abort all DB transactions
 21. Post Handling case : Rollback for any failure while commiting (If Rollback is Enabled else Abort)
@@ -2891,15 +2891,15 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
     5. Status being returned from Redis.
     6. Status being returned from DB access layer.
     7. Translib then invokes the prepareUpdate() API on the App module (Only if Rollback is Enabled). For Update, Replace, or Delete operations keys are constructed based on the original request keys and existing row entry of corresponding key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.
-	1. Translib invokes the prepareUpdate() API for the keys
-	2. App modules perform operation of taking backup data in the backup file.
-	3. Status being returned from file write.
-	4. Status being returned from App module.
+            1. Translib invokes the prepareUpdate() API for the keys
+	    2. App modules perform operation of taking backup data in the backup file.
+	    3. Status being returned from file write.
+	    4. Status being returned from App module.
     8. Translib invokes the processWrite() API on the App module.
-	1. App modules perform actual writes of the translated data to the DB access layer.
-	2. DB access layer caches the writes .
-	3. Status being returned from DB access layer.
-	4. Status being returned from App module.
+	    1. App modules perform actual writes of the translated data to the DB access layer.
+	    2. DB access layer caches the writes .
+	    3. Status being returned from DB access layer.
+	    4. Status being returned from App module.
 19. If operation on all payloads is successful
     1. Translib infra invokes the commit transaction on the DB access layer.
     2. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
