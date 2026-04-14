@@ -46,7 +46,7 @@ This document describes the design and implementation across the following layer
 - **fpmsyncd**: Parsing and programming backup nexthops to APP_DB
 - **YANG / Config**: Configuration models for enabling the feature
 - **Orchagent**: *(TBD — Not part of this HLD)*
-- **Nexthop-Group**: (TBD — Not part of this HLD)*
+- **Nexthop-Group**: (TBD — Not part of this HLD)
 
 ---
 
@@ -98,12 +98,12 @@ The implementation extends the FRR stack:
 ## 5. Requirements
 
 1. BGP SHALL compute at most one backup path per prefix when `install backup-path` is configured.
-2. BGP SHALL compute multiple equal-cost backup paths (ECMP) when `install backup-path ecmp` is configured, respecting `maximum-paths` configuration.
+2. BGP SHALL compute multiple equal-cost backup paths (ECMP) when `install backup-path ecmp` is configured, respecting `maximum-paths` configuration. The maximum-paths limit apply to backup paths separately from bestpaths.
 3. The backup path MUST NOT include any nexthop that is already in the primary ECMP set.
 4. Backup path computation SHALL be triggered after bestpath selection for each destination.
 5. Backup paths SHALL be sent to Zebra via ZAPI as backup nexthops alongside primary nexthops.
-6. Zebra SHALL encode backup nexthops in FPM netlink messages with a distinguishing flag (`RTNH_F_BACKUP`).
-7. fpmsyncd SHALL store both primary and backup nexthops in APP_DB with a `primary_nh_count` field to distinguish them.
+6. Zebra SHALL encode backup nexthops in FPM netlink messages with a distinguishing flag (Implemented using the flag `RTNH_F_BACKUP`).
+7. fpmsyncd SHALL store both primary and backup nexthops in APP_DB with appropriate way to distinguish between them (Implemented using `primary_nh_count` field to distinguish them)
 8. The feature SHALL be configurable per AFI/SAFI (IPv4 unicast, IPv6 unicast only).
 9. The feature SHALL be configurable device-wide (via `BGP_DEVICE_GLOBAL_AF`) or per-VRF (via `BGP_GLOBALS_AF`).
 11. When the feature is disabled, backup paths SHALL be flushed and Zebra SHALL be notified to remove them from the FIB.
@@ -326,7 +326,7 @@ The `ZAPI_MESSAGE_BACKUP_NEXTHOPS` flag in `api.message` signals to Zebra that b
 
 #### 7.2.2 Linking Primary to Backup Nexthops
 
-Each primary nexthop references its backup nexthops by index:
+The scheme in zapi can support each primary nexthop to reference its backup nexthops by index. But our desired semantics is to use backup paths only after all the primary paths have gone down. So we have chosen to associate the backup indexes with the first/best primary path.
 
 ```
 Primary nexthop (api.nexthops[0]):
@@ -610,7 +610,7 @@ router bgp <ASN>
 **Supported AFIs:** `ipv4 unicast`, `ipv6 unicast`
 **Not supported:** `l2vpn evpn`, `ipv4 multicast`, `ipv6 multicast`
 
-When `install backup-path ecmp` is configured, the number of backup ECMP paths is bounded by `maximum-paths` configured for the same address family.
+When `install backup-path ecmp` is configured, the number of backup ECMP paths is bounded by `maximum-paths` configured for the same address family. The limit applies separately for bestpaths and backup paths.
 
 **Show commands:**
 
@@ -675,33 +675,29 @@ The `b` indented under the primary set represents the pre-installed backup nexth
 
 #### show ip bgp (summary)
 
-The BGP table summary uses `, backup` at the end of the route flags line (similar to how `, multipath` marks ECMP members):
+The BGP table summary uses `B` prefix to display the backup paths
 
 ```
 r1# show ip bgp
-BGP table version is 912, local router ID is 10.0.0.1, vrf id 0
+BGP table version is 6, local router ID is 1.1.1.1, vrf id 0
 Default local pref 100, local AS 65001
-Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,
-               i internal, r RIB-failure, S Stale, R Removed
+Status codes:  s suppressed, d damped, h history, u unsorted, * valid, > best, = multipath,
+               i internal, r RIB-failure, S Stale, R Removed, B Backup
 Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self
 Origin codes:  i - IGP, e - EGP, ? - incomplete
 RPKI validation codes: V valid, I invalid, N Not found
 
-   Network          Next Hop            Metric LocPrf Weight Path
-*> 10.203.6.0/24    10.0.1.101               1             0 99 i
-*=                  10.0.1.102               1             0 99 i
-*=                  10.0.1.103               1             0 99 i
-*=                  10.0.1.104               1             0 99 i
-*=                  10.0.1.105               1             0 99 i
-*=                  10.0.3.111               1             0 99 i
-*=                  10.0.3.112               1             0 99 i
-*=                  10.0.3.113               1             0 99 i
-*=                  10.0.3.114               1             0 99 i
-*=                  10.0.3.115               1             0 99 i
-*                   10.0.2.106               6             0 99 i
+     Network          Next Hop            Metric LocPrf Weight Path
+ *>  10.99.99.0/24    10.1.2.2                               0 65002 65004 i
+ *=                   10.1.2.2                               0 65002 65005 i
+ *B                   10.1.3.3                               0 65003 65006 i
+ *B                   10.1.3.3                               0 65003 65007 i
+
+Displayed 1 routes and 4 total paths
 ```
 
-Note: In the summary view, the backup path appears as `*` (valid) without `>` (best) or `=` (multipath). The `backup` designation is visible in the per-prefix detail view below.
+Note: In the summary view, the backup path appears as `*` (valid) without `>` (best) or `=` (multipath).
+
 
 #### show ip bgp \<prefix\> (per-prefix detail)
 
@@ -998,6 +994,13 @@ ASIC_DB → syncd → SAI → Hardware
 ```
 
 ### 9.3 Link Failure Flow (Data Plane Failover — Future)
+
+PIC convergence i.e., primary-to-backup switchover can be achieved via two methods:
+
+    a. Entirely in hardware
+    b. In software layer (orchagent)
+
+The following describes a high level flow for (b). Both (a) and (b) will be covered in a different HLD.
 
 ```
 Hardware detects link failure
