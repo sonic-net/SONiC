@@ -2635,33 +2635,42 @@ mechanism for the app specific configuration.
 4. Request handler invokes one of the write APIs exposed by the Translib.
 5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation.
 6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
-7. Translib infra gets the App module corresponding to the incoming URI.
-8. Initialize the APP module with request data
-9. App module caches the incoming data into the app structure.
-10. App module returns after initializing local data.
-11. Translib infra invokes App module getNamespace() API to get namespace associated with the ygot and path.
-12. App module invokes transformer service getNamespaceMapping() to retrieve namespace based on Yang model.
-13. Transformer invokes Yang model-based exception to retrieve the namespace associated with ygot and URI.
-14. Transformer returns namespace associated with the ygot and URI.
-15. App module returns namespace.
-16. Loop through all Payloads  
+7. Check environment variable ENABLE_ROLLBACK
+8. Translib infra gets the App module corresponding to the incoming URI.
+9. Initialize the APP module with request data
+10. App module caches the incoming data into the app structure.
+11. App module returns after initializing local data.
+12. Translib infra invokes App module getNamespace() API to get namespace associated with the ygot and path.
+13. App module invokes transformer service getNamespaceMapping() to retrieve namespace based on Yang model.
+14. Transformer invokes Yang model-based exception to retrieve the namespace associated with ygot and URI.
+15. Transformer returns namespace associated with the ygot and URI.
+16. App module returns namespace.
+17. Loop through all Payloads
     1. Initialize the APP module with request data
     2. App module caches the incoming data into the app structure.
     3. App module returns after initializing local data.
     4. Get DB for the selected payload namespace
     5. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
-    6. App module returns the list of keys that it wants to keep a watch on along with the status.
-    7. Translib infra invokes the start transaction request exposed by the DB access layer.
-    8. DB access layer performs a WATCH of all the keys in the Redis DB.
-    9. Status being returned from Redis.
+    6. App module returns the list of keys along with the status.
+    7. Translib then invokes the processValidate() API on the App module. 
+    8. App modules perform validation of the translated data to the DB access layer.
+    9. DB access layer validates the operation using CVL.
     10. Status being returned from DB access layer.
-    11. Translib then invokes the prepareUpdate() API on the App module. For Update, Replace, or Delete operations existing row entry for corresponding request's key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.   
-    12. Translib then invokes the processOperation() API on the App module.
-    13. App modules perform operation of the translated data to the DB access layer.
-    14. DB access layer validates the operation using CVL and then caches them.
-    15. Status being returned from DB access layer.
-    16. Status being returned from App module. 
-17. If operation on all payloads is successful  
+    11. Status being returned from App module.
+18. If Validation on all Payloads is successful: 
+	1. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+	2. App module returns the list of keys along with the status.
+	3. Translib infra invokes the start transaction request exposed by the DB access layer.
+	4. DB access layer performs a WATCH of all the keys in the Redis DB.
+	5. Status being returned from Redis.
+	6. Status being returned from DB access layer.
+	7. Translib then invokes the prepareUpdate() API on the App module (Only if Rollback is Enabled). For Update, Replace, or Delete operations keys are constructed based on the original request keys and existing row entry of corresponding key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.
+	8. Translib invokes the processWrite() API on the App module.
+		1. App modules perform actual writes of the translated data to the DB access layer.
+		2. DB access layer caches the writes .
+		3. Status being returned from DB access layer.
+		4. Status being returned from App module.
+19. If operation on all payloads is successful:
     1. Translib infra invokes the commit transaction on the DB access layer.
     2. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
     3. Status returned from Redis.
@@ -2670,17 +2679,20 @@ mechanism for the app specific configuration.
     6. EXEC call is made to the Redis DB.
     7. Status returned from Redis DB.
     8. Status returned from DB access layer
-18. If any operation on payload failed in Step 16. Abort all DB transactions  
+20. If any operation failed in write phase Abort all DB transactions
     1. Translib infra invokes the abort transaction on the DB access layer.
     2. DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
     3. Status returned from Redis.
-    4. Status returned from DB access layer.     
-19. Post Handling case : Rollback for any failure while commiting
-    Rollback actions will be continued even with failure, however failure during rollback will be logged  
-20. Release the write lock acquired in Step 6.
-21. Status returned from the Translib infra.
-22. REST status returned from the Request handler.
-23. REST response is sent by the REST Gateway to the REST client.
+    4. Status returned from DB access layer.
+21. Post Handling case : Rollback for any failure while commiting (If Rollback is Enabled else Abort)
+        Rollback actions will be continued even with failure, however failure during rollback will be logged.
+22. Post cleanup: delete all backup entries
+    1. Delete the backup files.
+    2. Status being returned from file operation.
+23. Release the write lock acquired in Step 6.
+24. Status returned from the Translib infra.
+25. REST status returned from the Request handler.
+26. REST response is sent by the REST Gateway to the REST client.
 
 ### 4.2 REST GET flow
 
@@ -2792,47 +2804,56 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 4. Request handler invokes one of the bulk APIs exposed by the Translib.
 5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation
 6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
-7. Translib infra gets the App module corresponding to the incoming URI
-8. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
-9. App module caches the incoming data into the app structure.
-10. App module returns after initializing local data
-11. Translib infra invoke App module getNamespace API (introduced in app interface) to get namespace associated with the uri
-12. App module invokes transformer service getNamespaceMapping to retrieve namespace based on Yang model
-13. Transformer invokes Yang model based exception to retrieve the namespace associated with uri
-14. Transformer returns namespace associated with the uri
-15. Appmodule returns namespace
-16. Loop through all Requests and payloads
+7. Check environment variable ENABLE_ROLLBACK
+8. Translib infra gets the App module corresponding to the incoming URI
+9. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
+10. App module caches the incoming data into the app structure.
+11. App module returns after initializing local data.
+12. Translib infra invoke App module getNamespace API (introduced in app interface) to get namespace associated with the uri.
+13. App module invokes transformer service getNamespaceMapping to retrieve namespace based on Yang model.
+14. Transformer invokes Yang model based exception to retrieve the namespace associated with uri.
+15. Transformer returns namespace associated with the uri.
+16. App module returns namespace.
+17. Loop through all Requests and payloads
     1. Translib infra calls the initialize function of the App module with the YGOT structures, path and payload.
     2. App module caches the incoming data into the app structure.
     3. App module returns after initializing local data
     4. Get the Config DB for the selected Namespace
-    5.  module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
-    6. App module returns the list of keys that it wants to keep a watch on along with the status.
-    7. Translib infra invokes the start transaction request exposed by the DB access layer.
-    8. DB access layer performs a WATCH of all the keys in the Redis DB. If any of these keys are modified externally then the EXEC call in step 33 will fail.
-    9. Status being returned from Redis.
+    5. Module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+    6. App module returns the list of keys along with the status.
+    7. Translib then invokes the process Validate API on the App module.
+    8. App modules perform validation of the translated data to the DB access layer.
+    9. DB access layer validates the operation using CVL.
     10. Status being returned from DB access layer.
-    11. Prepare for update, take backup of entries to be modified in a backup file.
-    12. Translib then invokes the process Operation API on the App module.
-    13. App modules perform operation of the translated data to the DB access layer.
-    14. DB access layer validates the operation using CVL and then caches them.
-    15. Status being returned from DB access layer.
-    16. Status being returned from App module. 
-    12. If Set was a failure, Translib infra invokes the abort transaction on the DB access layer.
-    13. DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
-    14. Status retuned from Redis.
-    15. Status returned from DB access layer.
-17. If operations were successful, Translib infra invokes the commit transaction on the DB access layer.
-18. If any operation is failed, abort all DB transactions
-19. Post handling, cleanup backup data handling commit success and failure scenario      
-20. Write lock acquired in Step 6 is released.
-21. Status returned from the Translib infra.
-22. REST Status returned from the Request handler.
-23. REST response is sent by the REST gateway to the REST client.
+    11. Status being returned from App module.
+18. If Validation on all Payloads is successful: 
+	1. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+	2. App module returns the list of keys along with the status.
+	3. Translib infra invokes the start transaction request exposed by the DB access layer.
+	4. DB access layer performs a WATCH of all the keys in the Redis DB.
+	5. Status being returned from Redis.
+	6. Status being returned from DB access layer.
+	7. Translib then invokes the prepareUpdate() API on the App module (If Rollback is Enabled). For Update, Replace, or Delete operations keys are constructed based on the original request keys and existing row entry of corresponding key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.
+    8. Translib invokes the processWrite() API on the App module.
+	1. App modules perform actual writes of the translated data to the DB access layer.
+	2. DB access layer caches the writes.
+	3. Status being returned from DB access layer.
+	4. Status being returned from App module.
+19. If operations were successful, Translib infra invokes the commit transaction on the DB access layer.
+20. If any operation is failed, abort all DB transactions
+21. Post Handling case : Rollback for any failure while commiting (If Rollback is Enabled else Abort)
+        Rollback actions will be continued even with failure, however failure during rollback will be logged.
+22. Post cleanup: delete all backup entries
+    1. Delete the backup files.
+    2. Status being returned from file operation.
+23. Release the write lock acquired in Step 6.
+24. Status returned from the Translib infra.
+25. REST status returned from the Request handler.
+26. REST response is sent by the REST Gateway to the REST client.
 
 ### 4.7 Rollback flow
 
-![rollback flow](images/rollback_mdb.png)
+![rollback flow](images/rollback_mdb.jpg)
 
 1. REST client can send any of the write commands such as POST, PUT, PATCH, or DELETE and it will be handled by the REST Gateway.
 2. All handlers in the REST Gateway will invoke a command request handler.
@@ -2840,37 +2861,46 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
 4. Request handler invokes one of the write APIs exposed by the Translib.
 5. Translib infra populates the YGOT structure with the payload of the request and performs a syntactic validation.
 6. Translib acquires the write lock (mutex lock) to avoid another write happening from the same process at the same time.
-7. Translib infra gets the App module corresponding to the incoming URI.
-8. Initialize the APP module with request data
-9. App module caches the incoming data into the app structure.
-10. App module returns after initializing local data.
-11. Translib infra invokes App module getNamespace() API to get namespace associated with the ygot and path.
-12. App module invokes transformer service getNamespaceMapping() to retrieve namespace based on Yang model.
-13. Transformer invokes Yang model-based exception to retrieve the namespace associated with ygot and URI.
-14. Transformer returns namespace associated with the ygot and URI.
-15. App module returns namespace.
-16. Loop through all Payloads  
+7. Check environment variable ENABLE_ROLLBACK
+8. Translib infra gets the App module corresponding to the incoming URI.
+9. Initialize the APP module with request data
+10. App module caches the incoming data into the app structure.
+11. App module returns after initializing local data.
+12. Translib infra invokes App module getNamespace() API to get namespace associated with the ygot and path.
+13. App module invokes transformer service getNamespaceMapping() to retrieve namespace based on Yang model.
+14. Transformer invokes Yang model-based exception to retrieve the namespace associated with ygot and URI.
+15. Transformer returns namespace associated with the ygot and URI.
+16. App module returns namespace.
+17. Loop through all Payloads
     1. Initialize the APP module with request data
     2. App module caches the incoming data into the app structure.
     3. App module returns after initializing local data.
     4. Get DB for the selected payload namespace
     5. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
-    6. App module returns the list of keys that it wants to keep a watch on along with the status.
-    7. Translib infra invokes the start transaction request exposed by the DB access layer.
-    8. DB access layer performs a WATCH of all the keys in the Redis DB.
-    9. Status being returned from Redis.
+    6. App module returns the list of keys along with the status.
+    7. Translib then invokes the processValidate() API on the App module. 
+    8. App modules perform validation of the translated data to the DB access layer.
+    9. DB access layer validates the operation using CVL.
     10. Status being returned from DB access layer.
-    11. Translib then invokes the prepareUpdate() API on the App module. For Update, Replace, or Delete operations keys are constructed based on the original request keys and existing row entry of corresponding key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.     
-        1. Translib invokes the prepareUpdate() API for the keys
-        2. App modules perform operation of taking backup data in the backup file.
-        3. Status being returned from file write.
-        4. Status being returned from App module.
-    12. Translib then invokes the processOperation() API on the App module.
-    13. App modules perform operation of the translated data to the DB access layer.
-    14. DB access layer validates the operation using CVL and then caches them.
-    15. Status being returned from DB access layer.
-    16. Status being returned from App module. 
-17. If operation on all payloads is successful  
+    11. Status being returned from App module.
+18. If Validation on all Payloads is successful:
+    1. App module calls Transformer function to translate the request from cached YGOT structures into Redis ABNF format. It also gets all the keys that will be affected as part of this request.
+    2. App module returns the list of keys along with the status.
+    3. Translib infra invokes the start transaction request exposed by the DB access layer.
+    4. DB access layer performs a WATCH of all the keys in the Redis DB.
+    5. Status being returned from Redis.
+    6. Status being returned from DB access layer.
+    7. Translib then invokes the prepareUpdate() API on the App module (Only if Rollback is Enabled). For Update, Replace, or Delete operations keys are constructed based on the original request keys and existing row entry of corresponding key is fetched from database and the following (table_name, key, row entry, operation) are written in a backup file based on namespace. For Create, only the key and table_name and operation is written in the backup file.
+	1. Translib invokes the prepareUpdate() API for the keys
+	2. App modules perform operation of taking backup data in the backup file.
+	3. Status being returned from file write.
+	4. Status being returned from App module.
+    8. Translib invokes the processWrite() API on the App module.
+	1. App modules perform actual writes of the translated data to the DB access layer.
+	2. DB access layer caches the writes .
+	3. Status being returned from DB access layer.
+	4. Status being returned from App module.
+19. If operation on all payloads is successful
     1. Translib infra invokes the commit transaction on the DB access layer.
     2. DB access layer first invokes MULTI request on the Redis DB indicating there are multiple writes coming in, so commit everything together. All writes succeed or nothing succeeds.
     3. Status returned from Redis.
@@ -2879,18 +2909,18 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
     6. EXEC call is made to the Redis DB.
     7. Status returned from Redis DB.
     8. Status returned from DB access layer
-18. If any operation on payload failed in Step 16. Abort all DB transactions  
+20. If any operation on payload failed in write phase. Abort all DB transactions
     1. Translib infra invokes the abort transaction on the DB access layer.
     2. DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
     3. Status returned from Redis.
-    4. Status returned from DB access layer.     
-19. Post Handling case : Rollback for any failure while commiting
-    Rollback actions will be continued even with failure, however failure during rollback will be logged  
-    1. Non-commited DB Abort: Translib infra invokes the abort transaction on the DB access layer.
-    2. Non-commited DB Abort: DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
-    3. Non-commited DB Abort: Status returned from Redis.
-    4. Non-commited DB Abort: Status returned from DB access layer
-    5. Commited DB Rollback: Revert modified entry by reading backup data from backup file
+    4. Status returned from DB access layer.
+21. Post Handling case : In case of failure while commiting
+    Rollback actions will be continued even with failure, however failure during rollback will be logged
+    1. Non-commited DB and committed DB (Without Rollback) Abort: Translib infra invokes the abort transaction on the DB access layer.
+    2. Non-commited DB and committed DB (Without Rollback) Abort: DB access layer first invokes UNWATCH request on the Redis DB indicating abort everything together.
+    3. Non-commited DB and committed DB (Without Rollback) Abort: Status returned from Redis.
+    4. Non-commited DB and committed DB (Without Rollback) Abort: Status returned from DB access layer
+    5. Commited DB (Rollback is Enabled): Revert modified entry by reading backup data from backup file
     6. App modules invokes data read from backup file for corresponding keys.
     7. Status is being returned from file read.
     8. Status is being returned from App module.
@@ -2899,13 +2929,13 @@ Above is the sequence diagram explaining the CVL steps. Note that interaction be
     11. DB access layer validates the operation using CVL and then caches them.
     12. Status being returned from DB access layer.
     13. Status being returned from App module.
-20. Post cleanup: delete all backup entries
+22. Post cleanup : delete all backup entries
     1. Delete the backup files.
-    2. Status being returned from file operation. 
-21. Release the write lock acquired in Step 6.
-22. Status returned from the Translib infra.
-23. REST status returned from the Request handler.
-24. REST response is sent by the REST Gateway to the REST client.
+    2. Status being returned from file operation.
+23. Release the write lock acquired in Step 6.
+24. Status returned from the Translib infra.
+25. REST status returned from the Request handler.
+26. REST response is sent by the REST Gateway to the REST client.
 
 ## 5 Developer Work flow
 Developer work flow differs for standard YANG (IETF/OpenConfig) vs proprietary YANG used for a feature. When a standards-based YANG model is chosen for a new feature, the associated Redis DB design should take the design of this model into account - the closer the mapping between these, then the less translation logic is required in the Management path. This simplifies the work flow as translation intelligence can be avoided as both Redis schema and NB YANG schema are aligned.
