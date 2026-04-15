@@ -31,7 +31,7 @@
       * [3.3.1 Data Models](#331-data-models)
       * [3.3.2 REST API Support](#332-rest-api-support)
       * [3.3.3 gNMI Support](#333-gnmi-support)
-  * [4 Flow Diagrams](#4-flow-diagrams)
+  * [4 Data Mapping](#4-data-mapping)
   * [5 Error Handling](#5-error-handling)
   * [6 Unit Test Cases](#6-unit-test-cases)
     * [6.1 Functional Test Cases](#61-functional-test-cases)
@@ -74,7 +74,7 @@ module: openconfig-system
      |        +--ro name?                string
      |        +--ro size?                uint64
      |        +--ro available?           uint64
-     |        +--ro utilized?           uint64
+     |        +--ro utilized?            uint64
      |        +--ro type?                string
      +--rw aaa
      |  +--rw authentication
@@ -811,7 +811,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 ```
 
 
-# 4 Flow Diagrams
+# 4 Data Mapping
 
 ## 4.1 OpenConfig to SONiC Mapping Table
 
