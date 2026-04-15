@@ -48,9 +48,9 @@ At the hardware level, a CPO module is composed of:
 
 CPO systems support two operational models:
 * **Separate Mode**, where the host directly accesses and manages the underlying components (e.g., OEs and ELSs). See *port_mapping_for_cpo.md* section 2.
-* **Joint Mode**, where the host interacts with aCPO module abstraction, without directly managing the underlying components.
+* **Joint Mode**, where the host interacts with a CPO module abstraction, without directly managing the underlying components.
 
-To preserve compatibility with existing SONiC and SAI workflows, we introduce a **Virtual CPO Module (or vModule)** that mimcs the behavior of a trandtional optical module by providing a logical abstraction that exposes a single unified CMIS interface for both the integrated Optical Engine (OE) and External Laser Sources (ELS).
+To preserve compatibility with existing SONiC and SAI workflows, we introduce a **Virtual CPO Module (or vModule)** that mimics the behavior of a traditional optical module by providing a logical abstraction that exposes a single unified CMIS interface for both the integrated Optical Engine (OE) and External Laser Sources (ELS).
 
 A vModule exposes **32 lanes**, compared to 8 lanes in standard pluggable modules. transceiver. More information regarding 32-lane modules support can be found in *cmis_banking_support.md* section 7.8.
 
@@ -149,13 +149,13 @@ A new thread, `CmisCpoManagerTask`, will be introduced in `xcvrd` to handle this
 
 The intent is to keep CPO handling fully isolated from the existing logic for pluggable modules.
 
-The `CmisCpoManagerTask` thread is instantiated only in Joint Mode. This is controlled via a new flag — *"is_joint_mode"* — added to `pmon_daemon_control.json` (located at `/usr/share/sonic/device/[PLATFORM]/pmon_daemon_control.json`). When *"is_joint_mode": true*, the `CmisCpoManagerTask` thread is initialized.
+The `CmisCpoManagerTask` thread is instantiated only in Joint Mode. This is controlled via a new flag — *"is_cpo_joint_mode"* — added to `pmon_daemon_control.json` (located at `/usr/share/sonic/device/[PLATFORM]/pmon_daemon_control.json`). When *"is_cpo_joint_mode": true*, the `CmisCpoManagerTask` thread is initialized.
 
 ```python
 def run(self):
     # Start the CMIS cpo manager
     cmis_cpo_manager = None
-    if self.is_joint_mode:
+    if self.is_cpo_joint_mode:
         cmis_cpo_manager = CmisCpoManagerTask(...)
         cmis_cpo_manager.start()
         self.threads.append(cmis_cpo_manager)
