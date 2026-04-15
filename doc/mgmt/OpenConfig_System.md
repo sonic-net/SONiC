@@ -52,7 +52,7 @@ This document provides general information about the OpenConfig configuration/ma
 # Scope
 - This document describes the high level design of OpenConfig configuration/management of System features via gNMI/REST in SONiC.
 - This does not cover the SONiC KLISH CLI.
-- Openconfig-system.yang version 2.1.0 - latest openconfig yang repo version is considered.
+- Openconfig-system.yang version 2.2.0 - latest openconfig yang repo version is considered.
 - Supported attributes in OpenConfig YANG tree:
 ```
 module: openconfig-system
@@ -74,6 +74,7 @@ module: openconfig-system
      |        +--ro name?                string
      |        +--ro size?                uint64
      |        +--ro available?           uint64
+     |        +--ro utilized?           uint64
      |        +--ro type?                string
      +--rw aaa
      |  +--rw authentication
@@ -164,6 +165,7 @@ module: openconfig-system
      |        +--ro args*                 string
      |        +--ro cpu-utilization?      oc-types:percentage
      |        +--ro memory-utilization?   oc-types:percentage
+     |        +--ro memory-usage?         uint64
      +--rw messages
      |  +--rw config
      |  |  +--rw severity?   oc-log:syslog-severity
@@ -293,7 +295,6 @@ module: openconfig-system
      |           +--ro network-instance?   string
      |           +--ro source-address?     oc-inet:ip-address
      |           +--ro key-id?             -> ../../../../ntp-keys/ntp-key/key-id
-     |           +--ro prefer?             boolean
      |           +--ro stratum?            uint8
      |           +--ro root-delay?         int64
      |           +--ro root-dispersion?    int64
@@ -450,8 +451,8 @@ There are no changes to COUNTER DB schema definition.
 
 ## 3.3 User Interface
 ### 3.3.1 Data Models
-Openconfig-system.yang (revision 2.1.0) and its submodules will be used as user interfacing models.  
-We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (revision 2.1.0), to have all the latest changes from community.  
+Openconfig-system.yang (revision 2.2.0) and its submodules will be used as user interfacing models.  
+We are updating openconfig-system yang version (0.7.0) in sonic with latest available openconfig version (revision 2.2.0), to have all the latest changes from community.  
 Community PR [https://github.com/sonic-net/sonic-mgmt-common/pull/147]  
    * In this PR openconfig-system.yang and its submodules are updated to latest version available
    * Reference to openconfig-network-instance model is commented, as this module is yet to be supported in SONiC
@@ -829,9 +830,10 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | **mount-points** | | | |
 | mount-point/state | - | STATE_DB | MOUNT_POINTS |
 | name | - | - | `<table-key>` |
-| size | - | - | size |
-| available | - | - | available |
-| type | - | - | filesystem-type |
+| size | - | - | 1K-blocks (converted KB to MB) |
+| available | - | - | Available (converted KB to MB) |
+| utilized | - | - | Used (converted KB to MB) |
+| type | - | - | Type |
 | **clock** | | | |
 | config/timezone-name | sonic-device_metadata.yang | CONFIG_DB | DEVICE_METADATA:timezone |
 | **cpus** | | | |
@@ -894,7 +896,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | software-interrupt/max-time | - | - | timestamp (calculated for max) |
 | software-interrupt/interval | - | - | timestamp (calculated interval in nanoseconds) |
 | **dns** | | | |
-| config/search | sonic-dns.yang | CONFIG_DB | DNS_NAMESERVER:ip |
+| config/search | sonic-dns.yang | CONFIG_DB | DNS_NAMESERVER\|`<ip>` (key-based, no fields) |
 | **memory** | | | |
 | state | - | STATE_DB | MEMORY_STATS |
 | physical | - | - | total |
@@ -931,7 +933,6 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | state/network-instance | - | STATE_DB | network-instance |
 | state/source-address | - | STATE_DB | source-address |
 | state/key-id | - | STATE_DB | key-id |
-| state/prefer | - | STATE_DB | prefer |
 | state/stratum | - | STATE_DB | stratum |
 | state/root-delay | - | STATE_DB | root-delay |
 | state/root-dispersion | - | STATE_DB | root-dispersion |
@@ -961,7 +962,9 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | config/source-address | sonic-syslog.yang | CONFIG_DB | source |
 | config/network-instance | sonic-syslog.yang | CONFIG_DB | vrf |
 | config/remote-port | sonic-syslog.yang | CONFIG_DB | port |
+| selectors/selector/facility | sonic-syslog.yang | CONFIG_DB | - (only ALL supported) |
 | selectors/selector/severity | sonic-syslog.yang | CONFIG_DB | severity |
+| selectors/selector/config/facility | sonic-syslog.yang | CONFIG_DB | - (only ALL supported) |
 | selectors/selector/config/severity | sonic-syslog.yang | CONFIG_DB | severity |
 | **aaa** | | | |
 | authentication | sonic-system-aaa.yang | CONFIG_DB | AAA : type |
@@ -999,6 +1002,7 @@ gnmic -a <ip:port> -u <user> -p <passwd> \
 | state/name | - | STATE_DB | CMD |
 | state/args | - | STATE_DB | CMD |
 | state/cpu-utilization | - | STATE_DB | %CPU |
+| state/memory-usage | - | STATE_DB | memory_usage |
 | state/memory-utilization | - | STATE_DB | %MEM |
 | **messages** | | | |
 | config/severity | sonic-syslog.yang | CONFIG_DB | SYSLOG_CONFIG:severity |
@@ -1051,7 +1055,7 @@ Translation Notes:
    i. Server version - Only 3 and 4 are supported in SONiC  
    ii. Server association-type - Only SERVER & POOL are supported in SONiC  
    iii. Key-type - Only MD5 is supported as per Openconfig  
-   iv. Server network-instanse & source-address - Only a single value is supported across servers, as SONiC support these nodes in global table, not per server.  
+   iv. Server network-instance & source-address - Only a single value is supported across servers, as SONiC support these nodes in global table, not per server.  
    v. Server source-address - SONiC has src_intf support instead of source-address in NTP configurations. Translib will fetch src_intf for given address.  
                               So user must configure IP on Ports properly, before NTP configuration.  
 4. system/cpus - CPU statistics are fetched from STATE_DB.CPU_STATS table. Data is collected every 10 seconds. Timestamp is in timeticks64 format. Calculations (instant, avg, min, max, min-time, max-time, interval) are performed using 6 sample references.
@@ -1067,31 +1071,32 @@ Operations:
 gNMI - (Create/Update/Delete/Replace/Get/Subscribe)  
 REST - POST/PATCH/DELETE/PUT/GET  
 1. Verify that operations supported for gNMI/REST works fine for hostname.
-1. Verify that operations supported for gNMI/REST works fine for last-configuration-timestamp.
-2. Verify that operations supported for gNMI/REST works fine for clock/timezone-name.
-3. Verify that operations supported for gNMI/REST works fine for DNS nameserver.
-4. Verify that operations supported for gNMI/REST works fine for NTP nodes.
-   - 4.1 Verify NTP server configuration (address, version, association-type, iburst)
-   - 4.2 Verify NTP server state retrieval (stratum, offset, root-delay, root-dispersion, poll-interval)
-   - 4.3 Verify NTP server state reflects actual ntpd synchronization status
-   - 4.4 Verify gNMI subscription for NTP server state changes (ON_CHANGE, SAMPLE)
-5. Verify that operations supported for gNMI/REST works fine for ssh-server nodes.
-6. Verify that operations supported for gNMI/REST works fine for logging and messages nodes.
-7. Verify that operations supported for gNMI/REST works fine for AAA (TACACS & RADIUS) nodes.
-8. Verify that operations supported for gNMI/REST works fine for login & motd banners.
-9. Verify that operations supported for gNMI/REST works fine for up-time, boot-time, current-datetime & software-version.
-10. Verify that operations supported for gNMI/REST works fine for processes nodes.
-11. Verify that operations supported for gNMI/REST works fine for alarms nodes.
-12. Verify that operations supported for gNMI/REST works fine for mount-points nodes.
-13. Verify that operations supported for gNMI/REST works fine for memory nodes.
-14. Verify that operations supported for gNMI/REST works fine for cpus nodes.
-    - 14.1 Verify CPU state retrieval for all CPUs (index="all")
-    - 14.2 Verify CPU state retrieval for individual CPU cores (index="0", "1", etc.)
-    - 14.3 Verify CPU utilization metrics (instant, avg, min, max)
-    - 14.4 Verify gNMI subscription for CPU state changes (SAMPLE mode)
-    - 14.5 Verify CPU state is read-only (configuration not allowed)
-15. Verify that operations supported for gNMI/REST works fine for grpc-servers nodes.
-16. Verify that operations supported for gNMI/REST works fine for gnmi-pathz-policies nodes.
+2. Verify that operations supported for gNMI/REST works fine for last-configuration-timestamp.
+3. Verify that operations supported for gNMI/REST works fine for clock/timezone-name.
+4. Verify that operations supported for gNMI/REST works fine for DNS nameserver.
+5. Verify that operations supported for gNMI/REST works fine for NTP nodes.
+   - 5.1 Verify NTP server configuration (address, version, association-type, iburst)
+   - 5.2 Verify NTP server state retrieval (stratum, offset, root-delay, root-dispersion, poll-interval)
+   - 5.3 Verify NTP server state reflects actual ntpd synchronization status
+   - 5.4 Verify gNMI subscription for NTP server state changes (ON_CHANGE, SAMPLE)
+6. Verify that operations supported for gNMI/REST works fine for ssh-server nodes.
+7. Verify that operations supported for gNMI/REST works fine for logging and messages nodes.
+8. Verify that operations supported for gNMI/REST works fine for AAA (TACACS & RADIUS) nodes.
+9. Verify that operations supported for gNMI/REST works fine for login & motd banners.
+10. Verify that operations supported for gNMI/REST works fine for up-time, boot-time, current-datetime & software-version.
+11. Verify that operations supported for gNMI/REST works fine for processes nodes.
+12. Verify that operations supported for gNMI/REST works fine for alarms nodes.
+13. Verify that operations supported for gNMI/REST works fine for mount-points nodes.
+14. Verify that operations supported for gNMI/REST works fine for memory nodes.
+15. Verify that operations supported for gNMI/REST works fine for cpus nodes.
+    - 15.1 Verify CPU state retrieval for all CPUs (index="all")
+    - 15.2 Verify CPU state retrieval for individual CPU cores (index="0", "1", etc.)
+    - 15.3 Verify CPU utilization metrics (instant, avg, min, max)
+    - 15.4 Verify gNMI subscription for CPU state changes (SAMPLE mode)
+    - 15.5 Verify CPU state is read-only (configuration not allowed)
+16. Verify that operations supported for gNMI/REST works fine for grpc-servers nodes.
+17. Verify that operations supported for gNMI/REST works fine for gnmi-pathz-policies nodes.
+18. Verify that operations supported for gNMI/REST works fine for console nodes.
 
 ## 6.2 Negative Test Cases
 1. Verify that any operation on unsupported nodes give a proper error.
