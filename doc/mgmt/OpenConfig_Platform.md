@@ -101,12 +101,10 @@ module: openconfig-platform
         |           |  +--rw oc-port:index?                    uint8
         |           |  +--rw oc-port:num-breakouts?            uint8
         |           |  +--rw oc-port:breakout-speed?           identityref
-        |           |  +--rw oc-port:num-physical-channels?    uint8
         |           +--ro oc-port:state
         |              +--ro oc-port:index?                    uint8
         |              +--ro oc-port:num-breakouts?            uint8
         |              +--ro oc-port:breakout-speed?           identityref
-        |              +--ro oc-port:num-physical-channels?    uint8
         +--rw oc-transceiver:transceiver
            +--ro oc-transceiver:state
            |  +--ro oc-transceiver:enabled?               boolean
@@ -165,6 +163,7 @@ module: openconfig-platform
 1. Provide support for OpenConfig Platform YANG models.
 2. Implement transformer support for Openconfig platform model to have following supports:
     - Get Platform component state attributes via REST and gNMI.
+    - Set port breakout-mode configuration via REST and gNMI.
     - Subscribe Platform component attributes for telemetry via gNMI.
 3. Add support for following Platform component types:
     * chassis
@@ -187,14 +186,14 @@ module: openconfig-platform
     * Port breakout-mode configuration (Dynamic Port Breakout)
 
 ### 1.1.2 Configuration and Management Requirements
-The Platform module is primarily read-only (monitoring). Get and Subscribe operations are supported via REST and gNMI for all component types. Set operations (PATCH/DELETE) are supported only for port breakout-mode configuration (Dynamic Port Breakout). All other platform component paths will return an error if a Set operation is attempted.
+The Platform module is primarily read-only (monitoring). Get and Subscribe operations are supported via REST and gNMI for all component types. Set operations are supported only for port breakout-mode configuration (Dynamic Port Breakout). All other platform component paths will return an error if a Set operation is attempted.
 
 ### 1.1.3 Scalability Requirements
 The maximum number of components depends on the hardware platform capabilities and the number of physical components present in the system.
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-SONiC already supports a management framework for REST and gNMI operations. This feature adds support for OpenConfig based YANG models using transformer based implementation for Platform features. Get and Subscribe operations are supported for all component types. Set operations (PATCH/DELETE) are supported only for port breakout-mode (Dynamic Port Breakout) configuration path.
+SONiC already supports a management framework for REST and gNMI operations. This feature adds support for OpenConfig based YANG models using transformer based implementation for Platform features. Get and Subscribe operations are supported for all component types. Set operations are supported only for port breakout-mode (Dynamic Port Breakout) configuration path.
 
 ### 1.2.2 Container
 The code changes for this feature are part of *Management Framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
@@ -213,7 +212,7 @@ This HLD design is in line with the [Management Framework HLD](https://github.co
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
 The following existing CONFIG DB table is utilized for port breakout-mode configuration:
-- BREAKOUT_CFG (used for Dynamic Port Breakout; stores `brkout_mode` field per parent port)
+- BREAKOUT_CFG
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
@@ -249,7 +248,7 @@ Openconfig-platform.yang and its submodules will be used as user interfacing mod
 - openconfig-platform-cpu.yang
 - openconfig-platform-common.yang
 - openconfig-platform-types.yang
-- openconfig-platform-ext.yang (extensions for fan speed-percentage and direction)
+- openconfig-platform-ext.yang (extensions for fan speed-percentage, direction, and temperature critical-high/low-threshold)
 - openconfig-platform-port.yang (port breakout-mode configuration)
 - openconfig-platform-annotation.yang
 - openconfig-platform-deviation.yang
@@ -497,19 +496,9 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 |---------------------|----------------|----------------|--------|
 | `/components/component/port/breakout-mode/groups/group[index=0]/config/num-breakouts` | BREAKOUT_CFG | brkout_mode | Extracted from mode string (e.g., "4" from "4x25G[4x25G]") |
 | `/components/component/port/breakout-mode/groups/group[index=0]/config/breakout-speed` | BREAKOUT_CFG | brkout_mode | Extracted speed identity (e.g., SPEED_25GB from "4x25G[4x25G]") |
-| `/components/component/port/breakout-mode/groups/group[index=0]/config/num-physical-channels` | BREAKOUT_CFG | brkout_mode | Extracted from mode string |
 | `/components/component/port/breakout-mode/groups/group[index=0]/state/num-breakouts` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
 | `/components/component/port/breakout-mode/groups/group[index=0]/state/breakout-speed` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
-| `/components/component/port/breakout-mode/groups/group[index=0]/state/num-physical-channels` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
 
-**Supported Operations:**
-- **GET:** Returns current breakout-mode configuration from BREAKOUT_CFG table.
-- **PATCH:** Triggers Dynamic Port Breakout (DPB). Deletes existing child ports and creates new ports based on the new breakout mode. Requires `num-breakouts`, `breakout-speed`, and `num-physical-channels` in the request body. Only group index 0 is supported.
-- **DELETE:** Restores the port to its default breakout mode.
-
-**Limitations:**
-- Only a single group (index 0) is supported.
-- The `num-physical-channels` leaf in the config is marked as `not-supported` in the deviation module since it is derived from the breakout mode.
 
 ### 3.3.4 REST API Support
 #### 3.3.4.1 GET Operations
