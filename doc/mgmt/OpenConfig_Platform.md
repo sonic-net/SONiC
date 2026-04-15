@@ -66,7 +66,8 @@ module: openconfig-platform
         |  |  +--ro min?               decimal64
         |  |  +--ro max?               decimal64
         |  |  +--ro alarm-status?      boolean
-        |  |  +--ro alarm-threshold?   uint32
+        |  |  +--ro oc-platform-ext:critical-high-threshold?   decimal64
+        |  |  +--ro oc-platform-ext:critical-low-threshold?    decimal64
         +--rw power-supply
         |  +--ro state
         |     +--ro oc-platform-psu:enabled?          boolean
@@ -91,6 +92,21 @@ module: openconfig-platform
         |        +--ro oc-cpu:min?        oc-types:percentage
         |        +--ro oc-cpu:max?        oc-types:percentage
         |        +--ro oc-cpu:interval?   oc-types:stat-interval
+        +--rw port
+        |  +--rw oc-port:breakout-mode
+        |     +--rw oc-port:groups
+        |        +--rw oc-port:group* [index]
+        |           +--rw oc-port:index     -> ../config/index
+        |           +--rw oc-port:config
+        |           |  +--rw oc-port:index?                    uint8
+        |           |  +--rw oc-port:num-breakouts?            uint8
+        |           |  +--rw oc-port:breakout-speed?           identityref
+        |           |  +--rw oc-port:num-physical-channels?    uint8
+        |           +--ro oc-port:state
+        |              +--ro oc-port:index?                    uint8
+        |              +--ro oc-port:num-breakouts?            uint8
+        |              +--ro oc-port:breakout-speed?           identityref
+        |              +--ro oc-port:num-physical-channels?    uint8
         +--rw oc-transceiver:transceiver
            +--ro oc-transceiver:state
            |  +--ro oc-transceiver:enabled?               boolean
@@ -103,21 +119,12 @@ module: openconfig-platform
            |  +--ro oc-transceiver:date-code?             oc-yang:date-and-time
            |  +--ro oc-transceiver:supply-voltage
            |     +--ro oc-transceiver:instant?    decimal64
-           |     +--ro oc-transceiver:avg?        decimal64
-           |     +--ro oc-transceiver:min?        decimal64
-           |     +--ro oc-transceiver:max?        decimal64
-           |     +--ro oc-transceiver:interval?   oc-types:stat-interval
-           |     +--ro oc-transceiver:min-time?   oc-types:timeticks64
-           |     +--ro oc-transceiver:max-time?   oc-types:timeticks64
            +--rw oc-transceiver:physical-channels
            |  +--rw oc-transceiver:channel* [index]
            |     +--rw oc-transceiver:index     -> ../config/index
            |     +--ro oc-transceiver:state
            |        +--ro oc-transceiver:index?                        uint16
-           |        +--ro oc-transceiver:associated-optical-channel?   -> /oc-platform:components/component/name
            |        +--ro oc-transceiver:description?                  string
-           |        +--ro oc-transceiver:tx-laser?                     boolean
-           |        +--ro oc-transceiver:target-output-power?          decimal64
            |        +--ro oc-transceiver:output-power
            |        |  +--ro oc-transceiver:instant?   decimal64
            |        +--ro oc-transceiver:input-power
@@ -129,8 +136,8 @@ module: openconfig-platform
                  +--ro oc-transceiver:severity    -> ../state/severity
                  +--ro oc-transceiver:state
                     +--ro oc-transceiver:severity?                   identityref
-                    +--ro oc-transceiver:laser-temperature-upper?    decimal64
-                    +--ro oc-transceiver:laser-temperature-lower?    decimal64
+                    +--ro oc-transceiver:module-temperature-upper?    decimal64
+                    +--ro oc-transceiver:module-temperature-lower?   decimal64
                     +--ro oc-transceiver:output-power-upper?         decimal64
                     +--ro oc-transceiver:output-power-lower?         decimal64
                     +--ro oc-transceiver:input-power-upper?          decimal64
@@ -139,8 +146,6 @@ module: openconfig-platform
                     +--ro oc-transceiver:laser-bias-current-lower?   decimal64
                     +--ro oc-transceiver:supply-voltage-upper?       decimal64
                     +--ro oc-transceiver:supply-voltage-lower?       decimal64
-                    +--ro oc-transceiver:module-temperature-lower?   decimal64
-                    +--ro oc-transceiver:module-temperature-upper?   decimal64
 ```
 
 # Definition/Abbreviation
@@ -170,6 +175,7 @@ module: openconfig-platform
     * fantray
     * temperature
     * transceiver
+    * port (breakout-mode configuration)
 4. Support for platform component state information including:
     * Basic component information (name, type, description, manufacturer, etc.)
     * Operational status and health monitoring
@@ -178,16 +184,17 @@ module: openconfig-platform
     * Power supply capacity and status
     * Fan speed monitoring
     * Transceiver information and DOM (Digital Optical Monitoring) data
+    * Port breakout-mode configuration (Dynamic Port Breakout)
 
 ### 1.1.2 Configuration and Management Requirements
-The Platform module is read-only (monitoring only). Get and Subscribe operations are supported via REST and gNMI. Set operations (PATCH/PUT/DELETE) are not supported; the implementation will return an error if a Set operation is attempted on any platform component path.
+The Platform module is primarily read-only (monitoring). Get and Subscribe operations are supported via REST and gNMI for all component types. Set operations (PATCH/DELETE) are supported only for port breakout-mode configuration (Dynamic Port Breakout). All other platform component paths will return an error if a Set operation is attempted.
 
 ### 1.1.3 Scalability Requirements
 The maximum number of components depends on the hardware platform capabilities and the number of physical components present in the system.
 
 ## 1.2 Design Overview
 ### 1.2.1 Basic Approach
-SONiC already supports a management framework for REST and gNMI operations. This feature adds read-only support for OpenConfig based YANG models using transformer based implementation for Platform features. Only Get and Subscribe operations are supported; Set operations (PATCH/PUT/DELETE) are not supported for the platform module.
+SONiC already supports a management framework for REST and gNMI operations. This feature adds support for OpenConfig based YANG models using transformer based implementation for Platform features. Get and Subscribe operations are supported for all component types. Set operations (PATCH/DELETE) are supported only for port breakout-mode (Dynamic Port Breakout) configuration path.
 
 ### 1.2.2 Container
 The code changes for this feature are part of *Management Framework* container which includes the REST server and *gnmi* container for gNMI support in *sonic-mgmt-common* repository.
@@ -205,7 +212,8 @@ This HLD design is in line with the [Management Framework HLD](https://github.co
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
-There are no changes to CONFIG DB schema definition.
+The following existing CONFIG DB table is utilized for port breakout-mode configuration:
+- BREAKOUT_CFG (used for Dynamic Port Breakout; stores `brkout_mode` field per parent port)
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
@@ -242,6 +250,7 @@ Openconfig-platform.yang and its submodules will be used as user interfacing mod
 - openconfig-platform-common.yang
 - openconfig-platform-types.yang
 - openconfig-platform-ext.yang (extensions for fan speed-percentage and direction)
+- openconfig-platform-port.yang (port breakout-mode configuration)
 - openconfig-platform-annotation.yang
 - openconfig-platform-deviation.yang
 
@@ -390,7 +399,8 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/components/component/state/temperature/min` | TEMPERATURE_INFO | minimum_temperature | Minimum temperature recorded since system boot (maintained by platform thermalctld) |
 | `/components/component/state/temperature/max` | TEMPERATURE_INFO | maximum_temperature | Maximum temperature recorded since system boot (maintained by platform thermalctld) |
 | `/components/component/state/temperature/alarm-status` | TEMPERATURE_INFO | warning_status | Temperature alarm status |
-| `/components/component/state/temperature/alarm-threshold` | TEMPERATURE_INFO | critical_high_threshold | Critical threshold |
+| `/components/component/state/temperature/critical-high-threshold` | TEMPERATURE_INFO | critical_high_threshold | Critical high threshold (oc-platform-ext) |
+| `/components/component/state/temperature/critical-low-threshold` | TEMPERATURE_INFO | critical_low_threshold | Critical low threshold (oc-platform-ext) |
 
 #### 3.3.2.8 Transceiver Component Mapping
 **Database Tables:** TRANSCEIVER_INFO, TRANSCEIVER_DOM_SENSOR, TRANSCEIVER_DOM_THRESHOLD  
@@ -477,6 +487,29 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/components/component/chassis/utilization/resources/resource[name=lpm]/state/name` | - | - | Fixed: "lpm" |
 | `/components/component/chassis/utilization/resources/resource[name=lpm]/state/used` | CRM\|STATS | crm_stats_ipv4_route_used + crm_stats_ipv6_route_used | Sum of IPv4 and IPv6 routes used |
 | `/components/component/chassis/utilization/resources/resource[name=lpm]/state/free` | CRM\|STATS | crm_stats_ipv4_route_available + crm_stats_ipv6_route_available | Sum of IPv4 and IPv6 routes available |
+
+#### 3.3.2.10 Port Breakout-Mode Mapping
+**Database Table:** BREAKOUT_CFG (CONFIG_DB)  
+**Key Pattern:** Parent port name (e.g., "Ethernet0", "Ethernet4")  
+**Transformer:** Subtree transformer `pfm_breakout_config_xfmr` (in `xfmr_breakout.go`)
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/port/breakout-mode/groups/group[index=0]/config/num-breakouts` | BREAKOUT_CFG | brkout_mode | Extracted from mode string (e.g., "4" from "4x25G[4x25G]") |
+| `/components/component/port/breakout-mode/groups/group[index=0]/config/breakout-speed` | BREAKOUT_CFG | brkout_mode | Extracted speed identity (e.g., SPEED_25GB from "4x25G[4x25G]") |
+| `/components/component/port/breakout-mode/groups/group[index=0]/config/num-physical-channels` | BREAKOUT_CFG | brkout_mode | Extracted from mode string |
+| `/components/component/port/breakout-mode/groups/group[index=0]/state/num-breakouts` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
+| `/components/component/port/breakout-mode/groups/group[index=0]/state/breakout-speed` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
+| `/components/component/port/breakout-mode/groups/group[index=0]/state/num-physical-channels` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
+
+**Supported Operations:**
+- **GET:** Returns current breakout-mode configuration from BREAKOUT_CFG table.
+- **PATCH:** Triggers Dynamic Port Breakout (DPB). Deletes existing child ports and creates new ports based on the new breakout mode. Requires `num-breakouts`, `breakout-speed`, and `num-physical-channels` in the request body. Only group index 0 is supported.
+- **DELETE:** Restores the port to its default breakout mode.
+
+**Limitations:**
+- Only a single group (index 0) is supported.
+- The `num-physical-channels` leaf in the config is marked as `not-supported` in the deviation module since it is derived from the breakout mode.
 
 ### 3.3.4 REST API Support
 #### 3.3.4.1 GET Operations
@@ -594,10 +627,11 @@ Sample GET output for Temperature sensor:
         "removable": false,
         "temperature": {
           "alarm-status": false,
-          "alarm-threshold": 102,
           "instant": "35",
           "max": "35",
-          "min": "0"
+          "min": "0",
+          "openconfig-platform-ext:critical-high-threshold": "102",
+          "openconfig-platform-ext:critical-low-threshold": "-10"
         },
         "type": "openconfig-platform-types:SENSOR"
       }
@@ -679,7 +713,11 @@ Sample GET output for Transceiver component:
 ```
 
 #### 3.3.4.2 SET Operations
-Set operations (PATCH/PUT/POST/DELETE) are **not supported** for the platform module. All platform component data is read-only state information sourced from STATE DB tables. Any Set request on platform component paths will return an error.
+Set operations are **not supported** for platform component state paths. All component state data is read-only information sourced from STATE DB tables.
+
+**Exception - Port Breakout-Mode:** PATCH and DELETE operations are supported on the port breakout-mode configuration path for Dynamic Port Breakout:
+- `PATCH /openconfig-platform:components/component={name}/port/breakout-mode` — Triggers DPB with the specified breakout configuration.
+- `DELETE /openconfig-platform:components/component={name}/port/breakout-mode` — Restores the port to its default breakout mode.
 
 ### 3.3.5 gNMI Support
 #### 3.3.5.1 Capabilities
@@ -689,7 +727,9 @@ The gNMI server exposes platform component capabilities through the standard cap
 Full support for gNMI Get operations on all supported platform component paths.
 
 #### 3.3.5.3 Set Operations
-gNMI Set operations are **not supported** for the platform module. All platform component data is read-only state information. Any gNMI Set request on platform component paths will return an error.
+gNMI Set operations are **not supported** for platform component state paths. All component state data is read-only information.
+
+**Exception - Port Breakout-Mode:** gNMI Set (update/delete) operations are supported on the port breakout-mode path for Dynamic Port Breakout, same as REST SET operations described above.
 
 #### 3.3.5.4 Subscribe Operations
 Support for gNMI Subscribe operations for real-time monitoring of:
@@ -765,7 +805,8 @@ Component types are determined based on YANG key patterns:
 | "PSU*" | PSU | "PSU 1", "PSU 2" |
 | "fantray\*.fan\*" or "PSU\*.fan\*" | Fan | "fantray1.fan1", "PSU1.fan1" |
 | "fantray*" | Fantray | "fantray1", "fantray2" |
-| "Ethernet*" | Transceiver | "Ethernet0", "Ethernet4" |
+| "Ethernet*" (state paths) | Transceiver | "Ethernet0", "Ethernet4" |
+| "Ethernet*" (breakout-mode path) | Port | "Ethernet0", "Ethernet4" |
 | Others | Temperature | "temp1", "cpu-thermal", "NPU0_TEMP_0" |
 
 ### 3.4.2 Error Handling
@@ -791,9 +832,10 @@ Comprehensive unit tests covering:
 - End-to-end platform monitoring scenarios
 
 # 5 Limitations
-1. Read-only operations - platform components are primarily for monitoring
+1. Platform component state is read-only (monitoring only); only port breakout-mode supports Set operations
 2. Platform-specific component availability depends on hardware support
 3. Real-time data accuracy depends on underlying platform drivers
+4. Port breakout-mode supports only a single group (index 0)
 
 # 6 Future Enhancements
 1. Support for additional component types as they become available
