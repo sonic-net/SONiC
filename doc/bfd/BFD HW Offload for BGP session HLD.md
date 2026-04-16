@@ -422,18 +422,22 @@ When bgp use link local address to peer with remote system, it needs to specify 
 
 because link local address is not a routable ip address, so bfdsyncd has to provide source mac and destination mac address to let bfdorch create a bfd session with inject-down mode (construct layer 2 packet).
 
-SONiC does not set source mac address for a port with link local address only. But the source mac address can be found at /sys/class/net/'interface_name'/address
+SONiC does not set source mac address for a port with link local address only. In the data struct bfddp_session, there is no field to carry source mac address and destination mac address. So bfdsyncd is not able to get these mac addresses from frr/bfdd without changing the existing design.
 
-One way to get destination mac address is to read neighbor table, for example, using cmd ip -6 neighbor.
+**How to get source mac address and destination mac address for IPv6 link local address is outside of the scope of this HLD, the implementation need to find a way to get these information.**
+
+Here is one example to get the mac addresses:
+
+Source mac address can be found at /sys/class/net/'interface_name'/address
+For destination mac address, it can be read from neighbor table:
 ```
 sonic@sonic:/var/tmp$ ip -6 neighbor get fe80::7a6b:17ff:fe5a:7000 dev Ethernet0
 fe80::7a6b:17ff:fe5a:7000 dev Ethernet0 lladdr 78:6b:17:5a:70:00 router REACHABLE
 sonic@sonic:/var/tmp$ 
 ```
 
-To make sure the the destination mac address is available before bgp creating bfd session, do not use this bgp configuration: "neighbor xxx disable-connected-check", let bgp check connection first before it try to create bfd session. so peer system mac address will be available if bfdsyncd issue a PING before try to read the neighbor table.
+[Notes]To make sure the the destination mac address is available before bgp creating bfd session, do not use this bgp configuration: "neighbor xxx disable-connected-check", let bgp check connection first before it try to create bfd session. so peer system mac address will be available if bfdsyncd issue a PING before try to read the neighbor table.
 
-example for bfd session with link local address:
 ```
 bgp configuration:
 sonic(config-router)#         neighbor FOO peer-group
