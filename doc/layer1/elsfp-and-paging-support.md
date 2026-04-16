@@ -33,6 +33,7 @@
   - [13.1 Unit Test Cases](#131-unit-test-cases)
   - [13.2 System Test Cases](#132-system-test-cases)
 - [14. Files Changed Summary](#14-files-changed-summary)
+- [15. Code Changes](#15-code-changes)
 - [References](#references)
 
 ### 1. Revision  
@@ -457,6 +458,16 @@ No regression in existing XcvrApi operations.
 | sonic-platform-common | `sonic_xcvr/mem_maps/public/elsfp.py` | Added | New ELSFP memory map implementation with pages 0x1A and 0x1B |
 | sonic-platform-common | `sonic_xcvr/fields/elsfp_consts.py` | Added | ELSFP-specific field constants and register definitions |
 | sonic-platform-common | `tests/sonic_xcvr/test_elsfp.py` | Added | Unit tests for ELSFP memory map functionality |
+
+### 15. Code Changes
+
+The implementation is split into the following pull requests:
+
+| PR # | Description | Repository | Link |
+|------|-------------|------------|------|
+| PR 1 | Memory Map Refactor into pages | sonic-platform-common | [nexthop-ai/sonic-platform-common#1](https://github.com/nexthop-ai/sonic-platform-common/pull/1) |
+| PR 2 | ELSFP pages and Memory Map | sonic-platform-common | [nexthop-ai/sonic-platform-common#2](https://github.com/nexthop-ai/sonic-platform-common/pull/2) |
+
 
 
 ## References
