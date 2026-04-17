@@ -551,22 +551,20 @@ frr           69       1  0 16:44 pts/0    00:00:00 /usr/lib/frr/bfdd --dplanead
 
 # 4 Testplan
 
-## 4.1 Setup
-    If the bfdsyncd was not launched by the OS, here is the manual steps to launch bfdsyncd and bfdd
-### 4.1.1 Start bfdsyncd
-run bfdsyncd inside bgp container, default port number for bfd is 50700
+Pre-requisite:
+
+run bfdsyncd inside bgp container (if the OS does not launch it), default port number for bfd is 50700
 ```
 sonic@sonic:$ docker exec -it bgp bash
 root@sonic# bfdsyncd &
 ```
-### 4.1.2 Start bfdd
 run bfdd with option dplaneaddr inside bgp container, it connects to default bfd port.
 ```
 sonic@sonic:$ docker exec -it bgp bash
 root@sonic# /usr/lib/frr/bfdd --dplaneaddr ipv4c:127.0.0.1
 ```
 
-### 4.1.3 Validate the setupby creating a bfd session from vtysh cli
+Verify the setup by creating a bfd session from vtysh cli
 ```
 sonic@sonic:/var/tmp$ docker exec -it bgp bash
 root@sonic:/# bfdsyncd&
@@ -598,13 +596,27 @@ Peer Addr     Interface    Vrf      State    Type          Local Addr      TX In
 sonic@sonic:/var/tmp$ 
 ```
 
-## 4.2 Unit tests
-### 4.2.1 Mock tests
-    bfddp message DP_ADD_SESSION handling 
-    bfddp message DP_DELETE_SESSION handling 
-    BFD_STATE_CHANGE handling
-### 4.2.2 SONiC mgmt tests
-#### 4.2.2.1   Basic BGP neighbor(IPv4) with bfd monitoring
+## 4.1 Mock tests
+verify the following messages:
+- Bfddp message DP_ADD_SESSION handling 
+- BFD_STATE_CHANGE handling
+- Bfddp message DP_DELETE_SESSION handling 
+
+| Step | Goal | Expected results |
+|-|-|-|
+|Prepare a BFD DP message with DP_ADD_SESSION type |BFD session creation in APPL DB |BFD session created in APPL_DB, and the fields value are correct |
+|Call handleBfdStateUpdate with the above BFD session key| State change |DP message with BFD_STATE_CHANGE type is sent|
+|Prepare a BFD DP message with DP_DELETE_SESSION type |BFD session deletion in APPL DB |BFD session removed from APPL_DB|
+
+
+## 4.2 Mgmt tests
+### 4.2.1   Basic BGP neighbor(IPv4) with bfd monitoring
+| Step | Goal | Expected results |
+|-|-|-|
+|Configure the bgp using the following example|BFD session creation|HW offload bfd session created, check with show bfd summary command in SONiC CLI|
+|Bring the interface down|BGP sessino state change|BGP session down|
+|Bring the interface UP and waiting for BFD session up|BGP sessino state change|BGP session UP|
+
 Configuration example:
 ```
 sonic(config-router)#         neighbor FOO peer-group
@@ -617,15 +629,24 @@ sonic(config-router)#         neighbor 10.200.200.201 peer-group FOO
 ```
 Test both BFD session state UP and DOWN cases, check bgp session state.
 
-#### 4.2.2.2   Basic BGP neighbor(IPv6) with bfd monitoring
-#### 4.2.2.3   Basic BGP neighbor(IPv6 link local address) with bfd monitoring
-Example for IPv6 link local, only interface provided in the bgp neighbor configuration
+### 4.2.2   Basic BGP neighbor(IPv6) with bfd monitoring
+Similar to the above test (4.2.1), but use IPv6 neighbor
+
+### 4.2.3   Basic BGP neighbor(IPv6 link local address) with bfd monitoring
+Example for IPv6 link local, IPv6 link local address enabled for the corresponding interface,  use interface name only in the bgp neighbor configuration
+| Step | Goal | Expected results |
+|-|-|-|
+|Configure the DUT use link local IP address|IPv6 link local address|Check if the interface has IPv6 link local address assigned|
+|ping neighbor's link local IP address with source interface name (ping6 -c 3 <neighbor's IPv6 link local address> -I <Ifname>) |update neighbor mac address to neigbor table|Check if the neighbor's mac address is available|
+|configure BGP neighbor using the following example|BFD HW offload session creation|check if the BFD HW offload session created after apply the configuration|
+|Bring the interface down|BGP sessino state change|BGP session down|
+|Bring the interface UP and waiting for BFD session up|BGP sessino state change|BGP session UP|
 ```
-    neighbor FOO peer-group
-    neighbor FOO remote-as external
-    neighbor FOO ebgp-multihop 1
-    neighbor Ethernet0 interface peer-group FOO
-    neighbor FOO bfd
+sonic(config-router)#     neighbor FOO peer-group
+sonic(config-router)#     neighbor FOO remote-as external
+sonic(config-router)#     neighbor FOO ebgp-multihop 1
+sonic(config-router)#     neighbor Ethernet0 interface peer-group FOO
+sonic(config-router)#     neighbor FOO bfd
 ```
 
 # 5 Limitations
