@@ -549,22 +549,24 @@ root          58       1  0 16:44 pts/0    00:00:00 bfdsyncd -d
 frr           69       1  0 16:44 pts/0    00:00:00 /usr/lib/frr/bfdd --dplaneaddr ipv4c:127.0.0.1
 ```
 
-# 4 mannual testing
+# 4 Testplan
 
-## 4.1 start bfdsyncd
+## 4.1 Setup
+    If the bfdsyncd was not launched by the OS, here is the manual steps to launch bfdsyncd and bfdd
+### 4.1.1 Start bfdsyncd
 run bfdsyncd inside bgp container, default port number for bfd is 50700
 ```
 sonic@sonic:$ docker exec -it bgp bash
 root@sonic# bfdsyncd &
 ```
-## 4.2 start bfdd
+### 4.1.2 Start bfdd
 run bfdd with option dplaneaddr inside bgp container, it connects to default bfd port.
 ```
 sonic@sonic:$ docker exec -it bgp bash
 root@sonic# /usr/lib/frr/bfdd --dplaneaddr ipv4c:127.0.0.1
 ```
 
-## 4.3 create bfd session from vtysh cli
+### 4.1.3 Validate the setupby creating a bfd session from vtysh cli
 ```
 sonic@sonic:/var/tmp$ docker exec -it bgp bash
 root@sonic:/# bfdsyncd&
@@ -596,19 +598,50 @@ Peer Addr     Interface    Vrf      State    Type          Local Addr      TX In
 sonic@sonic:/var/tmp$ 
 ```
 
-# 5, limitations
-## 5.1 unsupported commands:
-show bfd peers counters 
+## 4.2 Unit tests
+### 4.2.1 Mock tests
+    bfddp message DP_ADD_SESSION handling 
+    bfddp message DP_DELETE_SESSION handling 
+    BFD_STATE_CHANGE handling
+### 4.2.2 SONiC mgmt tests
+#### 4.2.2.1   Basic BGP neighbor(IPv4) with bfd monitoring
+Configuration example:
+```
+sonic(config-router)#         neighbor FOO peer-group
+sonic(config-router)#         neighbor FOO remote-as external
+sonic(config-router)#         neighbor FOO disable-connected-check
+sonic(config-router)#         neighbor FOO ebgp-multihop 255
+sonic(config-router)#         neighbor FOO update-source Loopback27
+sonic(config-router)#         neighbor FOO bfd
+sonic(config-router)#         neighbor 10.200.200.201 peer-group FOO
+```
+Test both BFD session state UP and DOWN cases, check bgp session state.
+
+#### 4.2.2.2   Basic BGP neighbor(IPv6) with bfd monitoring
+#### 4.2.2.3   Basic BGP neighbor(IPv6 link local address) with bfd monitoring
+Example for IPv6 link local, only interface provided in the bgp neighbor configuration
+```
+    neighbor FOO peer-group
+    neighbor FOO remote-as external
+    neighbor FOO ebgp-multihop 1
+    neighbor Ethernet0 interface peer-group FOO
+    neighbor FOO bfd
+```
+
+# 5 Limitations
+## 5.1 Unsupported commands:
+	show bfd peers counters 
+
    not able to read hardware bfd counter value and show it with this command.
    Zero value will be returned if use issue this command.
 
-## 5.2 unsupported bfd dataplane message
+## 5.2 Unsupported bfd dataplane message
     ECHO_REQUEST
     ECHO_REPLY
     DP_REQUEST_SESSION_COUNTERS
     BFD_SESSION_COUNTERS
 
-## 5.3 supported bfd dataplane message
+## 5.3 Supported bfd dataplane message
     DP_ADD_SESSION
     DP_DELETE_SESSION
     BFD_STATE_CHANGE
