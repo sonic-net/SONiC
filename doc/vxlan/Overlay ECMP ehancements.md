@@ -206,6 +206,8 @@ The Orchagent shall check all the next hops in the ARP table to verify if direct
 
 Add support for pinning BFD probe state with new field `pinned_state`.
 
+`pinned_state` enables controller to override the actual BFD probe state for endpoints. This is essential for Smart Switch HA scenarios where traffic must be redirected to a standby DPU before planned maintenance (by pinning the primary to down), or for livesite mitigation to prevent unnecessary switchovers on vnet route nexthop (by pinning to up). The pinned state values are none (default, use actual BFD state), up (force endpoint active), and down (force endpoint inactive).
+
 Routes will be updated when pinned state changes. The effects of probe state pinning are in [SmartSwitch HA HLD](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#641-pinning-bfd-probe).
 
 
