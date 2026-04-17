@@ -436,8 +436,6 @@ fe80::7a6b:17ff:fe5a:7000 dev Ethernet0 lladdr 78:6b:17:5a:70:00 router REACHABL
 sonic@sonic:/var/tmp$ 
 ```
 
-[Notes]To make sure the the destination mac address is available before bgp creating bfd session, do not use this bgp configuration: "neighbor xxx disable-connected-check", let bgp check connection first before it try to create bfd session. so peer system mac address will be available if bfdsyncd issue a PING before try to read the neighbor table.
-
 ```
 bgp configuration:
 sonic(config-router)#         neighbor FOO peer-group
