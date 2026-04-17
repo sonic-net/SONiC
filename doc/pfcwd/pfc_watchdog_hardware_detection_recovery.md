@@ -1,43 +1,63 @@
-# PFC Watchdog Hardware Recovery
+# PFC Watchdog Hardware-Based Detection and Recovery
 
 ## Table of Contents
-- [Revision](#revision)
-- [Scope](#scope)
-- [Abbreviations](#abbreviations)
-- [1. Overview](#1-overview)
-- [2. Requirements](#2-requirements)
-- [3. Architecture Design](#3-architecture-design)
-- [4. High-Level Design](#4-high-level-design)
-  - [4.1 Hardware Recovery Mechanism](#41-hardware-recovery-mechanism)
-    - [4.1.1 Hardware vs Software Recovery Flow](#411-hardware-vs-software-recovery-flow)
-    - [4.1.2 Hardware Recovery Workflow](#412-hardware-recovery-workflow)
-    - [4.1.3 SDK and Hardware Responsibilities](#413-sdk-and-hardware-responsibilities)
-  - [4.2 PFC Watchdog Orchagent Refactoring](#42-pfc-watchdog-orchagent-refactoring)
-- [5. CLI Changes](#5-cli-changes)
-  - [5.1 New CLI command](#51-new-cli-command)
-  - [5.2 CLI Data Flow](#52-cli-data-flow)
-- [6. SAI API](#6-sai-api)
-  - [6.1 SAI Attributes](#61-sai-attributes)
-  - [6.2 SAI Events](#62-sai-events)
-  - [6.3 SAI Statistics](#63-sai-statistics)
-- [7. Configuration and Management](#7-configuration-and-management)
-- [8. Manifest](#8-manifest)
-- [9. CLI-YANG Model Enhancements](#9-cli-yang-model-enhancements)
-- [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
-- [11. Restrictions/Limitations](#11-restrictionslimitations)
-- [12. Testing Requirements/Design](#12-testing-requirementsdesign)
-  - [12.1 Additional Test Cases for Hardware Recovery](#121-additional-test-cases-for-hardware-recovery)
+- [PFC Watchdog Hardware-Based Detection and Recovery](#pfc-watchdog-hardware-based-detection-and-recovery)
+  - [Table of Contents](#table-of-contents)
+  - [Revision](#revision)
+  - [Scope](#scope)
+  - [Abbreviations](#abbreviations)
+  - [1. Overview](#1-overview)
+  - [2. Requirements](#2-requirements)
+  - [3. Architecture Design](#3-architecture-design)
+  - [4. High-Level Design](#4-high-level-design)
+    - [4.1 Hardware Recovery Mechanism](#41-hardware-recovery-mechanism)
+      - [4.1.1 Hardware vs Software Recovery Flow](#411-hardware-vs-software-recovery-flow)
+      - [4.1.2 Hardware Recovery Workflow](#412-hardware-recovery-workflow)
+    - [4.2 PFC Watchdog Orchagent Refactoring](#42-pfc-watchdog-orchagent-refactoring)
+      - [Design Goals](#design-goals)
+      - [Current Architecture](#current-architecture)
+      - [Proposed Architecture](#proposed-architecture)
+      - [Implementation Details](#implementation-details)
+      - [SKU-Based Override Mechanism](#sku-based-override-mechanism)
+  - [5. CLI Changes](#5-cli-changes)
+    - [5.1 Configuration Validation](#51-configuration-validation)
+    - [5.2 New CLI command](#52-new-cli-command)
+    - [5.3 CLI Data Flow](#53-cli-data-flow)
+  - [6. SAI API](#6-sai-api)
+    - [6.1 SAI Attributes](#61-sai-attributes)
+    - [6.2 SAI Events](#62-sai-events)
+    - [6.3 SAI Statistics](#63-sai-statistics)
+  - [7. Configuration and Management](#7-configuration-and-management)
+    - [7.1 STATE\_DB Schema](#71-state_db-schema)
+  - [8. Manifest](#8-manifest)
+  - [9. CLI-YANG Model Enhancements](#9-cli-yang-model-enhancements)
+  - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
+  - [11. Restrictions/Limitations](#11-restrictionslimitations)
+  - [12. Testing Requirements/Design](#12-testing-requirementsdesign)
+    - [12.1 Additional Test Cases for Hardware Recovery](#121-additional-test-cases-for-hardware-recovery)
+      - [New CLI Command Testing](#new-cli-command-testing)
+      - [Configuration Validation Testing](#configuration-validation-testing)
+      - [Hardware Recovery Functionality Testing](#hardware-recovery-functionality-testing)
+      - [Telemetry Testing](#telemetry-testing)
 
 ## Revision
 
 | Rev | Date       | Author        | Change Description |
 |-----|------------|---------------|--------------------|
 | 0.1 | 12/13/2025 | Pinky Agrawal | Initial version    |
-| 0.2 | 02/05/2026 | Pinky Agrawal | Addressed review comments: Added configuration validation using SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL_RANGE, updated SAI attributes section with extension attributes, clarified counter polling mechanism, updated show pfcwd status for software mode, added telemetry test cases |
+| 0.2 | 02/05/2026 | Pinky Agrawal | Addressed review comments: Added configuration validation using SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL_RANGE, clarified counter polling mechanism, updated show pfcwd status for software mode, added telemetry test cases |
 
 ## Scope
 
-This document describes the design for hardware-based PFC (Priority Flow Control) watchdog recovery mechanism in SONiC. It covers the extension of existing software-based PFC watchdog functionality to support hardware-accelerated detection and recovery.
+This document describes the design for hardware-based PFC (Priority Flow Control) watchdog detection and recovery mechanism in SONiC. It covers the extension of existing software-based PFC watchdog functionality to support hardware-accelerated detection and recovery.
+
+The term "hardware-based" (or "H/W") in this document refers to capabilities exposed through the SAI API layer. The actual implementation is vendor-specific and can be realized in various ways:
+- Fully in hardware (ASIC)
+- In ASIC firmware
+- In the vendor SAI implementation
+- Any combination of the above (e.g., detection in hardware/firmware and recovery in vendor SAI)
+
+Throughout this document, wherever "H/W", "hardware", "ASIC", or similar terms are used to describe detection, recovery, or other operations, they refer to this vendor-specific implementation layer. This document focuses on the SONiC perspective and interactions with the SAI layer, without prescribing specific vendor implementation details.
 
 ## Abbreviations
 
@@ -66,8 +86,8 @@ The hardware-based PFC watchdog recovery feature shall provide:
 2. **Hardware Recovery**: Automatic recovery actions (drop/forward) performed by hardware
 3. **Backward Compatibility**: Existing software-based PFC watchdog functionality remains unchanged
 4. **Runtime Selection**: Automatic selection between hardware and software implementations based on platform capabilities
-5. **Enhanced CLI**: New `show pfcwd status` command to display recovery type, actual hardware timer values, and granularity information
-6. **Error Handling**: Proper validation and error reporting for hardware timer granularity constraints
+5. **Enhanced CLI**: New `show pfcwd status` command to display recovery type, programming status, actual hardware timer values
+6. **Error Handling**: Proper validation and error reporting for programming based on SAI errors
 
 ## 3. Architecture Design
 
@@ -89,15 +109,15 @@ Each phase of hardware detection and recovery happens based on the programming o
 | ----- | ----- | ----- |
 | Deadlock detection requirement | Polling period for lua script configured in S/W | Enable h/w deadlock detection and recovery. Configure detection timer. Register callback for h/w events |
 | Detection mechanism | Lua script polls the queue to check if queue received PFC frames continuously for detection time | H/w detects the deadlock and publishes an event to the s/w to take action, if required. |
-| PFC pause frame handling | Software disables PFC by clearing the PFC mask bit for the affected queue (ignores incoming PFC pause frames) | Hardware sets the registers that ignores PFC pause frames for the affected queue during storm mitigation |
+| PFC pause frame handling | Software disables PFC by clearing the PFC mask bit for the affected queue (ignores incoming PFC pause frames) | H/W ignores PFC pause frames for the affected queue during storm mitigation. No action needed in orchagent. |
 | Mitigation | Orchagent programs ACLS to take drop action or programs a zero-buffer profile | H/w takes the drop/forward action |
 | Recovery requirement | Polling period for lua script configured in S/W | Configure recovery timer attribute |
-| Recovery | Lua script polls if the queue remains unpaused for restoration-time amount of time to recover | H/w recovers the queue and publishes an event to the s/w to take action, if required. |
+| Recovery | Lua script polls if the queue remains unpaused for restoration-time amount of time to recover | H/W recovers the queue and publishes an event to the s/w when recovery completes. |
 
 **Timer granularity constraints:**
-- Hardware may have granularity limitations (e.g., 100ms granularity)
+- Hardware may have vendor-specific granularity limitations
 - Configured values may differ from actual hardware-programmed values
-- Upper limits may apply based on platform (e.g., Broadcom: 1-15 × granularity)
+- Timer value calculations and constraints are vendor-specific
 
 **Hardware recovery advantages:**
 - **Better accuracy in storm detection**: Hardware-based detection operates at line rate without software polling delays, providing more precise detection timing
@@ -111,35 +131,35 @@ The following diagram illustrates the decision flow for selecting hardware vs so
 
 ```mermaid
 flowchart TD
-    A[PFC Watchdog Configuration] --> B{Platform Supports<br/>Hardware Recovery?}
+    A[PFC Watchdog Configuration] --> B{Platform Supports Hardware Recovery?}
     B -->|Yes| C[Initialize PfcWdHwOrch]
-    B -->|No| D[Initialize PfcWdOrch<br/>Software Recovery]
+    B -->|No| D[Initialize PfcWdOrch Software Recovery]
 
-    C --> E[Configure SAI Hardware<br/>Watchdog Attributes]
-    E --> E1[Update STATE_DB:<br/>status=operational<br/>recovery_type=hardware]
-    E1 --> F[Hardware Detection<br/>& Recovery Active]
+    C --> E[Configure SAI Hardware Watchdog Attributes]
+    E --> E1[Update STATE_DB: operational, hardware]
+    E1 --> F[Hardware Detection & Recovery Active]
 
-    D --> G[Configure Lua Script<br/>Polling & Handlers]
-    G --> G1[Update STATE_DB:<br/>status=operational<br/>recovery_type=software]
-    G1 --> H[Software Detection<br/>& Recovery Active]
+    D --> G[Configure Lua Script Polling & Handlers]
+    G --> G1[Update STATE_DB: operational, software]
+    G1 --> H[Software Detection & Recovery Active]
 
-    F --> I[PFC Storm Detected<br/>by Hardware]
-    H --> J[PFC Storm Detected<br/>by Lua Script]
+    F --> I[PFC Storm Detected by Hardware]
+    H --> J[PFC Storm Detected by Lua Script]
 
-    I --> I1[Update STATE_DB:<br/>status=storm_detected<br/>last_detection_time<br/>detection_count++]
-    J --> J1[Update STATE_DB:<br/>status=storm_detected<br/>last_detection_time<br/>detection_count++]
+    I --> I1[Update STATE_DB: storm_detected]
+    J --> J1[Update STATE_DB: storm_detected]
 
-    I1 --> K[Hardware Automatic<br/>Recovery Action]
-    J1 --> L[Software Handler<br/>Recovery Action]
+    I1 --> K[Hardware Automatic Recovery Action]
+    J1 --> L[Software Handler Recovery Action]
 
-    K --> M[Hardware Event<br/>Notification to SW]
-    L --> N[Update Counters<br/>& State]
+    K --> M[Hardware Event Notification to SW]
+    L --> N[Update Counters & State]
 
-    M --> M1[Update STATE_DB:<br/>status=storm_restored<br/>last_restoration_time<br/>storm_duration_ms]
-    N --> N1[Update STATE_DB:<br/>status=storm_restored<br/>last_restoration_time<br/>storm_duration_ms]
+    M --> M1[Update STATE_DB: storm_restored]
+    N --> N1[Update STATE_DB: storm_restored]
 
-    M --> P[Software Counter<br/>Polling & State Update]
-    N --> O[Update Statistics<br/>& CLI Display]
+    M --> P[Software Counter Polling & State Update]
+    N --> O[Update Statistics & CLI Display]
     M1 --> O
     N1 --> O
     P --> O
@@ -191,28 +211,6 @@ sequenceDiagram
     Orch->>DB: Update Restoration Counters
     Orch->>StateDB: Update status=storm_restored,<br/>last_restoration_time,<br/>storm_duration_ms
 ```
-
-#### 4.1.3 SDK and Hardware Responsibilities
-
-In hardware-based PFC watchdog recovery, the responsibilities are distributed between the SDK layer and the hardware (ASIC).
-
-**SDK Responsibilities:**
-
-The SDK layer (e.g., Broadcom SDK) acts as the intermediary between SAI and the hardware. It is responsible for:
-- Translating SAI attribute calls into hardware-specific register programming
-- Reporting hardware capabilities such as supported timer ranges and granularity constraints
-- Monitoring hardware event registers and translating them into SAI event callbacks (`SAI_QUEUE_PFC_DEADLOCK_EVENT_TYPE_DETECTED` and `SAI_QUEUE_PFC_DEADLOCK_EVENT_TYPE_RECOVERED`)
-- Managing hardware resource allocation for timers, counters, and event queues
-- Reading hardware counter registers and providing statistics via SAI APIs
-
-**Hardware (ASIC) Responsibilities:**
-
-The hardware performs the actual line-rate detection and recovery operations:
-- Monitoring incoming PFC pause frames on each queue and tracking continuous pause state duration
-- Comparing pause duration against programmed detection timers and generating detection events when timers expire
-- Automatically applying recovery actions (drop/forward) to packets in affected queues
-- Maintaining hardware timers for both detection and restoration at the configured granularity (e.g., 100ms increments)
-- Generating hardware interrupts or events on storm detection and restoration
 
 ### 4.2 PFC Watchdog Orchagent Refactoring
 
@@ -365,28 +363,32 @@ Success: PFC watchdog configured on Ethernet0
 Even with validation, hardware may have additional constraints:
 
 **Timer granularity**
-There may be a granularity associated with the timers, so it is possible that the value programmed in hardware is different from the value configured through the CLI.
-For example: if the hardware granularity is 100 ms and configured detection time through CLI is 250 ms, then hardware might program either 200ms or 300ms.
+The actual value programmed in hardware may differ from the value configured through the CLI due to vendor-specific granularity constraints and timer implementation details.
 
 Since there is no SAI attribute to query the current granularity setting today, the `show pfcwd status` command is needed to display the actual hardware-programmed values and verify if they match the configured values.
 
 ### 5.2 New CLI command
-We propose to add a new CLI command `show pfcwd status` to display hardware-specific information including recovery type, hardware detection time, hardware restoration time, detection time granularity, and restoration time granularity.
+We propose to add a new CLI command `show pfcwd status` to display hardware-specific operational information including:
+- PFC watchdog mode (hardware or software)
+- Supported hardware timer ranges (detection and restoration intervals)
+- Per-port programming status
+- Actual hardware-programmed timer values
 
 **Purpose of this command:**
-- Display the actual hardware-programmed timer values (which may differ from configured values due to granularity constraints) in h/w recovery mode. This command is N/A for s/w recovery mode.
-- Since there is no SAI attribute to query the current granularity setting, users need visibility into what values were actually programmed in hardware 
+- Display the PFC watchdog mode in use (hardware or software)
+- Show supported hardware timer ranges queried from SAI capabilities
+- Display programming status per port (success or failed)
+- Show the actual hardware-programmed timer values (which may differ from configured values due to vendor-specific constraints)
 
 **Timer determination for hardware-based model**
 For hardware-based recovery, the actual timer values programmed in hardware are determined through the following process:
-1. **User Configuration**: User configures desired timer values through CLI (e.g., detection_time=250ms)
+1. **User Configuration**: User configures desired timer values through CLI
 2. **Range Validation**: Software validates the configured value against the queried hardware range (`SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL_RANGE`)
-3. **Granularity Selection**: Software determines the appropriate granularity (1ms, 10ms, or 100ms) based on the configured value
-4. **Value Adjustment**: Software adjusts the configured value to the nearest multiple of the selected granularity (e.g., 250ms with 100ms granularity → 200ms or 300ms)
-5. **Hardware Programming**:
-   - First, set the granularity using `SAI_SWITCH_ATTR_PFC_TC_DLD_TIMER_INTERVAL` or `SAI_PORT_ATTR_PFC_TC_DLD_TIMER_INTERVAL`
-   - Then, program the timer value as `configured_value / granularity` using `SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL` / `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL`
-6. **Verification**: Software reads back the actual programmed value from hardware to display in `show pfcwd status`
+3. **Value Adjustment**: The actual programmed value may differ from the configured value based on vendor-specific hardware constraints and granularity requirements
+4. **Hardware Programming**: Program the timer value using `SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL` / `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL`
+5. **Verification**: Software reads back the actual programmed value from hardware to display in `show pfcwd status`
+
+**Note:** The timer value calculation and adjustment is vendor-specific and depends on the hardware implementation.
 
 
 ### 5.3 CLI Data Flow
@@ -394,24 +396,28 @@ For hardware-based recovery, the actual timer values programmed in hardware are 
 The following diagram illustrates how the new `show pfcwd status` command retrieves and displays information:
 
 ```mermaid
-flowchart LR
-    A[show pfcwd status] --> B[Query STATE_DB<br/>PFC_WD_STATE Table]
+flowchart TB
+    A[show pfcwd status] --> B[Query STATE_DB]
 
-    B --> C[Read Per-Port/Queue Entries]
+    B --> C[Read PFC_WD_GLOBAL]
+    B --> D[Read PFC_WD_STATE per port]
 
-    C --> D[Extract recovery_type]
-    C --> E[Extract detection_time_programmed]
-    C --> F[Extract detection_time_granularity]
-    C --> G[Extract restoration_time_programmed]
-    C --> H[Extract restoration_time_granularity]
+    C --> E[Extract mode: hardware/software]
+    C --> F[Extract detection_interval_range]
+    C --> G[Extract restoration_interval_range]
 
-    D --> L[Format Display Data]
-    E --> L
-    F --> L
-    G --> L
-    H --> L
+    D --> H[Extract programming_status]
+    D --> I[Extract detection_time_programmed]
+    D --> J[Extract restoration_time_programmed]
 
-    L --> M[Display Table with:<br/>PORT, RECOVERY TYPE,<br/>HW DETECTION TIME, DETECTION GRANULARITY,<br/>HW RESTORATION TIME, RESTORATION GRANULARITY]
+    E --> K[Format Display]
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+
+    K --> L[Display Output]
 ```
 
 **Example: ASIC with Hardware Recovery**
@@ -430,15 +436,23 @@ Now, let's use the new `show pfcwd status` command to see the actual hardware-pr
 
 ```shell
 admin@sonic:~$ show pfcwd status
-PORT        RECOVERY TYPE    HW DETECTION TIME    DETECTION GRANULARITY    HW RESTORATION TIME    RESTORATION GRANULARITY
-----------  -------------    -------------------  ---------------------    ---------------------  -------------------------
-Ethernet0   hardware         300                  100ms                    500                    100ms
-Ethernet12  hardware         400                  100ms                    800                    100ms
+PFC Watchdog Mode: Hardware
+Supported hardware detection interval range: 100-1500 ms
+Supported hardware restoration interval range: 100-1000 ms
+
+     PORT      STATUS    HW DETECTION TIME (ms)    HW RESTORATION TIME (ms)
+---------  ----------  ------------------------  --------------------------
+Ethernet0     success                       400                         400
+Ethernet8     success                       800                         800
+Ethernet320    failed                       N/A                         N/A
 ```
 
 **Key Observations:**
-- **Ethernet0**: Configuration (350ms/550ms) was adjusted to (300ms/500ms) by hardware due to 100ms granularity. The `show pfcwd config` shows what the user requested (350/550), but `show pfcwd status` reveals the actual hardware-programmed values (300/500).
-- **Ethernet12**: Configuration (400ms/800ms) successfully programmed to hardware. Granularity is 100ms.
+- **PFC Watchdog Mode**: Indicates whether hardware or software mode is in use
+- **Supported ranges**: Displays the hardware capability ranges for detection and restoration timers (queried from SAI)
+- **STATUS**: Shows programming status - "success" if hardware programming succeeded, "failed" if it failed
+- **Hardware-programmed values**: The actual values programmed in hardware; shown as N/A if programming failed
+- **Configuration verification**: The `show pfcwd config` shows what the user requested, while `show pfcwd status` reveals the actual hardware-programmed values and programming status
 
 **Note**: Since configuration validation is performed at both CLI and orchagent layers (see section 5.1), invalid configurations (e.g., values exceeding hardware timer range) are rejected before programming, ensuring all entries in `show pfcwd status` represent successfully programmed configurations.
 
@@ -472,7 +486,6 @@ Following SAI statistics and attributes are used in this feature:
 | `SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL` | sai_map_list_t | CREATE_AND_SET | Detection timer intervals per port/per TC in milliseconds |
 | `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL_RANGE` | sai_u32_range_t | READ_ONLY | Query supported recovery timer range per port (capability query) |
 | `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL` | sai_map_list_t | CREATE_AND_SET | Recovery timer intervals per port/per TC in milliseconds |
-| `SAI_PORT_ATTR_PFC_TC_DLD_TIMER_INTERVAL` (Extension) | sai_map_list_t | CREATE_AND_SET | Port PFC Deadlock Detection timer granularity of all PFC priorities |
 
 **Switch Attributes (SAI_OBJECT_TYPE_SWITCH):**
 
@@ -481,12 +494,13 @@ Following SAI statistics and attributes are used in this feature:
 | `SAI_SWITCH_ATTR_QUEUE_PFC_DEADLOCK_NOTIFY` | sai_pointer_t | CREATE_AND_SET | Register callback for PFC deadlock events |
 | `SAI_SWITCH_ATTR_PFC_DLR_PACKET_ACTION` | sai_packet_action_t | CREATE_AND_SET | Configure drop/forward action during recovery |
 | `SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL_RANGE` | sai_u32_range_t | READ_ONLY | Query supported detection timer range at switch level (capability query) |
-| `SAI_SWITCH_ATTR_PFC_TC_DLD_TIMER_INTERVAL` (Extension) | sai_map_list_t | CREATE_AND_SET | PFC Deadlock Detection timer granularity in milliseconds (1ms, 10ms, or 100ms) |
+| `SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL` | sai_map_list_t | CREATE_AND_SET | Switch-level detection timer intervals per TC in milliseconds (global default for all ports) |
+| `SAI_SWITCH_ATTR_PFC_TC_DLR_INTERVAL_RANGE` | sai_u32_range_t | READ_ONLY | Query supported recovery timer range at switch level (capability query) |
+| `SAI_SWITCH_ATTR_PFC_TC_DLR_INTERVAL` | sai_map_list_t | CREATE_AND_SET | Switch-level recovery timer intervals per TC in milliseconds (global default for all ports) |
 
 **Notes:**
-- Extension attributes are defined in `saiportextensions.h` and `saiswitchextensions.h`
 - The `*_RANGE` attributes are READ_ONLY and used to query hardware capabilities (min/max timer values)
-- The `*_TIMER_INTERVAL` attributes are used to SET granularity values, not query them
+- **Switch-level vs Port-level attributes**: Some platforms (e.g., Microsoft) use a single set of timers for all ports (switch-level). Other platforms may support per-port timer configuration. The switch-level attributes (`SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL` / `SAI_SWITCH_ATTR_PFC_TC_DLR_INTERVAL`) can be used to set global defaults, which can be overridden by port-level attributes (`SAI_PORT_ATTR_PFC_TC_DLD_INTERVAL` / `SAI_PORT_ATTR_PFC_TC_DLR_INTERVAL`) when supported by the platform
 - There is no READ_ONLY attribute to query the current granularity setting; applications must track what they configured
 
 ### 6.2 SAI Events
@@ -513,15 +527,28 @@ The hardware-based PFC watchdog uses the same configuration interface as the exi
 
 ### 7.1 STATE_DB Schema
 
-The following STATE_DB table is used to track PFCWD detection and restoration events for both hardware and software-based methods. This table serves as the data source for the `show pfcwd status` command and telemetry reporting.
+The following STATE_DB tables are used to track PFCWD global capabilities and per-port status for both hardware and software-based methods. These tables serve as the data source for the `show pfcwd status` command and telemetry reporting.
+
+**PFC_WD_GLOBAL Table:**
+
+This table tracks global PFC watchdog capabilities and mode.
+
+```
+PFC_WD_GLOBAL|GLOBAL
+    "mode": "hardware" | "software"
+    "detection_interval_range_min": <value_in_ms>  // Hardware capability
+    "detection_interval_range_max": <value_in_ms>  // Hardware capability
+    "restoration_interval_range_min": <value_in_ms>  // Hardware capability
+    "restoration_interval_range_max": <value_in_ms>  // Hardware capability
+```
 
 **PFC_WD_STATE Table:**
 
-This table tracks the current state and configuration of PFC watchdog on each port/queue.
+This table tracks the current state and programming status of PFC watchdog on each port/queue.
 
 ```
 PFC_WD_STATE|<port_name>|<queue_index>
-    "recovery_type": "hardware" | "software"
+    "programming_status": "success" | "failed"
     "status": "operational" | "storm_detected" | "storm_restored"
     "detection_count": <number>
     "restoration_count": <number>
@@ -529,11 +556,9 @@ PFC_WD_STATE|<port_name>|<queue_index>
     "last_restoration_time": <timestamp>
     "storm_duration_ms": <value>
     "detection_time_configured": <value_in_ms>
-    "detection_time_programmed": <value_in_ms>  // N/A for software mode
-    "detection_time_granularity": <value_in_ms>  // N/A for software mode
+    "detection_time_programmed": <value_in_ms>  // N/A for software mode or if programming failed
     "restoration_time_configured": <value_in_ms>
-    "restoration_time_programmed": <value_in_ms>  // N/A for software mode
-    "restoration_time_granularity": <value_in_ms>  // N/A for software mode
+    "restoration_time_programmed": <value_in_ms>  // N/A for software mode or if programming failed
     "action": "drop" | "forward"
 ```
 
@@ -610,9 +635,11 @@ All existing PFC watchdog testing remains unchanged as documented in the [PFC Wa
 
 #### New CLI Command Testing
 - Verify `show pfcwd status` command displays all required fields correctly
-- Test recovery type display (hardware vs software)
-- Validate hardware timer values and granularity information display
-- Test N/A display for software recovery ports
+- Test PFC watchdog mode display (hardware vs software)
+- Validate supported hardware interval ranges display
+- Test programming status display (success vs failed)
+- Validate hardware timer values display
+- Test N/A display for failed programming status
 - Verify column alignment and formatting
 
 #### Configuration Validation Testing
