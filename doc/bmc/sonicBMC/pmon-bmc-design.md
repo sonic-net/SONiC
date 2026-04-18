@@ -404,10 +404,10 @@ graceful_shutdown_timeout = integer                                            ;
 
 key                       = HOST_STATE|switch-host                             ; STATE_DB on BMC to store state of Switch-Host
 ; field                   = value
-device_power_state        = POWER_ON | POWER_OFF | GRACEFUL_SHUT | POWER_CYCLE ; Stable: last completed power action on Switch-Host
-                          | POWERING_ON | POWERING_OFF | POWER_CYCLING          ; Transitional: written immediately before the platform call;
-                                                                                ;   replaced by the stable value once the action completes
-device_status             = ONLINE | OFFLINE                                    ; current oper status of device, from platform API module->get_oper_status()
+device_power_state        = POWERED_ON | POWERED_OFF | GRACEFUL_SHUTDOWN |     ; Represents the final and transitional power state of Switch-host
+                            POWER_CYCLE | POWERING_ON | POWERING_OFF |
+                            GRACEFUL_SHUTTING_DOWN | POWER_CYCLING
+device_status             = ONLINE | OFFLINE                                   ; current oper status of device, from platform API module->get_oper_status()
 last_change_timestamp     = STR
 
 ```
