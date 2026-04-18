@@ -15,7 +15,12 @@
   * [2. Functionality](#2-functionality)
       * [2.1 Functional Description](#21-functional-description)
   * [3. Design](#3-design)
-      * [3.1 Overview](#31-overview)
+      * [3.1 Sampled Mirroring Overview](#31-sampled-mirroring-overview)
+          * [3.1.1 Problem Statement](#311-problem-statement)
+          * [3.1.2 Current State](#312-current-state)
+          * [3.1.3 Proposed Solution](#313-proposed-solution)
+          * [3.1.4 Architecture Overview](#314-architecture-overview)
+          * [3.1.5 SAI attributes](#315-sai-attributes)
       * [3.2 DB Changes](#32-db-changes)
           * [3.2.1 CONFIG DB](#321-config-db)
           * [3.2.2 APP_DB](#322-app_db)
@@ -27,6 +32,7 @@
           * [3.3.2 Other Process](#332-other-process)
       * [3.4 Mirror Capability Discovery](#34-mirror-capability-discovery)
       * [3.5 SAI](#35-sai)
+         * [3.5.1 Sampled Port Mirroring SAI APIs](#351-sampled-port-mirroring-sai-apis)
       * [3.6 CLI](#36-cli)
           * [3.6.1 Data Models](#361-data-models)
           * [3.6.2 Configuration Commands](#362-configuration-commands)
@@ -35,12 +41,21 @@
           * [3.6.5 Debug Commands](#365-debug-commands)
           * [3.6.6 Rest API Support](#366-rest-api-support)
           * [3.6.7 GNMI Support](#367-gnmi-support)
+      * [3.7 Sampled Mirroring Design](#37-sampled-mirroring-design)
+          * [3.7.1 Modules](#371-modules)
+          * [3.7.2 Data Format](#372-data-format)
+          * [3.7.3 Bandwidth Estimation](#373-bandwidth-estimation)
   * [4. Flow Diagrams](#4-flow-diagrams)
   * [5. Error Handling](#5-Error-Handling)
   * [6. Serviceability and Debug](#6-serviceability-and-debug)
   * [7. Warm Boot Support](#7-warm-boot-support)
   * [8. Scalability](#8-scalability)
   * [9. Unit Test](#9-unit-test)
+      * [9.1 CLI Test Cases](#91-cli-test-cases)
+      * [9.2 Mirror Capability Test Cases](#92-mirror-capability-test-cases)
+      * [9.3 Sampled Port Mirroring Test Cases](#93-sampled-port-mirroring-test-cases)
+          * [9.3.1 Swss Virtual Switch Tests](#931-swss-virtual-switch-tests)
+          * [9.3.2 System Tests](#932-system-tests)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -51,13 +66,17 @@
 |:---:|:-----------:|:------------------:|--------------------------------------------|
 | 0.1 | 05/17/2019  |   Rupesh Kumar      | Initial version                            |
 | 0.2 | 09/05/2025  |   Stephen Sun      | Added mirror capability discovery and validation |
-
+| 0.3 | 04/16/2026  |   Janet Cui        | Added sampled port mirroring with truncation support on ERSPAN sessions |
 
 # About this Manual
 This document provides general information about extending mirroring implementation in SONiC.
 # Scope
-This document describes the high level design of Mirroring Enhancements feature. 
+This document describes the high-level design of the Mirroring feature in SONiC, including enhancements for per-port
+sampled mirroring and packet truncation support for ERSPAN (Enhanced Remote Switched Port Analyzer) sessions.
 
+Sampled mirroring enables users to configure a sampling rate on port mirror sessions so that only a statistical
+subset of packets is mirrored, reducing bandwidth consumption on the monitor port and the collector. Packet
+truncation further reduces bandwidth by mirroring only the first N bytes of each sampled packet.
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
@@ -65,6 +84,10 @@ This document describes the high level design of Mirroring Enhancements feature.
 |--------------------------|-------------------------------------|
 |   SPAN                   |  Switched Port ANalyzer                |
 |   ERSPAN                 |  Encapsulated Remote Switched Port ANalyzer                |
+|   SAI                    | Switch Abstraction Interface |
+|   ASIC                   | Application-Specific Integrated Circuit |
+|   MirrorOrch             | Orchagent module that manages mirror sessions |
+|   CoPP                   | Control Plane Policing |
 
 
 # 1 Requirement Overview
@@ -89,6 +112,18 @@ This document describes the high level design of Mirroring Enhancements feature.
     - CLI validation for all mandatory parameters in port/portchannel mirroring.
     - CLI to allow mirror session configuration only with destination port.
 
+5. Sampled Port Mirroring with Truncation Support on ERSPAN Session
+    - Support configuring a sample_rate on ERSPAN mirror sessions (e.g., 1:50000)
+    - Sample rate is per-port, applied at ingress
+    - When sample_rate is configured, use SAI_OBJECT_TYPE_SAMPLEPACKET (TYPE=MIRROR_SESSION) instead of direct port mirror binding
+    - Support egress sampled mirroring (if SAI capability permits)
+    - CLI command: config mirror_session add ... --sample_rate <value>
+    - Show command displays sample_rate when configured
+    - Backward compatible — existing mirror sessions without sample_rate continue to work as before (full mirroring)
+    - Support configuring truncate_size on sampled mirror sessions (e.g., 128 bytes)
+    - Truncation requires SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE and SAI_SAMPLEPACKET_ATTR_TRUNCATE_SIZE
+    - CLI command: config mirror_session add ... --truncate_size <value>
+    - SAI capability check to gracefully handle platforms that do not support truncation
 
 ## 1.2 Configuration and Management Requirements
 - Existing CLI 'config mirror_session add/remove'to be extended to include source port/portchannel.
@@ -120,8 +155,73 @@ Refer section 1.1
 Mirroring to destination VLAN (RSPAN) is not supported in this release.
 
 # 3 Design
-## 3.1 Overview
+## 3.1 Sampled Mirroring Overview
+### 3.1.1 Problem Statement
+In large-scale AI clusters, network traffic monitoring is critical for debugging backend issues, optimizing job scheduling, and analyzing traffic patterns. Operators need visibility into metrics such as RDMA operation distribution, congestion hotspots, and per-job traffic behavior across thousands of switches.
 
+Current SONiC ERSPAN port mirroring mirrors every packet in full on the monitored port(s). At high line rates (e.g., 51 Tbps), this creates several problems:
+
+- Exceed monitor port bandwidth: Mirroring at full rate with ERSPAN encapsulation overhead causes mirror packet loss
+
+- Overwhelm the collector: The collector cannot process full line-rate mirrored traffic from thousands of switches
+
+- Waste bandwidth and storage: Full packet payloads are unnecessary when header-level statistical sampling is sufficient for monitoring
+Sampled mirroring solves this by only mirroring 1 out of every N packets, providing statistical visibility while keeping bandwidth consumption manageable. Packet truncation further reduces mirror bandwidth by discarding payload beyond the header bytes needed for analysis.
+
+### 3.1.2 Current State
+Currently, MirrorOrch creates a mirror session and binds it to a port using `SAI_PORT_ATTR_INGRESS_MIRROR_SESSION`, which mirrors all packets in full. There is no sampling or truncation capability.
+
+### 3.1.3 Proposed Solution
+Leverage the SAI SamplePacket object to enable per-port hardware-based sampled mirroring. When sample_rate is configured, MirrorOrch creates a SamplePacket and binds it to the port instead of using the existing full-mirror binding. When sample_rate is not configured, existing behavior is preserved. See Section 6 for detailed architecture and SAI API usage.
+
+### 3.1.4 Architecture Overview
+The following diagram shows the end-to-end control flow for sampled port mirroring with truncation:
+
+```mermaid
+ flowchart LR
+     subgraph Redis
+         config_db[(CONFIG_DB)]
+         state_db[(STATE_DB)]
+         asic_db[(ASIC_DB)]
+     end
+     subgraph SONiC Services
+         subgraph SWSS Container
+             subgraph Orchagent
+                 mirror_orch(MirrorOrch)
+             end
+         end
+         subgraph SYNCD Container
+             syncd(Syncd)
+         end
+     end
+     asic[/ASIC/]
+     cli[CLI] -->|config mirror_session erspan add| config_db
+     config_db -->|MIRROR_SESSION sample_rate, truncate_size| mirror_orch
+     mirror_orch -->|SWITCH_CAPABILITY| state_db
+     mirror_orch -->|create_mirror_session create_samplepacket set_port_attr| syncd
+     syncd -->|MIRROR_SESSION SAMPLEPACKET| asic_db
+     syncd -->|SAI API| asic
+     asic -->|ERSPAN packets| collector[Collector]
+```
+
+The key change is that MirrorOrch now creates an additional `SamplePacket` SAI object and binds it to the port using `INGRESS_SAMPLEPACKET_ENABLE` + `INGRESS_SAMPLE_MIRROR_SESSION`, instead of the existing `INGRESS_MIRROR_SESSION` used for full-packet mirroring.
+
+### 3.1.5 SAI attributes 
+The following SAI objects and attributes are involved in sampled port mirroring with truncation support on ERSPAN sessions:
+
+Sampling attributes (currently supported):
+| SAI Attribute | Object Type | Flags | Current Support |
+|---|---|---|---|
+| SAI_SAMPLEPACKET_ATTR_SAMPLE_RATE | SAMPLEPACKET | MANDATORY_ON_CREATE \| CREATE_AND_SET | Supported |
+| SAI_SAMPLEPACKET_ATTR_TYPE = MIRROR_SESSION | SAMPLEPACKET | CREATE_ONLY | Supported |
+| SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE | PORT | CREATE_AND_SET | Supported |
+| SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION | PORT | CREATE_AND_SET | Supported |
+
+Truncation attributes (pending vendor support):
+| SAI Attribute | Object Type | Flags | Current Support |
+|---|---|---|---|
+| SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE | SAMPLEPACKET | CREATE_AND_SET | June 2026 GA |
+| SAI_SAMPLEPACKET_ATTR_TRUNCATE_SIZE | SAMPLEPACKET | CREATE_AND_SET | June 2026 GA |
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
@@ -142,6 +242,21 @@ Existing table PORT_MIRROR_TABLE is enhanced to accept new source and destinatio
     direction     = RX or TX or BOTH           ; Direction RX or TX or BOTH.
 
     mirror_session_name = 1*255VCHAR
+
+#### Sampled Mirroring Extension
+
+Extend the existing `MIRROR_SESSION` table with two new optional fields:
+
+    ```
+    MIRROR_SESSION|{{session_name}}  
+        "sample_rate": {{uint32}}   (Optional)  
+        "truncate_size": {{uint32}} (Optional)
+
+    key = MIRROR_SESSION|session_name 
+    ; field = value 
+    sample_rate = uint32 ; Sampling rate. 0 = full mirror (default), N = mirror 1-in-N packets. 
+    truncate_size = uint32 ; Truncation size in bytes. 0 = no truncation (default).
+    ```
 
 ### 3.2.2 APP_DB
 No tables are introduced in APP_DB
@@ -168,6 +283,23 @@ SWITCH_CAPABILITY|switch
 ```
 
 This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions.
+
+#### Sampled Mirroring Capability Flags
+The following new capability flags are added to the existing `SWITCH_CAPABILITY` table for sampled mirroring and truncation support. 
+SwitchOrch populates these at startup by querying SAI attribute support via `sai_query_attribute_capability()`:
+
+```text
+PORT_INGRESS_SAMPLE_MIRROR_CAPABLE     = "true" | "false"    ; whether SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION is supported
+SAMPLEPACKET_TRUNCATION_CAPABLE        = "true" | "false"    ; whether SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE is supported
+```
+**Example STATE_DB entry:**
+
+```text
+ SWITCH_CAPABILITY|switch
+   PORT_INGRESS_SAMPLE_MIRROR_CAPABLE: "true"
+   SAMPLEPACKET_TRUNCATION_CAPABLE: "true"
+```
+This indicates that the platform supports sampled port mirroring and packet truncation in addition to ingress mirroring.
 
 ### 3.2.4 ASIC_DB
 No changes are introduced in ASIC_DB.·
@@ -299,6 +431,106 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
      */
     SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
 ```
+### 3.5.1 Sampled Port Mirroring SAI APIs
+Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation.
+
+#### SamplePacket Attributes
+
+More details about the [SamplePacket SAI API](https://github.com/opencomputeproject/SAI/blob/master/inc/saisamplepacket.h).
+
+```
+    /**
+      * @brief Sampling rate: 1 out of every N packets is sampled.
+      *
+      * @type sai_uint32_t
+      * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+      */
+     SAI_SAMPLEPACKET_ATTR_SAMPLE_RATE,
+ 
+     /**
+      * @brief SamplePacket type.
+      * MIRROR_SESSION type directs sampled packets to a mirror session (hardware path).
+      * SLOW_PATH type directs sampled packets to CPU (used by sFlow).
+      *
+      * @type sai_samplepacket_type_t
+      * @flags CREATE_ONLY
+      * @default SAI_SAMPLEPACKET_TYPE_SLOW_PATH
+      */
+     SAI_SAMPLEPACKET_ATTR_TYPE,
+ 
+     /**
+      * @brief Enable truncation on sampled packets.
+      *
+      * @type bool
+      * @flags CREATE_AND_SET
+      * @default false
+      */
+     SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE,
+ 
+     /**
+      * @brief Truncation size in bytes. Only valid when TRUNCATE_ENABLE is true.
+      *
+      * @type sai_uint32_t
+      * @flags CREATE_AND_SET
+      * @validonly SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE == true
+      * @default 0
+      */
+     SAI_SAMPLEPACKET_ATTR_TRUNCATE_SIZE,
+```
+
+#### Port Attributes for Sampled Mirroring
+
+More details about the [Port SAI API](https://github.com/opencomputeproject/SAI/blob/master/inc/saiport.h)
+
+```
+    /**
+      * @brief Enable/Disable SamplePacket session on port.
+      *
+      * Enable ingress sampling by assigning samplepacket object id.
+      * Disable ingress sampling by assigning SAI_NULL_OBJECT_ID.
+      *
+      * @type sai_object_id_t
+      * @flags CREATE_AND_SET
+      * @objects SAI_OBJECT_TYPE_SAMPLEPACKET
+      * @allownull true
+      * @default SAI_NULL_OBJECT_ID
+      */
+     SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE,
+ 
+    /**
+      * @brief Enable/Disable sample ingress mirroring.
+      *
+      * Enable sample ingress mirroring by assigning list of mirror object ids.
+      * Disable sample ingress mirroring by assigning object_count as 0.
+      *
+      * @type sai_object_list_t
+      * @flags CREATE_AND_SET
+      * @objects SAI_OBJECT_TYPE_MIRROR_SESSION
+      * @default empty
+      */
+     SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION,
+```
+
+#### SAI API Call Sequence
+
+**Create sampled mirror session:**
+ 
+ 1. `sai_mirror_api->create_mirror_session()` — Create ERSPAN mirror session with encapsulation attributes (src_ip, dst_ip, gre_type, dscp, ttl, etc.)
+ 2. `sai_samplepacket_api->create_samplepacket()` — Create SamplePacket object with `SAMPLE_RATE`, `TYPE=SAI_SAMPLEPACKET_TYPE_MIRROR_SESSION`, and optionally `TRUNCATE_ENABLE` + `TRUNCATE_SIZE`
+ 3. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE)` — Bind SamplePacket to port for ingress sampling
+ 4. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION)` — Bind mirror session to port for sampled packet destination
+ 
+**Delete sampled mirror session (reverse order):**
+ 
+ 1. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION)` — Clear mirror session binding (objlist count = 0)
+ 2. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE)` — Clear SamplePacket binding (SAI_NULL_OBJECT_ID)
+ 3. `sai_samplepacket_api->remove_samplepacket()` — Remove SamplePacket object
+ 4. `sai_mirror_api->remove_mirror_session()` — Remove mirror session
+
+**SAI Header References:**
+- saisamplepacket.h: https://github.com/opencomputeproject/SAI/blob/master/inc/saisamplepacket.h
+- saimirror.h: https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
+- saiport.h: https://github.com/opencomputeproject/SAI/blob/master/inc/saiport.h
 
 ## 3.6 CLI
 ### 3.6.1 Data Models
@@ -376,6 +608,9 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
            +--ro next_hop_ip?    inet:ipv4-address
 
 ```
+#### Updated YANG Model (Sampled Port Mirroring)
+
+For the updated YANG model with `sample_rate` and `truncate_size` fields, refer to: [sonic-port-mirror-session.yang](./sonic-sampled-port-mirror.yang)
 
 ### 3.6.2 Configuration Commands
 
@@ -406,6 +641,17 @@ KLISH CLI Support.
     **switch(config)# [no] mirror-session <session-name>** <br>
     **switch(config-mirror-<session-name>)# [no] destination erspan src_ip <src_ip> dst_ip <dst_ip> dscp < dscp > ttl < ttl > [ gre < gre >] [queue <queue>] [source <src_ifName> direction <rx/tx>**] [policer <policer>]<br>
 
+#### Sampled Port Mirroring on ERSPAN
+
+Extend the existing config mirror_session erspan add command with two new optional parameters (`--sample_rate` and `--truncate_size`):
+```
+    config mirror_session erspan add <session_name> \
+        <src_ip> <dst_ip> <dscp> <ttl> \
+        [gre_type] [queue] [src_port] [direction] \
+        [--policer <policer_name>] \
+        [--sample_rate <value>] [--truncate_size <value>]
+```
+
 ### 3.6.3 Show Commands
 
 The following show command display all the mirror sessions that are configured.
@@ -421,8 +667,19 @@ The following show command display all the mirror sessions that are configured.
     ------  --------  ----------  ----------  -----------  -------  ---------
     sess1   active    Ethernet24  Ethernet32  rx
 
-
 KLISH show mirror-session is same as above.
+
+#### Sampled Port Mirroring on ERSPAN
+
+The show mirror_session output is extended with two new columns (`Sample Rate` and `Truncate Size`):
+
+```
+    admin@sonic:~$  show mirror_session
+    ERSPAN Sessions
+    Name    Status    SRC IP      DST IP      GRE      DSCP    TTL  Queue    Policer    Monitor Port    SRC Port    Direction      Sample Rate    Truncate Size
+    ------  --------  ----------  ----------  -----  ------  -----  -------  ---------  --------------  ----------  -----------  -------------  ---------------
+    test1   error     10.0.1.192  10.0.1.193              8     64                                                                       50000              128
+```
 
 ###  3.6.4 Clear Commands
 No command variants of config commands take care of clear config.
@@ -469,7 +726,108 @@ The following show command display all the mirror sessions that are configured.
     # Delete specific mirror session
     # gnmi_set -delete /sonic-mirror-session:sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST[name=Mirror1] -target_addr 127.0.0.1:8080 -insecure
 ```
+
+## 3.7 Sampled Mirroring Design
+
+### 3.7.1 Modules
+
+#### 3.7.1.1 MirrorOrch (sonic-swss/orchagent)
+
+MirrorOrch is the primary module modified for this feature. It is extended to manage the lifecycle of SamplePacket SAI objects alongside the existing mirror session objects. See Section 3.1.4 for the architecture overview and Section 4 for the detailed workflow.
+
+### 3.7.2 Data Format
+
+The mirrored packet goes through the following processing in the ASIC hardware pipeline:
+1. Sampling: For each ingress packet on the monitored port, a hardware counter is incremented. When the counter reaches N (the configured sample_rate), the packet is selected for mirroring.
+2. Truncation: The selected packet is truncated to the configured truncate_size (e.g., 128 bytes). Only the packet headers are retained.
+3. GRE encapsulation: The truncated packet is encapsulated with outer headers for tunneling to the collector.
+4. Forwarding: The encapsulated mirror packet is forwarded to the monitor port and routed to the collector. The original packet continues normal forwarding unaffected.
+
+Encapsulation format (GRE type 0x8949):
+
+ ![Encapsulation Format](./encapsulation-format.jpg)
+
+Total mirror packet size: 128B + 62B overhead = 190 bytes (estimated)
+
+Encapsulation overhead: 62 bytes. The overhead includes the outer Ethernet header (14B), outer IP header (20B), and GRE with vendor-specific header (28B).
+
+### 3.7.3 Bandwidth Estimation
+
+The following table shows the mirror bandwidth estimation for a 51T switch (64x800G ports) with an average packet size of 3.7KB at 100% line rate:
+
+| Metric | Value |
+|---|---|
+| Total ingress throughput | ~1.72G pps |
+| After 1:50,000 sampling | ~34,400 pps |
+| Mirror BW without truncation | ~1.03 Gbps per switch |
+| Mirror BW with 128B truncation (+ 62B encap overhead) | ~52 Mbps per switch |
+
+Truncation reduces mirror bandwidth by approximately 95%, making it feasible to collect sampled traffic from thousands of switches simultaneously.
+
 # 4 Flow Diagrams
+
+The following diagram shows the create and delete workflow for sampled mirror sessions, including fallback paths for unsupported platforms and sFlowOrch conflict handling:
+```mermaid
+sequenceDiagram
+     autonumber
+     box Redis
+         participant config_db as CONFIG_DB
+         participant state_db as STATE_DB
+     end
+     box SWSS container
+         participant mirror_orch as MirrorOrch
+     end
+     box SYNCD container
+         participant syncd as Syncd
+     end
+     participant asic as ASIC
+     Note over config_db,asic: === Create Sampled Mirror Session ===
+     config_db ->> mirror_orch: MIRROR_SESSION|session1<br/>{sample_rate: 50000, truncate_size: 128, ...}
+     mirror_orch ->> state_db: Query SWITCH_CAPABILITY
+     state_db -->> mirror_orch: capabilities
+     mirror_orch ->> syncd: create_mirror_session(ERSPAN encap attrs)
+     syncd ->> asic: SAI create mirror session
+     syncd -->> mirror_orch: mirror_oid
+     alt Sampled mirroring not supported
+         mirror_orch ->> mirror_orch: Log warning, fall back to full mirror (no sampling)
+         mirror_orch ->> syncd: set_port_attr(INGRESS_MIRROR_SESSION = mirror_oid)<br/>Full packet mirroring, no sampling
+         syncd ->> asic: SAI set port attribute
+     else Sampled mirroring supported
+         alt sFlowOrch has SAMPLEPACKET_ENABLE on this port
+             mirror_orch ->> mirror_orch: Conflict! Log warning,<br/>fall back to full mirror (no sampling)
+             mirror_orch ->> syncd: set_port_attr(INGRESS_MIRROR_SESSION = mirror_oid)<br/>Full packet mirroring, no sampling
+             syncd ->> asic: SAI set port attribute
+         else No sFlowOrch conflict
+             alt Truncation not supported
+                 mirror_orch ->> mirror_orch: Log warning, skip truncation
+                 mirror_orch ->> syncd: create_samplepacket<br/>(SAMPLE_RATE=50000, TYPE=MIRROR_SESSION)
+             else Truncation supported
+                 mirror_orch ->> syncd: create_samplepacket<br/>(SAMPLE_RATE=50000, TYPE=MIRROR_SESSION,<br/>TRUNCATE_ENABLE=true, TRUNCATE_SIZE=128)
+             end
+             syncd ->> asic: SAI create samplepacket
+             syncd -->> mirror_orch: samplepacket_oid
+             mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLEPACKET_ENABLE)<br/>Enable hardware sampling on port
+             syncd ->> asic: SAI set port attribute
+             mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLE_MIRROR_SESSION)<br/>Bind mirror session for sampled packets
+             syncd ->> asic: SAI set port attribute
+         end
+     end
+     Note over config_db,asic: === Delete Mirror Session ===
+     config_db ->> mirror_orch: DEL MIRROR_SESSION|session1
+     alt Session is using sampled path (samplepacketId != NULL)
+         mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLE_MIRROR_SESSION = empty)
+         syncd ->> asic: SAI clear port attribute
+         mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLEPACKET_ENABLE = NULL)
+         syncd ->> asic: SAI clear port attribute
+         mirror_orch ->> syncd: remove_samplepacket(samplepacket_oid)
+         syncd ->> asic: SAI remove samplepacket
+     else Session is using full mirror path (no sampling)
+         mirror_orch ->> syncd: set_port_attr(INGRESS_MIRROR_SESSION = empty)
+         syncd ->> asic: SAI clear port attribute
+     end
+     mirror_orch ->> syncd: remove_mirror_session(mirror_oid)
+     syncd ->> asic: SAI remove mirror session
+```
 
 # 5 Error Handling
 
@@ -535,6 +893,8 @@ The error handling follows a two-stage validation process:
 
 # 7 Warm Boot Support
 The mirroring configurations be retained across warmboot so that source traffic gets mirrored properly to destination port.
+
+Warmboot/fastboot support is not required in Sampled Port Mirroring.
 
 # 8 Scalability
 
@@ -639,3 +999,27 @@ The following test cases validate the mirror capability discovery and validation
 |------|-------------------|
 | 25 | Verify that capability checking fails when direction is not supported |
 | 26 | Verify that the mirror capability is inserted into the STATE_DB |
+
+## 9.3 Sampled Port Mirroring Test Cases
+
+### 9.3.1 Swss Virtual Switch Tests
+
+| S.No | Test Case Synopsis |
+|------|-------------------|
+| 27 | Verify that SAMPLEPACKET object is created in ASIC_DB when sample_rate > 0 |
+| 28 | Verify that SAMPLEPACKET has correct TYPE=MIRROR_SESSION and SAMPLE_RATE attributes |
+| 29 | Verify that port attributes INGRESS_SAMPLEPACKET_ENABLE and INGRESS_SAMPLE_MIRROR_SESSION are set correctly |
+| 30 | Verify that no SAMPLEPACKET is created when sample_rate = 0 (backward compatibility) |
+| 31 | Verify that SAMPLEPACKET and port attributes are removed in correct order on session deletion |
+| 32 | Verify that truncation attributes (TRUNCATE_ENABLE, TRUNCATE_SIZE) are set when truncate_size > 0 |
+
+### 9.3.2 System Tests
+
+| S.No | Test Case Synopsis |
+|------|-------------------|
+| 33 | Verify that sampled mirror session can be created via CLI with --sample_rate and --truncate_size |
+| 34 | Verify that show mirror_session displays Sample Rate and Truncate Size columns |
+| 35 | Verify that mirrored traffic rate matches expected sampling ratio (1:N) |
+| 36 | Verify that mirrored packets are truncated to configured size |
+| 37 | Verify backward compatibility: mirror session without sample_rate works as full mirror |
+| 38 | Verify fallback to full mirror when platform does not support sampled mirroring |
