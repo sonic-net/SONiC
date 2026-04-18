@@ -20,6 +20,7 @@
   - [YANG Model schema](#yang-model-schema)
   - [Option 79 for client link-layer address](#option-79-for-client-link-layer-address)
   - [Option for Dual ToR](#option-for-dual-tor)
+  - [Routed Port Support](#routed-port-support)
   - [Feature table](#feature-table)
   - [RADV modification](#radv-modification)
   - [CoPP manager](#copp-manager)
@@ -29,7 +30,7 @@
 
 # Scope
 
-This document describes high level design details of SONiC's DHCPv6 relay agent.
+This document describes high level design details of SONiC's DHCPv6 relay agent. The relay agent supports both VLAN interfaces and routed ports.
 
 # Definition
 
@@ -93,7 +94,7 @@ options: include a &quot;Relay Message option&quot;
 
 # DHCPv6 Packet Forwarding
 
-The DHCPv6 relay agent on the routing switch forwards DHCPv6 client packets to all DHCPv6 servers that are configured in the table administrated for each VLAN.
+The DHCPv6 relay agent on the routing switch forwards DHCPv6 client packets to all DHCPv6 servers that are configured in the table administrated for each VLAN and routed port.
 
 A DHCPv6 client locates a DHCPv6 server using a reserved, link-scoped multicast address.
 
@@ -123,7 +124,7 @@ The packets are forwarded to configurable IPv6 helpers addresses.
 
 - Configured and running DHCPv6 client and server
 - Connectivity between the relay agent and DHCPv6 server
-- Configure one or more IP helper addresses for specified VLANs to forward DHCPv6 requests to DHCPv6 servers on other subnets.
+- Configure one or more IP helper addresses for specified VLANs and routed ports to forward DHCPv6 requests to DHCPv6 servers on other subnets.
 - Client UDP port:546
 - Server and Relay Agent UDP port: 547
 
@@ -166,6 +167,8 @@ RELAY-REPLY
 DHCP|intf-i|dhcpv6_servers: [&quot;dhcp-server-0&quot;, &quot;dhcp-server-1&quot;, ...., &quot;dhcp-server-n-1&quot;]
 
 DHCP|intf-i|dhcpv6_option|rfc6939_support: &quot;true&quot;
+
+Note: intf-i can be a VLAN interface (e.g., Vlan1000) or a routed port (e.g., Ethernet4)
 </pre>
 
 # YANG Model schema
@@ -174,10 +177,10 @@ sonic-dhcpv6-relay.yang
 <pre>
 module DHCP  
     container DHCP {  	
-        list VLAN_LIST {
+        list INTERFACE_LIST {
     		key name;
    		    leaf name {
-    			type string;
+    			type string;  // VLAN interface or routed port
   		    }
    		    leaf dhcpv6_servers {
      		    	type inet6:ip-address;
@@ -196,7 +199,17 @@ Option 79 should be enabled by default and can be disabled through command line.
 
 # Option for Dual ToR
 
-Relayed DHCPv6 packet from ToR may have the response routed to the peer ToR that has the link as standby. Since the originating client is not active on this ToR, the peer ToR won't be able to relay the response. Peer ToR will not receive the packets as the originating client is not active on this ToR. Instead of using Vlan SVI IP address, relay agent source address needs to be set to listen on the loopback address. When DHCP server responses are received by relay agent on the peer ToR, DHCP relay agent would then forward the packet to the peer ToR using its loopback IP interface.
+Relayed DHCPv6 packet from ToR may have the response routed to the peer ToR that has the link as standby. Since the originating client is not active on this ToR, the peer ToR won't be able to relay the response. Peer ToR will not receive the packets as the originating client is not active on this ToR. Instead of using the interface IP address (VLAN SVI or routed port), relay agent source address needs to be set to listen on the loopback address. When DHCP server responses are received by relay agent on the peer ToR, DHCP relay agent would then forward the packet to the peer ToR using its loopback IP interface.
+
+# Routed Port Support
+
+The DHCPv6 relay agent supports routed ports in addition to VLAN interfaces. This enhancement allows DHCPv6 relay functionality on L3 interfaces configured in the INTERFACE table without requiring VLAN encapsulation. Key aspects of routed port support include:
+
+- **Interface Types**: Both VLAN interfaces and routed ports (physical Ethernet interfaces with L3 configuration) can act as downstream interfaces for DHCPv6 relay
+- **Configuration Tables**: Both VLAN_INTERFACE and INTERFACE tables are monitored for relay configuration
+- **Socket Management**: L3 sockets are used for routed ports, bound to specific interfaces similar to VLAN interfaces
+- **Link-address Field**: For routed ports, the relay agent uses the global IPv6 address configured on the routed interface as the link-address in Relay-Forward messages
+- **Client Identification**: Option 79 (client link-layer address) works identically for both VLAN and routed port scenarios
 
 # Feature table
 
@@ -216,7 +229,7 @@ Control Plane Policing manager is currently configured to only trap DHCPv6 packe
 
 # Source IP
 
-VLAN SVI IP
+Interface IP (VLAN SVI or routed port)
 
 Configurable option to use loopback address for dual ToR
 

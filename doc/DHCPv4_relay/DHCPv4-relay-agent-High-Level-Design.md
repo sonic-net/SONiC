@@ -25,6 +25,7 @@
         - [5.1.3 Interop with Port-Based DHCP Server](#513-interop-with-port-based-dhcp-server)
         - [5.1.4 DHCP Monitor](#514-dhcp-monitor)
         - [5.1.5 Dual-Tor Support](#515-dual-tor-support)
+        - [5.1.6 Routed Port Support](#516-physical-port-support)
     - [6. Detailed Design](#6-detailed-design)
       - [6.1 DHCPv4 Config Manager](#61-dhcpv4-config-manager)
       - [6.2 Relay Main](#62-relay-main)
@@ -55,10 +56,11 @@
 | Rev |     Date    |         Author        |          Change Description      |
 |:---:|:-----------:|:---------------------:|:--------------------------------:|
 | 1.0 | 02/28/2025  | Ashutosh Agrawal      | Initial Version                  |
+| 2.0 | 03/25/2026  | Devesh Pathak         | Added routed port support and circuit-id configuration |
 
 ### 2. Scope
 
-This document describes high level design details of SONiC's new DHCPv4 relay agent.
+This document describes high level design details of SONiC's new DHCPv4 relay agent. The relay agent supports both VLAN interfaces and routed ports.
 
 ### 3. Definitions
 
@@ -102,7 +104,9 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
 - **R0:** Support basic DHCP Relay Functionality described in the previous section.
 
-- **R1:** Support clients in multiple VLANs from the same process.
+- **R1:** Support clients in multiple VLANs and routed ports from the same process.
+
+- **R1a:** Support DHCP relay on routed ports, in addition to VLAN interfaces.
 
 - **R2:** Support client and servers in both default and non-default VRFs.
 
@@ -144,7 +148,8 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
     - Number of VRFs - 1024
     - Number of VLANs - 4096
-    - Number of DHCP Servers per VLAN - 32
+    - Number of Routed Ports - 1024
+    - Number of DHCP Servers per interface (VLAN or routed port) - 32
 
 -  **R14:** This proposed DHCP relay agent will need to support all the functionality that has been added over the years in the community through various patches. The complete backward compatibitlity with ISC DHCP is an aspirational goal.
 
@@ -170,22 +175,33 @@ In a dual-TOR (Top-of-Rack) architecture, it's possible for DHCP request packets
 
 By enabling the link-selection option, the DHCP relay will use the interface specified by the source-interface option to populate the giaddr field in the packet. When the loopback interface is set as the source-interface, the DHCP request packet sent from the client will have the loopback IP of the originating TOR in the giaddr field. If the DHCP response arrives at the peer TOR, which is in standby mode, it will simply route the packet to the originating ToR. Once the originating TOR receives the response, it can forward the packet to the client through its active interface, as it normally would.
 
+##### 5.1.6 Routed Port Support
+The DHCPv4 relay agent now supports routed ports in addition to VLAN interfaces. This enhancement allows DHCP relay functionality on L3 interfaces configured in the INTERFACE table without requiring VLAN encapsulation. Key aspects of routed port support include:
+
+- **Socket Management**: L3 sockets with SO_BINDTODEVICE are used for routed ports, bound to specific interfaces
+- **Interface Mapping**: For VLANs, member ports map to the VLAN (e.g., Ethernet0 → Vlan100). For routed ports, the port maps to itself (e.g., Ethernet4 → Ethernet4)
+- **Circuit ID Formats**: Multiple configurable formats support both VLAN and routed port scenarios
+- **Configuration Tables**: Both VLAN_INTERFACE and INTERFACE tables are monitored for relay configuration
+
 ### 6. Detailed Design
 
-DHCPv4 relay process will run in the dhcp_relay container along with DHCPv6 processes and DhcpMon. A single instance of the process will handle DHCPv4 relay functionality of all the VLANs that are configured. This process will listen to Redis for all the necessary configuration updates and will not require restarting of the container. The design is split into 3 sub-modules and the following diagram provides an overview of how they interact with each other:
+DHCPv4 relay process will run in the dhcp_relay container along with DHCPv6 processes and DhcpMon. A single instance of the process will handle DHCPv4 relay functionality of all the VLANs and routed ports that are configured. This process will listen to Redis for all the necessary configuration updates and will not require restarting of the container. The design is split into 3 sub-modules and the following diagram provides an overview of how they interact with each other:
 
 <div align="center"> <img src=images/DHCPv4_Relay_sequence_diagram.png width=700 /> </div>
 
 #### 6.1 DHCPv4 Config Manager
 
 The Config Manager thread is responsible for subscribing to the Redis database to receive updates on necessary configurations and synchronizing these updates with the main thread. The following is a non-exhaustive list of the tables monitored by the Config Manager thread.:
-- **DHCPV4_RELAY Table**: For relay configuration on VLAN interfaces
+- **DHCPV4_RELAY Table**: For relay configuration on VLAN and physical port interfaces
+- **VLAN_INTERFACE Table:** For VLAN interface configurations
+- **INTERFACE Table:** For routed port configurations
+- **PORT Table:** For routed port attributes including circuit_id, circuit_id_format, and max_hop_count
 - **INTF Table:** For mapping source interfaces to IP addresses when the source-interface parameter is enabled in the relay configuration.
 - **VRF Table:** For creating sockets to send packets to Server.
 - **FEATURE Table:** To check if port based `dhcp_server` feature is enabled.
-- **DEVICE_METADATA Table:** To populate hostname and device mac in circuit-id/remote-id and also to check if device is a smartSwitch.
+- **DEVICE_METADATA Table:** To populate hostname, device mac, and chassis-id in circuit-id/remote-id and also to check if device is a smartSwitch.
 - **DHCP_SERVER_IPV4_SERVER_IP Table:** From StateDB to get server-IP for port-based dhcp_server.
-- **DHCP_SERVER_IPV4 Table:** For per-VLAN port-based DHCP server configuration
+- **DHCP_SERVER_IPV4 Table:** For per-interface port-based DHCP server configuration
 - **VLAN Table:** To ensure that VLAN exists before starting any DHCPv4 relay functionality and get associated VRF id.
 
 #### 6.2 Relay Main
@@ -198,9 +214,9 @@ Depending on the configurations, Relay Main establishes sockets to receive and t
 
 - **Capturing Rx Packets:** It opens a socket listening on UDP port 67 with the ETH_ALL option to capture DHCPv4 packets on all the interfaces. This socket will capture packets from both server and client.
 
-- **Sending Packets to the Server:** For transmitting packets to the server, Relay Main opens and binds a socket for the server VRF. If no server VRF is specified in the DHCPV4_RELAY table, the client and server are assumed to be in the same VRF and client-side VLAN_interface table's VRF field is used to bind the socket.
+- **Sending Packets to the Server:** For transmitting packets to the server, Relay Main opens and binds a socket for the server VRF. If no server VRF is specified in the DHCPV4_RELAY table, the client and server are assumed to be in the same VRF and client-side interface table's (VLAN_INTERFACE or INTERFACE) VRF field is used to bind the socket.
 
-- **Sending Packets to the Client:** A socket is opened on the client-side VLAN to forward DHCPv4 packets to the client. This socket is used to broadcast DHCP Offer and Ack packets in the client's VLAN.
+- **Sending Packets to the Client:** A socket is opened on the client-side interface (VLAN or routed port) to forward DHCPv4 packets to the client. For VLANs, this socket is used to broadcast DHCP Offer and Ack packets. For routed ports, L3 sockets with SO_BINDTODEVICE are used, bound to the specific interface.
 
 When the DHCPv4 relay feature is enabled, the Control Plane Policing (CoPP) manager will configure appropriate trap rules, ensuring that DHCPv4 packets are trapped and rate-limited by the Network Processing Unit (NPU). Once these packets reach the kernel, the DHCP relay main process captures them through the previously described socket mechanisms.
 
@@ -212,16 +228,21 @@ The relay process first inspects the Opcode in the DHCP header to decide how to 
 
 The processing steps are as follows:
 -	**Packet Validation:** The relay process parses the packet headers to check for any invalid fields, such as hlen or hop_count.
--	**Interface Identification:** It identifies the incoming interface from the socket structure and retrieves the associated VLAN and DHCPv4 relay configuration.
+-	**Interface Identification:** It identifies the incoming interface from the socket structure and retrieves the associated interface (VLAN or routed port) and DHCPv4 relay configuration.
 -	**Configuration Check:** If the interface IP is absent or there is no DHCPv4 relay configuration, the packet is returned to the kernel.
 -   **giaddr selection:** If source-interface is programmed in the ConfigDB entry, corresponding interface IP is used as the giaddr of the relayed packet. Otherwise, giaddr is set to the incoming interface IP address.
 -	**Adding Relay Sub-options:** Depending on the configuration, various relay sub-options are added to the packet:
-    - Circuit-ID: Always inserted, it includes the `hostname` from the Device Metadata table, interface alias from the Port Table, and VLAN ID, all separated by a colon. If `hostname` is not present in the Device Metadata table, `sonic` is used as hostname instead.
+    - Circuit-ID: Always inserted. The format depends on the `circuit_id_format` configuration:
+        - **default**: `hostname:interface_alias:vlan` (for VLANs) or `hostname:interface_alias` (for routed ports)
+        - **interface_ip**: `interface_ip`
+        - **custom**: User-defined string from `circuit_id` field
+
+        If `chassis_id` is configured in DEVICE_METADATA table, it is used instead of `hostname`. If neither is present, `sonic` is used as default.
 
 
         | Subopt | Len | Circuit ID |
         | -------|-----|-------------------------------|
-        |    1   |  n  | hostname:interface_alias:vlan |
+        |    1   |  n  | Format based on circuit_id_format configuration |
 
     - Remote-ID: Also always inserted, this option carries the MAC address from the localhost|mac field in the DEVICE_METADATA table.
 
@@ -258,15 +279,15 @@ For packets arriving with an Opcode of BOOTREPLY, the DHCP relay agent undertake
 
 #### 6.3 Stats Manager
 
-The Stats Manager operates as a separate thread within the DHCPv4 relay process and periodically updates per-VLAN relay statistics in the Counters DB. Additionally, an optional CLI or signal handler allows for on-demand updates to the Counters DB.
+The Stats Manager operates as a separate thread within the DHCPv4 relay process and periodically updates per-interface relay statistics in the Counters DB. Additionally, an optional CLI or signal handler allows for on-demand updates to the Counters DB.
 
-The Stats Manager focuses on packet counting within the context of the client-side VLAN only. For client-to-server traffic, both Rx and Tx counters increase for the incoming VLAN. If multiple DHCPv4 servers are configured on a VLAN, the Rx count increases once, while the Tx count increments multiple times (once for each server copy). For server-to-client traffic, the client-side VLAN interface is identified from the DHCP header, and then the Rx/Tx counters are updated in the context of the client-side VLAN.
+The Stats Manager focuses on packet counting within the context of the client-side interface (VLAN or routed port). For client-to-server traffic, both Rx and Tx counters increase for the incoming interface. If multiple DHCPv4 servers are configured on an interface, the Rx count increases once, while the Tx count increments multiple times (once for each server copy). For server-to-client traffic, the client-side interface is identified from the DHCP header, and then the Rx/Tx counters are updated in the context of the client-side interface.
 
-It's important to note that the DHCPv4 relay process relies on the kernel for packet forwarding and is unaware of the destination physical interface, thus lacking support for per-physical interface counters. Additionally, if the DHCP server is not directly attached to the switch and requires a VXLAN tunnel for reachability in EVPN topologies, packets are sent/received on an L3VNI interface, and the relay process does not provide counters for the server-side interface context.
+It's important to note that the DHCPv4 relay process relies on the kernel for packet forwarding and is unaware of the destination physical interface for server-side traffic, thus lacking support for per-physical interface counters on the server side. Additionally, if the DHCP server is not directly attached to the switch and requires a VXLAN tunnel for reachability in EVPN topologies, packets are sent/received on an L3VNI interface, and the relay process does not provide counters for the server-side interface context.
 
 A proposed enhancement, as outlined in the DHCPv4 Relay Per-Interface Counter document, aims to address the need for detailed per-interface and additional counters necessary for monitoring and debugging the DHCPv4 relay process.
 
-- **Example 1:** Consider a scenario where Vlan10 is configured with a DHCPv4 relay pointing to a single server IP. Upon the completion of the initial DORA (Discover, Offer, Request, Acknowledgment) exchange, executing the command show dhcpv4relay_counter would display a count of 1 in both the Rx and Tx directions for each of the DORA messages on Vlan10. Importantly, there would be no increment in counters on the server-facing VLAN interface, as the counters are specific to the client-facing interface interactions.
+- **Example 1:** Consider a scenario where Vlan10 is configured with a DHCPv4 relay pointing to a single server IP. Upon the completion of the initial DORA (Discover, Offer, Request, Acknowledgment) exchange, executing the command show dhcpv4relay_counter would display a count of 1 in both the Rx and Tx directions for each of the DORA messages on the interface. Importantly, there would be no increment in counters on the server-facing interface, as the counters are specific to the client-facing interface interactions.
 
         +-------------+-------+-------+-------+-------+
         | Vlan (RX)   |   Dis |   Off |   Req |   Ack |
@@ -335,6 +356,10 @@ module sonic-dhcpv4-relay {
     contact "SONiC";
     description "DHCPv4 Relay yang Module for SONiC OS";
 
+    revision 2026-03-25 {
+        description "Second Revision - Added routed port support and circuit-id configuration";
+    }
+
     revision 2024-12-30 {
         description "First Revision";
     }
@@ -347,14 +372,15 @@ module sonic-dhcpv4-relay {
                 key "name";
 
                 leaf name {
-                    description "VLAN ID";
+                    description "Interface name - VLAN or routed port";
                     type union {
-                        // Comment VLAN leaf reference here until libyang back-links issue is resolved and use VLAN string pattern
-                        // type leafref {
-                        //     path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
-                        // }
+                        // VLAN interface
                         type string {
                             pattern 'Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4])';
+                        }
+                        // Routed port
+                        type leafref {
+                            path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
                         }
                     }
                }
@@ -431,6 +457,21 @@ module sonic-dhcpv4-relay {
                     }
                     default 4;
                 }
+
+                leaf circuit_id_format {
+                    description "Format for Circuit ID sub-option";
+                    type enumeration {
+                        enum default;
+                        enum interface_ip;
+                        enum custom;
+                    }
+                    default default;
+                }
+
+                leaf circuit_id {
+                    description "Custom Circuit ID value (used when circuit_id_format is 'custom')";
+                    type string;
+                }
             }
             /* end of DHCPV4_RELAY_LIST */
         }
@@ -446,8 +487,9 @@ module sonic-dhcpv4-relay {
 
 #### 8.1 Config-DB
 
-A new table, named DHCPV4_RELAY, will be introduced in the config-db to define DHCP relay configurations on a VLAN. This table will act as the authoritative source for DHCPv4 relay settings. For backward compatibility, existing configurations through VLAN mode will remain supported. The current VLAN-based CLI, which adds a dhcpv4_servers field to the VLAN table, will continue to function temporarily. The existing config CLI will be enhanced to add dhcpv4 server configuration to both VLAN and DHCPv4 tables. Once the ISC-DHCP code is deprecated, this CLI will be updated to record server information in the DHCPV4_RELAY table only. Similarly, a VLAN show command will retrieve the relevant DHCPv4 configuration from the DHCPV4_RELAY table instead of the VLAN table, ensuring that users can seamlessly transition to the new configuration model without disruption.
+A new table, named DHCPV4_RELAY, will be introduced in the config-db to define DHCP relay configurations on both VLAN interfaces and routed ports. This table will act as the authoritative source for DHCPv4 relay settings. For backward compatibility, existing configurations through VLAN mode will remain supported. The current VLAN-based CLI, which adds a dhcpv4_servers field to the VLAN table, will continue to function temporarily. The existing config CLI will be enhanced to add dhcpv4 server configuration to both VLAN and DHCPv4 tables. Once the ISC-DHCP code is deprecated, this CLI will be updated to record server information in the DHCPV4_RELAY table only. Similarly, show commands will retrieve the relevant DHCPv4 configuration from the DHCPV4_RELAY table instead of the VLAN table, ensuring that users can seamlessly transition to the new configuration model without disruption.
 
+**Example 1: VLAN Interface Configuration**
 ```
 {
     "DHCPV4_RELAY": {
@@ -458,7 +500,39 @@ A new table, named DHCPV4_RELAY, will be introduced in the config-db to define D
             "link_selection": "enable",
             "vrf_selection": "enable",
             "server_id_override": "enable",
-            "agent_relay_mode": "forward_untouched"
+            "agent_relay_mode": "forward_untouched",
+            "circuit_id_format": "default",
+            "chassis_id": "my-chassis-01"
+        }
+    }
+}
+```
+
+**Example 2: Routed Port Configuration**
+```
+{
+    "DHCPV4_RELAY": {
+        "Ethernet4": {
+            "dhcpv4_servers": ["10.0.0.1", "10.0.0.2"],
+            "circuit_id_format": "custom",
+            "circuit_id": "CustomCircuitID",
+            "max_hop_count": "10"
+        }
+    },
+    "INTERFACE": {
+        "Ethernet4|192.168.1.1/24": {}
+    }
+}
+```
+
+**Example 3: DEVICE_METADATA with chassis_id**
+```
+{
+    "DEVICE_METADATA": {
+        "localhost": {
+            "hostname": "sonic-switch",
+            "mac": "00:11:22:33:44:55",
+            "chassis_id": "chassis-rack1-switch2"
         }
     }
 }
@@ -483,7 +557,7 @@ A new DHCPV4_RELAY_COUNTER table will be added in the Counter DB.
 
 #### 9.1 Configuration CLI
 
-DHCPv4 relay configurations can be established using VLAN mode or directly through DHCPV4_RELAY settings.
+DHCPv4 relay configurations can be established using VLAN mode, routed port mode, or directly through DHCPV4_RELAY settings.
 
 ##### 9.1.1 Existing CLI to add/del relay configuration in the VLAN table
 
@@ -492,21 +566,23 @@ These existing CLIs can be used to ```add``` or ```delete``` DHCPv4 Relay helper
 - **Usage**
 ```CMD
 sudo config vlan dhcp_relay ipv4 (add | del) <vlan_id> <dhcp_relay_destination_ips>
-sudo config dhcp_relay ipv4 helper (add | del) <vlan_id> <dhcp_helper_ips>
+sudo config dhcp_relay ipv4 helper (add | del) <interface_name> <dhcp_helper_ips>
 ```
 
 - **Examples**
 ```
 sudo config vlan dhcp_relay add 1000 7.7.7.7
 sudo config dhcp_relay ipv4 helper add 1000 7.7.7.7 1.1.1.1
+sudo config dhcp_relay ipv4 helper add Ethernet4 10.0.0.1
 sudo config vlan dhcp_relay del 1000 7.7.7.7
 sudo config dhcp_relay ipv4 helper del 1000 7.7.7.7
+sudo config dhcp_relay ipv4 helper del Ethernet4 10.0.0.1
 ```
 
-##### 9.1.2 New CLI to write into a DHCPV4_RELAY table with VLAN as the key
+##### 9.1.2 New CLI to write into a DHCPV4_RELAY table with interface name as the key
 - **Usage**<br>
 
-    -  Add dhcpv4 relay configuration on a VLAN<br>
+    -  Add dhcpv4 relay configuration on an interface (VLAN or routed port)<br>
 
         ```CMD
         root@sonic:/home/cisco# config dhcpv4_relay ipv4 helper add -h
@@ -527,25 +603,39 @@ sudo config dhcp_relay ipv4 helper del 1000 7.7.7.7
                               discard>              How to forward packets that already have a relay
                                                     option
           --max-hop-count <1..16>                   Maximum hop count for relayed packets
+          --circuit-id-format <default|interface_ip|
+                               vlan_name|custom>    Format for Circuit ID sub-option
+          --circuit-id <string>                     Custom Circuit ID value (used with custom format)
+          --chassis-id <string>                     Chassis ID to use in Circuit ID
           --dhcpv4-servers <ipv4_address_list>      Server IPv4 address list
           -h, -?, --help                            Show this message and exit.
         ```
 
     - Delete an existing relay configuration<br>
         ```
-        sudo config dhcp_relay ipv4 helper del Vlan<vlan_num>
+        sudo config dhcp_relay ipv4 helper del <interface_name>
         ```
 
     - Update relay configuration for an existing entry<br>
 
         ```
-        sudo config dhcpv_relay ipv4 helper update Vlan<vlan_num> [OPTIONS]
+        sudo config dhcpv_relay ipv4 helper update <interface_name> [OPTIONS]
         ```
 
 - **Examples**
     * Add a list of dhcpv4 servers to Vlan11<br>
         ```
         config dhcp_relay ipv4 helper add Vlan11 --dhcpv4-servers 192.168.11.1,192.168.11.2
+        ```
+
+    * Add dhcpv4 relay configuration on a routed port<br>
+        ```
+        config dhcp_relay ipv4 helper add Ethernet4 --dhcpv4-servers 10.0.0.1,10.0.0.2
+        ```
+
+    * Configure custom Circuit ID on a routed port<br>
+        ```
+        config dhcp_relay ipv4 helper add Ethernet4 --dhcpv4-servers 10.0.0.1 --circuit-id-format custom --circuit-id "CustomCircuitID"
         ```
 
     * Specify Source Interface of the DHCP relay agent<br>
@@ -606,22 +696,24 @@ root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 
 ```
 root@sonic:/home/cisco# show dhcp_relay ipv4 helper
-NAME    SERVER VRF    SOURCE INTERFACE    LINK SELECTION    VRF SELECTION    SERVER ID OVERRIDE    AGENT RELAY MODE       MAX HOP COUNT  DHCPV4 SERVERS
-------  ------------  ------------------  ----------------  ---------------  --------------------  -------------------  ---------------  ----------------
-Vlan12  Vrf01         Loopback0           enable            enable           enable                forward_and_replace                4  192.168.12.1
-                                                                                                                                         192.168.12.2
+NAME       SERVER VRF    SOURCE INTERFACE    LINK SELECTION    VRF SELECTION    SERVER ID OVERRIDE    AGENT RELAY MODE       MAX HOP COUNT  CIRCUIT ID FORMAT  CHASSIS ID           DHCPV4 SERVERS
+---------  ------------  ------------------  ----------------  ---------------  --------------------  -------------------  ---------------  -----------------  -------------------  ----------------
+Vlan12     Vrf01         Loopback0           enable            enable           enable                forward_and_replace                4  default            chassis-rack1-sw2    192.168.12.1
+                                                                                                                                                                                      192.168.12.2
+Ethernet4  -             -                   disable           disable          disable               forward_untouched               10  custom             -                    10.0.0.1
+                                                                                                                                                                                      10.0.0.2
 ```
 
-##### 9.2.3 New Show CLI to report per-VLAN interface counters
+##### 9.2.3 New Show CLI to report per-interface counters
 
-These CLIs show the number of DHCPv4 packets received and transmitted in the context of a client side VLAN interface.
+These CLIs show the number of DHCPv4 packets received and transmitted in the context of a client side interface (VLAN or routed port).
 
 - Usage
 
     * Show counters syntax
         ```
         # show dhcp4relay_counters counts --help
-        Usage: show dhcp4relay counters counts [OPTIONS] VLAN_INTERFACE
+        Usage: show dhcp4relay counters counts [OPTIONS] INTERFACE
 
         Options:
           -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
@@ -633,7 +725,7 @@ These CLIs show the number of DHCPv4 packets received and transmitted in the con
     * Clear counters syntax
         ```
         # sonic-clear dhcp4relay counters --help
-        Usage: sonic-clear dhcp4relay counters [OPTIONS] [VLAN_INTERFACE]
+        Usage: sonic-clear dhcp4relay counters [OPTIONS] [INTERFACE]
 
           Clear dhcp4relay message counts
 
@@ -647,7 +739,7 @@ These CLIs show the number of DHCPv4 packets received and transmitted in the con
    * Alternate Show counters syntax
         ```
         # show dhcp_relay ipv4 counters --help
-        Usage: show dhcp_relay ipv4 counters [OPTIONS] VLAN_INTERFACE
+        Usage: show dhcp_relay ipv4 counters [OPTIONS] INTERFACE
 
         Options:
           -d, --direction [TX|RX]         Specify TX(egress) or RX(ingress)
@@ -688,6 +780,11 @@ These CLIs show the number of DHCPv4 packets received and transmitted in the con
         +-------------+------+-------+-------+-------+-------+--------+-------+-------+-------+-------+-------+
         ```
 
+    * Show only counters for routed port Ethernet4
+        ```
+        show dhcpv4relay_counter counts Ethernet4
+        ```
+
     * Show only Rx packets for Vlan10
         ```
         show dhcpv4relay_counter counts Vlan10 --direction RX
@@ -695,6 +792,10 @@ These CLIs show the number of DHCPv4 packets received and transmitted in the con
     * Show only discover packets received for Vlan10
         ```
         show dhcpv4relay_counter counts Vlan10 --direction RX --t Dis
+        ```
+    * Show only discover packets received for Ethernet4
+        ```
+        show dhcpv4relay_counter counts Ethernet4 --direction RX --t Dis
         ```
 
 ### 10. Configuration Migration
@@ -707,15 +808,15 @@ The table below lists the various isc-dhcp command-line options currently used i
 | Existing isc cmd line arg | New Configuration | Comments |
 |-|-|-|
 | -m discard | --agent-relay-mode with the same default value| |
-| -a %%h:%%p | Not required | Always insert agent-relay-options in hostname:int-alias:vlan-id format |
+| -a %%h:%%p | --circuit-id-format default | Circuit ID format is now configurable (default, interface_ip, vlan_name, custom) |
 | %%P | Not Required | Always insert remote-id in the agent-relay-options |
 | --name-alias-map-file | Not Required | Interface Alias is dynamically retrieved from ConfigDB |
-| -id <vlan_name> | Not required | Not needed anymore since a common process is used for all the VLANs |
+| -id <vlan_name> | Not required | Not needed anymore since a common process is used for all interfaces |
 | -U <Loopback0> | --source-interface Loopback0 | TODO: If DualToR flag is set in the DEVICE_METADATA, set source_interface to Loopback 0 |
 | -dt | None | New design will take DualToR config from the DEVICE_METADATA table |
 | -si | | |
 | -iu <interface_name> | None | No need to separate out upstream/downstream interfaces |
-| -pg <primary_gateway_ip> | None | New design will automatically pick up the primary gateway IP from VLAN_INTERFACE table |
+| -pg <primary_gateway_ip> | None | New design will automatically pick up the primary gateway IP from VLAN_INTERFACE or INTERFACE table |
 | dhcp_server | --dhcpv4-servers \<server-list> |db_migrator.py will migrate dhcp_server list from VLAN table to DHCPV4_RELAY in the ConfigDB|
 
 
@@ -725,13 +826,14 @@ DHCP relay packets are clubbed with LLPD and UDLD in a copp bucket with 300 pack
 ### 12. Limitations
 
 - Unlike ISC-DHCP design, the new relay will not require users to split interfaces between upstream and downstream. Accordingly, it will not support the capability to limit dhcp requests or replies on certain interfaces only.
+- Routed port support requires L3 configuration in the INTERFACE table. L2 ports without IP addresses cannot act as DHCP relay agents.
 
 
 ### 13. Testing
 - Unit tests for dhcpv4-relay
 - Unit tests for Yang-model and CLIs
 - Existing SONiC Management tests for:
-    - basic dhcp-relay functionality
+    - basic dhcp-relay functionality on both VLAN and physical interfaces
     - dual-tor support
     - interop with port-based dhcp-server
 - New Spytests for:
