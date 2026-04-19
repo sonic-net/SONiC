@@ -608,7 +608,7 @@ This base class is already defined in sonic-platform-common.
 |---------|---------|----------|
 | get_all_modules() | Y | Fetch managed modules here, Switch-Host Module object |
 | is_bmc() | New | Retrieves whether the sonic chassis instance is/has a BMC module |
-| is_liquid_cooled_chassis() | New | Is this chassis liquid/hybrid cooled ? |
+| is_liquid_cooled() | New | Is this chassis liquid/hybrid cooled ? |
 
 ### 2.3 BMC CLI Commands
 
