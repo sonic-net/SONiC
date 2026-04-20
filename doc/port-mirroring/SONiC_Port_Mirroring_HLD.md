@@ -15,12 +15,9 @@
   * [2. Functionality](#2-functionality)
       * [2.1 Functional Description](#21-functional-description)
   * [3. Design](#3-design)
-      * [3.1 Sampled Mirroring Overview](#31-sampled-mirroring-overview)
-          * [3.1.1 Problem Statement](#311-problem-statement)
-          * [3.1.2 Current State](#312-current-state)
-          * [3.1.3 Proposed Solution](#313-proposed-solution)
-          * [3.1.4 Architecture Overview](#314-architecture-overview)
-          * [3.1.5 SAI attributes](#315-sai-attributes)
+      * [3.1 Overview](#31-overview)
+          * [3.1.1 Architecture Overview](#311-architecture-overview)
+          * [3.1.2 Data Format](#312-data-format)
       * [3.2 DB Changes](#32-db-changes)
           * [3.2.1 CONFIG DB](#321-config-db)
           * [3.2.2 APP_DB](#322-app_db)
@@ -32,7 +29,8 @@
           * [3.3.2 Other Process](#332-other-process)
       * [3.4 Mirror Capability Discovery](#34-mirror-capability-discovery)
       * [3.5 SAI](#35-sai)
-         * [3.5.1 Sampled Port Mirroring SAI APIs](#351-sampled-port-mirroring-sai-apis)
+         * [3.5.1 Port Mirroring SAI APIs](#351-port-mirroring-sai-apis)
+         * [3.5.2 Sampled Port Mirroring SAI APIs](#352-sampled-port-mirroring-sai-apis)
       * [3.6 CLI](#36-cli)
           * [3.6.1 Data Models](#361-data-models)
           * [3.6.2 Configuration Commands](#362-configuration-commands)
@@ -41,10 +39,6 @@
           * [3.6.5 Debug Commands](#365-debug-commands)
           * [3.6.6 Rest API Support](#366-rest-api-support)
           * [3.6.7 GNMI Support](#367-gnmi-support)
-      * [3.7 Sampled Mirroring Design](#37-sampled-mirroring-design)
-          * [3.7.1 Modules](#371-modules)
-          * [3.7.2 Data Format](#372-data-format)
-          * [3.7.3 Bandwidth Estimation](#373-bandwidth-estimation)
   * [4. Flow Diagrams](#4-flow-diagrams)
   * [5. Error Handling](#5-Error-Handling)
   * [6. Serviceability and Debug](#6-serviceability-and-debug)
@@ -56,6 +50,8 @@
       * [9.3 Sampled Port Mirroring Test Cases](#93-sampled-port-mirroring-test-cases)
           * [9.3.1 Swss Virtual Switch Tests](#931-swss-virtual-switch-tests)
           * [9.3.2 System Tests](#932-system-tests)
+  * [Appendix A: Problem Statement](#appendix-a-problem-statement)
+  * [Appendix B: Bandwidth Estimation](#appendix-b-bandwidth-estimation)
 
 # List of Tables
 [Table 1: Abbreviations](#table-1-abbreviations)
@@ -111,18 +107,17 @@ truncation further reduces bandwidth by mirroring only the first N bytes of each
     - CLI validation for all mandatory parameters in ERSPAN configuration.
     - CLI validation for all mandatory parameters in port/portchannel mirroring.
     - CLI to allow mirror session configuration only with destination port.
+    - CLI command: `config mirror_session erspan add ... --sample_rate <value> --truncate_size <value>`
+    - Show command displays sample rate and truncate size when configured
 
 5. Sampled Port Mirroring with Truncation Support on ERSPAN Session
-    - Support configuring a sample_rate on ERSPAN mirror sessions (e.g., 1:50000)
+    - Support configuring a sample rate on ERSPAN mirror sessions (e.g., 1:50000)
     - Sample rate is per-port, applied at ingress
-    - When sample_rate is configured, use SAI_OBJECT_TYPE_SAMPLEPACKET (TYPE=MIRROR_SESSION) instead of direct port mirror binding
+    - When sample rate is configured, use SAI_OBJECT_TYPE_SAMPLEPACKET (TYPE=MIRROR_SESSION) instead of direct port mirror binding
     - Support egress sampled mirroring (if SAI capability permits)
-    - CLI command: config mirror_session add ... --sample_rate <value>
-    - Show command displays sample_rate when configured
-    - Backward compatible — existing mirror sessions without sample_rate continue to work as before (full mirroring)
-    - Support configuring truncate_size on sampled mirror sessions (e.g., 128 bytes)
+    - Backward compatible — existing mirror sessions without sample rate continue to work as before (full mirroring)
+    - Support configuring truncate size on sampled mirror sessions (e.g., 128 bytes)
     - Truncation requires SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE and SAI_SAMPLEPACKET_ATTR_TRUNCATE_SIZE
-    - CLI command: config mirror_session add ... --truncate_size <value>
     - SAI capability check to gracefully handle platforms that do not support truncation
 
 ## 1.2 Configuration and Management Requirements
@@ -155,26 +150,13 @@ Refer section 1.1
 Mirroring to destination VLAN (RSPAN) is not supported in this release.
 
 # 3 Design
-## 3.1 Sampled Mirroring Overview
-### 3.1.1 Problem Statement
-In large-scale AI clusters, network traffic monitoring is critical for debugging backend issues, optimizing job scheduling, and analyzing traffic patterns. Operators need visibility into metrics such as RDMA operation distribution, congestion hotspots, and per-job traffic behavior across thousands of switches.
+## 3.1 Overview
 
-Current SONiC ERSPAN port mirroring mirrors every packet in full on the monitored port(s). At high line rates (e.g., 51 Tbps), this creates several problems:
+This HLD describes the design of port mirroring in SONiC, covering SPAN and ERSPAN session management, per-port/port-channel source binding, dynamic session lifecycle based on destination reachability, and ACL-based mirroring integration.
 
-- Exceed monitor port bandwidth: Mirroring at full rate with ERSPAN encapsulation overhead causes mirror packet loss
+Additionally, this HLD covers per-port sampled port mirroring with packet truncation on ERSPAN sessions (added in revision 0.3), and mirror capability discovery. See [Appendix A](#appendix-a-problem-statement) for the problem statement and [Appendix B](#appendix-b-bandwidth-estimation) for bandwidth estimation.
 
-- Overwhelm the collector: The collector cannot process full line-rate mirrored traffic from thousands of switches
-
-- Waste bandwidth and storage: Full packet payloads are unnecessary when header-level statistical sampling is sufficient for monitoring
-Sampled mirroring solves this by only mirroring 1 out of every N packets, providing statistical visibility while keeping bandwidth consumption manageable. Packet truncation further reduces mirror bandwidth by discarding payload beyond the header bytes needed for analysis.
-
-### 3.1.2 Current State
-Currently, MirrorOrch creates a mirror session and binds it to a port using `SAI_PORT_ATTR_INGRESS_MIRROR_SESSION`, which mirrors all packets in full. There is no sampling or truncation capability.
-
-### 3.1.3 Proposed Solution
-Leverage the SAI SamplePacket object to enable per-port hardware-based sampled mirroring. When sample_rate is configured, MirrorOrch creates a SamplePacket and binds it to the port instead of using the existing full-mirror binding. When sample_rate is not configured, existing behavior is preserved. See Section 6 for detailed architecture and SAI API usage.
-
-### 3.1.4 Architecture Overview
+### 3.1.1 Architecture Overview
 The following diagram shows the end-to-end control flow for sampled port mirroring with truncation:
 
 ```mermaid
@@ -204,24 +186,22 @@ The following diagram shows the end-to-end control flow for sampled port mirrori
      asic -->|ERSPAN packets| collector[Collector]
 ```
 
-The key change is that MirrorOrch now creates an additional `SamplePacket` SAI object and binds it to the port using `INGRESS_SAMPLEPACKET_ENABLE` + `INGRESS_SAMPLE_MIRROR_SESSION`, instead of the existing `INGRESS_MIRROR_SESSION` used for full-packet mirroring.
+### 3.1.2 Data Format
 
-### 3.1.5 SAI attributes 
-The following SAI objects and attributes are involved in sampled port mirroring with truncation support on ERSPAN sessions:
+The mirrored packet goes through the following processing in the ASIC hardware pipeline:
+1. Sampling: For each ingress packet on the monitored port, a hardware counter is incremented. When the counter reaches N (the configured sample rate), the packet is selected for mirroring.
+2. Truncation: The selected packet is truncated to the configured truncate size (e.g., 128 bytes). Only the packet headers are retained.
+3. GRE encapsulation: The truncated packet is encapsulated with outer headers for tunneling to the collector.
+4. Forwarding: The encapsulated mirror packet is forwarded to the monitor port and routed to the collector. The original packet continues normal forwarding unaffected.
 
-Sampling attributes (currently supported):
-| SAI Attribute | Object Type | Flags | Current Support |
-|---|---|---|---|
-| SAI_SAMPLEPACKET_ATTR_SAMPLE_RATE | SAMPLEPACKET | MANDATORY_ON_CREATE \| CREATE_AND_SET | Supported |
-| SAI_SAMPLEPACKET_ATTR_TYPE = MIRROR_SESSION | SAMPLEPACKET | CREATE_ONLY | Supported |
-| SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE | PORT | CREATE_AND_SET | Supported |
-| SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION | PORT | CREATE_AND_SET | Supported |
+Encapsulation format (GRE type 0x8949):
 
-Truncation attributes (pending vendor support):
-| SAI Attribute | Object Type | Flags | Current Support |
-|---|---|---|---|
-| SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE | SAMPLEPACKET | CREATE_AND_SET | June 2026 GA |
-| SAI_SAMPLEPACKET_ATTR_TRUNCATE_SIZE | SAMPLEPACKET | CREATE_AND_SET | June 2026 GA |
+ ![Encapsulation Format](./encapsulation-format.jpg)
+
+Total mirror packet size: 128B + 62B overhead = 190 bytes (estimated)
+
+Encapsulation overhead: 62 bytes. The overhead includes the outer Ethernet header (14B), outer IP header (20B), and GRE with vendor-specific header (28B).
+
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
@@ -269,8 +249,11 @@ Table `SWITCH_CAPABILITY` is not a new table. It has been designed to represent 
 The following fields are introduced in this design for mirror capability discovery:
 
 ```text
-PORT_INGRESS_MIRROR_CAPABLE    = "true" | "false"    ; whether SAI attribute SAI_PORT_ATTR_INGRESS_MIRROR_SESSION is supported
-PORT_EGRESS_MIRROR_CAPABLE     = "true" | "false"    ; whether SAI attribute SAI_PORT_ATTR_EGRESS_MIRROR_SESSION is supported
+PORT_INGRESS_MIRROR_CAPABLE            = "true" | "false"    ; whether SAI attribute SAI_PORT_ATTR_INGRESS_MIRROR_SESSION is supported
+PORT_EGRESS_MIRROR_CAPABLE             = "true" | "false"    ; whether SAI attribute SAI_PORT_ATTR_EGRESS_MIRROR_SESSION is supported
+PORT_INGRESS_SAMPLE_MIRROR_CAPABLE     = "true" | "false"    ; whether SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION is supported
+PORT_EGRESS_SAMPLE_MIRROR_CAPABLE      = "true" | "false"    ; whether SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION is supported
+SAMPLEPACKET_TRUNCATION_CAPABLE        = "true" | "false"    ; whether SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE is supported
 ```
 
 These capabilities are discovered during system initialization by SwitchOrch using `sai_query_attribute_capability()` and stored in STATE_DB under the key `SWITCH_CAPABILITY|switch`.
@@ -280,26 +263,12 @@ These capabilities are discovered during system initialization by SwitchOrch usi
 SWITCH_CAPABILITY|switch
   PORT_INGRESS_MIRROR_CAPABLE: "true"
   PORT_EGRESS_MIRROR_CAPABLE: "false"
+  PORT_INGRESS_SAMPLE_MIRROR_CAPABLE: "true"
+  PORT_EGRESS_SAMPLE_MIRROR_CAPABLE: "false"
+  SAMPLEPACKET_TRUNCATION_CAPABLE: "true"
 ```
 
-This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions.
-
-#### Sampled Mirroring Capability Flags
-The following new capability flags are added to the existing `SWITCH_CAPABILITY` table for sampled mirroring and truncation support. 
-SwitchOrch populates these at startup by querying SAI attribute support via `sai_query_attribute_capability()`:
-
-```text
-PORT_INGRESS_SAMPLE_MIRROR_CAPABLE     = "true" | "false"    ; whether SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION is supported
-SAMPLEPACKET_TRUNCATION_CAPABLE        = "true" | "false"    ; whether SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE is supported
-```
-**Example STATE_DB entry:**
-
-```text
- SWITCH_CAPABILITY|switch
-   PORT_INGRESS_SAMPLE_MIRROR_CAPABLE: "true"
-   SAMPLEPACKET_TRUNCATION_CAPABLE: "true"
-```
-This indicates that the platform supports sampled port mirroring and packet truncation in addition to ingress mirroring.
+This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions. The platform also supports ingress sampled port mirroring and packet truncation on sampled sessions. The actual values depend on the platform and vendor SAI implementation. MirrorOrch checks these capabilities at runtime and gracefully falls back when a capability is not supported.
 
 ### 3.2.4 ASIC_DB
 No changes are introduced in ASIC_DB.·
@@ -318,6 +287,10 @@ Mirror Orchestration agent is modified to support this feature:
         - Session with source/destination/direction config will be active once the session created from SAI is programmed on the source ports.
    - Populates the mirror attribute SAI structures and pushes the entry to ASIC_DB.·
 
+#### Sampled Port Mirroring Extension
+
+MirrorOrch is extended to manage the lifecycle of SamplePacket SAI objects alongside the existing mirror session objects. When `sample_rate` is configured, MirrorOrch creates a SamplePacket and binds it to the port using `INGRESS_SAMPLEPACKET_ENABLE` + `INGRESS_SAMPLE_MIRROR_SESSION`, instead of the existing `INGRESS_MIRROR_SESSION` used for full-packet mirroring. See Section 3.1.1 for the architecture overview and Section 4 for the detailed workflow.
+
 ## 3.4 Mirror Capability Discovery
 
 The mirror capability discovery feature provides runtime detection and validation of ASIC mirror capabilities to ensure proper configuration and graceful error handling.
@@ -329,10 +302,16 @@ The capability discovery process involves multiple layers:
 1. **SAI Layer Discovery**: SwitchOrch queries SAI for port mirror capabilities using `sai_query_attribute_capability()` for:
    - `SAI_PORT_ATTR_INGRESS_MIRROR_SESSION`
    - `SAI_PORT_ATTR_EGRESS_MIRROR_SESSION`
+   - `SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION`
+   - `SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION`
+   - `SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE`
 
 2. **STATE_DB Storage**: Discovered capabilities are stored in STATE_DB under `SWITCH_CAPABILITY|switch`:
    - `PORT_INGRESS_MIRROR_CAPABLE`: "true"/"false"
    - `PORT_EGRESS_MIRROR_CAPABLE`: "true"/"false"
+   - `PORT_INGRESS_SAMPLE_MIRROR_CAPABLE`: "true"/"false"
+   - `PORT_EGRESS_SAMPLE_MIRROR_CAPABLE`: "true"/"false"
+   - `SAMPLEPACKET_TRUNCATION_CAPABLE`: "true"/"false"
 
 3. **Runtime Validation**: MirrorOrch validates capabilities before configuring mirror sessions
 
@@ -355,9 +334,10 @@ The capability validation follows this sequence:
 ### 3.4.4 Implementation Components
 
 #### SwitchOrch Enhancements
-- New capability constants: `SWITCH_CAPABILITY_TABLE_PORT_INGRESS_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_EGRESS_MIRROR_CAPABLE`
-- `querySwitchPortMirrorCapability()`: Discovers and stores capabilities
-- Public interface methods: `isPortIngressMirrorSupported()`, `isPortEgressMirrorSupported()`
+- New capability constants: `SWITCH_CAPABILITY_TABLE_PORT_INGRESS_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_EGRESS_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_INGRESS_SAMPLE_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_EGRESS_SAMPLE_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_SAMPLEPACKET_TRUNCATION_CAPABLE`
+- `querySwitchPortMirrorCapability()`: Discovers and stores port mirroring capabilities
+- `querySwitchSampledMirrorCapability()`: Discovers and stores sampled mirroring and truncation capabilities
+- Public interface methods: `isPortIngressMirrorSupported()`, `isPortEgressMirrorSupported()`, `isPortIngressSampleMirrorSupported()`, `isPortEgressSampleMirrorSupported()`, `isSamplepacketTruncationSupported()`
 
 #### MirrorOrch Enhancements
 - Capability validation in `setUnsetPortMirror()`
@@ -370,7 +350,8 @@ The capability validation follows this sequence:
 - User-friendly error messages for unsupported directions
 
 ## 3.5 SAI
-Mirror SAI interface APIs are already defined. 
+### 3.5.1 Port Mirroring SAI APIs
+Mirror SAI interface APIs are already defined.
 More details about SAI API and attributes are described below SAI Spec @
 
 https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
@@ -431,8 +412,8 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
      */
     SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
 ```
-### 3.5.1 Sampled Port Mirroring SAI APIs
-Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation.
+### 3.5.2 Sampled Port Mirroring SAI APIs
+Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation. The key change is that MirrorOrch creates an additional `SamplePacket` SAI object and binds it to the port using `INGRESS_SAMPLEPACKET_ENABLE` + `INGRESS_SAMPLE_MIRROR_SESSION`, instead of the existing `INGRESS_MIRROR_SESSION` used for full-packet mirroring.
 
 #### SamplePacket Attributes
 
@@ -610,7 +591,38 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
 ```
 #### Updated YANG Model (Sampled Port Mirroring)
 
-For the updated YANG model with `sample_rate` and `truncate_size` fields, refer to: [sonic-port-mirror-session.yang](./sonic-sampled-port-mirror.yang)
+The following leaves are added to `MIRROR_SESSION_LIST` in `sonic-mirror-session.yang` for sampled port mirroring:
+
+```yang
+leaf sample_rate {
+    when "current()/../type = 'ERSPAN'";
+    type uint32 {
+        range "0|256..8388608" {
+            error-message "Sample rate must be 0 (no sampling/full mirroring) or 256-8388608";
+            error-app-tag sample-rate-invalid;
+        }
+    }
+    default 0;
+    description
+        "Sampling rate for mirrored packets. 0 means full mirroring
+         (no sampling). N means mirror 1 out of every N packets.";
+}
+
+leaf truncate_size {
+    when "current()/../type = 'ERSPAN'";
+    type uint32 {
+        range "0|64..9216" {
+            error-message "Truncate size must be 0 (no truncation) or 64-9216 bytes";
+            error-app-tag truncate-size-invalid;
+        }
+    }
+    default 0;
+    description
+        "Truncation size in bytes for mirrored packets.
+         0 means no truncation. When set, only the first N bytes
+         of each mirrored packet are sent.";
+}
+```
 
 ### 3.6.2 Configuration Commands
 
@@ -727,42 +739,6 @@ The following show command display all the mirror sessions that are configured.
     # gnmi_set -delete /sonic-mirror-session:sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST[name=Mirror1] -target_addr 127.0.0.1:8080 -insecure
 ```
 
-## 3.7 Sampled Mirroring Design
-
-### 3.7.1 Modules
-
-#### 3.7.1.1 MirrorOrch (sonic-swss/orchagent)
-
-MirrorOrch is the primary module modified for this feature. It is extended to manage the lifecycle of SamplePacket SAI objects alongside the existing mirror session objects. See Section 3.1.4 for the architecture overview and Section 4 for the detailed workflow.
-
-### 3.7.2 Data Format
-
-The mirrored packet goes through the following processing in the ASIC hardware pipeline:
-1. Sampling: For each ingress packet on the monitored port, a hardware counter is incremented. When the counter reaches N (the configured sample_rate), the packet is selected for mirroring.
-2. Truncation: The selected packet is truncated to the configured truncate_size (e.g., 128 bytes). Only the packet headers are retained.
-3. GRE encapsulation: The truncated packet is encapsulated with outer headers for tunneling to the collector.
-4. Forwarding: The encapsulated mirror packet is forwarded to the monitor port and routed to the collector. The original packet continues normal forwarding unaffected.
-
-Encapsulation format (GRE type 0x8949):
-
- ![Encapsulation Format](./encapsulation-format.jpg)
-
-Total mirror packet size: 128B + 62B overhead = 190 bytes (estimated)
-
-Encapsulation overhead: 62 bytes. The overhead includes the outer Ethernet header (14B), outer IP header (20B), and GRE with vendor-specific header (28B).
-
-### 3.7.3 Bandwidth Estimation
-
-The following table shows the mirror bandwidth estimation for a 51T switch (64x800G ports) with an average packet size of 3.7KB at 100% line rate:
-
-| Metric | Value |
-|---|---|
-| Total ingress throughput | ~1.72G pps |
-| After 1:50,000 sampling | ~34,400 pps |
-| Mirror BW without truncation | ~1.03 Gbps per switch |
-| Mirror BW with 128B truncation (+ 62B encap overhead) | ~52 Mbps per switch |
-
-Truncation reduces mirror bandwidth by approximately 95%, making it feasible to collect sampled traffic from thousands of switches simultaneously.
 
 # 4 Flow Diagrams
 
@@ -1023,3 +999,30 @@ The following test cases validate the mirror capability discovery and validation
 | 36 | Verify that mirrored packets are truncated to configured size |
 | 37 | Verify backward compatibility: mirror session without sample_rate works as full mirror |
 | 38 | Verify fallback to full mirror when platform does not support sampled mirroring |
+
+# Appendix A: Problem Statement
+
+In large-scale AI clusters, network traffic monitoring is critical for debugging backend issues, optimizing job scheduling, and analyzing traffic patterns. Operators need visibility into metrics such as RDMA operation distribution, congestion hotspots, and per-job traffic behavior across thousands of switches.
+
+Current SONiC ERSPAN port mirroring mirrors every packet in full on the monitored port(s). At high line rates (e.g., 51 Tbps for a 64x800G switch), this creates several problems:
+
+- Exceed monitor port bandwidth: Mirroring at full rate with ERSPAN encapsulation overhead causes mirror packet loss
+
+- Overwhelm the collector: The collector cannot process full line-rate mirrored traffic from thousands of switches
+
+- Waste bandwidth and storage: Full packet payloads are unnecessary when header-level statistical sampling is sufficient for monitoring
+
+Sampled port mirroring solves this by only mirroring 1 out of every N packets, providing statistical visibility while keeping bandwidth consumption manageable. Packet truncation further reduces mirror bandwidth by discarding payload beyond the header bytes needed for analysis.
+
+# Appendix B: Bandwidth Estimation
+
+The following table shows the mirror bandwidth estimation for a 51T switch (64x800G ports) with an average packet size of 3.7KB at 100% line rate:
+
+| Metric | Value |
+|---|---|
+| Total ingress throughput | ~1.72G pps |
+| After 1:50,000 sampling | ~34,400 pps |
+| Mirror BW without truncation | ~1.03 Gbps per switch |
+| Mirror BW with 128B truncation (+ 62B encap overhead) | ~52 Mbps per switch |
+
+Truncation reduces mirror bandwidth by approximately 95%, making it feasible to collect sampled traffic from thousands of switches simultaneously.
