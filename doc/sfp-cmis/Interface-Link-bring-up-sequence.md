@@ -339,34 +339,40 @@ sequenceDiagram
 The below state machine is a high level flow and doesn't capture details for states other than CMIS_STATE_AP_CONF and CMIS_STATE_SI_SETTINGS_WAIT  
 
 ```mermaid
-stateDiagram
+stateDiagram-v2
     [*] --> CMIS_STATE_INSERTED
     state if_state <<choice>>
     state if_state2 <<choice>>
     state if_state3 <<choice>>
     state if_state4 <<choice>>
     CMIS_STATE_INSERTED --> if_state
-    if_state --> CMIS_STATE_READY : if host_tx_ready != True or<br>admin_status != up<br> Action - disable TX
-    if_state --> if_state2 : if host_tx_ready == True and<br>admin_status == up
+    if_state --> CMIS_STATE_READY : if host_tx_ready != True or admin_status != up - Action disable TX
+    if_state --> if_state2 : if host_tx_ready == True and admin_status == up
     if_state2 --> if_state4 : if appl >= 1 and host_lanes_mask > 0 and SI_lanes_mask > 0
-    if_state2 --> CMIS_STATE_FAILED : if appl < 1 or <br>host_lanes_mask <= 0 or <br>SI_lanes_mask <= 0
+    if_state2 --> CMIS_STATE_FAILED : if appl < 1 or host_lanes_mask <= 0 or SI_lanes_mask <= 0
     note left of CMIS_STATE_FAILED : PORT_TABLE.port.CMIS_REINIT_REQUIRED = false
-    if_state4 --> CMIS_STATE_READY : if can_skip_cmis_init_after_restart<br>(app matches, SI synced, ConfigSuccess, DataPathActivated)
+    if_state4 --> CMIS_STATE_READY : if can_skip_cmis_init_after_restart (app matches, SI synced, ConfigSuccess, DataPathActivated)
     note left of CMIS_STATE_READY : PORT_TABLE.port.CMIS_REINIT_REQUIRED = false
-    if_state4 --> CMIS_STATE_DP_DEINIT : if PORT_TABLE.port.CMIS_REINIT_REQUIRED == true or<br>is_cmis_application_update_required
+    if_state4 --> CMIS_STATE_DP_DEINIT : if PORT_TABLE.port.CMIS_REINIT_REQUIRED == true or is_cmis_application_update_required
 
     CMIS_STATE_DP_DEINIT --> CMIS_STATE_AP_CONF
 
-    note left of CMIS_STATE_AP_CONF : Ensure current states are ModuleReady and DataPathDeactivated<br>Configure laser frequency for ZR module<br>Apply module SI settings<br>Write si_sync_status = SI_SETTINGS_NOTIFIED:<N> to PORT_TABLE (APPL_DB)<br>set_application
+    note left of CMIS_STATE_AP_CONF
+        Ensure ModuleReady and DataPathDeactivated
+        Configure ZR laser frequency
+        Apply SI settings from media_settings.json
+        Write si_sync_status = SI_SETTINGS_NOTIFIED[N] to APPL_DB PORT_TABLE
+        Call set_application
+    end note
     CMIS_STATE_AP_CONF --> if_state3
-    if_state3 --> CMIS_STATE_SI_SETTINGS_WAIT : if SI_SETTINGS_NOTIFIED:<N> was written to APPL_DB
-    if_state3 --> CMIS_STATE_DP_INIT : if SI settings not notified (no si_sync_status or SI_SETTINGS_DEFAULT)
-    CMIS_STATE_SI_SETTINGS_WAIT --> CMIS_STATE_DP_INIT : if STATE_DB PORT_TABLE&ltport&gt.si_settings_sync_status == SI_SYNC_DONE:<N>
-    CMIS_STATE_SI_SETTINGS_WAIT --> CMIS_STATE_DP_INIT : Upon 10s timeout, proceed to DP_INIT with warning
+    if_state3 --> CMIS_STATE_SI_SETTINGS_WAIT : si_sync_status == SI_SETTINGS_NOTIFIED[N]
+    if_state3 --> CMIS_STATE_DP_INIT : si_sync_status not set or == SI_SETTINGS_DEFAULT
+    CMIS_STATE_SI_SETTINGS_WAIT --> CMIS_STATE_DP_INIT : STATE_DB si_settings_sync_status == SI_SYNC_DONE[N]
+    CMIS_STATE_SI_SETTINGS_WAIT --> CMIS_STATE_DP_INIT : 10s timeout - proceed to DP_INIT with warning
     note right of CMIS_STATE_SI_SETTINGS_WAIT
-        Polls STATE_DB PORT_TABLE&ltport&gt.si_settings_sync_status for SI_SYNC_DONE:<N>
-        where N must match the notification number sent in APPL_DB
-        After 10s timeout, proceeds to CMIS_STATE_DP_INIT with a warning (no reinit)
+        Polls STATE_DB si_settings_sync_status for SI_SYNC_DONE[N]
+        N must match the notification number sent in APPL_DB
+        On 10s timeout proceed to DP_INIT with warning
     end note
     CMIS_STATE_DP_INIT --> CMIS_STATE_DP_TXON
     CMIS_STATE_DP_TXON --> CMIS_STATE_DP_ACTIVATE
