@@ -1,0 +1,41 @@
+@startuml
+' Online Server: https://www.plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000
+' Basic examples: https://plantuml.com/sequence-diagram#5e05164bff244555
+' Declaring participant: https://plantuml.com/sequence-diagram#5d2ed256d73a7298
+' Message to Self: https://plantuml.com/sequence-diagram#f5050860884ddf31
+' Lifeline Activation and Destruction: https://plantuml.com/sequence-diagram#5cc0040514e70f7b
+' Incoming and outgoing messages: https://plantuml.com/sequence-diagram#05984b1743e67542
+' Comments: https://plantuml.com/commons#8413c683b4b27cc3
+
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/swss.service.j2 swss.service.j2]]" as swss.service.j2
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh swss.sh]]" as swss.sh
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2 docker_image_ctl.j2]]" as docker_image_ctl.j2
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container container]]" as container
+participant "[[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/image_config/misc/docker-wait-any docker-wait-any]]" as dockerwaitany
+
+[-> swss.service.j2: sudo systemctl stop swss
+activate swss.service.j2
+swss.service.j2 -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/swss.service.j2#L26 /usr/local/bin/swss.sh stop]]
+activate swss.sh
+swss.sh -> docker_image_ctl.j2: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L275 /usr/bin/swss.sh stop]]
+activate docker_image_ctl.j2
+docker_image_ctl.j2 -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/docker_image_ctl.j2#L593 /usr/local/bin/container stop swss]]
+activate container
+container -> container: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/src/sonic-ctrmgrd/ctrmgr/container#L125 container.stop()]]
+docker_image_ctl.j2 <- container
+deactivate container
+swss.sh <- docker_image_ctl.j2
+deactivate docker_image_ctl.j2
+swss.sh -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L136-L152 /bin/systemctl stop syncd\n/bin/systemctl stop radv\n/bin/systemctl stop bgp\n/bin/systemctl stop dhcp_relay]]
+swss.service.j2 <- swss.sh
+deactivate swss.sh
+deactivate swss.service.j2
+[-> swss.service.j2: sudo warm-reboot
+activate swss.service.j2
+swss.service.j2 -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/build_templates/per_namespace/swss.service.j2#L26 /usr/local/bin/swss.sh stop]]
+activate swss.sh
+swss.sh -> swss.sh: [[https://github.com/sonic-net/sonic-buildimage/blob/df4312f7ef4b8b808320be3df9c09c84b4a3e423/files/scripts/swss.sh#L279 docker kill swss]]
+swss.service.j2 <- swss.sh
+deactivate swss.sh
+deactivate swss.service.j2
+@enduml
