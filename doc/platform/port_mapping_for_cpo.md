@@ -414,7 +414,7 @@ class CustomVendorElsfpMemMap(ElsfpMemMap):
 To make this possible, `ElsfpMemMap` will split its `__init__` into two hooks:
 
 ```python
-class ElsfpMemMap(CmisMemMap):
+class ElsfpMemMap(CmisFlatMemMap):
     def __init__(self, codes, bank=0):
         super().__init__(codes, bank=bank)
         self._init_pages(codes, bank)
@@ -434,6 +434,15 @@ class ElsfpMemMap(CmisMemMap):
         # all of its contents to a new location.
         # This function would only be overriden if a vendor wants to avoid registering fields,
         # or would like to register new fields, for a given page
+        self.ADVERTISING = RegGroupField(
+            consts.ADVERTISING_FIELD,
+            *get_field_from_pages(consts.ADVERTISING_FIELD, self.advertising_page)
+        )
+        self.MODULE_CHAR_ADVT = RegGroupField(
+            consts.MODULE_CHAR_ADVT_FIELD,
+            *get_field_from_pages(consts.MODULE_CHAR_ADVT_FIELD, self.advertising_page)
+        )
+        ...
         self.ELSFP_MODULE_ADVERTISEMENTS = RegGroupField(
             elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD,
             *get_field_from_pages(
