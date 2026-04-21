@@ -8,7 +8,7 @@
   - [3.1 Quick Reference](#31-quick-reference)
 - [4. Core Concepts and Mental Model](#4-core-concepts-and-mental-model)
   - [4.1 What is UDF?](#41-what-is-udf)
-  - [4.2 The Three UDF Objects - Mental Model](#42-the-three-udf-objects---mental-model)
+  - [4.2 The Two UDF Config Objects - Mental Model](#42-the-two-udf-config-objects---mental-model)
   - [4.3 Packet Parsing Flow - Complete Example](#43-packet-parsing-flow---complete-example)
   - [4.4 Design Patterns and ACL Key Mapping](#44-design-patterns-and-acl-key-mapping)
   - [4.5 Group Index Mapping to ACL Key](#45-group-index-mapping-to-acl-key)
@@ -56,43 +56,39 @@ This document describes the high-level design for User Defined Field (UDF) featu
 
 ### Object Schema Summary
 
-| Object | Key | Attributes | Example |
-|--------|-----|------------|---------|
-| **UDF_GROUP** | `group_name` | TYPE (GENERIC/HASH)<br/>LENGTH (1-20 bytes) | `G0: {TYPE: "GENERIC", LENGTH: "2"}` |
-| **UDF_MATCH** | `match_name` | L3_TYPE, L3_TYPE_MASK<br/>PRIORITY (0-255) | `M_UDP: {L3_TYPE: "0x11", L3_TYPE_MASK: "0xFF", PRIORITY: "10"}` |
-| **UDF** | `udf_name` | GROUP (group name)<br/>MATCH (match name)<br/>BASE (L2/L3/L4)<br/>OFFSET (0-255) | `FIELD1: {GROUP: "G0", MATCH: "M_UDP", BASE: "L4", OFFSET: "0"}` |
-| **ACL_TABLE_TYPE** | `type_name` | MATCHES (includes GROUP names) | `T1: {MATCHES: ["IN_PORTS", "G0"], ...}` |
-| **ACL_RULE** | `table\|rule` | UDF_NAME: "value/mask" | `TABLE1\|R1: {FIELD1: "0x1234/0xffff", ...}` |
+| Object | Key | Fields | Example |
+|--------|-----|--------|---------|
+| **UDF** | `group_name` | group_type (GENERIC/HASH)<br/>length (1-16 bytes)<br/>description (optional) | `G0: {group_type: "GENERIC", length: "3"}` |
+| **UDF_SELECTOR** | `group_name\|selector_name` | base (L2/L3/L4)<br/>offset (0-255)<br/>l2_type, l2_type_mask<br/>l3_type, l3_type_mask<br/>gre_type, gre_type_mask<br/>priority (0-255) | `G0\|udp_l4: {base: "L4", offset: "0", l3_type: "0x11", priority: "10"}` |
+| **ACL_TABLE_TYPE** | `type_name` | matches (GROUP names, comma-separated)<br/>actions<br/>bind_points | `T1: {matches: "IN_PORTS,G0,G1", ...}` |
+| **ACL_RULE** | `table\|rule` | `<group_name>: "value/mask"` | `TABLE1\|R1: {G0: "0x1133/0xffff", ...}` |
 
 ### Configuration Order (Critical!)
 
 ```
-1. UDF_GROUP (independent)
-2. UDF_MATCH (independent)
-3. UDF (requires both GROUP and MATCH)
-4. ACL_TABLE_TYPE (references GROUP names)
-5. ACL_TABLE (uses table type)
-6. ACL_RULE (references UDF names)
+1. UDF (independent — defines the field)
+2. UDF_SELECTOR (requires UDF — defines when/how to extract)
+3. ACL_TABLE_TYPE (references UDF names in matches)
+4. ACL_TABLE (uses table type)
+5. ACL_RULE (references UDF group names directly)
 
 Deletion: Reverse order
 ```
 
 ### Mental Model (One-Liner)
 
-- **GROUP** = WHERE in ACL key (field position/index)
-- **MATCH** = WHEN to extract (packet type/context)
-- **UDF** = HOW to extract (base + offset)
+- **UDF** = WHERE and how big (field position/length in ACL key)
+- **UDF_SELECTOR** = WHEN and HOW to extract (packet type + base + offset)
 - **ACL** = WHAT to match (data/mask + action)
 
 ### Key Constraints
 
 | Constraint | Rule |
 |------------|------|
-| **Schema** | UDF_GROUP and UDF_MATCH are independent; UDF requires BOTH |
-| **ACL Table** | ACL_TABLE_TYPE MATCHES references GROUP names (not UDF names) |
-| **ACL Rule** | ACL_RULE references UDF names (not GROUP names) |
-| **One UDF per group per rule** | Single rule can only use ONE UDF from a given GROUP |
-| **Semantic consistency** | All UDFs in same GROUP must extract same semantic field |
+| **UDF_SELECTOR key** | Composite `group_name\|selector_name`; group must exist in UDF table |
+| **ACL Table** | ACL_TABLE_TYPE matches references UDF group names |
+| **ACL Rule** | ACL_RULE uses UDF group name directly (e.g., `G0: "0x1133/0xffff"`) |
+| **Semantic consistency** | All selectors under a group must extract the same semantic field |
 
 ## 4. Core Concepts and Mental Model
 
@@ -106,42 +102,32 @@ UDF (User Defined Field) enables extraction of custom packet fields for ACL matc
 - Support ECMP/LAG hashing on custom fields
 - Enable custom protocol processing (e.g., InfiniBand/RoCE)
 
-### 4.2 The Three UDF Objects - Mental Model
+### 4.2 The Two UDF Config Objects - Mental Model
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     ONE-LINE MENTAL MODEL                     │
 ├──────────────────────────────────────────────────────────────┤
-│  GROUP defines WHERE in ACL key  (field position/index)      │
-│  MATCH defines WHEN to extract   (packet type/context)       │
-│  UDF defines HOW to extract      (base + offset)             │
+│  UDF defines WHERE and how big   (field in ACL key)          │
+│  UDF_SELECTOR defines WHEN/HOW   (packet type + extraction)  │
 │  ACL defines WHAT to match       (data/mask + action)        │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-#### UDF Group
-- Represents **one field** in the ACL key
-- Has a **fixed length** (1-20 bytes)
-- Maps to a **group index** in the ACL table (0-255)
-- Group index = **position of field** in the ACL key
-- **Think**: "WHERE in the ACL key does this field go?"
-
-**Critical Design Rule: Semantic Consistency** - All UDFs in a group must extract the **same logical field** across different packet types. See [Section 12.3](#123-semantic-consistency-requirement) for detailed explanation and examples.
-
-#### UDF Match
-- Defines **packet type/context** (L2/L3/L4 conditions)
-- Used to decide **which UDF applies** for a given packet
-- Multiple matches allow different extraction for different packet types
-- **Think**: "WHEN should extraction happen?"
-
 #### UDF
-- Defines **how to extract bytes** from the packet
-- Combines: Group ID, Match ID, Base (L2/L3/L4), Offset
-- Multiple UDFs can belong to the same group (different packet types)
-- All UDFs in the same group **must extract the same semantic field**
-- **Think**: "HOW to extract the bytes?"
+- Represents **one named field** in the ACL key (e.g., "G0")
+- Has a **fixed length** (1-16 bytes)
+- Maps to a **group index** in the ACL table
+- **Think**: "WHERE in the ACL key does this field go, and how wide is it?"
 
-**Key Point**: UDF_GROUP and UDF_MATCH are **independent** objects. UDF requires **BOTH**.
+#### UDF_SELECTOR
+- Composite key `<group_name>|<selector_name>` ties a selector directly to its group
+- Specifies **which packets** trigger extraction (L2/L3/GRE type + masks + priority)
+- Specifies **how to extract** bytes (base L2/L3/L4 + offset)
+- Multiple selectors under the same group handle different packet types
+- **Think**: "WHEN and HOW to extract bytes into this field?"
+
+**Critical Design Rule: Semantic Consistency** — All selectors under a group must extract the same logical field. See [Section 10.3](#103-semantic-consistency-requirement).
 
 ### 4.3 Packet Parsing Flow - Complete Example
 
@@ -157,15 +143,12 @@ PACKET STRUCTURE:
 
 CONFIGURATION:
 ┌──────────────────────────────────────────────────────────────┐
-│ UDF_GROUP:                                                    │
-│   ROCE_GROUP: {TYPE: "GENERIC", LENGTH: "1"}                 │
-│                                                               │
-│ UDF_MATCH:                                                    │
-│   M_IPV4_UDP: {L3_TYPE: "0x11", PRIORITY: "10"}              │
-│                                                               │
 │ UDF:                                                          │
-│   BTH_OPCODE: {GROUP: "ROCE_GROUP", MATCH: "M_IPV4_UDP",     │
-│                BASE: "L4", OFFSET: "8"}                       │
+│   ROCE_GROUP: {group_type: "GENERIC", length: "1"}           │
+│                                                               │
+│ UDF_SELECTOR:                                                 │
+│   ROCE_GROUP|ipv4_udp: {base: "L4", offset: "8",             │
+│                          l3_type: "0x11", priority: "10"}    │
 └──────────────────────────────────────────────────────────────┘
 
 RUNTIME PACKET PROCESSING:
@@ -183,10 +166,10 @@ RUNTIME PACKET PROCESSING:
 │     • UDF Group Index 0 → ROCE_GROUP                        │
 │     │                                                        │
 │     ▼                                                        │
-│  4. UDF Match Selection:                                    │
-│     • Check all UDFs in ROCE_GROUP                          │
-│     • IPV4_UDP matches (L2=0x0800, L3=0x11) ✓               │
-│     • Select UDF: BTH_OPCODE                                │
+│  4. Selector Matching:                                      │
+│     • Check all UDF_SELECTORs for ROCE_GROUP                │
+│     • ROCE_GROUP|ipv4_udp matches (L3=0x11) ✓               │
+│     • Use: base=L4, offset=8                                │
 │     │                                                        │
 │     ▼                                                        │
 │  5. Field Extraction:                                       │
@@ -218,21 +201,22 @@ ACL Key Structure:
           Standard ACL Fields               UDF Fields (2-byte chunks)
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Pattern 1: Single Group, Multiple UDFs (Same field, different packet types) │
+│ Pattern 1: Single Group, Multiple Selectors (Same field, different protocols)│
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ G1(Length=2)  U1  M1  → IPv4 UDP dest port                                   │
-│ G1(Length=2)  U2  M2  → IPv6 UDP dest port                                   │
+│ UDF: G1 (length=2)                                                           │
+│ UDF_SELECTOR: G1|ipv4_udp  → IPv4 UDP dest port                              │
+│ UDF_SELECTOR: G1|ipv6_udp  → IPv6 UDP dest port                              │
 │                                                                               │
 │ ACL Key: qset = { B2Chunk1 }                                                 │
-│          Only ONE field, runtime selects U1 or U2 based on match             │
+│          Only ONE field; runtime selects ipv4_udp or ipv6_udp based on pkt  │
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Pattern 2: Multiple Groups, Different Matches (Different fields, different   │
-│            packet types)                                                      │
+│ Pattern 2: Multiple Groups, Different Selectors (Different fields)           │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ G1(Length=2)  U1  M1  → IPv4 UDP dest port                                   │
-│ G2(Length=2)  U2  M2  → IPv6 TCP src port                                    │
+│ UDF: G1 (length=2),  G2 (length=2)                                           │
+│ UDF_SELECTOR: G1|udp → IPv4 UDP dest port                                    │
+│ UDF_SELECTOR: G2|tcp → IPv6 TCP src port                                     │
 │                                                                               │
 │ ACL Key Layout:                                                              │
 │   B2Chunk1  B2Chunk2                                                         │
@@ -240,14 +224,15 @@ ACL Key Structure:
 │   ↓         ↓                                                                │
 │   UDF[0]    UDF[1]                                                           │
 │                                                                               │
-│ Runtime: Only matching UDF executes (M1 OR M2), other field = 0             │
+│ Runtime: Only matching selector executes; other field = 0                   │
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ Pattern 3: Multiple Groups, Different Lengths (Complex multi-field)          │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ G1(Length=3)  U1  M1  → RoCE BTH opcode (3 bytes)                            │
-│ G2(Length=2)  U2  M2  → GRE key (2 bytes)                                    │
+│ UDF: G1 (length=3),  G2 (length=2)                                           │
+│ UDF_SELECTOR: G1|s1  → RoCE BTH opcode (3 bytes)                             │
+│ UDF_SELECTOR: G2|s2  → GRE key (2 bytes)                                     │
 │                                                                               │
 │ ACL Key Layout (byte chunks):                                                │
 │   B2Chunk1  B2Chunk2  | B2Chunk3                                             │
@@ -260,40 +245,32 @@ ACL Key Structure:
 ```
 
 **Key Principles**:
-1. **One Group = One ACL Field Position**: Each group maps to a specific index in the ACL key
-2. **Multiple UDFs per Group**: Only ONE executes per packet (based on UDF_MATCH)
-3. **Field Length**: Groups can span multiple 2-byte chunks (1-20 bytes total)
-4. **Runtime Selection**: UDF_MATCH determines which UDF extracts data for each packet
-   - Selection is priority-based: highest priority matching UDF wins
-   - If no UDF matches, the group field returns 0 (no match)
-5. **Semantic Consistency**: All UDFs in the same group must extract the same logical field
+1. **One UDF = One ACL Field Position**: Each group maps to a specific index in the ACL key
+2. **Multiple Selectors per UDF**: Only ONE executes per packet (based on priority + match)
+3. **Field Length**: Groups can span multiple 2-byte chunks (1-16 bytes total)
+4. **Runtime Selection**: Priority-based; highest priority matching selector wins. If none matches, field = 0
+5. **Semantic Consistency**: All selectors under a group must extract the same logical field
 
 #### Example: Multi-Protocol RoCE + GRE Extraction
 
 Complete configuration showing Pattern 3 in practice:
 
 ```
-UDF_GROUP:
-  ROCE_OPCODE_GROUP: {TYPE: "GENERIC", LENGTH: "1"}
-  GRE_KEY_GROUP: {TYPE: "GENERIC", LENGTH: "4"}
-
-UDF_MATCH:
-  M_IPV4_ROCE: {L2_TYPE: "0x0800", L3_TYPE: "0x11", PRIORITY: "10"}
-  M_IPV6_ROCE: {L2_TYPE: "0x86DD", L3_TYPE: "0x11", PRIORITY: "10"}
-  M_IPV4_GRE: {L2_TYPE: "0x0800", GRE_TYPE: "0x6558", PRIORITY: "10"}
-  M_IPV6_GRE: {L2_TYPE: "0x86DD", GRE_TYPE: "0x6558", PRIORITY: "10"}
-
 UDF:
-  BTH_OPCODE_V4: {GROUP: "ROCE_OPCODE_GROUP", MATCH: "M_IPV4_ROCE", BASE: "L4", OFFSET: "8"}
-  BTH_OPCODE_V6: {GROUP: "ROCE_OPCODE_GROUP", MATCH: "M_IPV6_ROCE", BASE: "L4", OFFSET: "8"}
-  GRE_KEY_V4: {GROUP: "GRE_KEY_GROUP", MATCH: "M_IPV4_GRE", BASE: "L3", OFFSET: "28"}
-  GRE_KEY_V6: {GROUP: "GRE_KEY_GROUP", MATCH: "M_IPV6_GRE", BASE: "L3", OFFSET: "48"}
+  ROCE_OPCODE: {group_type: "GENERIC", length: "1"}
+  GRE_KEY:     {group_type: "GENERIC", length: "4"}
+
+UDF_SELECTOR:
+  ROCE_OPCODE|ipv4_roce: {base: "L4", offset: "8", l2_type: "0x0800", l3_type: "0x11", priority: "10"}
+  ROCE_OPCODE|ipv6_roce: {base: "L4", offset: "8", l2_type: "0x86DD", l3_type: "0x11", priority: "10"}
+  GRE_KEY|ipv4_gre:      {base: "L3", offset: "28", l2_type: "0x0800", gre_type: "0x6558", priority: "10"}
+  GRE_KEY|ipv6_gre:      {base: "L3", offset: "48", l2_type: "0x86DD", gre_type: "0x6558", priority: "10"}
 
 Runtime Behavior:
-  IPv4 RoCE → M_IPV4_ROCE → BTH_OPCODE_V4 → UDF[0] = opcode, UDF[1] = 0
-  IPv6 RoCE → M_IPV6_ROCE → BTH_OPCODE_V6 → UDF[0] = opcode, UDF[1] = 0
-  IPv4 GRE  → M_IPV4_GRE  → GRE_KEY_V4    → UDF[0] = 0, UDF[1] = key
-  IPv6 GRE  → M_IPV6_GRE  → GRE_KEY_V6    → UDF[0] = 0, UDF[1] = key
+  IPv4 RoCE → ROCE_OPCODE|ipv4_roce → UDF[0] = opcode, UDF[1] = 0
+  IPv6 RoCE → ROCE_OPCODE|ipv6_roce → UDF[0] = opcode, UDF[1] = 0
+  IPv4 GRE  → GRE_KEY|ipv4_gre      → UDF[0] = 0,      UDF[1] = key
+  IPv6 GRE  → GRE_KEY|ipv6_gre      → UDF[0] = 0,      UDF[1] = key
 ```
 
 ### 4.5 Group Index Mapping to ACL Key
@@ -323,11 +300,11 @@ SAI ACL ENTRY MATCHING:
 
 ### 4.6 Summary - When to Use Each Pattern
 
-| Pattern | Groups | Matches | UDFs | Use Case | Example |
-|---------|--------|---------|------|----------|---------|
-| **1** | 1 | Multiple | Multiple | Same field, different packet types | UDP port from IPv4 and IPv6 |
-| **2** | Multiple | 1 | Multiple | Multiple fields, same packet type | Src+Dst port from IPv4 UDP |
-| **3** | Multiple | Multiple | Multiple | Multiple fields, multiple packet types | RoCE opcode + GRE key extraction |
+| Pattern | UDF Groups | Selectors per Group | Use Case | Example |
+|---------|-----------|---------------------|----------|---------|
+| **1** | 1 | Multiple | Same field, different packet types | UDP port from IPv4 and IPv6 |
+| **2** | Multiple | 1 each | Multiple fields, same packet type | Src+Dst port from IPv4 UDP |
+| **3** | Multiple | Multiple each | Multiple fields, multiple packet types | RoCE opcode + GRE key extraction |
 
 ### 4.7 Common Pattern Examples
 
@@ -337,27 +314,23 @@ SAI ACL ENTRY MATCHING:
 
 ```json
 {
-  "UDF_GROUP": {
-    "UDP_DPORT": {"TYPE": "GENERIC", "LENGTH": "2"}
-  },
-  "UDF_MATCH": {
-    "M_IPV4_UDP": {"L2_TYPE": "0x0800", "L3_TYPE": "0x11", "PRIORITY": "10"},
-    "M_IPV6_UDP": {"L2_TYPE": "0x86DD", "L3_TYPE": "0x11", "PRIORITY": "10"}
-  },
   "UDF": {
-    "DPORT_V4": {"GROUP": "UDP_DPORT", "MATCH": "M_IPV4_UDP", "BASE": "L4", "OFFSET": "2"},
-    "DPORT_V6": {"GROUP": "UDP_DPORT", "MATCH": "M_IPV6_UDP", "BASE": "L4", "OFFSET": "2"}
+    "UDP_DPORT": {"group_type": "GENERIC", "length": "2"}
+  },
+  "UDF_SELECTOR": {
+    "UDP_DPORT|ipv4_udp": {"base": "L4", "offset": "2", "l2_type": "0x0800", "l3_type": "0x11", "priority": "10"},
+    "UDP_DPORT|ipv6_udp": {"base": "L4", "offset": "2", "l2_type": "0x86DD", "l3_type": "0x11", "priority": "10"}
   },
   "ACL_TABLE_TYPE": {
-    "T1": {"MATCHES": ["IN_PORTS", "UDP_DPORT"], "ACTIONS": ["PACKET_ACTION"], "BIND_POINTS": ["PORT"]}
+    "T1": {"matches": "IN_PORTS,UDP_DPORT", "actions": "PACKET_ACTION", "bind_points": "PORT"}
   },
   "ACL_RULE": {
-    "TABLE1|BLOCK_DNS": {"DPORT_V4": "0x0035/0xffff", "PACKET_ACTION": "DROP"}
+    "TABLE1|BLOCK_DNS": {"UDP_DPORT": "0x0035/0xffff", "PACKET_ACTION": "DROP"}
   }
 }
 ```
 
-**Key benefit**: Same rule works for both IPv4 and IPv6 (runtime selects correct UDF)
+**Key benefit**: Single rule matches both IPv4 and IPv6; runtime selects the correct selector
 
 #### Pattern 2: Multiple Fields, Single Protocol
 
@@ -365,24 +338,21 @@ SAI ACL ENTRY MATCHING:
 
 ```json
 {
-  "UDF_GROUP": {
-    "TCP_SPORT": {"TYPE": "GENERIC", "LENGTH": "2"},
-    "TCP_DPORT": {"TYPE": "GENERIC", "LENGTH": "2"}
-  },
-  "UDF_MATCH": {
-    "M_TCP": {"L3_TYPE": "0x06", "PRIORITY": "10"}
-  },
   "UDF": {
-    "SRC_PORT": {"GROUP": "TCP_SPORT", "MATCH": "M_TCP", "BASE": "L4", "OFFSET": "0"},
-    "DST_PORT": {"GROUP": "TCP_DPORT", "MATCH": "M_TCP", "BASE": "L4", "OFFSET": "2"}
+    "TCP_SPORT": {"group_type": "GENERIC", "length": "2"},
+    "TCP_DPORT": {"group_type": "GENERIC", "length": "2"}
+  },
+  "UDF_SELECTOR": {
+    "TCP_SPORT|tcp": {"base": "L4", "offset": "0", "l3_type": "0x06", "priority": "10"},
+    "TCP_DPORT|tcp": {"base": "L4", "offset": "2", "l3_type": "0x06", "priority": "10"}
   },
   "ACL_TABLE_TYPE": {
-    "T1": {"MATCHES": ["TCP_SPORT", "TCP_DPORT"], "ACTIONS": ["PACKET_ACTION"], "BIND_POINTS": ["PORT"]}
+    "T1": {"matches": "TCP_SPORT,TCP_DPORT", "actions": "PACKET_ACTION", "bind_points": "PORT"}
   },
   "ACL_RULE": {
     "TABLE1|BLOCK_RANGE": {
-      "SRC_PORT": "0x0400/0xff00",
-      "DST_PORT": "0x1f90/0xffff",
+      "TCP_SPORT": "0x0400/0xff00",
+      "TCP_DPORT": "0x1f90/0xffff",
       "PACKET_ACTION": "DROP"
     }
   }
@@ -397,20 +367,17 @@ SAI ACL ENTRY MATCHING:
 
 ```json
 {
-  "UDF_GROUP": {
-    "BTH_OPCODE": {"TYPE": "GENERIC", "LENGTH": "1"}
-  },
-  "UDF_MATCH": {
-    "M_ROCE": {"L2_TYPE": "0x8915", "PRIORITY": "100"}
-  },
   "UDF": {
-    "IB_OPCODE": {"GROUP": "BTH_OPCODE", "MATCH": "M_ROCE", "BASE": "L2", "OFFSET": "18"}
+    "BTH_OPCODE": {"group_type": "GENERIC", "length": "1"}
+  },
+  "UDF_SELECTOR": {
+    "BTH_OPCODE|roce": {"base": "L2", "offset": "18", "l2_type": "0x8915", "priority": "100"}
   },
   "ACL_TABLE_TYPE": {
-    "ROCE_TABLE": {"MATCHES": ["BTH_OPCODE"], "ACTIONS": ["PACKET_ACTION"], "BIND_POINTS": ["PORT"]}
+    "ROCE_TABLE": {"matches": "BTH_OPCODE", "actions": "PACKET_ACTION", "bind_points": "PORT"}
   },
   "ACL_RULE": {
-    "ROCE_TABLE|BLOCK_SEND": {"IB_OPCODE": "0x00/0xff", "PACKET_ACTION": "DROP"}
+    "ROCE_TABLE|BLOCK_SEND": {"BTH_OPCODE": "0x00/0xff", "PACKET_ACTION": "DROP"}
   }
 }
 ```
@@ -423,11 +390,10 @@ SAI ACL ENTRY MATCHING:
 
 | Requirement | Description |
 |-------------|-------------|
-| UDF Groups | GENERIC (ACL) and HASH (load balancing) types, 1-20 bytes |
-| UDF Match | L2 EtherType, L3 Protocol, GRE Type matching with masks and priority |
-| UDF Extraction | Configurable base (L2/L3/L4), offset (0-255), length (1-20 bytes) |
+| UDF | GENERIC (ACL) and HASH (load balancing) types, 1-16 bytes |
+| UDF_SELECTOR | L2 EtherType, L3 Protocol, GRE Type matching with masks and priority; configurable base (L2/L3/L4) and offset (0-255) |
 | Configuration | CONFIG_DB interface with YANG validation |
-| ACL Integration | Dynamic UDF field resolution in ACL tables and rules |
+| ACL Integration | UDF group names used directly in ACL table types and rules |
 
 ## 6. Architecture Design
 
@@ -437,8 +403,7 @@ SAI ACL ENTRY MATCHING:
 graph TB
     CONFIG_DB[(CONFIG_DB)]
     UDF_TABLE[UDF_TABLE]
-    UDF_MATCH_TABLE[UDF_MATCH_TABLE]
-    UDF_GROUP_TABLE[UDF_GROUP_TABLE]
+    UDF_SELECTOR_TABLE[UDF_SELECTOR_TABLE]
 
     UdfOrch[UdfOrch]
     AclOrch[AclOrch]
@@ -446,13 +411,11 @@ graph TB
     SAI[SAI Layer]
     ASIC[Hardware/ASIC]
 
-    CONFIG_DB --> UDF_GROUP_TABLE
-    CONFIG_DB --> UDF_MATCH_TABLE
     CONFIG_DB --> UDF_TABLE
+    CONFIG_DB --> UDF_SELECTOR_TABLE
 
-    UDF_GROUP_TABLE --> UdfOrch
-    UDF_MATCH_TABLE --> UdfOrch
     UDF_TABLE --> UdfOrch
+    UDF_SELECTOR_TABLE --> UdfOrch
 
     UdfOrch --> SAI
     AclOrch --> UdfOrch
@@ -468,9 +431,9 @@ graph TB
 ```
 
 **Key Components:**
-- **UdfOrch**: Manages UDF objects, provides UDF group OIDs to AclOrch
-- **AclOrch**: Resolves UDF fields, attaches UDF groups to ACL tables
-- **SAI UDF API**: Creates UDF groups, matches, and extraction objects
+- **UdfOrch**: Manages UDF and UDF_SELECTOR objects, provides group OIDs to AclOrch
+- **AclOrch**: Resolves UDF group names, attaches groups to ACL tables, matches group names in rules
+- **SAI UDF API**: Creates UDF groups, matches, and extraction objects (internal to UdfOrch)
 - **SAI ACL API**: Attaches UDF groups to ACL tables and applies UDF matching
 
 ### 6.2 UDF Object Model
@@ -481,76 +444,71 @@ classDiagram
         +string name
         +sai_object_id_t group_id
         +int length
-        +string type
+        +string group_type
     }
 
     class UdfMatch {
         +string name
         +sai_object_id_t match_id
-        +string l2_type
-        +string l3_type
+        +int l2_type
+        +int l3_type
+        +int gre_type
         +int priority
     }
 
     class Udf {
         +string name
         +sai_object_id_t udf_id
-        +sai_object_id_t match_id
         +sai_object_id_t group_id
-        +int offset
+        +sai_object_id_t match_id
         +string base
+        +int offset
     }
 
-    UdfGroup "1" --> "*" Udf : provides group_id
-    UdfMatch "1" --> "*" Udf : provides match_id
+    UdfGroup "1" --> "*" Udf : group_id
+    UdfMatch "1" --> "*" Udf : match_id
 ```
 
-| Object | Key Attributes | Purpose |
-|--------|----------------|---------|
-| **UDF Group** | Type (GENERIC/HASH), Length (1-20) | Groups UDFs for ACL or hashing |
-| **UDF Match** | L2/L3/GRE Type+Mask, Priority | Defines when to extract fields (independent object) |
-| **UDF** | Base (L2/L3/L4), Offset (0-255), **match_id, group_id** | Specifies field extraction, **requires both match_id and group_id** |
-
-**Key Design**: UDF object requires both match_id (from UdfMatch) and group_id (from UdfGroup). UdfGroup and UdfMatch are independent of each other.
+| Config Object | Key Attributes | SAI Objects Created |
+|--------------|----------------|-------------------|
+| **UDF** | group_type (GENERIC/HASH), length (1-20) | SAI UDF Group |
+| **UDF_SELECTOR** | base (L2/L3/L4), offset, L2/L3/GRE type+mask, priority | SAI UDF Match + SAI UDF |
 
 ### 6.3 ACL Integration Dependency
 
 ```
-UdfGroup (independent)          UdfMatch (independent)
-    │                                │
-    │                                │
-    │                                └─→ Udf (requires both group_id and match_id)
+UDF (group_name: "G0")
     │
-    ├─→ ACL Table Type (MATCHES field references GROUP name, e.g., "G0")
+    ├─→ UDF_SELECTOR (key: "G0|selector_name", base, offset, match criteria)
+    │
+    ├─→ ACL_TABLE_TYPE (matches field references group name "G0")
     │         │
-    │         └─→ ACL Table (uses table type, attaches GROUP to ACL)
+    │         └─→ ACL_TABLE (uses table type, attaches group to ACL)
     │                   │
-    │                   └─→ ACL Rule (references UDF name, e.g., "FIELD1")
-    │                             │
-    └─────────────────────────────┘ (Rule validates UDF belongs to declared GROUP)
+    │                   └─→ ACL_RULE (field key is group name: G0: "0x1133/0xffff")
 ```
 
 **Key Flow**:
-1. **ACL_TABLE_TYPE** declares which **GROUP** is available (e.g., "G0")
-2. **ACL_RULE** references specific **UDF name** (e.g., "FIELD1")
-3. **AclOrch** verifies the UDF belongs to the declared GROUP
-4. Runtime selects which UDF executes based on packet match
+1. **UDF** defines the named field "G0"
+2. **UDF_SELECTOR** entries under "G0" define when/how to extract bytes for each packet type
+3. **ACL_TABLE_TYPE** declares "G0" in matches → attaches SAI UDF group to ACL table
+4. **ACL_RULE** matches against "G0" directly by group name
 
 ### 6.4 Component Responsibilities
 
 | Component | Location | Responsibilities |
 |-----------|----------|------------------|
-| **UdfOrch** | `udforch.cpp/h` | • Manages UDF objects<br/>• Resolves group names to OIDs via `getUdfGroupOid()`<br/>• Provides Udf objects to AclOrch via `getUdf()`<br/>• Tracks ACL table references to UDF groups via `incrementGroupRefCount()` / `decrementGroupRefCount()`<br/>• Blocks `removeUdfGroup()` when ACL ref count > 0 |
-| **AclOrch** | `aclorch.cpp` | • Resolves GROUP names in ACL_TABLE_TYPE to group OIDs<br/>• Verifies UDF names in ACL_RULE belong to declared groups<br/>• Attaches UDF groups to ACL tables and calls `incrementGroupRefCount()`<br/>• Calls `decrementGroupRefCount()` when an ACL table is removed<br/>• Applies UDF matching in ACL rules |
+| **UdfOrch** | `udforch.cpp/h` | • Manages UDF and UDF_SELECTOR objects<br/>• For each UDF_SELECTOR entry, creates both a SAI UDF Match and SAI UDF object internally<br/>• Resolves group names to OIDs via `getUdfGroupOid()`<br/>• Tracks ACL table references via `incrementGroupRefCount()` / `decrementGroupRefCount()`<br/>• Blocks group removal when ACL ref count > 0 |
+| **AclOrch** | `aclorch.cpp` | • Resolves group names in ACL_TABLE_TYPE matches to group OIDs<br/>• Attaches UDF groups to ACL tables and calls `incrementGroupRefCount()`<br/>• Calls `decrementGroupRefCount()` when an ACL table is removed<br/>• Applies UDF matching in ACL rules using group name directly |
 
 **Key Classes**:
 
 | Class | Key Methods | Responsibility |
 |-------|-------------|----------------|
-| **UdfOrch** | `doUdfGroupTask()`<br/>`doUdfMatchTask()`<br/>`doUdfTask()` (reads GROUP and MATCH attributes, resolves both OIDs)<br/>`getUdfGroupOid(name)`<br/>`getUdf(name)`<br/>`incrementGroupRefCount(name)`<br/>`decrementGroupRefCount(name)`<br/>`getGroupRefCount(name)` | Orchestrates UDF lifecycle, resolves OIDs, enforces ACL ref-count guard on deletion |
-| **UdfGroup** | `create()`, `remove()`, `getOid()` | Manages SAI UDF group objects (independent) |
-| **UdfMatch** | `create()`, `remove()`, `getOid()` | Manages SAI UDF match objects (independent) |
-| **Udf** | `create()`, `remove()`<br/>`getConfig()` (returns group_id) | Manages SAI UDF, **requires both match_id and group_id** |
+| **UdfOrch** | `doUdfFieldTask()` (creates SAI UDF group)<br/>`doUdfSelectorTask()` (creates SAI UDF match + SAI UDF)<br/>`getUdfGroupOid(name)`<br/>`incrementGroupRefCount(name)`<br/>`decrementGroupRefCount(name)` | Orchestrates UDF lifecycle, resolves OIDs, enforces ref-count guard |
+| **UdfGroup** | `create()`, `remove()`, `getOid()` | Manages SAI UDF group objects |
+| **UdfMatch** | `create()`, `remove()`, `getOid()` | Manages SAI UDF match objects (created per UDF_SELECTOR entry) |
+| **Udf** | `create()`, `remove()`, `getConfig()` | Manages SAI UDF objects (created per UDF_SELECTOR entry) |
 
 **YANG Model Validation** (`sonic-udf.yang`):
 - Schema validation for UDF configuration before writing to CONFIG_DB
@@ -568,47 +526,40 @@ sequenceDiagram
     participant ASIC as Hardware
 
     Note over Config,ASIC: UDF Object Creation
-    Config->>UdfOrch: UDF_GROUP config (key: G0)
-    UdfOrch->>SAI: create_udf_group(TYPE, LENGTH)
+    Config->>UdfOrch: UDF config (key: G0, fields: group_type, length)
+    UdfOrch->>SAI: create_udf_group(group_type, length)
     SAI->>ASIC: Program UDF Group
     SAI-->>UdfOrch: Return group OID
 
-    Config->>UdfOrch: UDF_MATCH config (key: M_UDP)
-    UdfOrch->>SAI: create_udf_match(L2/L3/GRE types, priority)
-    SAI->>ASIC: Program Match Criteria
+    Config->>UdfOrch: UDF_SELECTOR config (key: G0|udp_l4, fields: base, offset, l3_type, priority)
+    UdfOrch->>SAI: create_udf_match(l3_type, priority)
     SAI-->>UdfOrch: Return match OID
-
-    Config->>UdfOrch: UDF config (key: FIELD1, attrs: GROUP=G0, MATCH=M_UDP)
-    UdfOrch->>UdfOrch: Resolve GROUP "G0" to group_id OID
-    UdfOrch->>UdfOrch: Resolve MATCH "M_UDP" to match_id OID
-    Note over UdfOrch: UDF requires both match_id and group_id
     UdfOrch->>SAI: create_udf(match_id, group_id, base, offset)
-    SAI->>ASIC: Program Field Extraction
+    SAI->>ASIC: Program Match + Extraction
 
     Note over Config,ASIC: ACL Integration
-    Config->>AclOrch: ACL_TABLE_TYPE (MATCHES includes group_name)
-    AclOrch->>UdfOrch: getUdfGroupOid(group_name)
+    Config->>AclOrch: ACL_TABLE_TYPE (matches includes G0)
+    AclOrch->>UdfOrch: getUdfGroupOid("G0")
     UdfOrch-->>AclOrch: Return group_id OID
     AclOrch->>SAI: create_acl_table(UDF_GROUP_OID)
     SAI->>ASIC: Attach UDF Group to ACL Table
-    AclOrch->>UdfOrch: incrementGroupRefCount(group_name)
+    AclOrch->>UdfOrch: incrementGroupRefCount("G0")
 
-    Config->>AclOrch: ACL_RULE (udf_name: value/mask)
-    AclOrch->>UdfOrch: getUdf(udf_name)
-    UdfOrch-->>AclOrch: Return Udf object (verify group match)
-    AclOrch->>SAI: create_acl_entry(UDF match)
+    Config->>AclOrch: ACL_RULE (G0: "0x1133/0xffff")
+    AclOrch->>SAI: create_acl_entry(group_index, data/mask)
     SAI->>ASIC: Program ACL Rule with UDF
 
     Note over Config,ASIC: ACL Table Deletion
     Config->>AclOrch: DEL ACL_TABLE
     AclOrch->>SAI: remove_acl_table
-    AclOrch->>UdfOrch: decrementGroupRefCount(group_name)
+    AclOrch->>UdfOrch: decrementGroupRefCount("G0")
 ```
 
 **Key Steps:**
-1. CONFIG_DB → UdfOrch → SAI → ASIC (UDF objects)
-2. CONFIG_DB → AclOrch → Query UdfOrch → SAI → ASIC (ACL with UDF)
-3. AclOrch tracks UDF group references via `incrementGroupRefCount` / `decrementGroupRefCount` so UdfOrch can safely reject premature group deletions
+1. `UDF` → UdfOrch creates SAI UDF Group
+2. `UDF_SELECTOR` → UdfOrch creates SAI UDF Match + SAI UDF (both, internally)
+3. `ACL_TABLE_TYPE` → AclOrch attaches group OID to ACL table, increments ref count
+4. `ACL_RULE` → AclOrch resolves group name to index, programs SAI ACL entry directly
 
 ## 7. High-Level Design
 
@@ -624,122 +575,109 @@ sequenceDiagram
 
 | Class | Responsibility | SAI Object |
 |-------|----------------|------------|
-| `UdfGroup` | Manages UDF group (type, length) | `SAI_OBJECT_TYPE_UDF_GROUP` |
-| `UdfMatch` | Manages match criteria (L2/L3/GRE) | `SAI_OBJECT_TYPE_UDF_MATCH` |
-| `Udf` | Manages field extraction (base, offset) | `SAI_OBJECT_TYPE_UDF` |
-| `UdfOrch` | Orchestrates all UDF objects | N/A |
+| `UdfGroup` | Manages UDF group (group_type, length) | `SAI_OBJECT_TYPE_UDF_GROUP` |
+| `UdfMatch` | Manages match criteria (L2/L3/GRE type+mask, priority) — shared across selectors with identical criteria | `SAI_OBJECT_TYPE_UDF_MATCH` |
+| `Udf` | Manages field extraction (base, offset) — one SAI UDF object per UDF_SELECTOR entry | `SAI_OBJECT_TYPE_UDF` |
+| `UdfOrch` | Orchestrates all UDF objects; processes `UDF` and `UDF_SELECTOR` CONFIG_DB tables | N/A |
+| `UdfMatchSignature` | Content-equality key used for match deduplication (`l2_type`, `l3_type`, `gre_type`, masks, priority) | N/A |
 
 ### 7.3 Configuration Order
 
 **Creation Order:**
-1. UDF_GROUP (independent)
-2. UDF_MATCH (independent)
-3. UDF (depends on both UDF_GROUP and UDF_MATCH - requires both group_id and match_id)
-4. ACL_TABLE_TYPE (references UDF_GROUP names in MATCHES)
-5. ACL_TABLE (uses ACL_TABLE_TYPE)
-6. ACL_RULE (references UDF names)
+1. UDF (independent — defines the group)
+2. UDF_SELECTOR (depends on UDF — group must exist)
+3. ACL_TABLE_TYPE (references UDF names in matches)
+4. ACL_TABLE (uses ACL_TABLE_TYPE)
+5. ACL_RULE (references UDF group names directly)
 
 **Deletion Order:** Reverse of creation
-
-**Key Dependency**: UDF requires both match_id (from UDF_MATCH) and group_id (from UDF_GROUP). UDF_GROUP and UDF_MATCH are independent and can be created in any order.
 
 ### 7.4 Orchestration Logic
 
 **UdfOrch Processing Flow**:
 
-1. **UDF_GROUP Task**:
-   - Parse CONFIG_DB entry (simple key: `group_name`, e.g., "G0")
-   - Validate TYPE (GENERIC/HASH) and LENGTH (1-20)
-   - Call SAI to create UDF group
-   - Store group_id OID in UdfGroup object
+1. **UDF Task** (key: `group_name`, e.g., "G0"):
+   - Validate `group_type` (GENERIC/HASH) and `length` (1-20)
+   - Call SAI `create_udf_group()` → store group OID
 
-2. **UDF_MATCH Task**:
-   - Parse CONFIG_DB entry (simple key: `match_name`, e.g., "M_UDP")
-   - Validate match criteria (L2/L3/GRE TYPE and masks)
-   - Validate PRIORITY (0-255)
-   - Call SAI to create UDF match (independent object)
-   - Store match_id OID in UdfMatch object
+2. **UDF_SELECTOR Task** (key: `group_name|selector_name`, e.g., "G0|udp_l4"):
+   - Parse group name from composite key; resolve to group OID (retry if not yet created)
+   - Validate match criteria (L2/L3/GRE type + masks), `base`, `offset`, `priority`
+   - Apply default exact-match masks if type is set but mask is omitted
+   - Look up `m_matchSigToName` for a shared match with identical criteria; if found, reuse the existing SAI UDF_MATCH object (increment `m_matchRefCount`); otherwise call SAI `create_udf_match()` and register in the deduplication maps
+   - Call SAI `create_udf(match_id, group_id, base, offset)` → store udf OID
+   - Record `m_selectorToMatchName[selectorKey] = matchName` for cleanup on deletion
 
-3. **UDF Task**:
-   - Parse CONFIG_DB entry (simple key: `udf_name`, e.g., "FIELD1")
-   - Read GROUP attribute and resolve to group_id OID via `getUdfGroupOid(group_name)`
-   - Read MATCH attribute and resolve to match_id OID via `getUdfMatch(match_name)`
-   - Validate BASE (L2/L3/L4) and OFFSET (0-255)
-   - Call SAI to create UDF with **both match_id and group_id**
-   - Store udf_id OID in Udf object
+**Match Deduplication**:
+
+Multiple UDF_SELECTOR entries may have identical match criteria (e.g., two fields both selecting IPv4 packets). Rather than creating duplicate SAI UDF_MATCH objects, UdfOrch deduplicates them:
+
+| Internal Map | Key | Value | Purpose |
+|---|---|---|---|
+| `m_matchSigToName` | `UdfMatchSignature` (all type/mask/priority fields) | match name | Find existing match by content |
+| `m_matchRefCount` | match name | reference count | Delete SAI object only when count reaches 0 |
+| `m_selectorToMatchName` | selector composite key | match name | Look up correct match on UDF_SELECTOR DEL |
+
+On deletion of a UDF_SELECTOR, `releaseSharedMatch()` decrements the ref count and removes the SAI UDF_MATCH object only when the last user goes away.
 
 **AclOrch Integration**:
-- **ACL Table Creation**: Query UdfOrch via `getUdfGroupOid(group_name)` to get group_id OID
-- Attach group_id to ACL table via SAI (based on GROUP name in ACL_TABLE_TYPE MATCHES)
-- Call `gUdfOrch->incrementGroupRefCount(group_name)` after successful ACL table creation
-- **ACL Table Deletion**: Call `gUdfOrch->decrementGroupRefCount(group_name)` before or after SAI table removal
-- **ACL Rule Creation**: Query UdfOrch via `getUdf(udf_name)` to verify UDF exists and belongs to declared group
-- Apply UDF matching in ACL entry via SAI
+- **ACL Table Creation**: Query UdfOrch via `getUdfGroupOid(group_name)` → attach to ACL table via SAI → call `incrementGroupRefCount(group_name)`
+- **ACL Table Deletion**: Call `decrementGroupRefCount(group_name)` after SAI table removal
+- **ACL Rule Creation**: Group name in rule (e.g., `G0`) maps directly to ACL key index — no UDF name lookup needed
 
 **UDF Group Deletion Guard**:
 - `removeUdfGroup()` checks `m_udfGroupRefCount[name] > 0` before calling SAI
-- If any ACL table still references the group, deletion is rejected with an error log and returns `false` (triggering retry)
-- This prevents SAI rejections and infinite retry loops that would occur if the deletion were attempted blindly
+- Rejected with error log if any ACL table still holds a reference (returns `false`, triggering retry)
 
 ### 7.5 CONFIG_DB Schema
 
 | Table | Key | Fields | Example |
 |-------|-----|--------|---------|
-| **UDF_GROUP** | `<group_name>` | TYPE (GENERIC/HASH)<br/>LENGTH (1-20) | Key: `G0`<br/>`TYPE="GENERIC"`<br/>`LENGTH="3"` |
-| **UDF_MATCH** | `<match_name>` | L2_TYPE, L2_TYPE_MASK<br/>L3_TYPE, L3_TYPE_MASK<br/>GRE_TYPE, GRE_TYPE_MASK<br/>PRIORITY (0-255, default 90)<br/>**Mask defaulting**: if a TYPE field is set but its MASK is omitted, the mask defaults to exact-match (`0xFFFF` for 16-bit, `0xFF` for 8-bit). A mask of 0 would silently make the TYPE ineffective. | Key: `M_UDP`<br/>`L3_TYPE="0x11"`<br/>`L3_TYPE_MASK="0xFF"`<br/>`PRIORITY="10"` |
-| **UDF** | `<udf_name>` | GROUP (group name)<br/>MATCH (match name)<br/>BASE (L2/L3/L4)<br/>OFFSET (0-255) | Key: `FIELD1`<br/>`GROUP="G0"`<br/>`MATCH="M_UDP"`<br/>`BASE="L4"`<br/>`OFFSET="0"` |
-| **ACL_TABLE_TYPE** | `<type_name>` | MATCHES (includes GROUP names)<br/>ACTIONS<br/>BIND_POINTS | Key: `T1`<br/>`MATCHES=["IN_PORTS","G0"]`<br/>`ACTIONS=["PACKET_ACTION","COUNTER"]`<br/>`BIND_POINTS=["PORT"]` |
-| **ACL_TABLE** | `<table_name>` | type<br/>ports<br/>stage | Key: `TABLE1`<br/>`type="T1"`<br/>`ports=["Ethernet0"]`<br/>`stage="INGRESS"` |
-| **ACL_RULE** | `<table>\|<rule>` | PRIORITY<br/><udf_name>: "value/mask"<br/>PACKET_ACTION | Key: `TABLE1\|R1`<br/>`PRIORITY="101"`<br/>`FIELD1="0x33/0xff"`<br/>`PACKET_ACTION="DROP"` |
+| **UDF** | `<group_name>` | `group_type` (GENERIC/HASH)<br/>`length` (1-20)<br/>`description` (optional) | Key: `G0`<br/>`group_type="GENERIC"`<br/>`length="3"` |
+| **UDF_SELECTOR** | `<group_name>\|<selector_name>` | `base` (L2/L3/L4)<br/>`offset` (0-255)<br/>`l2_type`, `l2_type_mask`<br/>`l3_type`, `l3_type_mask`<br/>`gre_type`, `gre_type_mask`<br/>`priority` (0-255, default 0)<br/>**Mask defaulting**: if a type field is set but mask is omitted, defaults to exact-match (`0xFFFF`/`0xFF`) | Key: `G0\|udp_l4`<br/>`base="L4"`<br/>`offset="0"`<br/>`l3_type="0x11"`<br/>`priority="10"` |
+| **ACL_TABLE_TYPE** | `<type_name>` | `matches` (UDF group names, comma-separated)<br/>`actions`<br/>`bind_points` | Key: `T1`<br/>`matches="IN_PORTS,G0,G1"`<br/>`actions="PACKET_ACTION,COUNTER"`<br/>`bind_points="PORT"` |
+| **ACL_TABLE** | `<table_name>` | `type`<br/>`ports`<br/>`stage` | Key: `TABLE1`<br/>`type="T1"`<br/>`ports="Ethernet0"`<br/>`stage="ingress"` |
+| **ACL_RULE** | `<table>\|<rule>` | `priority`<br/>`<group_name>`: "value/mask"<br/>`PACKET_ACTION` | Key: `TABLE1\|R1`<br/>`priority="101"`<br/>`G0="0x1133/0xffff"`<br/>`PACKET_ACTION="DROP"` |
 
 **Key Design Points:**
-- **Simple keys**: UDF_GROUP, UDF_MATCH, and UDF all use simple keys (not composite)
-- **UDF attributes**: UDF explicitly specifies both GROUP and MATCH attributes
-- **Independence**: UDF_GROUP and UDF_MATCH are independent objects
-- **UDF requires both OIDs**: UDF creation requires both match_id (from UdfMatch) and group_id (from UdfGroup)
-- **GROUP name in ACL_TABLE_TYPE**: ACL_TABLE_TYPE MATCHES references the GROUP name (e.g., "G0")
-- **UDF name in ACL_RULE**: ACL_RULE references the UDF name (e.g., "FIELD1") to specify which field to match
-- **One UDF per group per rule**: A single ACL_RULE can only reference ONE UDF from a given GROUP (since GROUP produces one value per packet)
-- **At least one match criteria required**: L2_TYPE, L3_TYPE, or GRE_TYPE must be specified in UDF_MATCH
-- **UDF value/mask format**: Hexadecimal "0xVALUE/0xMASK" in ACL_RULE
+- **UDF key is the group name**: Used directly in ACL_TABLE_TYPE matches and ACL_RULE fields
+- **UDF_SELECTOR composite key**: `group_name|selector_name` — group must exist in UDF table
+- **ACL_RULE uses group name**: `G0: "0x1133/0xffff"` — no separate UDF name indirection
+- **At least one match criteria required**: `l2_type`, `l3_type`, or `gre_type` must be set in UDF_SELECTOR
+- **One group per field per rule**: A single ACL_RULE references each group at most once
+- **Value/mask format**: Hexadecimal `"0xVALUE/0xMASK"` in ACL_RULE
 
 
 ### 7.6 ACL Integration
 
 **AclOrch Resolution Flow:**
-1. Parse ACL_TABLE_TYPE MATCHES → identify UDF GROUP names (e.g., "G0")
+1. Parse ACL_TABLE_TYPE matches → identify UDF group names (e.g., "G0", "G1")
 2. Query UdfOrch: `getUdfGroupOid(group_name)` → get group OID
-3. Attach to ACL table: `SAI_ACL_TABLE_ATTR_USER_DEFINED_FIELD_GROUP_MIN + index` with group_id OID
-4. Apply in ACL rule: `SAI_ACL_ENTRY_ATTR_USER_DEFINED_FIELD_GROUP_MIN + index` with byte array data/mask
-5. Rule references UDF by UDF name (not group name) to specify which field to match
+3. Attach to ACL table: `SAI_ACL_TABLE_ATTR_USER_DEFINED_FIELD_GROUP_MIN + index` with group OID
+4. For ACL rule field `G0: "0x1133/0xffff"` → resolve group name to index → apply `SAI_ACL_ENTRY_ATTR_USER_DEFINED_FIELD_GROUP_MIN + index` with byte array data/mask
 
-**Example: Multiple UDFs in Same Group with Different Packet Matches**
+**Example: Two Groups, Multiple Selectors**
 ```json
-CONFIG_DB:
-  UDF_GROUP:
-    G0: {TYPE: "GENERIC", LENGTH: "3"}
-  UDF_MATCH:
-    M_UDP: {L3_TYPE: "0x11", L3_TYPE_MASK: "0xFF", PRIORITY: "10"}
-    M_TCP: {L3_TYPE: "0x06", L3_TYPE_MASK: "0xFF", PRIORITY: "10"}
-  UDF:
-    FIELD1: {GROUP: "G0", MATCH: "M_UDP", BASE: "L4", OFFSET: "0"}
-    FIELD2: {GROUP: "G0", MATCH: "M_TCP", BASE: "L4", OFFSET: "0"}
-  ACL_TABLE_TYPE:
-    T1: {MATCHES: ["IN_PORTS", "G0"], ACTIONS: ["PACKET_ACTION", "COUNTER"], BIND_POINTS: ["PORT"]}
-  ACL_TABLE:
-    TABLE1: {type: "T1", ports: ["Ethernet0"], stage: "INGRESS"}
-  ACL_RULE:
-    TABLE1|R1: {PRIORITY: "101", FIELD1: "0x33/0xff", PACKET_ACTION: "DROP"}
-    TABLE1|R2: {PRIORITY: "101", FIELD2: "0x34/0xff", PACKET_ACTION: "DROP"}
+{
+  "UDF": {
+    "G0": {"group_type": "GENERIC", "length": "3"},
+    "G1": {"group_type": "GENERIC", "length": "3"}
+  },
+  "UDF_SELECTOR": {
+    "G0|udp_l4":    {"base": "L4", "offset": "0", "l3_type": "0x11", "priority": "10"},
+    "G0|proto18_l3":{"base": "L3", "offset": "0", "l3_type": "0x12", "priority": "10"},
+    "G1|proto18_l3":{"base": "L3", "offset": "0", "l3_type": "0x12", "priority": "10"}
+  },
+  "ACL_TABLE_TYPE": {
+    "T1": {"matches": "IN_PORTS,G0,G1", "actions": "PACKET_ACTION,COUNTER", "bind_points": "PORT"}
+  },
+  "ACL_TABLE": {"TABLE1": {"type": "T1", "ports": "Ethernet0", "stage": "ingress"}},
+  "ACL_RULE": {
+    "TABLE1|R1": {"priority": "101", "G0": "0x1133/0xffff", "G1": "0x2244/0xffff", "PACKET_ACTION": "DROP"},
+    "TABLE1|R2": {"priority": "101", "G0": "0x1134/0xffff", "G1": "0x2245/0xffff", "PACKET_ACTION": "DROP"}
+  }
+}
 ```
-
-**Key Points**:
-- UDF object explicitly specifies GROUP and MATCH attributes
-- UDF_GROUP and UDF_MATCH are independent objects
-- **ACL_TABLE_TYPE MATCHES references GROUP name**: `"G0"` (not UDF name)
-- **ACL_RULE references UDF name**: `FIELD1` or `FIELD2` to specify which field to match
-- **One UDF per group per rule**: Each rule can only reference ONE UDF from a given GROUP (R1 uses FIELD1, R2 uses FIELD2)
-- Multiple UDFs can belong to the same group; runtime selects based on packet match
 
 ## 8. SAI API
 
@@ -913,9 +851,8 @@ sai_acl_api->create_acl_entry(&entry_id, switch_id, 2, entry_attrs);
 
 | Table | Validation | Constraints |
 |-------|------------|-------------|
-| **UDF_GROUP** | TYPE (enum: GENERIC/HASH)<br/>LENGTH: 1-20 | Mandatory fields |
-| **UDF_MATCH** | L2/L3/GRE_TYPE (hex string)<br/>PRIORITY: 1-255 | At least one TYPE required |
-| **UDF** | BASE (enum: L2/L3/L4)<br/>OFFSET: 0-255<br/>GROUP (string)<br/>MATCH (string) | Must reference valid GROUP and MATCH |
+| **UDF** | `group_type` (enum: GENERIC/HASH)<br/>`length` (1-20) | Mandatory fields |
+| **UDF_SELECTOR** | `base` (enum: L2/L3/L4)<br/>`offset` (0-255)<br/>`l2_type`/`l3_type`/`gre_type` (hex string)<br/>`priority` (0-255) | `base` and `offset` mandatory; at least one type field required; parent UDF entry must exist |
 
 
 ## 10. Restrictions/Limitations
@@ -926,7 +863,6 @@ sai_acl_api->create_acl_entry(&entry_id, switch_id, 2, entry_attrs);
 
 | Parameter | Min | Max | Notes |
 |-----------|-----|-----|-------|
-| **UDF Length** | 1 byte | 20 bytes | `UDF_MIN_LENGTH` to `UDF_MAX_LENGTH` |
 | **UDF Group Length** | 1 byte | 20 bytes | `UDF_GROUP_MIN_LENGTH` to `UDF_GROUP_MAX_LENGTH` |
 | **UDF Offset** | 0 | 255 | `UDF_MAX_OFFSET` (uint16_t) |
 | **UDF Name** | 1 char | 64 chars | `UDF_NAME_MAX_LENGTH` |
@@ -938,10 +874,9 @@ sai_acl_api->create_acl_entry(&entry_id, switch_id, 2, entry_attrs);
 |-------------|------------|----------------|
 | **BASE field** | Must be "L2", "L3", or "L4" | Reject config, log error |
 | **UDF_MATCH criteria** | At least one of L2_TYPE, L3_TYPE, or GRE_TYPE must be non-zero (checked against both data and mask) | Reject config, log error |
-| **UDF_MATCH mask defaulting** | If TYPE is set but MASK is omitted, mask defaults to exact-match (0xFF / 0xFFFF). Applied in `doUdfMatchTask` after the field parse loop. | Silent default, logged at debug level |
-| **UDF_GROUP deletion** | Blocked if ACL table ref count > 0 (tracked via `incrementGroupRefCount` / `decrementGroupRefCount`) | Reject deletion, return false (triggers retry) |
-| **UDF attributes** | Must have both GROUP and MATCH attributes | Reject config, log error |
-| **Dependencies** | UDF requires both UDF_GROUP OID and UDF_MATCH OID | Retry until both resolved |
+| **UDF_SELECTOR mask defaulting** | If TYPE is set but MASK is omitted, mask defaults to exact-match (0xFF / 0xFFFF). Applied in `doUdfSelectorTask` after the field parse loop. | Silent default, logged at debug level |
+| **UDF group deletion** | Blocked if ACL table ref count > 0 (tracked via `incrementGroupRefCount` / `decrementGroupRefCount`) | Reject deletion, return false (triggers retry) |
+| **UDF_SELECTOR dependencies** | `doUdfSelectorTask` retries until the parent UDF group OID is available | Retry until dependency resolved |
 | **Group/Match existence** | GROUP and MATCH referenced by UDF must exist | Reject config, log error |
 | **ACL_TABLE_TYPE** | MATCHES field must reference existing GROUP names | Reject config, log error |
 | **ACL_RULE UDF reference** | UDF name in rule must belong to a GROUP declared in the table's type | Reject config, log error |
@@ -998,53 +933,34 @@ Given:
 - The ACL rule applies a **single data/mask** to this field
 
 **The Problem**:
-If multiple UDFs under the same group extract **different semantic fields**, the ACL rule becomes ambiguous:
+If multiple selectors under the same group extract **different semantic fields**, the ACL rule becomes ambiguous:
 ```
-Example of INCORRECT configuration:
-  UDF_GROUP:
-    MIXED_GROUP: {TYPE: "GENERIC", LENGTH: "2"}
-
-  UDF:
-    UDP_PORT: {GROUP: "MIXED_GROUP", MATCH: "M_UDP", BASE: "L4", OFFSET: "2"}
-    TCP_FLAGS: {GROUP: "MIXED_GROUP", MATCH: "M_TCP", BASE: "L4", OFFSET: "13"}
-
-  ACL_TABLE_TYPE:
-    T1: {MATCHES: ["IN_PORTS", "MIXED_GROUP"], ...}
-
+❌ INCORRECT:
+  UDF: {MIXED: {group_type: "GENERIC", length: "2"}}
+  UDF_SELECTOR:
+    MIXED|udp:  {base: "L4", offset: "2",  l3_type: "0x11"}  // UDP dest port
+    MIXED|tcp:  {base: "L4", offset: "13", l3_type: "0x06"}  // TCP flags
   ACL_RULE:
-    R1: {UDP_PORT: "0x0050/0xFFFF", ...}   // Matches UDP port 80
-    R2: {TCP_FLAGS: "0x0002/0x003F", ...}  // Matches TCP SYN flag
-                                            // PROBLEM: Both rules use same GROUP
-                                            // but data/mask have different meanings!
+    R1: {MIXED: "0x0050/0xFFFF"}  // Is this port 80 or TCP flag 0x50? Ambiguous!
 ```
 
 **Correct Usage**:
-Multiple UDFs in the same group should extract the **same field** from different packet contexts:
+All selectors under a group extract the **same field** from different packet contexts:
 ```
-Example of CORRECT configuration:
-  UDF_GROUP:
-    UDP_DPORT_GROUP: {TYPE: "GENERIC", LENGTH: "2"}
-
-  UDF:
-    UDP_DPORT_V4: {GROUP: "UDP_DPORT_GROUP", MATCH: "M_IPV4_UDP", BASE: "L4", OFFSET: "2"}
-    UDP_DPORT_V6: {GROUP: "UDP_DPORT_GROUP", MATCH: "M_IPV6_UDP", BASE: "L4", OFFSET: "2"}
-
-  ACL_TABLE_TYPE:
-    T1: {MATCHES: ["IN_PORTS", "UDP_DPORT_GROUP"], ...}
-
+✅ CORRECT:
+  UDF: {UDP_DPORT: {group_type: "GENERIC", length: "2"}}
+  UDF_SELECTOR:
+    UDP_DPORT|ipv4: {base: "L4", offset: "2", l2_type: "0x0800", l3_type: "0x11"}
+    UDP_DPORT|ipv6: {base: "L4", offset: "2", l2_type: "0x86DD", l3_type: "0x11"}
   ACL_RULE:
-    R1: {UDP_DPORT_V4: "0x0050/0xFFFF", ...}  // UDP dest port = 80 (IPv4)
-    R2: {UDP_DPORT_V6: "0x0050/0xFFFF", ...}  // UDP dest port = 80 (IPv6)
-                                               // Clear: Same semantic field,
-                                               // same data/mask meaning!
+    R1: {UDP_DPORT: "0x0050/0xFFFF"}  // Clearly UDP dest port = 80, both IPv4 and IPv6
 ```
 
 **Design Guidelines**:
-- ✅ **One group = One field semantic**: All UDFs in a group extract the same logical field
-- ✅ **Multiple packet types**: Use different UDFs for IPv4/IPv6, TCP/UDP variants of the same field
-- ✅ **Same offset concept**: Offsets may differ (e.g., IPv4 vs IPv6 header lengths), but the field meaning is identical
-- ❌ **Different fields**: Never mix different field semantics in one group (e.g., port + flags)
-- ❌ **Ambiguous rules**: If the ACL data/mask meaning changes per packet type, the design is wrong
+- ✅ **One group = One field semantic**: All selectors in a group extract the same logical field
+- ✅ **Multiple packet types**: Use different selectors for IPv4/IPv6 variants of the same field
+- ❌ **Different fields**: Never mix different field semantics in one group
+- ❌ **Ambiguous rules**: If the data/mask meaning changes per packet type, the design is wrong
 
 **Validation**:
 - This is a **user design constraint**, not automatically validated by the system
@@ -1067,11 +983,9 @@ Example of CORRECT configuration:
 
 | Constraint | Impact |
 |------------|--------|
-| **UDF dependency** | UDF requires both UDF_GROUP and UDF_MATCH to exist before creation |
-| **Independent objects** | UDF_GROUP and UDF_MATCH are independent; can be created in any order |
-| **No group reassignment** | UDF cannot change its group after creation (SAI_UDF_ATTR_GROUP_ID is CREATE_ONLY) |
-| **No match reassignment** | UDF cannot change its match after creation (SAI_UDF_ATTR_MATCH_ID is CREATE_ONLY) |
-| **One UDF per group per rule** | A single ACL_RULE can reference only ONE UDF from a given GROUP (GROUP produces one value per packet) |
+| **UDF_SELECTOR dependency** | UDF_SELECTOR requires its UDF group to exist before creation |
+| **No group reassignment** | SAI UDF group/match/udf attributes are CREATE_ONLY; delete and recreate to change |
+| **One group per rule** | A single ACL_RULE references each group at most once (group produces one value per packet) |
 | **Semantic consistency** | All UDFs in the same group must extract the same semantic field (see [Section 12.3](#123-semantic-consistency-requirement)) |
 
 ## 11. Testing Requirements/Design
@@ -1098,19 +1012,11 @@ Example of CORRECT configuration:
 ### A.1 RoCE BTH Reserved Field
 ```json
 {
-  "UDF_GROUP": {
-    "ROCE_GROUP": {"TYPE": "GENERIC", "LENGTH": "1"}
-  },
-  "UDF_MATCH": {
-    "IB_MATCH": {"L2_TYPE": "0x8915", "L2_TYPE_MASK": "0xFFFF", "PRIORITY": "100"}
-  },
   "UDF": {
-    "BTH_RESERVED": {
-      "GROUP": "ROCE_GROUP",
-      "MATCH": "IB_MATCH",
-      "BASE": "L2",
-      "OFFSET": "18"
-    }
+    "ROCE_GROUP": {"group_type": "GENERIC", "length": "1"}
+  },
+  "UDF_SELECTOR": {
+    "ROCE_GROUP|ib": {"base": "L2", "offset": "18", "l2_type": "0x8915", "l2_type_mask": "0xFFFF", "priority": "100"}
   }
 }
 ```
@@ -1118,19 +1024,11 @@ Example of CORRECT configuration:
 ### A.2 VXLAN VNI for ECMP Hash
 ```json
 {
-  "UDF_GROUP": {
-    "VXLAN_HASH_GROUP": {"TYPE": "HASH", "LENGTH": "3"}
-  },
-  "UDF_MATCH": {
-    "VXLAN_MATCH": {"L3_TYPE": "0x11", "L3_TYPE_MASK": "0xFF", "PRIORITY": "50"}
-  },
   "UDF": {
-    "VNI": {
-      "GROUP": "VXLAN_HASH_GROUP",
-      "MATCH": "VXLAN_MATCH",
-      "BASE": "L4",
-      "OFFSET": "12"
-    }
+    "VXLAN_VNI": {"group_type": "HASH", "length": "3"}
+  },
+  "UDF_SELECTOR": {
+    "VXLAN_VNI|udp": {"base": "L4", "offset": "12", "l3_type": "0x11", "l3_type_mask": "0xFF", "priority": "50"}
   }
 }
 ```
@@ -1138,19 +1036,11 @@ Example of CORRECT configuration:
 ### A.3 Custom UDP Application Signature
 ```json
 {
-  "UDF_GROUP": {
-    "APP_GROUP": {"TYPE": "GENERIC", "LENGTH": "4"}
-  },
-  "UDF_MATCH": {
-    "UDP_MATCH": {"L3_TYPE": "0x11", "L3_TYPE_MASK": "0xFF", "PRIORITY": "10"}
-  },
   "UDF": {
-    "APP_SIGNATURE": {
-      "GROUP": "APP_GROUP",
-      "MATCH": "UDP_MATCH",
-      "BASE": "L4",
-      "OFFSET": "8"
-    }
+    "APP_SIG": {"group_type": "GENERIC", "length": "4"}
+  },
+  "UDF_SELECTOR": {
+    "APP_SIG|udp": {"base": "L4", "offset": "8", "l3_type": "0x11", "l3_type_mask": "0xFF", "priority": "10"}
   }
 }
 ```
