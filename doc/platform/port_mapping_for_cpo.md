@@ -393,7 +393,93 @@ The only differences in the above platform API design required to support joint 
   - Both the optical engine Sfp and ELSFP Sfp objects' I2C sysfs EEPROM paths should be set to the same sysfs path (the MCU's I2C sysfs EEPROM path).
   - The ELSFP should be initialized with a memory map that is aware of the memory layout that the MCU exposes (in joint mode, the ELSFP EEPROM will likely be mapped into some part of the MCU's address space).
 
-The rest of the platform API design remains the same.
+So, in order to instantiate a composite SFP for a port of a hardware platform using CPO joint mode, you would first define a memory map that describes where the ELSFP memory has been remapped to:
+```
+# The vendor subclasses any pages that it would like to remap to a different part of the address space.
+# For this case, all pages used in the ELSFP EEPROM would be subclassed and remapped to whatever address
+# they reside at in the single unified i2c interface's EEPROM.
+# Common CMIS pages could be subclassed like the below example to remap them to the appropriate area of memory.
+class VendorElsfpAdvertisingPage(CmisAdvertisingPage):
+    def __init__(codes, page=0xB0, bank=0):
+        super().__init__(codes, page, bank)
+
+...
+
+# The same mechanism can be used for ELSFP-specific pages like page 1Ah, which is remapped to page B4 below.
+class VendorElsfpAdvertisementFlagsCtrlPage(ElsfpAdvertisementsFlagsCtrlPage):
+    def __init__(codes, page=0xB4, bank=0):
+        super().__init__(codes, page, bank)
+
+# Those subclassed pages can now be used to create a custom memory map that describes the memory layout of
+# the vendor's single, unified i2c interface.
+class CustomVendorElsfpMemMap(CmisFlatMemMap):
+    def __init__(self, codes, bank=0):
+        super().__init__(codes, bank)
+
+        # ------------------------------------------------------------------
+        # Initialize CMIS page instances relevant to ELSFP
+        # ------------------------------------------------------------------
+        self.advertising_page = VendorElsfpAdvertisingPage(codes, bank=bank)  # 0xB0
+        ... # other common CMIS pages like 0x02, 0x9F
+
+        # ------------------------------------------------------------------
+        # Initialize ELSFP-specific page instances
+        # ------------------------------------------------------------------
+        self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank)  # 0xB4
+        ... # page 1Bh
+
+        # ------------------------------------------------------------------
+        # Register CMIS Field Groups (from above pages)
+        # ------------------------------------------------------------------
+
+        # ELSFP Page 01h Advertising fields get registered at new relocated page location 0xB0
+        self.ADVERTISING = RegGroupField(
+            consts.ADVERTISING_FIELD,
+            *get_field_from_pages(consts.ADVERTISING_FIELD, self.advertising_page)
+        )
+        ... # similar field definitions for other remapped pages
+
+        # ------------------------------------------------------------------
+        # ELSFP Page 1Ah Field Groups
+        # ------------------------------------------------------------------
+
+        # Module Advertisements get registered at new page location 0xB4
+        self.ELSFP_MODULE_ADVERTISEMENTS = RegGroupField(
+            elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD,
+            *get_field_from_pages(
+                elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD,
+                self.elsfp_advert_flags_ctrl_page
+            )
+        )
+        ...
+```
+
+We could then initialize our composite SFP using this `CustomVendorCpoMemMap`:
+```
+
+class VendorCpoJointModeChassis(ChassisBase):
+  ...
+  def construct_sfp(self, bank):
+        # Construct individual SFP objects for the optical engine and external laser source.
+        oe = VendorSfp(..., bank=bank, xcvr_api_config=XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=CmisMemMap, api_cls=CmisApi, bank=bank))
+        elsfp = VendorSfp(..., bank=bank, xcvr_api_config=XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=CustomVendorElsfpMemMap, api_cls=ElsfpApi, bank=bank))
+
+        # Create a composite SFP to represent this interface
+        # VendorCpoSfp would be a class that inherits from CpoSfpOptoeBase
+        composite_sfp = VendorCpoSfp(oe=oe, elsfp=elsfp)
+
+        # Now the same composite SFP abstraction can be used for joint mode. Even though all i2c access physically goes through the same device,
+        # software is presented with the same view as if the ELSFP and OE are separate devices. Both joint and separate mode use the same
+        # software abstraction
+        xcvr_info = composite_sfp.get_transceiver_info()
+        elsfp = composite_sfp.get_device("ELS") 
+        elsfp_control_mode = elsfp.get_control_mode()
+        elsfp_optical_power = elsfp.get_per_lane_opt_power_monitor()
+        oe = composite_sfp.get_device("OE")
+        oe_voltage = oe.get_voltage()
+```
+
+The rest of the platform API design remains the same -- the same composite SFP abstraction is used by software for joint mode and separate mode.
 
 ### 8. SAI API 
 
