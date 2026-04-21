@@ -411,39 +411,40 @@ class VendorElsfpAdvertisementFlagsCtrlPage(ElsfpAdvertisementsFlagsCtrlPage):
         super().__init__(codes, page, bank)
 
 # Those subclassed pages can now be used to create a custom memory map that describes the memory layout of
-# the vendor's single, unified i2c interface.
-class CustomVendorElsfpMemMap(CmisFlatMemMap):
-    def __init__(self, codes, bank=0):
-        super().__init__(codes, bank)
-
-        # ------------------------------------------------------------------
-        # Initialize CMIS page instances relevant to ELSFP
-        # ------------------------------------------------------------------
+# the vendor's single, unified i2c interface. The vendor only needs to override _init_pages() to swap in
+# the remapped page classes -- the RegGroupField wiring is inherited from ElsfpMemMap.
+class CustomVendorElsfpMemMap(ElsfpMemMap):
+    def _init_pages(self, codes, bank):
+        # Remapped CMIS pages
         self.advertising_page = VendorElsfpAdvertisingPage(codes, bank=bank)  # 0xB0
-        ... # other common CMIS pages like 0x02, 0x9F
+        ... # other remapped common CMIS pages like 0x02, 0x9F
 
-        # ------------------------------------------------------------------
-        # Initialize ELSFP-specific page instances
-        # ------------------------------------------------------------------
-        self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank)  # 0xB4
-        ... # page 1Bh
+        # Remapped ELSFP-specific pages
+        self.elsfp_advert_flags_ctrl_page = VendorElsfpAdvertisementFlagsCtrlPage(codes, bank=bank)  # 0xB4
+        ... # other remapped ELSFP-specific pages like 0x1B
+```
 
-        # ------------------------------------------------------------------
-        # Register CMIS Field Groups (from above pages)
-        # ------------------------------------------------------------------
+To make this possible, `ElsfpMemMap` is refactored to split its `__init__` into two hooks:
 
-        # ELSFP Page 01h Advertising fields get registered at new relocated page location 0xB0
-        self.ADVERTISING = RegGroupField(
-            consts.ADVERTISING_FIELD,
-            *get_field_from_pages(consts.ADVERTISING_FIELD, self.advertising_page)
-        )
-        ... # similar field definitions for other remapped pages
+```python
+class ElsfpMemMap(CmisMemMap):
+    def __init__(self, codes, bank=0):
+        super().__init__(codes, bank=bank)
+        self._init_pages(codes, bank)
+        self._register_field_groups()
 
-        # ------------------------------------------------------------------
-        # ELSFP Page 1Ah Field Groups
-        # ------------------------------------------------------------------
+    def _init_pages(self, codes, bank):
+        # Default page instances at their spec locations. Vendors override this
+        # method to swap in remapped page subclasses, keeping the same attribute
+        # names so the inherited _register_field_groups() still works.
+        self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank)
+        ...
 
-        # Module Advertisements get registered at new page location 0xB4
+    def _register_field_groups(self):
+        # Vendors do not override this: the field-group wiring is the same
+        # regardless of where the pages live in memory. Changing the page
+        # number in _init_pages() is all that is needed to remap a page and
+        # all of its contents to a new location.
         self.ELSFP_MODULE_ADVERTISEMENTS = RegGroupField(
             elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD,
             *get_field_from_pages(
@@ -453,6 +454,8 @@ class CustomVendorElsfpMemMap(CmisFlatMemMap):
         )
         ...
 ```
+
+`CmisMemMap` is not affected by this refactor.
 
 We could then initialize our composite SFP using this `CustomVendorCpoMemMap`:
 ```python
