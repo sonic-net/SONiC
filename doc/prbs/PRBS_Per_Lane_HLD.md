@@ -150,7 +150,7 @@ This is a built-in SONiC feature that adds PRBS diagnostic capabilities through 
 - PortsOrch detects PRBS field changes in APPL_DB
 - Routes PRBS operations to PrbsHandler
 - PrbsHandler manages SAI interaction and STATE_DB updates
-- For both enable and disable flows, portsorch transiently sets port admin state DOWN before SAI PRBS configuration and restores it after
+- PRBS configuration is applied directly without modifying port admin state
 
 **PrbsHandler → SAI:**
 
@@ -314,7 +314,7 @@ key                   = PORT_PRBS_RESULTS | ifname   ; Interface name. Must be u
 
 ; field               = value
 rx_status             = "OK" / "LOCK_WITH_ERRORS" / "NOT_LOCKED" / "LOST_LOCK"
-                                                 ; Port-level RX status from SAI 
+                                                 ; Port-level RX status from SAI
 error_count           = 1*20DIGIT                ; Port-level error count
 total_lanes           = 1*2DIGIT                 ; Number of serdes lanes (1..16)
 ```
@@ -447,7 +447,6 @@ sequenceDiagram
       prbshandler-->>portsorch: success
     end
 
-    portsorch->>SAI: Set port admin state down
     portsorch->>prbshandler: handlePrbsConfig()
     prbshandler->>SAI: Set SAI_PORT_ATTR_PRBS_CONFIG
     SAI-->>prbshandler: success
@@ -455,8 +454,6 @@ sequenceDiagram
     SAI-->>prbshandler: success
     prbshandler->>STATE_DB: Update PORT_PRBS_TEST|EthernetXX
     prbshandler-->>portsorch: success
-
-    portsorch->>SAI: Restore port admin state
 
     SAI->>portsorch: Notification of PORT_OPER_STATUS change (TESTING)
     portsorch->>APPL_DB: Update PORT_TABLE|EthernetXX oper_status to TESTING
@@ -484,7 +481,6 @@ sequenceDiagram
     portmgrd->>APPL_DB: Update PORT_TABLE|EthernetXX <br/> prbs config
     APPL_DB->>portsorch: Notification for <br/> changes in PORT_TABLE|EthernetXX
 
-    portsorch->>SAI: Set port admin state down
     portsorch->>prbshandler: handlePrbsConfig()
     prbshandler->>SAI: Set SAI_PORT_ATTR_PRBS_CONFIG
     SAI-->>prbshandler: success
@@ -498,8 +494,6 @@ sequenceDiagram
     SAI-->>prbshandler: success
     prbshandler->>STATE_DB: Update PORT_PRBS_TEST|EthernetXX, PORT_PRBS_RESULTS|EthernetXX <br/> (and PORT_PRBS_LANE_RESULT|EthernetXX|X if Get SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST succeeded)
     prbshandler-->>portsorch: success
-
-    portsorch->>SAI: Restore port admin state
 
     SAI->>portsorch: Notification of PORT_OPER_STATUS change (UP/DOWN)
 ```
@@ -623,18 +617,19 @@ show interface prbs status [--json]
 
 Example output:
 ```
-Interface    Mode    Pattern    Status     Lock Status    Error Count    Start Time           Duration
------------  ------  ---------  ---------  -------------  -------------  -------------------  ----------
-Ethernet0    both    PRBS31     Running    --             --             2026-02-05 14:20:00  00:03:45
-Ethernet4    rx      PRBS23     Running    --             --             2026-02-05 14:18:30  00:05:15
-Ethernet8    rx      PRBS31     Completed  Locked         15633          2026-02-05 13:10:00  00:30:00
-Ethernet12   both    PRBS9      Interrupted --            --             2026-02-05 12:00:00  --
-Ethernet16   tx      PRBS31     Completed  --             --             2026-02-05 11:45:00  00:01:50
+Interface    Mode    Pattern    Status       RX Status          Error Count  BER            Start Time           Duration
+-----------  ------  ---------  -----------  -----------------  -----------  -------------  -------------------  ----------
+Ethernet0    both    PRBS31     Running      --                 --           --             2026-02-05 14:20:00  00:03:45
+Ethernet4    rx      PRBS23     Running      --                 --           --             2026-02-05 14:18:30  00:05:15
+Ethernet8    rx      PRBS31     Completed    LOCK_WITH_ERRORS   15633        1.15 × 10⁻⁸    2026-02-05 13:10:00  00:30:00
+Ethernet12   both    PRBS9      Interrupted  --                 --           --             2026-02-05 12:00:00  --
+Ethernet16   tx      PRBS31     Completed    --                 --           --             2026-02-05 11:45:00  00:01:50
 ```
 
 Column descriptions:
-- **Lock Status**: Port-level lock summary from `PORT_PRBS_RESULTS`.
+- **RX Status**: Raw port-level RX status from `PORT_PRBS_RESULTS` (e.g., `OK`, `LOCK_WITH_ERRORS`, `NOT_LOCKED`, `LOST_LOCK`). `--` when results are not available.
 - **Error Count**: From `PORT_PRBS_RESULTS`. `--` when results are not available.
+- **BER**: Average Bit Error Rate across all lanes, computed as sum of per-lane BER divided by number of lanes. `--` when lane results are not available.
 
 **Status derivation logic:**
 - **Errored**: `prbs_status == errored` (independent of oper_status)
@@ -650,8 +645,9 @@ JSON output:
     "mode": "rx",
     "pattern": "PRBS31",
     "status": "Completed",
-    "lock_status": "Locked",
+    "rx_status": "LOCK_WITH_ERRORS",
     "error_count": 15633,
+    "ber": "1.15e-08",
     "start_time": "2026-02-05 13:10:00",
     "duration": "00:30:00"
   },
@@ -659,8 +655,9 @@ JSON output:
     "mode": "tx",
     "pattern": "PRBS31",
     "status": "Completed",
-    "lock_status": null,
+    "rx_status": null,
     "error_count": null,
+    "ber": null,
     "start_time": "2026-02-05 11:45:00",
     "duration": "00:01:50"
   }
@@ -676,23 +673,16 @@ show interface prbs status -i <interface> [--json]
 ```
 Interface: Ethernet0 | Mode: rx | Pattern: PRBS31 | Status: Completed | Duration: 00:01:41
 
-  Lane  Lock    RX Status           Errors  BER           Overall
-------  ------  ----------------  --------  ------------  ---------
-     0  Locked  LOCK_WITH_ERRORS      2782  0             PASS
-     1  Locked  LOCK_WITH_ERRORS      1426  1.18 × 10⁻⁸   PASS
-     2  Locked  LOCK_WITH_ERRORS      3189  1.00e+00      PASS
-     3  Locked  LOCK_WITH_ERRORS      5252  1.10 × 10⁻⁸   PASS
-     4  Locked  LOCK_WITH_ERRORS       812  1.00e+00      PASS
-     5  Locked  LOCK_WITH_ERRORS       700  1.19 × 10⁻⁸   PASS
-     6  Locked  LOCK_WITH_ERRORS       225  1.18 × 10⁻¹⁴  PASS
-     7  Locked  LOCK_WITH_ERRORS      1247  1.26 × 10⁻⁸   PASS
-
-Summary:
-  Total Lanes:      8
-  Locked Lanes:     8/8 (100.0%)
-  Error-Free:       0/8 (0.0%)
-  Lock Status:      Locked
-  Total Errors:     15633
+  Lane  Lock    RX Status           Errors  BER
+------  ------  ----------------  --------  ------------
+     0  Locked  LOCK_WITH_ERRORS      2782  0
+     1  Locked  LOCK_WITH_ERRORS      1426  1.18 × 10⁻⁸
+     2  Locked  LOCK_WITH_ERRORS      3189  1.00e+00
+     3  Locked  LOCK_WITH_ERRORS      5252  1.10 × 10⁻⁸
+     4  Locked  LOCK_WITH_ERRORS       812  1.00e+00
+     5  Locked  LOCK_WITH_ERRORS       700  1.19 × 10⁻⁸
+     6  Locked  LOCK_WITH_ERRORS       225  1.18 × 10⁻¹⁴
+     7  Locked  LOCK_WITH_ERRORS      1247  1.26 × 10⁻⁸
 ```
 
 **TX-only mode (no per-lane results):**
@@ -727,12 +717,6 @@ Note: No PRBS result data available
 **Lock status derivation (CLI level):**
 - OK, LOCK_WITH_ERRORS → "Locked"
 - NOT_LOCKED, LOST_LOCK → "Not Locked"
-
-**Overall Status Logic:**
-- **PASS**: RX status is "OK" or "LOCK_WITH_ERRORS"
-- **FAIL**: RX status is "NOT_LOCKED", "LOST_LOCK", or any other value
-
-**Summary statistics (CLI level):** The all-ports view reads `lock_status` and `error_count` from `PORT_PRBS_RESULTS` for the port-level summary columns. The per-interface detailed view computes `locked_lanes` and `error_free_lanes` from `PORT_PRBS_LANE_RESULT` per-lane data, and reads `total_lanes` and `total_errors` from `PORT_PRBS_RESULTS`. Duration is derived from `start_time` and `stop_time` in `PORT_PRBS_TEST`.
 
 #### 9.2 YANG Model
 
@@ -778,6 +762,52 @@ module sonic-port{
 
 1. **No runtime stats**: For simpler implementation, design chooses not to do any runtime polling of stats.
 
+**Runtime PRBS Stats Polling (future enhancement):**
+
+```mermaid
+sequenceDiagram
+    participant portsorch
+    participant prbshandler
+    participant SAI
+    participant FlexCounterManager
+    participant syncd
+    participant COUNTERS_DB
+    participant CLI
+
+    Note over portsorch: PRBS Enable Flow
+    portsorch->>prbshandler: handlePrbsConfig("rx or both")
+    prbshandler->>SAI: Set SAI_PORT_ATTR_PRBS_CONFIG (enable)
+    SAI-->>prbshandler: success
+
+    prbshandler->>FlexCounterManager: setCounterIdList(port_id,<br/>PORT_PRBS_STAT_COUNTER,<br/>{SAI_PORT_STAT_PRBS_ERROR_COUNT,<br/>SAI_PORT_STAT_PRBS_ERROR_COUNT_LANE_0,<br/>..._LANE_N})
+    FlexCounterManager->>FLEX_COUNTER_DB: Register port OID with<br/>PRBS stat IDs for polling
+
+    loop Every poll interval (e.g. 1s)
+        syncd->>SAI: get_port_stats(port_id,<br/>PRBS_ERROR_COUNT_LANE_*)
+        SAI-->>syncd: per-lane error counts
+        syncd->>COUNTERS_DB: HSET COUNTERS:<port_oid><br/>SAI_PORT_STAT_PRBS_ERROR_COUNT = N<br/>SAI_PORT_STAT_PRBS_ERROR_COUNT_LANE_0 = N<br/>...
+    end
+
+    CLI->>COUNTERS_DB: HGET COUNTERS:<port_oid><br/>SAI_PORT_STAT_PRBS_ERROR_COUNT_LANE_*
+    COUNTERS_DB-->>CLI: per-lane error counts
+
+    Note over portsorch: PRBS Disable Flow
+    portsorch->>prbshandler: handlePrbsConfig("disabled")
+    prbshandler->>FlexCounterManager: clearCounterIdList(port_id)
+    FlexCounterManager->>FLEX_COUNTER_DB: Deregister port OID
+
+    prbshandler->>SAI: Set SAI_PORT_ATTR_PRBS_CONFIG (disable)
+    SAI-->>prbshandler: success
+    prbshandler->>SAI: Get SAI_PORT_ATTR_PRBS_PER_LANE_RX_STATE_LIST
+    prbshandler->>SAI: Get SAI_PORT_ATTR_PRBS_PER_LANE_BER_LIST
+    prbshandler->>SAI: Get SAI_PORT_ATTR_PRBS_RX_STATE
+    prbshandler->>STATE_DB: Final results snapshot<br/>(BER, lock status, error counts)
+```
+
+**Key design points for runtime polling:**
+- A dedicated flex counter group (`PORT_PRBS_STAT_COUNTER`) is used, separate from the standard `PORT_STAT_COUNTER` group, so PRBS stats are only polled for ports actively running PRBS
+- Stats are dynamically registered on PRBS enable and deregistered on PRBS disable
+- Only raw error counts are available as SAI stats; BER (mantissa/exponent) and lock status remain attribute-only and are still captured at disable time via `capturePrbsResults()`
 
 ### 12. Testing Requirements/Design
 
