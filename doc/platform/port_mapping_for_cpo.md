@@ -478,6 +478,8 @@ class VendorCpoJointModeChassis(ChassisBase):
         oe_voltage = oe.get_voltage()
 ```
 
+*Note: `XcvrApiConfig` is a new mechanism introduced to allow clients to bypass the XcvrApiFactory and force a specific code, memory map and API combination to be used for an Sfp object. See [this PR](https://github.com/nexthop-ai/sonic-platform-common/pull/3) for the implementation details.*
+
 The rest of the platform API design remains the same -- the same composite SFP abstraction is used by software for joint mode and separate mode.
 
 ### 8. SAI API 
