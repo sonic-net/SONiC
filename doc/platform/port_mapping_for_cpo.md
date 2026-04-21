@@ -393,38 +393,25 @@ The only differences in the above platform API design required to support joint 
   - Both the optical engine Sfp and ELSFP Sfp objects' I2C sysfs EEPROM paths should be set to the same sysfs path (the MCU's I2C sysfs EEPROM path).
   - The ELSFP should be initialized with a memory map that is aware of the memory layout that the MCU exposes (in joint mode, the ELSFP EEPROM will likely be mapped into some part of the MCU's address space).
 
-So, in order to instantiate a composite SFP for a port of a hardware platform using CPO joint mode, you would first define a memory map that describes where the ELSFP memory has been remapped to using the approach outlined in [the companion HLD for ELSFP memory map layout here](https://github.com/sonic-net/SONiC/pull/2207):
+So, in order to instantiate a composite SFP for a port of a hardware platform using CPO joint mode, the vendor defines a memory map that describes where the ELSFP memory has been remapped to using the approach outlined in [the companion HLD for ELSFP memory map layout here](https://github.com/sonic-net/SONiC/pull/2207). Each existing page class (both common CMIS pages and ELSFP-specific pages) accepts an optional `page` parameter that defaults to its spec-defined location, so vendors can remap a page simply by passing a different page number at construction time -- no page subclassing is required:
+
 ```python
-# The vendor subclasses any pages that it would like to remap to a different part of the address space.
-# For this case, all pages used in the ELSFP EEPROM would be subclassed and remapped to whatever address
-# they reside at in the single unified i2c interface's EEPROM.
-# Common CMIS pages could be subclassed like the below example to remap them to the appropriate area of memory.
-class VendorElsfpAdvertisingPage(CmisAdvertisingPage):
-    def __init__(codes, page=0xB0, bank=0):
-        super().__init__(codes, page, bank)
-
-...
-
-# The same mechanism can be used for ELSFP-specific pages like page 1Ah, which is remapped to page B4 below.
-class VendorElsfpAdvertisementFlagsCtrlPage(ElsfpAdvertisementsFlagsCtrlPage):
-    def __init__(codes, page=0xB4, bank=0):
-        super().__init__(codes, page, bank)
-
-# Those subclassed pages can now be used to create a custom memory map that describes the memory layout of
-# the vendor's single, unified i2c interface. The vendor only needs to override _init_pages() to swap in
-# the remapped page classes -- the RegGroupField wiring is inherited from ElsfpMemMap.
+# The vendor only needs to override _init_pages() to construct the relevant page instances at their
+# remapped locations. The RegGroupField wiring is inherited from ElsfpMemMap.
 class CustomVendorElsfpMemMap(ElsfpMemMap):
     def _init_pages(self, codes, bank):
         # Remapped CMIS pages
-        self.advertising_page = VendorElsfpAdvertisingPage(codes, bank=bank)  # 0xB0
-        ... # other remapped common CMIS pages like 0x02, 0x9F
+        self.advertising_page = CmisAdvertisingPage(codes, bank=bank, page=0xB0)
+        self.thresholds_page = CmisThresholdsPage(codes, bank=bank, page=0xB1)
+        self.performance_monitoring_page = CmisVdmAdvertisingCtrlPage(codes, bank=bank, page=0xB2)
+        self.cdb_message_page = CmisCdbMessagePage(codes, bank=bank, page=0xB3)
 
         # Remapped ELSFP-specific pages
-        self.elsfp_advert_flags_ctrl_page = VendorElsfpAdvertisementFlagsCtrlPage(codes, bank=bank)  # 0xB4
-        ... # other remapped ELSFP-specific pages like 0x1B
+        self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank, page=0xB4)
+        self.elsfp_setpoints_mon_page = ElsfpSetpointsMonitorsPage(codes, bank=bank, page=0xB5)
 ```
 
-To make this possible, `ElsfpMemMap` is refactored to split its `__init__` into two hooks:
+To make this possible, `ElsfpMemMap` will split its `__init__` into two hooks:
 
 ```python
 class ElsfpMemMap(CmisMemMap):
