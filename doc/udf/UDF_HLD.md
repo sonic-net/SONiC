@@ -12,7 +12,7 @@
 - [7. SAI API](#7-sai-api)
 - [8. Configuration and Management](#8-configuration-and-management)
   - [8.1 YANG Model](#81-yang-model)
-  - [8.2 CLI](#82-cli)
+  - [8.2 Configuration Interface](#82-configuration-interface)
   - [8.3 STATE_DB and ASIC_DB](#83-state_db-and-asic_db)
 - [9. Restrictions/Limitations](#9-restrictionslimitations)
   - [9.1 Platform and Feature Limitations](#91-platform-and-feature-limitations)
@@ -31,16 +31,13 @@
 
 ## 2. Scope
 
+A User-Defined Field (UDF) extends the ACL engine to match on arbitrary bytes at a fixed offset in the packet, beyond the standard L2/L3/L4 fields the hardware already understands. This lets operators write ACL rules against protocol fields the pipeline doesn't natively parse.
+
 This document covers the high-level design for the User Defined Field (UDF) feature in SONiC, including:
 
 - CONFIG_DB schema for `UDF` and `UDF_SELECTOR` tables
-- UdfOrch orchestration: lifecycle management of SAI UDF Group, UDF Match, and UDF objects
-- ACL integration: udf_field name resolution, SAI attachment, and ref-count lifecycle
-- SAI API usage for UDF group, match, and extraction objects
+- UdfOrch manages the lifecycle of SAI UDF Group/Match/Object via direct SAI API calls and integrates with ACL for name resolution, attachment, and ref-counting.
 - YANG model validation for UDF configuration
-- Match deduplication across UDF_SELECTOR entries with identical criteria
-- Dependency ordering and retry behavior for out-of-order CONFIG_DB updates
-- Items deferred to future releases are tracked in §11.
 
 ## 3. Definitions, Abbreviations & Quick Reference
 
@@ -63,13 +60,21 @@ Reading from ACL back to the packet — each layer answers one question:
 
 ```json
 {
-  // UDF definition
-  "UDF":            { "BTH_RESERVED":          { "field_type": "GENERIC", "length": "1" } },
-  "UDF_SELECTOR":   { "BTH_RESERVED|roce_v1":  { "match": { "l2_type": "0x8915", "l2_type_mask": "0xFFFF", "priority": "100" }, "select": { "base": "L2", "offset": "22" } },
-                      "BTH_RESERVED|roce_v2":  { "match": { "l3_type": "0x11",   "l3_type_mask": "0xFF",   "priority": "100" }, "select": { "base": "L4", "offset": "16" } } },
-  // ACL integration
-  "ACL_TABLE_TYPE": { "ROCE_ACL_TYPE":         { "matches": ["IN_PORTS","BTH_RESERVED"] } },
-  "ACL_TABLE":      { "ROCE_TABLE":            { "type": "ROCE_ACL_TYPE", "stage": "ingress" } },
+  "UDF": {
+    "BTH_RESERVED": { "field_type": "GENERIC", "length": "1" }
+  },
+  "UDF_SELECTOR": {
+    "BTH_RESERVED|roce_v1": {
+      "select_base": "L2", "select_offset": "22",
+      "match_l2_type": "0x8915", "match_l2_type_mask": "0xFFFF", "match_priority": "100"
+    },
+    "BTH_RESERVED|roce_v2": {
+      "select_base": "L4", "select_offset": "16",
+      "match_l3_type": "0x11", "match_l3_type_mask": "0xFF", "match_priority": "100"
+    }
+  },
+  "ACL_TABLE_TYPE": { "ROCE_ACL_TYPE": { "matches": ["IN_PORTS","BTH_RESERVED"] } },
+  "ACL_TABLE":      { "ROCE_TABLE":    { "type": "ROCE_ACL_TYPE", "stage": "ingress" } },
   "ACL_RULE":       { "ROCE_TABLE|BLOCK_RSVD": { "BTH_RESERVED": "0x00/0x7F", "PACKET_ACTION": "DROP" } }
 }
 ```
@@ -85,12 +90,12 @@ Reading from ACL back to the packet — each layer answers one question:
 UDF["BTH_RESERVED"]                ──→ SAI_OBJECT_TYPE_UDF_GROUP
 
 UDF_SELECTOR["BTH_RESERVED|roce_v1"]
-  match                            ──→ SAI_OBJECT_TYPE_UDF_MATCH  (l2_type=0x8915)
-  select                           ──→ SAI_OBJECT_TYPE_UDF        (L2+22)
+  match_*                            ──→ SAI_OBJECT_TYPE_UDF_MATCH  (l2_type=0x8915)
+  select_*                           ──→ SAI_OBJECT_TYPE_UDF        (L2+22)
 
 UDF_SELECTOR["BTH_RESERVED|roce_v2"]
-  match                            ──→ SAI_OBJECT_TYPE_UDF_MATCH  (l3_type=0x11)
-  select                           ──→ SAI_OBJECT_TYPE_UDF        (L4+16, same UDF_GROUP)
+  match_*                            ──→ SAI_OBJECT_TYPE_UDF_MATCH  (l3_type=0x11)
+  select_*                           ──→ SAI_OBJECT_TYPE_UDF        (L4+16, same UDF_GROUP)
 ```
 
 ### Key Constraints
@@ -107,7 +112,7 @@ UDF_SELECTOR["BTH_RESERVED|roce_v2"]
 
 | Requirement | Description |
 |-------------|-------------|
-| Custom field definition | Operator must be able to define named packet fields with configurable type (GENERIC for ACL, HASH for load balancing) and extraction length (1-20 bytes) |
+| Custom field definition | Operator must be able to define named packet fields with configurable type (GENERIC for ACL, HASH for load balancing) and extraction length (1-255 bytes) |
 | ACL integration | Defined fields must be usable directly as match qualifiers in ACL table types and ACL rules, including value/mask matching |
 | CONFIG_DB configuration | All UDF configuration must be driven through CONFIG_DB with YANG schema validation |
 | Dependency ordering | The system must handle out-of-order CONFIG_DB updates by retrying dependent objects until their prerequisites are available |
@@ -158,8 +163,8 @@ graph TB
 ```
 UDF (udf_field_name: "BTH_RESERVED")
     │
-    ├─→ UDF_SELECTOR (key: "BTH_RESERVED|roce_v1", match: {l2_type=0x8915}, select: {base=L2, offset=22})
-    ├─→ UDF_SELECTOR (key: "BTH_RESERVED|roce_v2", match: {l3_type=0x11},   select: {base=L4, offset=16})
+    ├─→ UDF_SELECTOR (key: "BTH_RESERVED|roce_v1", "match_l2_type"="0x8915", "select_base"="L2", "select_offset"="22")
+    ├─→ UDF_SELECTOR (key: "BTH_RESERVED|roce_v2", "match_l3_type"="0x11",   "select_base"="L4", "select_offset"="16")
     │
     ├─→ ACL_TABLE_TYPE (matches field references udf_field name "BTH_RESERVED")
     │         │
@@ -192,7 +197,7 @@ UDF (udf_field_name: "BTH_RESERVED")
 
 **YANG Model Validation** (`sonic-udf.yang`):
 - Schema validation for UDF configuration before writing to CONFIG_DB
-- Enforces data type constraints (e.g., LENGTH: 1-20, OFFSET: 0-255)
+- Enforces data type constraints (e.g., LENGTH: 1-255, OFFSET: 0-255)
 - Validates mandatory fields and relationships between UDF objects
 
 ### 5.4 Configuration and Data Flow
@@ -283,7 +288,7 @@ sequenceDiagram
 **UdfOrch Processing Flow**:
 
 1. **UDF Task** (key: `udf_field_name`, e.g., "BTH_RESERVED"):
-   - Validate `field_type` (GENERIC/HASH) and `length` (1-20)
+   - Validate `field_type` (GENERIC/HASH) and `length` (1-255)
    - Call SAI `create_udf_group()` → store udf_field OID
 
 2. **UDF_SELECTOR Task** (key: `udf_field_name|selector_name`, e.g., "BTH_RESERVED|roce_v1"):
@@ -326,8 +331,8 @@ to determine the UDF support at hardware.
 
 | Table | Key | Fields | Example |
 |-------|-----|--------|---------|
-| **UDF** | `<udf_field_name>` | `field_type` (GENERIC/HASH)<br/>`length` (1-20)<br/>`description` (optional) | Key: `BTH_RESERVED`<br/>`field_type="GENERIC"`<br/>`length="1"` |
-| **UDF_SELECTOR** | `<udf_field_name>\|<selector_name>` | `select` (JSON object)<br/>`match` (JSON object) | Key: `BTH_RESERVED\|roce_v1`<br/>`match.l2_type="0x8915"`<br/>`match.l2_type_mask="0xFFFF"`<br/>`match.priority="100"`<br/>`select.base="L2"`<br/>`select.offset="22"` |
+| **UDF** | `<udf_field_name>` | `field_type` (GENERIC/HASH)<br/>`length` (1-255)<br/>`description` (optional) | Key: `BTH_RESERVED`<br/>`field_type="GENERIC"`<br/>`length="1"` |
+| **UDF_SELECTOR** | `<udf_field_name>\|<selector_name>` | `select_base`, `select_offset`, `match_l2_type`, `match_l2_type_mask`, `match_l3_type`, `match_l3_type_mask`, `match_gre_type`, `match_gre_type_mask`, `match_l4_dst_port`, `match_l4_dst_port_mask`, `match_priority` | Key: `BTH_RESERVED\|roce_v1`<br/>`select_base="L2"`<br/>`select_offset="22"`<br/>`match_l2_type="0x8915"`<br/>`match_l2_type_mask="0xFFFF"`<br/>`match_priority="100"` |
 | **ACL_TABLE_TYPE** | `<type_name>` | `matches` (udf_field names, comma-separated)<br/>`actions`<br/>`bind_points` | Key: `ROCE_ACL_TYPE`<br/>`matches="IN_PORTS,BTH_RESERVED"`<br/>`actions="PACKET_ACTION,COUNTER"`<br/>`bind_points="PORT"` |
 | **ACL_TABLE** | `<table_name>` | `type`<br/>`ports`<br/>`stage` | Key: `ROCE_TABLE`<br/>`type="ROCE_ACL_TYPE"`<br/>`ports="Ethernet0"`<br/>`stage="ingress"` |
 | **ACL_RULE** | `<table>\|<rule>` | `priority`<br/>`<udf_field_name>`: "value/mask"<br/>`PACKET_ACTION` | Key: `ROCE_TABLE\|BLOCK_RSVD`<br/>`priority="101"`<br/>`BTH_RESERVED="0x00/0x7F"`<br/>`PACKET_ACTION="DROP"` |
@@ -336,8 +341,15 @@ to determine the UDF support at hardware.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `select` | JSON object | Extraction location. Keys: `base` (L2\|L3\|L4), `offset` (0–255). |
-| `match` | JSON object | Packet match criteria. Keys: `l2_type`, `l2_type_mask`, `l3_type`, `l3_type_mask`, `gre_type`, `gre_type_mask`, `l4_dst_port`, `l4_dst_port_mask`, `priority` (0–255, default 0). At least one of `l2_type`/`l3_type`/`gre_type`/`l4_dst_port` required. |
+| `select_base` | enum (L2/L3/L4) | Extraction base layer; mandatory |
+| `select_offset` | uint8 (0-255) | Byte offset from base; mandatory |
+| `match_l2_type` / `match_l2_type_mask` | hex string | EtherType value/mask (e.g., `0x8915`) |
+| `match_l3_type` / `match_l3_type_mask` | hex string | IP protocol value/mask (e.g., `0x11`) |
+| `match_gre_type` / `match_gre_type_mask` | hex string | GRE protocol type value/mask |
+| `match_l4_dst_port` / `match_l4_dst_port_mask` | hex string | L4 destination port value/mask (e.g., `0x12B7` for RoCEv2 port 4791) |
+| `match_priority` | uint8 (0-255) | Match priority; default 0 |
+
+At least one of `match_l2_type`, `match_l3_type`, `match_gre_type`, `match_l4_dst_port` must be set.
 
 **Key Design Points:**
 - **UDF key is the udf_field name**: Used directly in ACL_TABLE_TYPE matches and ACL_RULE fields
@@ -365,8 +377,8 @@ to determine the UDF support at hardware.
     "BTH_OPCODE":   {"field_type": "GENERIC", "length": "1"}
   },
   "UDF_SELECTOR": {
-    "BTH_RESERVED|roce_v1": {"match": {"l2_type": "0x8915", "l2_type_mask": "0xFFFF", "priority": "100"}, "select": {"base": "L2", "offset": "22"}},
-    "BTH_OPCODE|roce_v1":   {"match": {"l2_type": "0x8915", "l2_type_mask": "0xFFFF", "priority": "100"}, "select": {"base": "L2", "offset": "14"}}
+    "BTH_RESERVED|roce_v1": {"select_base": "L2", "select_offset": "22", "match_l2_type": "0x8915", "match_l2_type_mask": "0xFFFF", "match_priority": "100"},
+    "BTH_OPCODE|roce_v1":   {"select_base": "L2", "select_offset": "14", "match_l2_type": "0x8915", "match_l2_type_mask": "0xFFFF", "match_priority": "100"}
   },
   "ACL_TABLE_TYPE": {
     "ROCE_ACL_TYPE": {"matches": "IN_PORTS,BTH_RESERVED,BTH_OPCODE", "actions": "PACKET_ACTION,COUNTER", "bind_points": "PORT"}
@@ -379,12 +391,6 @@ to determine the UDF support at hardware.
 }
 ```
 
-### 6.7 Design Rationale
-
-#### Why `select` and `match` are JSON values rather than flat fields
-
-CONFIG_DB stores each row as a flat Redis hash — one key, string-valued fields. Modeling `select` and `match` as nested containers would require splitting them into separate tables (e.g., `UDF_SELECTOR_SELECT`, `UDF_SELECTOR_MATCH`) keyed by the same `<udf>|<selector>`. We chose to keep the selector as a single atomic row so that a SET/DEL on one key represents one complete selector, and `match`/`select` cannot drift out of sync across tables. The tradeoff is that their internal structure lives inside a JSON value instead of the YANG tree.
-
 ## 7. SAI API
 
 ### 7.1 UDF Group API
@@ -396,7 +402,7 @@ CONFIG_DB stores each row as a flat Redis hash — one key, string-valued fields
 | Attribute | Type | Flags | Description |
 |-----------|------|-------|-------------|
 | `SAI_UDF_GROUP_ATTR_TYPE` | `sai_udf_field_type_t` | CREATE_ONLY | Group type: `SAI_UDF_GROUP_TYPE_GENERIC` or `SAI_UDF_GROUP_TYPE_HASH` |
-| `SAI_UDF_GROUP_ATTR_LENGTH` | `sai_uint16_t` | MANDATORY_ON_CREATE, CREATE_ONLY | Total extraction length in bytes (1-20, SONiC implementation constraint defined in `udf_constants.h`) |
+| `SAI_UDF_GROUP_ATTR_LENGTH` | `sai_uint16_t` | MANDATORY_ON_CREATE, CREATE_ONLY | Total extraction length in bytes (1-255) |
 | `SAI_UDF_GROUP_ATTR_UDF_LIST` | `sai_object_list_t` | READ_ONLY | List of UDF objects in this group |
 
 **API Calls**:
@@ -415,7 +421,7 @@ CONFIG_DB stores each row as a flat Redis hash — one key, string-valued fields
 | `SAI_UDF_MATCH_ATTR_L3_TYPE` | `sai_acl_field_data_t` (uint8) | CREATE_ONLY | IP Protocol value and mask (e.g., 0x11 for UDP) |
 | `SAI_UDF_MATCH_ATTR_GRE_TYPE` | `sai_acl_field_data_t` (uint16) | CREATE_ONLY | GRE Protocol Type value and mask |
 | `SAI_UDF_MATCH_ATTR_L4_DST_PORT_TYPE` | `sai_acl_field_data_t` (uint16) | CREATE_ONLY | L4 destination port value and mask (e.g., 4791 for RoCE v2 UDP) |
-| `SAI_UDF_MATCH_ATTR_PRIORITY` | `sai_uint8_t` | CREATE_ONLY | Match priority (0-255, higher value = higher priority, consistent with `SAI_ACL_ENTRY_ATTR_PRIORITY`) |
+| `SAI_UDF_MATCH_ATTR_PRIORITY` | `sai_uint8_t` | CREATE_ONLY | Match priority (0-255) |
 
 **API Calls**:
 - **Create**: `sai_udf_api->create_udf_match(&match_id, switch_id, attr_count, attr_list)`
@@ -451,7 +457,7 @@ CONFIG_DB stores each row as a flat Redis hash — one key, string-valued fields
 
 **Details**:
 - The index value (0-255) is added to `SAI_ACL_TABLE_ATTR_USER_DEFINED_FIELD_GROUP_MIN`
-- Each index corresponds to one UDF group
+- Each index corresponds to one UDF field.
 - The UDF group OID is passed as the attribute value
 - Field length is derived from the UDF group's `SAI_UDF_GROUP_ATTR_LENGTH`
 
@@ -481,7 +487,7 @@ CONFIG_DB stores each row as a flat Redis hash — one key, string-valued fields
 
 ### 7.6 ACL Integration Example
 
-**Scenario**: Match RoCE v1 packets where the BTH Reserved field (byte 8 of BTH, at L2 offset 22, 1 byte) is non-zero — i.e., drop packets that violate the protocol requirement that the reserved field must be zero.
+**Scenario**: Match RoCE v1 packets where the BTH Reserved field (byte 8 of BTH, at L2 offset 22, 1 byte) equals `0x00` in its 7 reserved bits — illustrates the SAI ternary-match syntax (`data/mask`). Blocking protocol-violating packets (reserved ≠ 0) requires the two-rule pattern shown in Appendix A.1.
 
 **Step 1: Create SAI UDF Group for BTH_RESERVED (length = 1 byte)**
 ```c
@@ -532,16 +538,16 @@ table_attrs[2].value.oid = group_id;
 sai_acl_api->create_acl_table(&table_id, switch_id, 3, table_attrs);
 ```
 
-**Step 5: Create ACL Entry — DROP if BTH Reserved != 0 (mask 0x7F, 7 reserved bits)**
+**Step 5: Create ACL Entry — match BTH Reserved == 0x00 (mask 0x7F, 7 reserved bits)**
 ```c
 sai_attribute_t entry_attrs[2];
 entry_attrs[0].id = SAI_ACL_ENTRY_ATTR_TABLE_ID;
 entry_attrs[0].value.oid = table_id;
-// Match BTH_RESERVED at index 0: data=0x00, mask=0x7F (reserved bits must be zero)
+// Match BTH_RESERVED at index 0: (byte & 0x7F) == 0x00
 entry_attrs[1].id = SAI_ACL_ENTRY_ATTR_USER_DEFINED_FIELD_GROUP_MIN + 0;
 entry_attrs[1].value.aclfield.enable = true;
 entry_attrs[1].value.aclfield.data.u8list.count = 1;
-entry_attrs[1].value.aclfield.data.u8list.list[0] = 0x00;  // expected: reserved = 0
+entry_attrs[1].value.aclfield.data.u8list.list[0] = 0x00;  // match value
 entry_attrs[1].value.aclfield.mask.u8list.count = 1;
 entry_attrs[1].value.aclfield.mask.u8list.list[0] = 0x7F;  // 7-bit reserved field mask
 sai_acl_api->create_acl_entry(&entry_id, switch_id, 2, entry_attrs);
@@ -555,24 +561,44 @@ sai_acl_api->create_acl_entry(&entry_id, switch_id, 2, entry_attrs);
 
 | Table | Validation | Constraints |
 |-------|------------|-------------|
-| **UDF** | `field_type` (enum: GENERIC/HASH)<br/>`length` (1-20) | Mandatory fields |
-| **UDF_SELECTOR** | **match**: `l2_type`/`l3_type`/`gre_type`/`l4_dst_port` (hex string), masks, `priority` (0-255)<br/>**select**: `base` (enum: L2/L3/L4), `offset` (0-255) | `select.base` and `select.offset` mandatory; at least one of `l2_type`/`l3_type`/`gre_type`/`l4_dst_port` required; parent UDF entry must exist |
+| **UDF** | `field_type` (enum: GENERIC/HASH)<br/>`length` (1-255) | Mandatory fields |
+| **UDF_SELECTOR** | `select_base` (enum: L2/L3/L4), `select_offset` (uint8 0-255), `match_l2_type`/`match_l3_type`/`match_gre_type`/`match_l4_dst_port` (hex string), their masks, `match_priority` (uint8 0-255) | `select_base` and `select_offset` mandatory; at least one of `match_l2_type`/`match_l3_type`/`match_gre_type`/`match_l4_dst_port` required; parent UDF entry must exist (leafref) |
 
-### 8.2 CLI
+### 8.2 Configuration Interface
 
-CLI configuration for UDF is **not implemented**. Configuration is applied directly via CONFIG_DB using `sonic-cfggen` or `redis-cli`:
+No dedicated `config udf` / `show udf` CLI is provided. Configuration is applied via **GCU (Generic Config Update)** as the preferred path, with `sonic-cfggen` and `redis-cli` available as lower-level alternatives. All three rely on the same CONFIG_DB schema and are gated by the `sonic-udf.yang` model.
+
+**GCU (preferred)** — atomic, YANG-validated JSON patch:
 
 ```bash
-# Create a UDF field
-redis-cli -n 4 HSET "UDF|BTH_RESERVED" field_type GENERIC length 1
-
-# Create a UDF selector
-redis-cli -n 4 HSET "UDF_SELECTOR|BTH_RESERVED|roce_v1" \
-    match '{"l2_type":"0x8915","l2_type_mask":"0xFFFF","priority":"100"}' \
-    select '{"base":"L2","offset":"22"}'
+sudo config apply-patch <<'EOF'
+[
+  {"op":"add","path":"/UDF/BTH_RESERVED",
+   "value":{"field_type":"GENERIC","length":"1"}},
+  {"op":"add","path":"/UDF_SELECTOR/BTH_RESERVED|roce_v1",
+   "value":{"select_base":"L2","select_offset":"22",
+            "match_l2_type":"0x8915","match_l2_type_mask":"0xFFFF",
+            "match_priority":"100"}}
+]
+EOF
 ```
 
-A `show udf` CLI command is also not implemented. UDF state can be inspected via ASIC_DB (see section 8.3).
+**sonic-cfggen** — load from a JSON file at boot or on demand:
+
+```bash
+sonic-cfggen -j udf.json --write-to-db
+```
+
+**redis-cli** — direct hash writes; bypasses YANG validation, use for debug only:
+
+```bash
+redis-cli -n 4 HSET "UDF|BTH_RESERVED" field_type GENERIC length 1
+redis-cli -n 4 HSET "UDF_SELECTOR|BTH_RESERVED|roce_v1" \
+    select_base L2 select_offset 22 \
+    match_l2_type 0x8915 match_l2_type_mask 0xFFFF match_priority 100
+```
+
+UDF state can be inspected via ASIC_DB
 
 ### 8.3 STATE_DB and ASIC_DB
 
@@ -604,17 +630,9 @@ redis-cli -n 1 HGETALL "ASIC_STATE:SAI_OBJECT_TYPE_UDF_GROUP:<oid>"
 | **CLI** | Not implemented | Direct CONFIG_DB manipulation required |
 | **Boot model** | Cold-boot only  | On orchagent restart (config reload, crash-restart, warm-reboot-attempted), UdfOrch flushes stale ASIC_DB UDF objects and reprograms from CONFIG_DB. Operators using UDF should set `warm_restart_enable=false`. Full convergence after an orchagent-only crash-restart may require a swss-container restart. |
 | **CRM resource tracking** | Not implemented | UDF objects are not tracked by CRM. `show crm` does not warn before hardware UDF group limits are exhausted. Exhaustion surfaces as `SAI_STATUS_INSUFFICIENT_RESOURCES` in syslog only. |
-| **HASH type UDF** | Schema accepted; ECMP wiring not implemented (v0) | `field_type=HASH` creates the SAI UDF_GROUP object but is not wired to the ECMP hash pipeline.|
-
-### 9.2 Design Constraints
-
-| Constraint | Impact |
-|------------|--------|
-| **UDF_SELECTOR dependency** | UDF_SELECTOR requires its udf_field to exist before creation |
-| **No reassignment** | SAI UDF group/match/udf attributes are CREATE_ONLY (or treated as immutable — see Attribute mutability below). To change any attribute: DEL the UDF or UDF_SELECTOR entry in CONFIG_DB, then SET the new values. |
-| **One udf_field per rule** | A single ACL_RULE references each udf_field at most once (udf_field produces one value per packet) |
-| **Attribute mutability** | All UDF and UDF_SELECTOR attributes are treated as immutable regardless of SAI `CREATE_AND_SET` flags. Changing any attribute (length, type, base, offset, match criteria) requires DEL + SET in CONFIG_DB. An extraction spec is identified by its name; in-place update is semantically a replacement. |
-| **Rejected config feedback** | Attribute-change rejections and resource-exhaustion events are reported via `SWSS_LOG_ERROR` in syslog only. |
+| **HASH type UDF** | Schema accepted; ECMP wiring not implemented | `field_type=HASH` creates the SAI UDF_GROUP object but is not wired to the ECMP hash pipeline.|
+| **Base anchors and inner headers** | `select_base` anchors at the outermost L2/L3/L4; no SAI primitive for an "inner" base | Inner fields of encapsulated packets (VXLAN, IPinIP, GRE payload) are reachable only by computing an offset that spans the outer headers + encap header sizes — they cannot be anchored directly. Variable-length encap headers (GRE K/C/S flags, TCP options) are not accounted for; the operator is responsible for any header-length variation. |
+| **Parser scan depth** | Offset validated to 0–255 by SAI only; effective reach is ASIC-parser-bound | `SAI_UDF_ATTR_OFFSET` has no parser-depth attribute. If the chosen offset exceeds the ASIC's parser scan limit, `create_udf` succeeds but packets silently miss at runtime. The operator must know the target platform's parser reach. |
 
 ## 10. Testing Requirements/Design
 
@@ -639,14 +657,14 @@ redis-cli -n 1 HGETALL "ASIC_STATE:SAI_OBJECT_TYPE_UDF_GROUP:<oid>"
 
 | # | Item | Owner |
 |---|------|-------|
-| 1 | CLI support (`show udf`, `config udf`) — deferred to v1 | TBD |
-| 2 | STATE_DB observability (OID + programming status) — deferred to v1 | TBD |
-| 3 | Platform validation beyond Broadcom TH5 (Mellanox Spectrum, Marvell Prestera, Cisco 8000) — deferred to v1 | Platform vendors |
-| 4 | Warm-restart hitless reconciliation — deferred to v1 | TBD |
-| 5 | Multi-ASIC / VoQ-chassis support — deferred to v1 | TBD |
-| 6 | CRM counters for UDF_GROUP / UDF_MATCH / UDF — deferred to v1 | TBD |
-| 7 | HASH type UDF — ECMP hash pipeline wiring via HashOrch — deferred to v1 | TBD |
-| 8 | Operator notification for rejected config (STATE_DB status) — deferred to v1 (requires item 2) | TBD |
+| 1 | CLI support (`show udf`, `config udf`) | TBD |
+| 2 | STATE_DB observability (OID + programming status) | TBD |
+| 3 | Platform validation beyond Broadcom TH5 (Mellanox Spectrum, Marvell Prestera, Cisco 8000) | Platform vendors |
+| 4 | Warm-restart hitless reconciliation | TBD |
+| 5 | Multi-ASIC / VoQ-chassis support | TBD |
+| 6 | CRM counters for UDF_GROUP / UDF_MATCH / UDF | TBD |
+| 7 | HASH type UDF — ECMP hash pipeline wiring via HashOrch | TBD |
+| 8 | Operator notification for rejected config (STATE_DB status, requires item 2) | TBD |
 | 9 | sonic-mgmt E2E test suite — parallel PR | Satishkumar |
 
 ## Appendix A: Configuration Examples
@@ -658,8 +676,8 @@ redis-cli -n 1 HGETALL "ASIC_STATE:SAI_OBJECT_TYPE_UDF_GROUP:<oid>"
     "BTH_RESERVED": {"field_type": "GENERIC", "length": "1"}
   },
   "UDF_SELECTOR": {
-    "BTH_RESERVED|roce_v1": {"match": {"l2_type": "0x8915", "l2_type_mask": "0xFFFF", "priority": "100"}, "select": {"base": "L2", "offset": "22"}},
-    "BTH_RESERVED|roce_v2": {"match": {"l3_type": "0x11",   "l3_type_mask": "0xFF",   "priority": "100"}, "select": {"base": "L4", "offset": "16"}}
+    "BTH_RESERVED|roce_v1": {"select_base": "L2", "select_offset": "22", "match_l2_type": "0x8915", "match_l2_type_mask": "0xFFFF", "match_priority": "100"},
+    "BTH_RESERVED|roce_v2": {"select_base": "L4", "select_offset": "16", "match_l3_type": "0x11", "match_l3_type_mask": "0xFF", "match_priority": "100"}
   },
   "ACL_TABLE_TYPE": {
     "ROCE_ACL_TYPE": {"matches": "IN_PORTS,BTH_RESERVED", "actions": "PACKET_ACTION,COUNTER", "bind_points": "PORT"}
@@ -680,7 +698,7 @@ redis-cli -n 1 HGETALL "ASIC_STATE:SAI_OBJECT_TYPE_UDF_GROUP:<oid>"
     "VXLAN_VNI": {"field_type": "HASH", "length": "3"}
   },
   "UDF_SELECTOR": {
-    "VXLAN_VNI|udp": {"match": {"l3_type": "0x11", "l3_type_mask": "0xFF", "priority": "50"}, "select": {"base": "L4", "offset": "12"}}
+    "VXLAN_VNI|udp": {"select_base": "L4", "select_offset": "12", "match_l3_type": "0x11", "match_l3_type_mask": "0xFF", "match_priority": "50"}
   }
 }
 ```
@@ -692,7 +710,7 @@ redis-cli -n 1 HGETALL "ASIC_STATE:SAI_OBJECT_TYPE_UDF_GROUP:<oid>"
     "APP_SIG": {"field_type": "GENERIC", "length": "4"}
   },
   "UDF_SELECTOR": {
-    "APP_SIG|udp": {"match": {"l3_type": "0x11", "l3_type_mask": "0xFF", "priority": "10"}, "select": {"base": "L4", "offset": "8"}}
+    "APP_SIG|udp": {"select_base": "L4", "select_offset": "8", "match_l3_type": "0x11", "match_l3_type_mask": "0xFF", "match_priority": "10"}
   }
 }
 ```
