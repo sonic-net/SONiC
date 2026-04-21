@@ -393,7 +393,7 @@ The only differences in the above platform API design required to support joint 
   - Both the optical engine Sfp and ELSFP Sfp objects' I2C sysfs EEPROM paths should be set to the same sysfs path (the MCU's I2C sysfs EEPROM path).
   - The ELSFP should be initialized with a memory map that is aware of the memory layout that the MCU exposes (in joint mode, the ELSFP EEPROM will likely be mapped into some part of the MCU's address space).
 
-So, in order to instantiate a composite SFP for a port of a hardware platform using CPO joint mode, you would first define a memory map that describes where the ELSFP memory has been remapped to:
+So, in order to instantiate a composite SFP for a port of a hardware platform using CPO joint mode, you would first define a memory map that describes where the ELSFP memory has been remapped to using the approach outlined in [the companion HLD for ELSFP memory map layout here](https://github.com/sonic-net/SONiC/pull/2207):
 ```python
 # The vendor subclasses any pages that it would like to remap to a different part of the address space.
 # For this case, all pages used in the ELSFP EEPROM would be subclassed and remapped to whatever address
