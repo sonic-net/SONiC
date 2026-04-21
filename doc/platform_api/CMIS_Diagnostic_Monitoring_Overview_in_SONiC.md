@@ -2221,8 +2221,8 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 
 1. **Periodic update of the diagnostic information:**
     - The `DomInfoUpdateTask` thread periodically updates the diagnostic information for all the ports.
-    - The update period interval can be retrieved by reading the `dom_info_update_periodic_secs` field from the `/usr/share/sonic/device/{platform}/pmon_daemon_control.json` file.
-    - If this field or the file is absent, the default timer value is 0 seconds.
+    - The update period interval is configured via the `--dom_update_interval` command-line argument passed to the `xcvrd` daemon. If not specified, the default interval is `DEFAULT_DOM_INFO_UPDATE_PERIOD_SECS` (60 seconds).
+    - If set to 0, the diagnostic information will be updated continuously without any delay between polling cycles.
 
 2. **Link change event:**
     - Only the **flag-related diagnostic information** is updated for a port when a link change event is detected by the `DomInfoUpdateTask` thread. Further details on the tables updated during a link change event are provided in the `Diagnostic Information Update During Link Change Event` section.
@@ -2233,14 +2233,15 @@ The `DomInfoUpdateTask` thread is responsible for updating the dynamic diagnosti
 #### 5.2.1 High-Level Steps for Updating Dynamic Diagnostic Information
 
 1. The `DomInfoUpdateTask` thread is created by the `xcvrd` process.
-2. The `dom_info_update_periodic_secs` value is retrieved from the `pmon_daemon_control.json` file to determine the interval for updating the diagnostic information for all the ports. If the `dom_info_update_periodic_secs` field is absent or set to 0, the diagnostic information will be updated continuously without any delay between updates.
-3. The `DomInfoUpdateTask` thread starts polling for the diagnostic information of the ports in a sequential manner:
-    - It first checks if the `dom_info_update_periodic_secs` value is set. If not, it defaults to 0 seconds.
-    - The thread then enters a loop that continues until the `task_stopping_event` is set.
-    - Within the loop, it checks if the current time has exceeded the `expiration_time`. If so, it sets a flag to update all diagnostic information in the database.
-    - It iterates over all physical ports, handling any port update events for ports that have undergone a link change and updating the flag-related tables accordingly.
-    - If the flag to update all diagnostic information is set, it reads the diagnostic information for the current port.
-    - After processing all ports, it resets the flag and updates the `expiration_time` to the current time plus the `dom_info_update_periodic_secs` interval.
+2. The `dom_update_interval` value is passed to the `DomInfoUpdateTask` constructor via the `--dom_update_interval` command-line argument to `xcvrd`. This determines the interval for updating the diagnostic information for all the ports. If not specified, the default interval of `DEFAULT_DOM_INFO_UPDATE_PERIOD_SECS` (60 seconds) is used. If set to 0, the diagnostic information will be updated continuously without any delay between updates.
+3. The `DomInfoUpdateTask` thread polls the diagnostic information of the ports in a sequential manner:
+    - The thread enters a loop that continues until the `task_stopping_event` is set.
+    - Within the loop, it first handles any port configuration change events (port add/remove).
+    - It then enters an inner wait loop that calls `check_port_update()` with a `PORT_UPDATE_EVENT_SELECT_TIMEOUT_MSECS` (1000ms) timeout. This inner loop continues until the next periodic update time (`next_periodic_db_update_time`) is reached or the stop event is set. This ensures link change events are handled promptly while waiting for the next DOM polling cycle.
+    - Once the periodic update time is reached, the loop start time (`dom_loop_start_time`) is captured.
+    - It iterates over all physical ports; for each port, it calls `check_port_update()` with a `PORT_UPDATE_EVENT_SELECT_TIMEOUT_FAST_MSECS` (10ms) timeout to minimize DOM polling delays while still handling port change events.
+    - For each port, it reads and updates the diagnostic information.
+    - After processing all ports, it updates the `next_periodic_db_update_time` to `dom_loop_start_time + dom_update_interval`. Using the loop start time (rather than the post-processing time) ensures consistent polling intervals regardless of how long per-port processing takes.
 
 The following steps are performed to update all diagnostic information for a port:
 
@@ -2259,28 +2260,45 @@ The following steps are performed to update all diagnostic information for a por
 Pseudo code:
 
 ```python
-# Retrieve the update period interval
-dom_info_update_periodic_secs = parse_field_from_pmon_daemon_control('dom_info_update_periodic_secs')
-if dom_info_update_periodic_secs is None:
-    dom_info_update_periodic_secs = 0
+# dom_update_interval is configured via the --dom_update_interval CLI argument
+# (default: DEFAULT_DOM_INFO_UPDATE_PERIOD_SECS = 60 seconds)
+dom_info_update_periodic_secs = self.dom_update_interval
 
 next_periodic_db_update_time = time.time() + dom_info_update_periodic_secs
 
 while not dom_mgr.task_stopping_event.is_set():
-    if next_periodic_db_update_time <= time.time():
-        is_periodic_db_update_needed = True
+    handle_port_config_change()
+
+    # Wait for the next periodic update time, processing port change events
+    # with a 1000ms timeout between checks
+    stopping_event = False
+    while not stopping_event:
+        is_periodic_db_update_needed = next_periodic_db_update_time <= time.time()
+        if is_periodic_db_update_needed:
+            break
+        check_port_update(PORT_UPDATE_EVENT_SELECT_TIMEOUT_MSECS)  # 1000ms
+        if task_stopping_event.is_set():
+            stopping_event = True
+            break
+
+    if stopping_event:
+        break
+
+    # Capture loop start time to ensure consistent polling intervals
+    dom_loop_start_time = time.time()
 
     for physical_port, logical_ports in self.port_mapping.physical_to_logical.items():
-        if has_link_status_changed_for_any_port():
-            # After 1s post link change event, update the flag-related tables
-            # for the affected ports
-            update_flag_related_tables(ports_going_through_link_change)
+        # Use a fast 10ms timeout during DOM polling to minimize per-port delay
+        check_port_update(PORT_UPDATE_EVENT_SELECT_TIMEOUT_FAST_MSECS)  # 10ms
 
-        if is_periodic_db_update_needed:
-            read_diagnostic_info(physical_port)
+        if task_stopping_event.is_set():
+            break
+
+        read_diagnostic_info(physical_port)
 
     if is_periodic_db_update_needed:
-        next_periodic_db_update_time = time.time() + dom_info_update_periodic_secs
+        # Schedule next poll from loop start time for consistent intervals
+        next_periodic_db_update_time = dom_loop_start_time + dom_info_update_periodic_secs
         is_periodic_db_update_needed = False
 ```
 
@@ -2307,6 +2325,15 @@ The `DomInfoUpdateTask` thread periodically monitors the `flap_count` field in t
 
 - **Cache Initialization**:  
   The cache is initialized with the current `flap_count` values for all logical ports at the start of the thread. This ensures that the thread can detect link changes that occur before the first iteration.
+
+- **Port Update Processing via `check_port_update()`**:  
+  Link change event detection and the subsequent flag-table update are encapsulated in the `check_port_update(timeout)` method. This method:
+  1. Calls `handle_port_update_event(timeout)` to poll for port update events, waiting up to `timeout` milliseconds.
+  2. Iterates over `link_change_affected_ports` and triggers `update_port_db_diagnostics_on_link_change()` for any port whose scheduled update time has elapsed.
+
+  A two-tier timeout strategy is used to balance responsiveness with polling throughput:
+  - **`PORT_UPDATE_EVENT_SELECT_TIMEOUT_MSECS` (1000ms)**: Used in the inner wait loop between DOM polling cycles. This allows port change events to be processed promptly without busy-waiting.
+  - **`PORT_UPDATE_EVENT_SELECT_TIMEOUT_FAST_MSECS` (10ms)**: Used once per physical port during the active DOM polling loop. This minimizes the time added by port event handling during each iteration, allowing a fully-populated switch to complete a polling cycle within the target `dom_update_interval`.
 
 **Reason for not relying on PORT_TABLE notifications for link change detection:**
 
