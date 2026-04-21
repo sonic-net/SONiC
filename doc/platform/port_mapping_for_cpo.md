@@ -428,10 +428,12 @@ class ElsfpMemMap(CmisMemMap):
         ...
 
     def _register_field_groups(self):
-        # Vendors do not override this: the field-group wiring is the same
+        # Vendors do not typically override this: the field-group wiring is the same
         # regardless of where the pages live in memory. Changing the page
         # number in _init_pages() is all that is needed to remap a page and
         # all of its contents to a new location.
+        # This function would only be overriden if a vendor wants to avoid registering fields,
+        # or would like to register new fields, for a given page
         self.ELSFP_MODULE_ADVERTISEMENTS = RegGroupField(
             elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD,
             *get_field_from_pages(
@@ -442,9 +444,7 @@ class ElsfpMemMap(CmisMemMap):
         ...
 ```
 
-`CmisMemMap` is not affected by this refactor.
-
-We could then initialize our composite SFP using this `CustomVendorCpoMemMap`:
+We could then initialize our composite SFP using this `CustomVendorElsfpMemMap`:
 ```python
 class VendorCpoJointModeChassis(ChassisBase):
   ...
