@@ -597,30 +597,29 @@ The following leaves are added to `MIRROR_SESSION_LIST` in `sonic-mirror-session
 leaf sample_rate {
     when "current()/../type = 'ERSPAN'";
     type uint32 {
-        range "0|256..8388608" {
-            error-message "Sample rate must be 0 (no sampling/full mirroring) or 256-8388608";
+        range "256..8388608" {
+            error-message "Sample rate must be 256..8388608";
             error-app-tag sample-rate-invalid;
         }
     }
-    default 0;
     description
-        "Sampling rate for mirrored packets. 0 means full mirroring
-         (no sampling). N means mirror 1 out of every N packets.";
+        "Sampling rate for mirrored packets. When not configured,
+            full mirroring is used (no sampling). N means mirror 1 out
+            of every N packets.";
 }
 
 leaf truncate_size {
     when "current()/../type = 'ERSPAN'";
     type uint32 {
-        range "0|64..9216" {
-            error-message "Truncate size must be 0 (no truncation) or 64-9216 bytes";
+        range "64..9216" {
+            error-message "Truncate size must be 64..9216";
             error-app-tag truncate-size-invalid;
         }
     }
-    default 0;
     description
         "Truncation size in bytes for mirrored packets.
-         0 means no truncation. When set, only the first N bytes
-         of each mirrored packet are sent.";
+            When not configured, no truncation is applied. When set,
+            only the first N bytes of each mirrored packet are sent.";
 }
 ```
 
