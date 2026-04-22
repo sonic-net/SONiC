@@ -272,26 +272,26 @@ We will need a composite sfp subclass and XcvrApi subclass to be implemented for
 ```python
 # sonic-platform-common/sonic_platform_base/sonic_xcvr/cpo_base.py
 import typing
-from sonic_platform_base.sonic_xcvr.composite_sfp import CompositeSfpBase
-from sonic_platform_base.sonic_xcvr.sfp_optoe_base import SfpOptoeBase
+from sonic_platform_base.sonic_xcvr.composite_sfp_base import CompositeSfpBase
 from sonic_platform_base.sonic_xcvr.api.public.cpo import CpoApi
+from sonic_platform_base.sfp_base import SfpBase
 
-class CpoSfpOptoeBase(SfpOptoeBase, CompositeSfpBase):
-    def __init__(self, oe: SfpOptoeBase, els: SfpOptoeBase) -> None:
-        super().__init__()
+class CpoSfpBase(CompositeSfpBase, SfpBase):
+    def __init__(self, oe: SfpBase, els: SfpBase) -> None:
+        SfpBase.__init__(self)
         self._oe = oe
         self._els = els
 
-    def get_internal_devices(self) -> typing.List[SfpOptoeBase]:
+    def get_internal_devices(self) -> typing.List[SfpBase]:
         return [self._oe, self._els]
 
     def get_number_of_internal_devices(self) -> int:
         return 2
 
-    def get_internal_device(self, name: str) -> SfpOptoeBase:
-        if "OE" in name:
+    def get_internal_device(self, name: str) -> SfpBase:
+        if name == "OE":
             return self._oe
-        elif "ELS" in name:
+        elif name == "ELS":
             return self._els
         raise ValueError(f"No SFP found for {name}")
 
@@ -301,8 +301,8 @@ class CpoSfpOptoeBase(SfpOptoeBase, CompositeSfpBase):
             external_laser_source_xcvr_api=self._els.get_xcvr_api()
         )
 
-    # CPO specific methods can be defined in this class, like methods for fetching
-    # information related to the ELSFP or the optical engine.
+    # CPO-specific methods can be defined in this class, like methods for fetching
+    # information related to the ELSFP or the optical engine. For example:
     def get_elsfp_lane_output_power_alarm(self):
       return self.get_xcvr_api().get_elsfp_lane_output_power_alarm()
 
@@ -321,19 +321,21 @@ class CpoApi(CmisApi):
         self.optical_engine_xcvr_api = optical_engine_xcvr_api
         self.external_laser_source_xcvr_api = external_laser_source_xcvr_api
 
-    # Implement ELSFP specific methods below here
+    # Implement ELSFP specific methods below here. For example:
     def get_elsfp_lane_output_power_alarm(self):
         return self.external_laser_source_xcvr_api.get_elsfp_lane_output_power_alarm()
 
 # sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/elsfp.py
-from ..xcvr_api import XcvrApi
+from .cmis import CmisApi
 
-class ElsfpApi(XcvrApi):
+class ElsfpApi(CmisApi):
     """
     XcvrApi for information specific to ELSFP devices.
     """
     ...
 ```
+
+`CpoSfpBase` inherits from `SfpBase` (not `SfpOptoeBase`) so the composite SFP abstraction is not tied to the optoe driver. The underlying optical-engine and ELSFP objects passed in can still be `SfpOptoeBase` instances in vendor implementations -- they just satisfy the more general `SfpBase` contract at this layer.
 
 Note that the above implementation in `CpoApi` delegates most method calls to the optical engine API by default, since the optical engine reports most information on CPO hardware. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_internal_devices()` and `get_internal_device()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_internal_device("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
 
@@ -377,8 +379,8 @@ class VendorCpoChassis(ChassisBase):
         # Create a composite SFP to represent this interface
         assert oe, "No optical engine found for this interface"
         assert elsfp, "No ELSFP found for this interface"
-        # VendorCpoSfp would be a subclass of CpoSfpOptoeBase here.
-        self._sfp_list.append(VendorCpoSfp(oe=oe, elsfp=elsfp))
+        # VendorCpoSfp would be a subclass of CpoSfpBase here.
+        self._sfp_list.append(VendorCpoSfp(oe=oe, els=elsfp))
 ```
 
 ##### 7.3.4 CPO Joint Mode
@@ -463,17 +465,17 @@ class VendorCpoJointModeChassis(ChassisBase):
         elsfp = VendorSfp(..., bank=bank, xcvr_api_config=XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=CustomVendorElsfpMemMap, api_cls=ElsfpApi, bank=bank))
 
         # Create a composite SFP to represent this interface
-        # VendorCpoSfp would be a class that inherits from CpoSfpOptoeBase
-        composite_sfp = VendorCpoSfp(oe=oe, elsfp=elsfp)
+        # VendorCpoSfp would be a class that inherits from CpoSfpBase
+        composite_sfp = VendorCpoSfp(oe=oe, els=elsfp)
 
         # Now the same composite SFP abstraction can be used for joint mode. Even though all i2c access physically goes through the same device,
         # software is presented with the same view as if the ELSFP and OE are separate devices. Both joint and separate mode use the same
         # software abstraction
         xcvr_info = composite_sfp.get_transceiver_info()
-        elsfp = composite_sfp.get_device("ELS") 
+        elsfp = composite_sfp.get_internal_device("ELS")
         elsfp_control_mode = elsfp.get_control_mode()
         elsfp_optical_power = elsfp.get_per_lane_opt_power_monitor()
-        oe = composite_sfp.get_device("OE")
+        oe = composite_sfp.get_internal_device("OE")
         oe_voltage = oe.get_voltage()
 ```
 
