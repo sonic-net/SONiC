@@ -202,7 +202,7 @@ We will require some changes to the SONiC platform APIs in order to support mult
 
 ##### 7.3.1 The Composite SFP Interface
 
-We will define a `CompositeSfpBase` interface, so that it is possible to define composite "logical" SFPs that consist of multiple independent `SfpOptoeBase` derived objects. This allows us to present a single logical view/transceiver to application code despite there being multiple independent, and possibly shared, hardware devices backing the logical transceiver.
+We will define a `CompositeSfpBase` interface, so that it is possible to define composite "logical" SFPs that consist of multiple independent `SfpBase` derived objects. This allows us to present a single logical view/transceiver to application code despite there being multiple independent, and possibly shared, hardware devices backing the logical transceiver.
 
 An important consequence of the below `CompositeSfpBase` interface is that there is no concept in software that the underlying hardware is shared -- software treats each composite Sfp as an independent device, even if that is not true in reality. As a result, protection against issues like concurrent I2C operations is left up to downstream components (for instance, the optoe driver for reading/writing to transceiver EEPROMs over I2C acquires a lock for each I2C read/write).
 
