@@ -15,14 +15,12 @@
   - [7.1 Overview](#71-overview)
   - [7.2 Module Interfaces and Dependencies](#72-module-interfaces-and-dependencies)
   - [7.3 DB Schema](#73-db-schema)
-    - [7.3.1 CONFIG_DB](#731-config_db)
-    - [7.3.2 APPL_DB](#732-appl_db)
-    - [7.3.3 STATE_DB](#733-state_db)
+    - [7.3.1 APPL_DB](#731-appl_db)
+    - [7.3.2 STATE_DB](#732-state_db)
   - [7.4 Sequence Diagram](#74-sequence-diagram)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and Management](#9-configuration-and-management)
   - [9.1 CLI Enhancements](#91-cli-enhancements)
-  - [9.2 YANG Model](#92-yang-model)
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Restrictions/Limitations](#11-restrictionslimitations)
 - [12. Testing Requirements/Design](#12-testing-requirementsdesign)
@@ -114,34 +112,41 @@ This is a built-in SONiC feature that adds PRBS diagnostic capabilities through 
 
 **Modified Repositories:**
 1. **sonic-utilities**: CLI implementation
-   - `config/interface_prbs.py`: PRBS enable/disable commands
+   - `diag/main.py`: PRBS enable/disable commands
    - `show/interfaces/prbs.py`: PRBS status display commands
    - `clear/main.py`: PRBS results clear command
    - `utilities_common/prbs_util.py`: Helper functions formatting
 
-2. **sonic-swss**: Orchestration logic
+2. **sonic-swss**: Orchestration and daemon logic
+   - `cfgmgr/portmgr.cpp/h`: Subscribe to `DIAG_PORT_TABLE` in APPL_DB and forward PRBS fields to `PORT_TABLE`
+   - `cfgmgr/portmgrd.cpp`: Initialize `PortMgr` with `DIAG_PORT_TABLE` subscription
    - `orchagent/portsorch.cpp`: Query Capability and if PRBS is supported route PRBS operations to PrbsHandler
    - `orchagent/prbshandler.cpp/h`: New PRBS handler class
 
-3. **sonic-sairedis**: SAI attribute serialization and deserialization support
-   - Serialization and deserialization for new SAI PRBS per-lane attributes
+3. **sonic-swss-common**: Schema definitions
+   - `common/schema.h`: Add `APP_DIAG_PORT_TABLE_NAME` macro
 
-4. **sonic-yang-models**: Configuration schema
-   - `yang-models/sonic-port.yang`: Add PRBS field validation
+4. **sonic-sairedis**: SAI attribute serialization and deserialization support
+   - Serialization and deserialization for new SAI PRBS per-lane attributes
 
 #### 7.2 Module Interfaces and Dependencies
 
-**CLI → STATE_DB (read) → CONFIG_DB (write):**
-- Read: `PORT_TABLE|<interface>` from STATE_DB to get `supported_patterns` for the port
+**CLI (`diag interface prbs`) → STATE_DB (read) → APPL_DB (write):**
+- Read: `PORT_TABLE|<interface>` from STATE_DB to get `supported_prbs_patterns` for the port
+- Read: `DIAG_PORT_TABLE:<interface>` from APPL_DB to check "already running" guard
 - Validate: If `--pattern` is specified, verify it exists in the per-port supported patterns list; reject with error if not supported or if list is empty
-- Write: `PORT|<interface>` with `prbs_mode` and `prbs_pattern` fields to CONFIG_DB
-- Validation: Interface existence, mode/pattern values
+- Write: `DIAG_PORT_TABLE:<interface>` with `prbs_mode` and `prbs_pattern` fields to APPL_DB.
+- PRBS configuration is **transient** — it does not touch CONFIG_DB and will not survive `config save` or reboot
+
+**portmgrd (DIAG_PORT_TABLE → PORT_TABLE forwarding):**
+- Subscribes to `DIAG_PORT_TABLE` in APPL_DB
+- On SET, forwards `prbs_mode` and `prbs_pattern` fields to `PORT_TABLE|<interface>` in APPL_DB
 
 **PortsOrch Init → PrbsHandler:**
 - During PortsOrch initialization, query `SAI_PORT_ATTR_PRBS_CONFIG` set capability via `sai_query_attribute_capability`
 - If PRBS is supported, instantiate PrbsHandler
 - If not a warm-reboot, clear stale STATE_DB entries (`PORT_PRBS_TEST`, `PORT_PRBS_RESULTS`, `PORT_PRBS_LANE_RESULT`)
-- During `postPortInit`, queries `SAI_PORT_ATTR_SUPPORTED_PRBS_PATTERN` per port and writes the `supported_patterns` field to STATE_DB `PORT_TABLE|<interface>`
+- During `postPortInit`, queries `SAI_PORT_ATTR_SUPPORTED_PRBS_PATTERN` per port and writes the `supported_prbs_patterns` field to STATE_DB `PORT_TABLE|<interface>`
 
 **PortsOrch Deinit → PrbsHandler:**
 - On port removal, clear STATE_DB entries for the port
@@ -163,20 +168,20 @@ This is a built-in SONiC feature that adds PRBS diagnostic capabilities through 
 
 **PrbsHandler → STATE_DB:**
 - Write: `PORT_PRBS_TEST`, `PORT_PRBS_RESULTS`, and `PORT_PRBS_LANE_RESULT` tables
-- Write: `supported_patterns` field in `PORT_TABLE|<interface>` during init
+- Write: `supported_prbs_patterns` field in `PORT_TABLE|<interface>` during init
 
 #### 7.3 DB Schema
 
-##### 7.3.1 CONFIG_DB
+##### 7.3.1 APPL_DB
 
-###### 7.3.1.1 Extend existing Table PORT
+###### 7.3.1.1 New Table DIAG_PORT_TABLE
 
-PRBS configuration fields are added to the existing PORT table.
+The `diag interface prbs` CLI writes PRBS configuration directly to `DIAG_PORT_TABLE` in APPL_DB. APPL_DB is flushed on docker restart, so no explicit cleanup is needed.
 
 ```abnf
-; defines schema for PRBS configuration attributes (extends existing PORT table)
+; defines schema for transient PRBS diagnostic configuration
 
-key                   = PORT | ifname        ; Interface name (Ethernet only). Must be unique
+key                   = DIAG_PORT_TABLE : ifname   ; Interface name. Must be unique
 
 ; field               = value
 prbs_mode             = "rx" / "tx" / "both" / "disabled"   ; PRBS operation mode
@@ -197,51 +202,37 @@ prbs_pattern       = "none" / "PRBS7" / "PRBS9" / "PRBS10" / "PRBS11" /
 **Sample JSON:**
 ```json
 {
-  "PORT|Ethernet0": {
-    "value": {
-      "prbs_mode": "rx",
-      "prbs_pattern": "PRBS31"
-    }
-  }
-}
-```
-
-##### 7.3.2 APPL_DB
-
-The `portmgrd` propagates PRBS configuration from CONFIG_DB to APPL_DB. APPL_DB PORT_TABLE mirrors the PRBS fields from CONFIG_DB PORT table.
-
-###### 7.3.2.1 Extend existing Table PORT_TABLE
-
-```abnf
-; defines schema for PRBS attributes in PORT_TABLE (propagated from CONFIG_DB)
-
-key                   = PORT_TABLE | ifname   ; Interface name. Must be unique
-
-; field               = value
-prbs_mode             = "rx" / "tx" / "both" / "disabled"   ; Propagated from CONFIG_DB
-prbs_pattern       = "none" / "PRBS7" / "PRBS9" / "PRBS10" / "PRBS11" /
-                        "PRBS13" / "PRBS15" / "PRBS16" / "PRBS20" / "PRBS23" /
-                        "PRBS31" / "PRBS32" / "PRBS49" / "PRBS58" /
-                        "PRBS7Q" / "PRBS9Q" / "PRBS13Q" / "PRBS15Q" /
-                        "PRBS23Q" / "PRBS31Q" / "SSPRQ"
-                                                 ; Propagated from CONFIG_DB
-```
-
-**Sample JSON:**
-```json
-{
-  "PORT_TABLE:Ethernet0": {
+  "DIAG_PORT_TABLE:Ethernet0": {
     "prbs_mode": "rx",
     "prbs_pattern": "PRBS31"
   }
 }
 ```
 
-##### 7.3.3 STATE_DB
+###### 7.3.1.2 Extend existing Table PORT_TABLE (via portmgrd)
 
-###### 7.3.3.0 Extend existing Table PORT_TABLE
+`portmgrd` subscribes to `DIAG_PORT_TABLE` and forwards `prbs_mode` and `prbs_pattern` fields to the existing `PORT_TABLE` in APPL_DB. This ensures downstream consumers (orchagent/PrbsHandler) continue to read from `PORT_TABLE` without any changes.
 
-The `supported_patterns` field is added to the existing STATE_DB `PORT_TABLE` during PrbsHandler init. This is populated by querying `SAI_PORT_ATTR_SUPPORTED_PRBS_PATTERN` per port.
+```abnf
+; defines schema for PRBS attributes in PORT_TABLE (forwarded from DIAG_PORT_TABLE by portmgrd)
+
+key                   = PORT_TABLE : ifname   ; Interface name. Must be unique
+
+; field               = value
+prbs_mode             = "rx" / "tx" / "both" / "disabled"   ; Forwarded from DIAG_PORT_TABLE
+prbs_pattern       = "none" / "PRBS7" / "PRBS9" / "PRBS10" / "PRBS11" /
+                        "PRBS13" / "PRBS15" / "PRBS16" / "PRBS20" / "PRBS23" /
+                        "PRBS31" / "PRBS32" / "PRBS49" / "PRBS58" /
+                        "PRBS7Q" / "PRBS9Q" / "PRBS13Q" / "PRBS15Q" /
+                        "PRBS23Q" / "PRBS31Q" / "SSPRQ"
+                                                 ; Forwarded from DIAG_PORT_TABLE
+```
+
+##### 7.3.2 STATE_DB
+
+###### 7.3.2.0 Extend existing Table PORT_TABLE
+
+The `supported_prbs_patterns` field is added to the existing STATE_DB `PORT_TABLE` during PrbsHandler init. This is populated by querying `SAI_PORT_ATTR_SUPPORTED_PRBS_PATTERN` per port.
 
 ```abnf
 ; defines schema for PRBS supported patterns (extends existing PORT_TABLE in STATE_DB)
@@ -249,8 +240,8 @@ The `supported_patterns` field is added to the existing STATE_DB `PORT_TABLE` du
 key                   = PORT_TABLE | ifname        ; Interface name. Must be unique
 
 ; field               = value
-supported_patterns    = pattern_list               ; Comma-separated list of supported PRBS patterns
-                                                   ; e.g., "PRBS7,PRBS9,PRBS10,PRBS11,PRBS13,PRBS15,PRBS16,PRBS20,PRBS23,PRBS31,PRBS32,PRBS49,PRBS58,PRBS7Q,PRBS9Q,PRBS13Q,PRBS15Q,PRBS23Q,PRBS31Q,SSPRQ"
+supported_prbs_patterns    = pattern_list               ; Comma-separated list of supported PRBS patterns
+                                                   ; e.g., "none,PRBS7,PRBS9,PRBS10,PRBS11,PRBS13,PRBS15,PRBS16,PRBS20,PRBS23,PRBS31,PRBS32,PRBS49,PRBS58,PRBS7Q,PRBS9Q,PRBS13Q,PRBS15Q,PRBS23Q,PRBS31Q,SSPRQ"
                                                    ; Empty string if SAI query fails or no patterns supported
 ```
 
@@ -258,12 +249,12 @@ supported_patterns    = pattern_list               ; Comma-separated list of sup
 ```json
 {
   "PORT_TABLE|Ethernet0": {
-    "supported_patterns": "PRBS7,PRBS9,PRBS10,PRBS11,PRBS13,PRBS15,PRBS16,PRBS20,PRBS23,PRBS31,PRBS32,PRBS49,PRBS58,PRBS7Q,PRBS9Q,PRBS13Q,PRBS15Q,PRBS23Q,PRBS31Q,SSPRQ"
+    "supported_prbs_patterns": "none,PRBS7,PRBS9,PRBS10,PRBS11,PRBS13,PRBS15,PRBS16,PRBS20,PRBS23,PRBS31,PRBS32,PRBS49,PRBS58,PRBS7Q,PRBS9Q,PRBS13Q,PRBS15Q,PRBS23Q,PRBS31Q,SSPRQ"
   }
 }
 ```
 
-###### 7.3.3.1 New Table PORT_PRBS_TEST
+###### 7.3.2.1 New Table PORT_PRBS_TEST
 
 Test configuration, status, and metadata. Written by PrbsHandler when PRBS is enabled or disabled.
 
@@ -303,7 +294,7 @@ stop_time             = 1*20DIGIT                ; Test stop time when stopped (
 }
 ```
 
-###### 7.3.3.2 New Table PORT_PRBS_RESULTS
+###### 7.3.2.2 New Table PORT_PRBS_RESULTS
 
 Port-level PRBS summary results. Written by PrbsHandler when PRBS is disabled (rx or both modes only). TX-only mode does not create entries.
 
@@ -332,7 +323,7 @@ total_lanes           = 1*2DIGIT                 ; Number of serdes lanes (1..16
 }
 ```
 
-###### 7.3.3.3 New Table PORT_PRBS_LANE_RESULT
+###### 7.3.2.3 New Table PORT_PRBS_LANE_RESULT
 
 Per-lane RX results. Written by PrbsHandler when PRBS is disabled (rx or both modes only). TX-only mode does not create entries.
 
@@ -396,7 +387,7 @@ sequenceDiagram
         portsorch->>prbsHandler: initPortPrbsSupportedPatterns()
         prbsHandler->>SAI: get SAI_PORT_ATTR_SUPPORTED_PRBS_PATTERN
         SAI-->>prbsHandler: Success
-        prbsHandler->>STATE_DB: update supported_patterns PORT_TABLE|Ethernetxx
+        prbsHandler->>STATE_DB: update supported_prbs_patterns PORT_TABLE|Ethernetxx
     end
 ```
 **Port Remove Flow:**
@@ -417,27 +408,26 @@ sequenceDiagram
     participant CLI
     participant sonic-utilities
     participant STATE_DB
-    participant CONFIG_DB
-    participant portmgrd
     participant APPL_DB
+    participant portmgrd
     participant portsorch
     participant prbshandler
 
-    CLI->>sonic-utilities: config interface prbs enable <br/> (optional) pattern <pattern_name> prbs_mode <prbs_mode>
+    CLI->>sonic-utilities: diag interface prbs enable <br/> (optional) pattern <pattern_name> prbs_mode <prbs_mode>
     sonic-utilities->>STATE_DB: get supported prbs pattern <br/> from PORT_TABLE|EthernetXX
     STATE_DB-->>sonic-utilities: supported prbs pattern list
 
     alt If pattern not configured OR issued pattern is in supported patterns list
         alt If pattern
-        sonic-utilities->>CONFIG_DB: Configure prbs pattern
+        sonic-utilities->>APPL_DB: Write prbs_pattern to DIAG_PORT_TABLE
         end
-        sonic-utilities->>CONFIG_DB: Configure prbs_mode
-        CONFIG_DB->>portmgrd: Notification about prbs config change
+        sonic-utilities->>APPL_DB: Write prbs_mode to DIAG_PORT_TABLE
+        APPL_DB->>portmgrd: Notification from DIAG_PORT_TABLE
     else If pattern issued by user is not from supported patterns list <br/> OR supported patterns list is empty
         sonic-utilities-->>CLI: Return error message about unsupported pattern
     end
 
-    portmgrd->>APPL_DB: Update PORT_TABLE|EthernetXX <br/> prbs config
+    portmgrd->>APPL_DB: Forward prbs fields to PORT_TABLE|EthernetXX
     APPL_DB->>portsorch: Notification due to <br/> changes in PORT_TABLE|EthernetXX
 
     alt If prbs pattern is issued by user
@@ -467,18 +457,17 @@ sequenceDiagram
     participant CLI
     participant sonic-utilities
     participant STATE_DB
-    participant CONFIG_DB
-    participant portmgrd
     participant APPL_DB
+    participant portmgrd
     participant portsorch
     participant prbshandler
 
-    CLI->>sonic-utilities: config interface prbs disable
-    sonic-utilities->>CONFIG_DB: Configure prbs mode to disable
+    CLI->>sonic-utilities: diag interface prbs disable
+    sonic-utilities->>APPL_DB: Write prbs_mode=disabled to DIAG_PORT_TABLE
 
-    CONFIG_DB->>portmgrd: Notification about prbs config change
+    APPL_DB->>portmgrd: Notification from DIAG_PORT_TABLE
 
-    portmgrd->>APPL_DB: Update PORT_TABLE|EthernetXX <br/> prbs config
+    portmgrd->>APPL_DB: Forward prbs_mode=disabled to PORT_TABLE|EthernetXX
     APPL_DB->>portsorch: Notification for <br/> changes in PORT_TABLE|EthernetXX
 
     portsorch->>prbshandler: handlePrbsConfig()
@@ -554,17 +543,17 @@ The following table lists the SAI APIs used and their relevant attributes. This 
 
 #### 9.1 CLI Enhancements
 
-**Configuration Commands:**
+**Diagnostic Commands**
 
 1. **Enable PRBS**
 ```bash
-config interface prbs <interface> enable [--mode <rx|tx|both>] [--pattern <pattern_name>]
+diag interface prbs enable <interface> [--mode <rx|tx|both>] [--pattern <pattern_name>]
 
 # Examples:
-config interface prbs Ethernet0 enable --mode rx --pattern PRBS31
-config interface prbs Ethernet4 enable --mode both
-config interface prbs Ethernet8 enable                                # Defaults: mode=rx, pattern=none (SAI SDK default)
-config interface prbs Ethernet16 enable --mode rx --pattern none      # Explicit AUTO
+diag interface prbs enable Ethernet0 --mode rx --pattern PRBS31
+diag interface prbs enable Ethernet4 --mode both
+diag interface prbs enable Ethernet8                                # Defaults: mode=rx, pattern=none (SAI SDK default)
+diag interface prbs enable Ethernet16 --mode rx --pattern none      # Explicit AUTO
 ```
 
 Options:
@@ -577,7 +566,7 @@ Options:
   - Supported patterns: `PRBS7`, `PRBS9`, `PRBS10`, `PRBS11`, `PRBS13`, `PRBS15`, `PRBS16`, `PRBS20`, `PRBS23`, `PRBS31`, `PRBS32`, `PRBS49`, `PRBS58`, `PRBS7Q`, `PRBS9Q`, `PRBS13Q`, `PRBS15Q`, `PRBS23Q`, `PRBS31Q`, `SSPRQ`
 
 Validation:
-- If `--pattern` is a specific pattern (not `none`), CLI reads `supported_patterns` from STATE_DB `PORT_TABLE|<interface>` and verifies the requested pattern is in the list
+- If `--pattern` is a specific pattern (not `none`), CLI reads `supported_prbs_patterns` from STATE_DB `PORT_TABLE|<interface>` and verifies the requested pattern is in the list
 - If the pattern is not in the supported list (or the list is empty), the command is rejected with an error message indicating unsupported pattern
 - If `--pattern` is `none` or omitted, no validation is performed and SAI SDK selects the default via `SAI_PORT_PRBS_PATTERN_AUTO`
 
@@ -586,10 +575,10 @@ Behavior:
 
 2. **Disable PRBS**
 ```bash
-config interface prbs <interface> disable
+diag interface prbs disable <interface>
 
 # Example:
-config interface prbs Ethernet0 disable
+diag interface prbs disable Ethernet0
 ```
 
 **Maintenance Commands:**
@@ -612,7 +601,7 @@ Behavior:
 
 1. **Show PRBS Status (all ports — no arguments)**
 ```bash
-show interface prbs status [--json]
+show interfaces prbs status [--json]
 ```
 
 Example output:
@@ -666,7 +655,7 @@ JSON output:
 
 2. **Show PRBS Status (per-interface detailed view)**
 ```bash
-show interface prbs status -i <interface> [--json]
+show interfaces prbs status -i <interface> [--json]
 ```
 
 **RX/both mode — per-lane results (after test completed):**
@@ -717,42 +706,6 @@ Note: No PRBS result data available
 **Lock status derivation (CLI level):**
 - OK, LOCK_WITH_ERRORS → "Locked"
 - NOT_LOCKED, LOST_LOCK → "Not Locked"
-
-#### 9.2 YANG Model
-
-**YANG Model Changes** (`sonic-port.yang`):
-
-```yang
-module sonic-port{
-  ...
-  container sonic-port{
-
-    container PORT {
-
-      list PORT_LIST {
-        ...
-        leaf prbs_mode {
-            type string {
-                pattern "rx|tx|both|disabled";
-            }
-            description "PRBS mode: rx, tx, both (enable), or disabled";
-        }
-
-        leaf prbs_pattern {
-            type string {
-                pattern "none|PRBS7|PRBS9|PRBS10|PRBS11|PRBS13|PRBS15|PRBS16|PRBS20|PRBS23|PRBS31|PRBS32|PRBS49|PRBS58|PRBS7Q|PRBS9Q|PRBS13Q|PRBS15Q|PRBS23Q|PRBS31Q|SSPRQ";
-            }
-            description "PRBS pattern. 'none' string means SAI SDK chooses default.";
-        }
-      }
-    }
-  }
-}
-```
-
-**Schema Evolution:**
-- New fields added to existing PORT yang
-- Fields are optional and only present when PRBS is configured
 
 ### 10. Warmboot and Fastboot Design Impact
 
@@ -819,14 +772,14 @@ Unit tests shall be added in `src/sonic-utilities/tests/`, `src/sonic-swss/tests
 
 | # | Test Case | Description |
 |---|-----------|-------------|
-| 1 | Test config interface prbs enable | PRBS enable with mode (rx, tx, both) and pattern; verify CONFIG_DB write |
-| 2 | Test config interface prbs enable validation | Invalid interface, invalid mode, invalid pattern; expect failure |
-| 3 | Test config interface prbs enable with default pattern | Enable without --pattern; verify empty/default handling |
-| 4 | Test config interface prbs enable while running | Enable when PRBS already enabled; expect failure |
-| 5 | Test config interface prbs disable | PRBS disable; verify CONFIG_DB update |
-| 6 | Test show interface prbs status (all ports) | Mock STATE_DB; verify summary output (Running/Interrupted/Errored/Completed) |
-| 7 | Test show interface prbs status -i \<interface\> | Mock STATE_DB with PORT_PRBS_TEST and PORT_PRBS_LANE_RESULT; verify per-lane view |
-| 8 | Test show interface prbs status --json | Verify JSON output format |
+| 1 | Test diag interface prbs enable | PRBS enable with mode (rx, tx, both) and pattern; verify APPL_DB DIAG_PORT_TABLE write |
+| 2 | Test diag interface prbs enable validation | Invalid interface, invalid mode, invalid pattern; expect failure |
+| 3 | Test diag interface prbs enable with default pattern | Enable without --pattern; verify empty/default handling |
+| 4 | Test diag interface prbs enable while running | Enable when PRBS already enabled; expect failure |
+| 5 | Test diag interface prbs disable | PRBS disable; verify APPL_DB DIAG_PORT_TABLE update |
+| 6 | Test show interfaces prbs status (all ports) | Mock STATE_DB; verify summary output (Running/Interrupted/Errored/Completed) |
+| 7 | Test show interfaces prbs status -i \<interface\> | Mock STATE_DB with PORT_PRBS_TEST and PORT_PRBS_LANE_RESULT; verify per-lane view |
+| 8 | Test show interfaces prbs status --json | Verify JSON output format |
 | 9 | Test sonic-clear prbs results (all interfaces) | Mock STATE_DB; verify PORT_PRBS_TEST* and PORT_PRBS_LANE_RESULT* keys deleted |
 | 10 | Test sonic-clear prbs results -i \<interface\> | Mock STATE_DB; verify interface-specific keys deleted |
 | 11 | Test sonic-clear prbs results invalid interface | Invalid or non-existent interface; expect failure |
@@ -835,8 +788,8 @@ Unit tests shall be added in `src/sonic-utilities/tests/`, `src/sonic-swss/tests
 
 | # | Test Case | Description |
 |---|-----------|-------------|
-| 1 | Test PRBS CONFIG_DB to APPL_DB propagation | Set prbs_mode and prbs_pattern in CONFIG_DB PORT; verify portmgrd propagates to APPL_DB PORT_TABLE |
-| 2 | Test PRBS config removal | Remove prbs fields from CONFIG_DB; verify APPL_DB PORT_TABLE updated |
+| 1 | Test PRBS PORT_DIAG_TABLE to PORT_TABLE propagation | Set prbs_mode and prbs_pattern in APPL_DB PORT_DIAG_TABLE; verify portmgrd forwards to APPL_DB PORT_TABLE |
+| 2 | Test PRBS diag field whitelist | Write non-PRBS fields to PORT_DIAG_TABLE; verify they are not forwarded to PORT_TABLE |
 | 3 | Test PRBS PrbsHandler STATE_DB write | Trigger PRBS disable flow; verify PORT_PRBS_TEST and PORT_PRBS_LANE_RESULT written to STATE_DB (requires platform with PRBS SAI support or mock) |
 
 **src/sonic-sairedis/tests/ (unittest/)**
@@ -853,21 +806,21 @@ Unit tests shall be added in `src/sonic-utilities/tests/`, `src/sonic-swss/tests
 **Use Case 1: Troubleshooting Intermittent Link Issues**
 ```bash
 # Switch1: Enable PRBS pattern on tx
-config interface prbs Ethernet4 enable --mode tx --pattern PRBS31
+diag interface prbs enable Ethernet4 --mode tx --pattern PRBS31
 
 # Switch2: Enable PRBS test on rx
-config interface prbs Ethernet4 enable --mode rx --pattern PRBS31
+diag interface prbs enable Ethernet4 --mode rx --pattern PRBS31
 
 # Check running status
-show interface prbs status
+show interfaces prbs status
 
 # Switch2: Disable rx and analyze results
-config interface prbs Ethernet4 disable
-show interface prbs status -i Ethernet4
+diag interface prbs disable Ethernet4
+show interfaces prbs status -i Ethernet4
 
 # Switch1: Disable tx
-config interface prbs Ethernet4 disable
-show interface prbs status -i Ethernet4
+diag interface prbs disable Ethernet4
+show interfaces prbs status -i Ethernet4
 
 ```
 
