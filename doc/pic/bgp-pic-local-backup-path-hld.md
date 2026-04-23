@@ -38,6 +38,20 @@
 ## 2. Scope
 
 This document covers the High-Level Design of **PIC Local**, also known as BGP Fast Reroute (FRR), for SONiC-based switching platform. PIC Local enables BGP to pre-compute a backup forwarding path and install it alongside the primary path in the data plane. Upon local link failure, the data plane switches to the backup path immediately — without waiting for BGP to reconverge.
+If routes had ECMP paths, every ECMP member is usable and link failure handling essentially involves removing the failed member from the group. The scope and intent for this feature is to address a set of non-ideal and non-ECMP scenarios, where we dont have equidistant multi-paths. In such cases installing backup paths to quickly do local repair before control plane converges will limit traffic loss. 
+
+One example of the above scenario is documented in section.4 of the PIC architecture HLD (https://github.com/sonic-net/SONiC/blob/master/doc/pic/bgp_pic_arch_doc.md). This feature could provide quick convergence at the egress side until the ingress recovers, by rerouting traffic to a peering PE where another path is available to reach the destination.
+
+Additionally,
+
+- **Single dominant next‑hop with a less preferred backup.**
+  For many important prefixes (e.g., default route towards a border, DCI prefixes, service VRFs), operators deliberately steer traffic to a single primary border/exit, with a different border or path as a backup. Today, when the primary border/link fails, data-plane failover waits on BGP convergence. With PIC local, we pre‑compute an explicitly less-preferred backup and program it alongside the primary so we can switch locally without waiting for control-plane reconvergence.
+
+- **Non‑equidistant or non‑Clos topologies.**
+  SONiC is also used in collapsed core, WAN edge, and mixed DC/WAN environments where paths are not strictly equidistant, ECMP is not always available, and you still want sub‑second protection. Here, an explicit backup next‑hop that is not in the primary ECMP set is required.
+
+- **Node/rack protection rather than just a single local link.**
+  Even in DC, there are cases where the primary path is constrained to a particular device or rack (e.g., primary border leaf, services leaf). The goal is to have a pre‑installed backup via a different device/failure domain, not just “some other member of the same ECMP group,” so that a device/rack failure is locally protected.
 
 This document describes the design and implementation across the following layers:
 
@@ -93,13 +107,26 @@ The implementation extends the FRR stack:
 3. **fpmsyncd** stores primary and backup nexthops together in APP_DB, using `primary_nh_count` to distinguish them.
 4. **Orchagent** currently programs only primary nexthops; backup nexthop hardware programming is TBD.
 
+The current HLD intentionally focuses on the end-to-end control-plane paths and data model:
+
+- bgpd: backup path computation and signalling
+- zebra: encoding backup nexthops in FPM (RTNH_F_BACKUP)
+- fpmsyncd / APP_DB: modelling primary and backup nexthops
+
+The orchagent/SAI parts are marked TBD. It will be covered in another HLD. It gives us an opportunity to get agreement on 
+
+1. The semantics and selection rules for primary vs backup paths
+2. The configuration/YANG model and how backup information flows through APP_DB 
+
+**NOTE**: Until the orchagent design/changes to consume the primary+backup info from APP_DB and map it into ASIC nexthop groups and use concrete SAI API for primary/backup groups, this feature does **not** deliver hardware failover for data-plane traffic yet. It only prepares the control-plane and data-model side.
+
 ---
 
 ## 5. Requirements
 
 1. BGP SHALL compute at most one backup path per prefix when `install backup-path` is configured.
 2. BGP SHALL compute multiple equal-cost backup paths (ECMP) when `install backup-path ecmp` is configured, respecting `maximum-paths` configuration. The maximum-paths limit apply to backup paths separately from bestpaths.
-3. The backup path MUST NOT include any nexthop that is already in the primary ECMP set.
+3. The backup path MUST NOT include any nexthop that is already in the primary ECMP set. This ensures that the backup path represents a different failure domain.
 4. Backup path computation SHALL be triggered after bestpath selection for each destination.
 5. Backup paths SHALL be sent to Zebra via ZAPI as backup nexthops alongside primary nexthops.
 6. Zebra SHALL encode backup nexthops in FPM netlink messages with a distinguishing flag (Implemented using the flag `RTNH_F_BACKUP`).
