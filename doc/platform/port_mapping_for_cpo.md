@@ -486,7 +486,7 @@ The rest of the platform API design remains the same -- the same composite SFP a
 
 ##### 7.3.5 Interaction with Custom CMIS Vendor Extensions
 
-If a vendor requires the ability to register custom fields within a page or entirely new pages that are not described in any CMIS spec, then the approach described in the [CMIS Vendor Specific DOM Extension HLDD](https://github.com/sonic-net/SONiC/pull/2291) should be followed. For instance:
+If a vendor requires the ability to register custom fields within a page or entirely new pages that are not described in any CMIS spec, then the approach described in the [CMIS Vendor Specific DOM Extension HLD](https://github.com/sonic-net/SONiC/pull/2291) should be followed. For instance:
 ```python
 # If the referenced HLD is accepted and implemented in community SONiC code, the following changes would be made:
 #   - Both CpoApi and ElsfpApi would be changed to inherit from CmisExtendedApi
