@@ -12,7 +12,7 @@
 
 ## 1. Background
 
-On SONiC systems, the relationship between front-panel label ports, their physical lanes, and the correlated SONiC interface names change by platform and by breakout configuration. With more complex setups, such as CPO and multi-ASIC systems, this mapping becomes even more complicated, which raised the need for a CLI that provides a single, standardized view that shows, for each front-panel label port, how it maps to lanes and SONiC interfaces under the current split mode.
+On SONiC systems, the relationship between front-panel label ports, their physical lanes, and the correlated SONiC interface names change by platform and by breakout configuration. With more complex setups, such as multi-ASIC systems, this mapping becomes even more complicated, which raised the need for a CLI that provides a single, standardized view that shows, for each front-panel label port, how it maps to lanes and SONiC interfaces under the current split mode.
 
 ## 2. Method
 
