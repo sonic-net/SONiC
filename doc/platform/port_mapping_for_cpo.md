@@ -16,6 +16,7 @@
     - [7.3.2 Example: CPO Composite SFP](#732-example-cpo-composite-sfp)
     - [7.3.3 Chassis and Composite SFP Creation](#733-chassis-and-composite-sfp-creation)
     - [7.3.4 CPO Joint Mode](#734-cpo-joint-mode)
+    - [7.3.5 Interaction with Custom CMIS Vendor Extensions](#735-interaction-with-custom-cmis-vendor-extensions)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
   - [9.1 sfputil Changes](#91-sfputil-changes)
@@ -482,6 +483,42 @@ class VendorCpoJointModeChassis(ChassisBase):
 *Note: `XcvrApiConfig` is a new mechanism introduced to allow clients to bypass the XcvrApiFactory and force a specific code, memory map and API combination to be used for an Sfp object. See [this PR](https://github.com/nexthop-ai/sonic-platform-common/pull/3) for the implementation details.*
 
 The rest of the platform API design remains the same -- the same composite SFP abstraction is used by software for joint mode and separate mode.
+
+##### 7.3.5 Interaction with Custom CMIS Vendor Extensions
+
+If a vendor requires the ability to register custom fields within a page or entirely new pages that are not described in any CMIS spec, then the approach described in the [CMIS Vendor Specific DOM Extension HLDD](https://github.com/sonic-net/SONiC/pull/2291) should be followed. For instance:
+```python
+# If the referenced HLD is accepted and implemented in community SONiC code, the following changes would be made:
+#   - Both CpoApi and ElsfpApi would be changed to inherit from CmisExtendedApi
+#   - ElsfpMemMap would be changed to inherit from CmisExtendedMemMap
+
+class CustomVendorElsfpMemMap(ElsfpMemMap):
+    def _init_pages(self, codes, bank):
+        # Remapped CMIS pages
+        self.advertising_page = CmisAdvertisingPage(codes, bank=bank, page=0xB0)
+        self.thresholds_page = CmisThresholdsPage(codes, bank=bank, page=0xB1)
+        self.performance_monitoring_page = CmisVdmAdvertisingCtrlPage(codes, bank=bank, page=0xB2)
+        self.cdb_message_page = CmisCdbMessagePage(codes, bank=bank, page=0xB3)
+
+        # Remapped ELSFP-specific pages
+        self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank, page=0xB4)
+        self.elsfp_setpoints_mon_page = ElsfpSetpointsMonitorsPage(codes, bank=bank, page=0xB5)
+
+    def get_vendor_fields(self, getaddr):
+        # Define any custom fields specific to the vendor here
+        ...
+
+class CustomVendorElsfpApi(ElsfpApi):
+    # Define custom getters/setters for vendor's ELSFP
+    # Now a vendor can provide API methods that access custom information from the ELSFP.
+
+class CustomVendorCpoApi(CpoApi):
+    # Define custom getters/setters for vendor's OE and ELSFP CPO hardware combination
+    # Now, a vendor can provide API methods that access custom information from the 
+    # OE and/or ELSFP
+```
+
+Once the above classes are defined, the custom information can be accessed on both the composite Sfp object's xcvr API and the ELSFP object's xcvr API.
 
 ### 8. SAI API 
 
