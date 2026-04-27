@@ -92,9 +92,9 @@ This document enumerates all failure scenarios that can occur on a DPU or its su
 | chassisd | Chassis daemon running inside `pmon` on the NPU; monitors DPU health states, manages DPU power-cycle and reset operations |
 | pmon | Platform Monitor daemon on NPU; hosts `chassisd` and other hardware monitoring sub-daemons |
 | syncd | Sync daemon; manages SAI API calls to DPU ASIC |
-| control plane state | DPU SONiC is booted up, all containers are up, interfaces are up, and DPU is ready to accept configuration. Derived from SYSTEM_READY in STATE_DB. Values: `"unknown"`, `"up"`, `"down"`. |
-| midplane link state | The PCIe link between the NPU and DPU is operational. Monitored and updated by NPU pmon `chassisd` via the `is_midplane_reachable` platform API. Values: `"unknown"`, `"up"`, `"down"`. |
-| dataplane state | Configuration is downloaded, pipeline stages are up, and DPU hardware (port/ASIC) is ready to take traffic. Values: `"unknown"`, `"up"`, `"down"`. |
+| control plane state | DPU SONiC is booted up, all containers are up, interfaces are up, and DPU is ready to accept configuration. Derived from SYSTEM_READY in STATE_DB. Values: `"up"`, `"down"`. |
+| midplane link state | The PCIe link between the NPU and DPU is operational. Monitored and updated by NPU pmon `chassisd` via the `is_midplane_reachable` platform API. Values: `"up"`, `"down"`. |
+| dataplane state | Configuration is downloaded, pipeline stages are up, and DPU hardware (port/ASIC) is ready to take traffic. Values: `"up"`, `"down"`. |
 
 ---
 
@@ -259,7 +259,7 @@ stateDiagram-v2
 
 | State | `ready_status` | `recovery_status` | Key DB Indicators |
 | ----- | :------------: | :----------------: | ----------------- |
-| **Booting** | `false` | `recoverable` | `dpu_control_plane_state: unknown` |
+| **Booting** | `false` | `recoverable` | `dpu_control_plane_state: down` |
 | **Ready** | `true` | `recoverable` | All three states `up` |
 | **SWFailure** | `false` | `recoverable` | `dpu_control_plane_state: down`, `dpu_midplane_link_state: up` |
 | **PowerCycle** | `false` | `recoverable` | `chassisd` issuing power-cycle; `reset_count` incremented |
@@ -589,7 +589,7 @@ Planned reboot of the entire SmartSwitch (NPU + all DPUs) via CLI: `reboot`. All
 
 | DPU Scenario | `dpu_control_plane_state` | `dpu_midplane_link_state` | `ready_status` | PMON Action |
 | ------------ | :-----------------------: | :-----------------------: | :-----------: | ----------- |
-| DPU booting – initial state | unknown | unknown | false | `chassisd` polls; waiting for DPU to come up |
+| DPU booting – initial state | down | down | false | `chassisd` polls; waiting for DPU to come up |
 | DPU healthy and running – first boot | up | up | true | Set `ready_status=true` after verifying all states |
 | DPU crash / unplanned reboot | down | down | false | Power-cycle DPU; increment `reset_count` |
 | DPU up after crash | up | up | true | Set `ready_status=true` after verifying all states |
