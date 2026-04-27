@@ -561,6 +561,7 @@ When a HA set configuration on NPU side contains a local DPU, `hamgrd` will crea
 | | | ha_term | The target term of this scope. It should be an integer. |
 | | | flow_reconcile_requested | If true, flow reconcile will be initiated. (Message Only. Not saved in DB.) |
 | | | activate_role_requested | If true, HA role will be activated. (Message Only. Not saved in DB.) |
+| | | brainsplit_recovered | If true, reset the DPU_STATE_DB `brainsplit_recover_pending` flag back to false. (Message Only. Not saved in DB.) |
 
 ##### 2.3.1.3. Flow sync sessions
 
