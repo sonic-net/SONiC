@@ -421,7 +421,7 @@ module sonic-dhcpv4-relay {
                 leaf agent_relay_mode {
                     description "How to forward packets that already have a relay option";
                     type stypes:relay-agent-mode;
-                    default forward_untouched;
+                    default replace;
                 }
 
                 leaf max_hop_count {
@@ -458,7 +458,7 @@ A new table, named DHCPV4_RELAY, will be introduced in the config-db to define D
             "link_selection": "enable",
             "vrf_selection": "enable",
             "server_id_override": "enable",
-            "agent_relay_mode": "forward_untouched"
+            "agent_relay_mode": "replace"
         }
     }
 }
@@ -521,9 +521,9 @@ sudo config dhcp_relay ipv4 helper del 1000 7.7.7.7
           --link-selection <enable|disable>          Enable link selection
           --vrf-selection  <enable|disable>          Enable VRF selection
           --server-id-override <enable|disable>      Enable server id override
-          --agent-relay-mode <forward_and_append|
-                              forward_and_replace|
-                              forward_untouched|
+          --agent-relay-mode <append|
+                              replace|
+                              forward|
                               discard>              How to forward packets that already have a relay
                                                     option
           --max-hop-count <1..16>                   Maximum hop count for relayed packets
@@ -575,7 +575,7 @@ sudo config dhcp_relay ipv4 helper del 1000 7.7.7.7
     - Update dhcpv4 relay configuration to replace relay-options if it receives a packet that already contains relay-options
 
         ```
-        sudo config dhcp_relay ipv4 helper update Vlan12 --agent-relay-mode forward_and_replace
+        sudo config dhcp_relay ipv4 helper update Vlan12 --agent-relay-mode replace
         ```
 
 #### 9.2 Show CLI
@@ -608,7 +608,7 @@ root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 NAME    SERVER VRF    SOURCE INTERFACE    LINK SELECTION    VRF SELECTION    SERVER ID OVERRIDE    AGENT RELAY MODE       MAX HOP COUNT  DHCPV4 SERVERS
 ------  ------------  ------------------  ----------------  ---------------  --------------------  -------------------  ---------------  ----------------
-Vlan12  Vrf01         Loopback0           enable            enable           enable                forward_and_replace                4  192.168.12.1
+Vlan12  Vrf01         Loopback0           enable            enable           enable                replace                4  192.168.12.1
                                                                                                                                          192.168.12.2
 ```
 
@@ -706,7 +706,7 @@ The table below lists the various isc-dhcp command-line options currently used i
 
 | Existing isc cmd line arg | New Configuration | Comments |
 |-|-|-|
-| -m discard | --agent-relay-mode with the same default value| |
+| -m discard | --agent-relay-mode discard | ISC default was replace; new default is also replace (matches ISC) |
 | -a %%h:%%p | Not required | Always insert agent-relay-options in hostname:int-alias:vlan-id format |
 | %%P | Not Required | Always insert remote-id in the agent-relay-options |
 | --name-alias-map-file | Not Required | Interface Alias is dynamically retrieved from ConfigDB |
