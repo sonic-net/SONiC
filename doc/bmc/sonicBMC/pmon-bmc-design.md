@@ -292,10 +292,12 @@ The general syslogs will be placed in /var/log/syslog where /var/log directory w
 The Leak, Switch-Host state and interactions, Rack-manager interactions will be persistently stored on disk/eMMC in "/host/bmc/event.log" with log rotation enabled.
 
 #### 2.1.7 RTC Clock in BMC
-On most vendor platforms, the BMC RTC does not have a battery backup. As a result, the clock does not retain time across power cycles. When the BMC powers on, the system time is initialized as follows:
+On most vendor platforms, the BMC RTC does not have a battery backup. As a result, the clock does not retain time across power cycles. 
 
-1. Use the clock epoch file at /usr/lib/clock-epoch as the initial system time, if available. This is read by systemd during startup. (Coming in SONiC release 202605)
-2. The chrony sysyemd service when it starts later synchronizes with remote NTP servers to obtain and maintain accurate time.
+When the BMC powers on, the system time is initialized as follows:
+
+1. Use the clock epoch file at "/usr/lib/clock-epoch" as the initial system time, if available. This is read by systemd during startup. (This file is updated regularly with a systemd timer service, this feature is coming in SONiC release 202605)
+2. The chrony systemd service when it starts later synchronizes with remote NTP servers to obtain and maintain accurate time.
 
 This sequence provides a reasonable initial timestamp at boot, followed by synchronization to an accurate time source via NTP.
 
