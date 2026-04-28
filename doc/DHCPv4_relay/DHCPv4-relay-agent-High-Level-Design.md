@@ -421,7 +421,7 @@ module sonic-dhcpv4-relay {
                 leaf agent_relay_mode {
                     description "How to forward packets that already have a relay option";
                     type stypes:relay-agent-mode;
-                    default replace;
+                    default discard;
                 }
 
                 leaf max_hop_count {
@@ -458,7 +458,7 @@ A new table, named DHCPV4_RELAY, will be introduced in the config-db to define D
             "link_selection": "enable",
             "vrf_selection": "enable",
             "server_id_override": "enable",
-            "agent_relay_mode": "replace"
+            "agent_relay_mode": "discard"
         }
     }
 }
@@ -608,7 +608,7 @@ root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 NAME    SERVER VRF    SOURCE INTERFACE    LINK SELECTION    VRF SELECTION    SERVER ID OVERRIDE    AGENT RELAY MODE       MAX HOP COUNT  DHCPV4 SERVERS
 ------  ------------  ------------------  ----------------  ---------------  --------------------  -------------------  ---------------  ----------------
-Vlan12  Vrf01         Loopback0           enable            enable           enable                replace                4  192.168.12.1
+Vlan12  Vrf01         Loopback0           enable            enable           enable                discard                            4  192.168.12.1
                                                                                                                                          192.168.12.2
 ```
 
@@ -706,7 +706,7 @@ The table below lists the various isc-dhcp command-line options currently used i
 
 | Existing isc cmd line arg | New Configuration | Comments |
 |-|-|-|
-| -m discard | --agent-relay-mode discard | ISC default was replace; new default is also replace (matches ISC) |
+| -m discard | --agent-relay-mode discard | Direct mapping. The SONiC ISC template always passed `-m discard` explicitly, so `discard` is also the YANG default to preserve this behavior. |
 | -a %%h:%%p | Not required | Always insert agent-relay-options in hostname:int-alias:vlan-id format |
 | %%P | Not Required | Always insert remote-id in the agent-relay-options |
 | --name-alias-map-file | Not Required | Interface Alias is dynamically retrieved from ConfigDB |
