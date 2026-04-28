@@ -85,7 +85,7 @@ This HLD specifies a single, reusable producer that:
 
 - The OTel Collector itself, including its image, configuration, exporter pipeline to off-box telemetry systems, authentication, and operator onboarding.
 - Replacing existing FlexCounter / SAI counter pipelines (those measure dataplane state via SAI; this design measures control-plane software events).
-- Defining the metric vocabulary for non-swss containers — that is the job of each container's own facade.
+- Defining the metric vocabulary for non-swss containers (`gnmi`, `bmp`, `telemetry`, …); this is left as future work.
 
 ### 6. Architecture Design
 
@@ -148,7 +148,6 @@ The architecture is unchanged at the SONiC system level. A new library is introd
 |--------------------------------|-----------------------------------------------------------------------------|
 | `sonic-net/sonic-swss-common`  | New library `swss::ComponentStats` + unit tests ([PR #1180](https://github.com/sonic-net/sonic-swss-common/pull/1180)). |
 | `sonic-net/sonic-swss`         | New `SwssStats` thin facade over `ComponentStats` in `orchagent/` ([PR #4516](https://github.com/sonic-net/sonic-swss/pull/4516)). |
-| `sonic-net/sonic-buildimage`   | Submodule pointer bumps for the two repos above ([PR #26924](https://github.com/sonic-net/sonic-buildimage/pull/26924)). |
 
 No platform-specific code is added. No SAI changes. No syncd changes.
 
@@ -350,27 +349,7 @@ No SAI API changes are required for this feature. This design measures control-p
 
 ### 9. Configuration and management
 
-#### 9.1 Manifest
-
-Not applicable. This is a built-in SONiC library, not an Application Extension.
-
-#### 9.2 CLI/YANG model Enhancements
-
-No new CLI commands or YANG models are introduced by this HLD. Existing CLIs that already read `COUNTERS_DB` (e.g. `redis-cli -n 2 HGETALL`, `show ... stats` style commands) continue to work and gain visibility into the new `<COMPONENT>_STATS:<entity>` keys for free.
-
-#### 9.3 Config DB Enhancements
-
-A future enhancement may add a `COMPONENT_STATS` table in `CONFIG_DB`, keyed by component name, to allow operators to flip individual sinks on/off and to override the OTLP endpoint without rebuilding:
-
-```
-CONFIG_DB key:    COMPONENT_STATS|<component>
-fields:           enable_db          : "true" | "false"
-                  enable_otlp        : "true" | "false"
-                  otlp_endpoint      : <host:port>
-                  interval_sec       : <uint32>
-```
-
-The library reads the table once at construction time. Runtime re-configuration is not in scope for the first cut.
+Not applicable. This HLD introduces no new CLI commands, YANG models, manifests, or `CONFIG_DB` schema. Existing CLIs that already read `COUNTERS_DB` (e.g. `redis-cli -n 2 HGETALL`, `show ... stats` style commands) continue to work and gain visibility into the new `<COMPONENT>_STATS:<entity>` keys for free.
 
 ### 10. Warmboot and Fastboot Design Impact
 
@@ -428,7 +407,7 @@ cd sonic-swss-common && ./autogen.sh && ./configure && make check
 
 #### 13.2 System Test cases
 
-- Boot a `sonic-vs` image built with the three companion PRs.
+- Boot a `sonic-vs` image built with the two companion PRs.
 - Exercise orchagent (e.g. `config vlan add`, `config interface ip add`).
 - Verify on-box DB sink:
   ```
@@ -441,6 +420,6 @@ cd sonic-swss-common && ./autogen.sh && ./configure && make check
 
 ### 14. Open/Action items
 
-- Phase 1 (this HLD's three PRs) lands the `ComponentStats` library and `SwssStats` refactor with the DB sink fully active and the OTLP sink stubbed (`enableOtlp=false` by default).
-- Phase 2 implements the OTLP sink against the OpenTelemetry C++ SDK and is gated on the local OTel Collector sidecar being available in `sonic-buildimage`. Coordination with whichever team owns the local OTel Collector image is required before Phase 2 can be enabled by default.
+- Phase 1 (this HLD's two PRs) lands the `ComponentStats` library and the `SwssStats` facade with the DB sink fully active and the OTLP sink stubbed (`enableOtlp=false` by default).
+- Phase 2 implements the OTLP sink against the OpenTelemetry C++ SDK and is gated on the local OTel Collector sidecar being available on the switch. Coordination with whichever team owns the local OTel Collector image is required before Phase 2 can be enabled by default.
 - Phase 3 onboards additional SONiC containers (`gnmi`, `bmp`, `telemetry`, …) by adding their own facades. Each is a self-contained PR in the relevant repository.
