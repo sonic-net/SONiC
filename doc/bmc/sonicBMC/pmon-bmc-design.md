@@ -290,6 +290,16 @@ The Leak detection is applicable only to Liquid cooling platform. The action is 
 The general syslogs will be placed in /var/log/syslog where /var/log directory will be mounted on **tmpfs**. Syslogs will be sent to remote server as well.
 The Leak, Switch-Host state and interactions, Rack-manager interactions will be persistently stored on disk/eMMC in "/host/bmc/event.log" with log rotation enabled.
 
+#### 2.1.7 RTC Clock in BMC
+
+On most vendor platforms, the BMC RTC does not have a battery backup. As a result, the clock does not retain time across power cycles. When the BMC powers on, the system time is initialized using the following priority order:
+
+1. Use the file `/host/image-${IMAGE_VER}/rw/usr/lib/clock-epoch` if available, as the initial time source for the chrony service. (Coming in SONiC release 202605; installed by the switch upgrade service during software upgrade.)
+2. Use the platform API if supported, to retrieve the current time from the switch host to refine or override the initial time.
+3. Finally, the chrony systemd service synchronizes with remote NTP servers to obtain and maintain accurate time on the BMC.
+
+This sequence ensures a reasonable initial timestamp at boot, followed by progressively more accurate time sources.
+
 
 ### 2.2 BMC Platform Management
 
@@ -311,8 +321,9 @@ The bmc controller daemon "bmcctld" is started first in BMC pmon container. It a
 Detailed workflow below
 
 ```
-Sleep for power_on_delay configured in CHASSIS_MODULE|SWITCH-HOST (this is configurable value in config_db)
-This is to make sure the Rack Manager is up and Liquid flow rate is good. 
+if the previous reboot was a Cold Boot (Full Power Cycle)
+  - Sleep for power_on_delay configured in CHASSIS_MODULE|SWITCH-HOST (this is configurable value in config_db)
+  - This is to make sure the Rack Manager is up and Liquid flow rate is good.
 
 Check for any CRITICAL alert/leak in RACK_MANAGER_ALERT* tables or system SYSTEM_LEAK_STATUS table (device_leak_status == CRITICAL_SYSTEM_LEAK) in STATE_DB
 NO External/System LEAK present
@@ -607,6 +618,7 @@ This base class is already defined in sonic-platform-common.
 | Method | Present | Action |
 |---------|---------|----------|
 | get_all_modules() | Y | Fetch managed modules here, Switch-Host Module object |
+| get_reboot_cause()| Y | Fetch previous reboot cause, check if it is Cold Boot(Full Power Cycle) |
 | is_bmc() | New | Retrieves whether the sonic chassis instance is/has a BMC module |
 | is_liquid_cooled() | New | Is this chassis liquid/hybrid cooled ? |
 
