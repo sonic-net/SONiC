@@ -21,11 +21,16 @@
 
 | Rev | Date       | Author        | Change Description       |
 |-----|------------|---------------|--------------------------|
-| 0.1 | 2026-04-28 | Yutong Zhang  | Initial draft            |
+| 0.1 | 2026-04-28 | Yutong Zhang  | Initial revision         |
 
 ### 2. Scope
 
-This HLD specifies a reusable mechanism for exposing **service-level (control-plane software) counters** from SONiC containers. It introduces a new shared library `swss::ComponentStats` in `sonic-swss-common` and refactors the existing `SwssStats` class in `sonic-swss` (introduced by [sonic-swss#4434](https://github.com/sonic-net/sonic-swss/pull/4434)) into a thin façade over the new library. The library publishes counters to:
+This HLD specifies a reusable mechanism for exposing **service-level (control-plane software) counters** from SONiC containers. It introduces:
+
+1. A new shared library `swss::ComponentStats` in `sonic-swss-common`.
+2. A SWSS-specific façade `SwssStats` in `sonic-swss` built on top of that library, which is the first consumer.
+
+The library publishes counters to:
 
 1. `COUNTERS_DB`, for parity with the existing Flex-Counter pipeline and for on-box diagnostic tooling (`redis-cli`, `show ... stats`).
 2. A local OpenTelemetry (OTLP) Collector sidecar, so the same counters can be forwarded to off-box telemetry systems (e.g. Geneva mdm) that consume OTLP.
@@ -49,7 +54,7 @@ Configuration of the OTel Collector itself, off-box telemetry endpoints, dashboa
 
 SONiC already publishes **dataplane** counters via the Flex-Counter framework (`CONFIG_DB / FLEX_COUNTER_TABLE` → `syncd` → `COUNTERS_DB`). What is missing is **service-level** counters — software-side events such as orchagent task throughput, gNMI request rate, BMP message error counts. Without these we cannot answer questions like *"is orchagent draining tasks?"*, *"is gNMI seeing subscribe failures?"*, *"is one container dropping more events than its peers?"*.
 
-A first attempt ([sonic-swss#4434](https://github.com/sonic-net/sonic-swss/pull/4434)) added a class `SwssStats` directly inside `orchagent`. The same plumbing — atomic counters, dirty tracking, a 1-second writer thread, a Redis-side schema — will be needed by every other SONiC container, and we additionally want to expose these counters via OTLP for off-box collection. Copy-pasting the implementation into each container is unacceptable: every container needs its own concurrency review, bug-fixes drift, and the on-the-wire schemas diverge.
+A naïve implementation would put this plumbing — atomic counters, dirty tracking, a 1-second writer thread, a Redis-side schema, an OTLP exporter — directly inside each container. That is unacceptable: every container would need its own concurrency review, bug fixes would drift, and the on-the-wire schemas would diverge.
 
 This HLD specifies a single, reusable producer that:
 
@@ -66,8 +71,8 @@ This HLD specifies a single, reusable producer that:
 - R2. The library shall publish counters to `COUNTERS_DB` under a uniform key layout `<COMPONENT>_STATS:<entity>` (Redis hash, fields = metric names, values = decimal `uint64`).
 - R3. The library shall publish the same counters as OpenTelemetry OTLP records to a configurable endpoint (default `localhost:4317`).
 - R4. The library shall be usable by any SONiC container by writing a thin façade that owns only the container-specific metric vocabulary.
-- R5. The existing `SwssStats` public surface (`gSwssStatsRecord`, `SwssStats::getInstance()`, `recordTask/Complete/Error`) shall remain byte-identical to that introduced in #4434.
-- R6. The `COUNTERS_DB` schema introduced by #4434 (`SWSS_STATS:<table>` hash with SET/DEL/COMPLETE/ERROR fields) shall remain unchanged.
+- R5. The first consumer of the library is the SWSS-specific façade `SwssStats` (in `sonic-swss/orchagent/`), which exposes a small SWSS-specific public surface: a global `gSwssStatsRecord` enable flag, `SwssStats::getInstance()`, and `recordTask` / `recordComplete` / `recordError` methods.
+- R6. The `SwssStats` façade shall write into `COUNTERS_DB` under keys `SWSS_STATS:<table>` with hash fields `SET` / `DEL` / `COMPLETE` / `ERROR`, following the uniform schema in R2.
 
 **Non-functional**
 
@@ -84,7 +89,7 @@ This HLD specifies a single, reusable producer that:
 
 ### 6. Architecture Design
 
-The architecture is unchanged at the SONiC system level. A single new library is introduced in `sonic-swss-common`; an existing class in `sonic-swss` is refactored to delegate to it; future containers may add their own façades using the same library.
+The architecture is unchanged at the SONiC system level. A new library is introduced in `sonic-swss-common`, and a new SWSS-specific façade (its first consumer) is added in `sonic-swss`; future containers may add their own façades using the same library.
 
 ```
 ┌────────────────────────────── SONiC switch ──────────────────────────────┐
@@ -142,7 +147,7 @@ The architecture is unchanged at the SONiC system level. A single new library is
 | Repository                     | What changes                                                                |
 |--------------------------------|-----------------------------------------------------------------------------|
 | `sonic-net/sonic-swss-common`  | New library `swss::ComponentStats` + unit tests ([PR #1180](https://github.com/sonic-net/sonic-swss-common/pull/1180)). |
-| `sonic-net/sonic-swss`         | `SwssStats` is reduced to a thin façade over `ComponentStats` ([PR #4516](https://github.com/sonic-net/sonic-swss/pull/4516)). |
+| `sonic-net/sonic-swss`         | New `SwssStats` thin façade over `ComponentStats` in `orchagent/` ([PR #4516](https://github.com/sonic-net/sonic-swss/pull/4516)). |
 | `sonic-net/sonic-buildimage`   | Submodule pointer bumps for the two repos above ([PR #26924](https://github.com/sonic-net/sonic-buildimage/pull/26924)). |
 
 No platform-specific code is added. No SAI changes. No syncd changes.
@@ -319,7 +324,7 @@ void SwssStats::recordComplete(const std::string& t, uint64_t n) { m_impl->incre
 void SwssStats::recordError   (const std::string& t, uint64_t n) { m_impl->increment(t, "ERROR",    n); }
 ```
 
-The whole file is ~130 lines of straightforward translation. **The public surface (`gSwssStatsRecord`, `SwssStats::getInstance()`, `recordTask`/`recordComplete`/`recordError`) and the on-the-wire `SWSS_STATS:<table>` Redis layout are byte-identical to those introduced in #4434.** Existing consumers keep working without changes.
+The whole file is ~130 lines of straightforward delegation. **The public surface (`gSwssStatsRecord`, `SwssStats::getInstance()`, `recordTask`/`recordComplete`/`recordError`) and the on-the-wire `SWSS_STATS:<table>` Redis layout are deliberately kept narrow and stable so that the SWSS-specific vocabulary remains independent of future evolution of the underlying `ComponentStats` library.**
 
 #### 7.10 Adopting the library in a new container
 
@@ -369,7 +374,7 @@ The library reads the table once at construction time. Runtime re-configuration 
 
 ### 10. Warmboot and Fastboot Design Impact
 
-Counters are kept in process memory and are reset on container restart, including warmboot and fastboot. This matches the existing behaviour of the `SwssStats` introduced in #4434, and is acceptable because consumers (dashboards, alerts) compute rate-of-change rather than absolute values. The OTLP `start_time_unix_nano` attribute advances on every restart, which is the OTel-standard signal for counter reset and is handled natively by OTel-aware consumers.
+Counters are kept in process memory and are reset on container restart, including warmboot and fastboot. This is acceptable because consumers (dashboards, alerts) compute rate-of-change rather than absolute values. The OTLP `start_time_unix_nano` attribute advances on every restart, which is the OTel-standard signal for counter reset and is handled natively by OTel-aware consumers.
 
 #### Warmboot and Fastboot Performance Impact
 
@@ -385,7 +390,7 @@ No measurable boot-time degradation is expected.
 - Per-instance footprint: O(entities × metrics) `uint64` slots plus their `std::map` keys. Bounded by the number of orchagent tables (≈ tens) for the SWSS façade.
 - The OTLP exporter adds a small fixed overhead (one gRPC channel, one per-cycle batch buffer).
 - When the feature is disabled at runtime via `setEnabled(false)`, the hot path becomes inert and the writer thread's queue stays empty; memory remains bounded.
-- When the feature is disabled at compile time (the OTLP sink can be compiled out via build option), there is no residual memory cost beyond the symbols of `swss::ComponentStats` itself (the DB sink remains unconditional, matching #4434 behaviour).
+- When the feature is disabled at compile time (the OTLP sink can be compiled out via build option), there is no residual memory cost beyond the symbols of `swss::ComponentStats` itself; the DB sink remains unconditional.
 
 ### 12. Restrictions/Limitations
 
@@ -412,7 +417,7 @@ Library unit tests live in `sonic-swss-common/tests/componentstats_ut.cpp`:
 | 8 | SingletonSameName          | `create("X")` returns the same instance                                                     |
 | 9 | SingletonDifferentNames    | `create("X") ≠ create("Y")`                                                                 |
 
-The existing `swssstats_ut.cpp` (9 cases) in `sonic-swss` is kept verbatim and continues to pass against the thin façade, proving the public API has not regressed.
+A façade-level test suite `swssstats_ut.cpp` (9 cases) is added in `sonic-swss` and exercises the SwssStats vocabulary (`recordTask`/`recordComplete`/`recordError`, `gSwssStatsRecord` enable flag, singleton behaviour) end-to-end against the new backend.
 
 Run:
 
