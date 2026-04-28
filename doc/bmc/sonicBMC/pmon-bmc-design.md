@@ -17,6 +17,7 @@
       * [2.1.4 BMC-Switch Host Interaction](#214-bmc-switch-host-interaction)
       * [2.1.5 BMC leak_detection_and_thermal policy](#215-bmc-leak-detection-and-thermal-policy)
       * [2.1.6 BMC event logging](#216-bmc-event-logging)
+      * [2.1.7 RTC clock in BMC](#217-rtc-clock-in-bmc)
     * [2.2 BMC Platform Management](#22-bmc-platform-management)
       * [2.2.1 BMC controller-bmcctld](#221-bmc-controller---bmcctld)
         * [2.2.1.1 bmcctld on bmc](#2211-bmcctld-on-bmc)
@@ -291,14 +292,12 @@ The general syslogs will be placed in /var/log/syslog where /var/log directory w
 The Leak, Switch-Host state and interactions, Rack-manager interactions will be persistently stored on disk/eMMC in "/host/bmc/event.log" with log rotation enabled.
 
 #### 2.1.7 RTC Clock in BMC
+On most vendor platforms, the BMC RTC does not have a battery backup. As a result, the clock does not retain time across power cycles. When the BMC powers on, the system time is initialized as follows:
 
-On most vendor platforms, the BMC RTC does not have a battery backup. As a result, the clock does not retain time across power cycles. When the BMC powers on, the system time is initialized using the following priority order:
+1. Use the clock epoch file at /usr/lib/clock-epoch as the initial system time, if available. This is read by systemd during startup. (Coming in SONiC release 202605)
+2. The chrony sysyemd service when it starts later synchronizes with remote NTP servers to obtain and maintain accurate time.
 
-1. Use the file `/host/image-${IMAGE_VER}/rw/usr/lib/clock-epoch` if available, as the initial time source for the chrony service. (Coming in SONiC release 202605; installed by the switch upgrade service during software upgrade.)
-2. Use the platform API if supported, to retrieve the current time from the switch host to refine or override the initial time.
-3. Finally, the chrony systemd service synchronizes with remote NTP servers to obtain and maintain accurate time on the BMC.
-
-This sequence ensures a reasonable initial timestamp at boot, followed by progressively more accurate time sources.
+This sequence provides a reasonable initial timestamp at boot, followed by synchronization to an accurate time source via NTP.
 
 
 ### 2.2 BMC Platform Management
