@@ -4,6 +4,7 @@
 
 1. [Revision](#1-revision)
    1. [Related documents](#11-related-documents)
+   2. [Implementation PRs](#12-implementation-prs)
 2. [Scope](#2-scope)
    1. [Supported Redfish API Endpoints](#21-supported-redfish-api-endpoints)
 3. [Definitions / Abbreviations](#3-definitions--abbreviations)
@@ -62,13 +63,24 @@
 ### 1.1 Related documents
 
 
-| Document Name                                | Link                                                                                                     |
-| :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
-| SONiC-BMC-OS HLD                             | [https://github.com/sonic-net/SONiC/pull/2043](https://github.com/sonic-net/SONiC/pull/2043)             |
-| sonic-redfish HLD                            | [https://github.com/sonic-net/SONiC/pull/2281](https://github.com/sonic-net/SONiC/pull/2281)             |
-| SONiC BMC Redfish API and D-Bus test plan    | [https://github.com/sonic-net/sonic-mgmt/pull/23346](https://github.com/sonic-net/sonic-mgmt/pull/23346) |
-| SONiC BMC platform management and monitoring | [https://github.com/sonic-net/SONiC/pull/2215](https://github.com/sonic-net/SONiC/pull/2215)             |
-|                                              |                                                                                                          |
+| Document Name                                | Link                                                                                                     | State |
+| :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------- | ----- |
+| SONiC-BMC-OS HLD                             | [https://github.com/sonic-net/SONiC/pull/2043](https://github.com/sonic-net/SONiC/pull/2043)             | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/SONiC/2043) |
+| sonic-redfish HLD                            | [https://github.com/sonic-net/SONiC/pull/2281](https://github.com/sonic-net/SONiC/pull/2281)             | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/SONiC/2281) |
+| SONiC BMC Redfish API and D-Bus test plan    | [https://github.com/sonic-net/sonic-mgmt/pull/23346](https://github.com/sonic-net/sonic-mgmt/pull/23346) | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/sonic-mgmt/23346) |
+| SONiC BMC platform management and monitoring | [https://github.com/sonic-net/SONiC/pull/2215](https://github.com/sonic-net/SONiC/pull/2215)             | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/SONiC/2215) |
+
+### 1.2 Implementation PRs
+
+This HLD is implemented through the following pull requests:
+
+| Repo              | PR title                                                                                           | State  |
+| ----------------- | -------------------------------------------------------------------------------------------------- | ------ |
+| sonic-redfish     | [[sonic-redfish] Sonic Redfish support with OpenBMC D-Bus](https://github.com/sonic-net/sonic-redfish/pull/1) | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/sonic-redfish/1) |
+| SONiC             | [SONiC BMC platform management and monitoring](https://github.com/sonic-net/SONiC/pull/2215)      | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/SONiC/2215) |
+| sonic-redfish     | [Redfish OEM Extension for SONiC BMC with Schema Mapping to Redis & D-Bus](https://github.com/sonic-net/sonic-redfish/pull/3) | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/sonic-redfish/3) |
+| sonic-redfish     | [Event subscription mechanism for sonic-redfish](https://github.com/sonic-net/sonic-redfish/pull/4) | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/sonic-redfish/4) |
+| sonic-redfish     | [To match with bmcctld updating key to BMC_HOST_REQUEST\|* style](https://github.com/sonic-net/sonic-redfish/pull/5) | ![GitHub PR State](https://img.shields.io/github/pulls/detail/state/sonic-net/sonic-redfish/5) |
 
 ## 2. Scope
 
