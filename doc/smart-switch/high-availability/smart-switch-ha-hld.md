@@ -1174,6 +1174,8 @@ Planned switchover starts from a standby node, because in order to avoid flow lo
 
     Hence, although the traffic can land on both DPUs, there is only 1 decision maker – DPU1.
 
+    Note that, right before entering `SwitchingToStandby` state, DPU0 can still initiate inline sync, hence after it enters `SwitchingToStandby` state, it might still receive inline sync ACK packets from DPU1. These packets should be sent out instead of dropped. As a matter of fact, it should always be sent out into the network whenever an inline sync ACK packet is seen , regardless the HA state.
+
 5. After DPU1 receives `HAStateChanged` event from DPU0, it drives itself to Active state and notifies DPU0 back with `HAStateChanged`.
 
     <p align="center"><img alt="HA planned switchover step 4" src="./images/ha-planned-events-switchover-step-5.svg"></p>
