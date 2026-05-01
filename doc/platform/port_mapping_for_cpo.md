@@ -16,7 +16,8 @@
     - [7.3.2 Example: CPO Composite SFP](#732-example-cpo-composite-sfp)
     - [7.3.3 Chassis and Composite SFP Creation](#733-chassis-and-composite-sfp-creation)
     - [7.3.4 CPO Joint Mode](#734-cpo-joint-mode)
-    - [7.3.5 Interaction with Custom CMIS Vendor Extensions](#735-interaction-with-custom-cmis-vendor-extensions)
+    - [7.3.5 File Structure](#736-file-structure)
+    - [7.3.6 Interaction with Custom CMIS Vendor Extensions](#735-interaction-with-custom-cmis-vendor-extensions)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
   - [9.1 sfputil Changes](#91-sfputil-changes)
@@ -245,16 +246,13 @@ class CompositeSfpBase(abc.ABC, SfpBase):
         ...
 
     @abc.abstractmethod
-    def get_xcvr_api(self) -> XcvrApi:
+    def refresh_xcvr_api(self) -> XcvrApi:
         """
         Subclasses should implement this method so that a custom xcvr API can
         be exposed for this composite Sfp. This xcvr API will provide a single
         unified API for the underlying devices.
         """
         ...
-
-    def refresh_xcvr_api(self):
-        self._xcvr_api = self.get_xcvr_api()
 
     def read_eeprom(self, offset, num_bytes):
         raise NotImplementedError("CompositeSfp does not support direct eeprom access.")
@@ -296,11 +294,15 @@ class CpoSfpBase(CompositeSfpBase, SfpBase):
             return self._els
         raise ValueError(f"No SFP found for {name}")
 
-    def get_xcvr_api(self):
-        return CpoApi(
+    def refresh_xcvr_api(self):
+        self._xcvr_api = CpoApi(
             optical_engine_xcvr_api=self._oe.get_xcvr_api(),
             external_laser_source_xcvr_api=self._els.get_xcvr_api()
         )
+
+    # CPO presence will be based on ELSFP presence.
+    def get_presence(self):
+        return self._els.get_presence()
 
     # CPO-specific methods can be defined in this class, like methods for fetching
     # information related to the ELSFP or the optical engine. For example:
@@ -322,6 +324,23 @@ class CpoApi(CmisApi):
         self.optical_engine_xcvr_api = optical_engine_xcvr_api
         self.external_laser_source_xcvr_api = external_laser_source_xcvr_api
 
+    # Existing CmisApi methods that are relied on by SONiC daemons will be re-implemented here,
+    # returning composite results from both the optical engine and ELSFP APIs.
+    def get_transceiver_dom_real_value(self):
+        oe_result = self.optical_engine_xcvr_api.get_transceiver_dom_real_value()
+        els_result = self.external_laser_source_xcvr_api.get_transceiver_dom_real_value()
+        overall_result = {}
+        if oe_result:
+            overall_result[self.oe_device_id] = oe_result
+        if els_result:
+            overall_result[self.els_device_id] = els_result
+        return overall_result
+    # Same pattern for:
+    #   get_transceiver_dom_flags()
+    #   get_transceiver_threshold_info()
+    #   get_transceiver_status()
+    #   get_transceiver_status_flags()
+
     # Implement ELSFP specific methods below here. For example:
     def get_elsfp_lane_output_power_alarm(self):
         return self.external_laser_source_xcvr_api.get_elsfp_lane_output_power_alarm()
@@ -338,7 +357,7 @@ class ElsfpApi(CmisApi):
 
 `CpoSfpBase` inherits from `SfpBase` (not `SfpOptoeBase`) so the composite SFP abstraction is not tied to the optoe driver. The underlying optical-engine and ELSFP objects passed in can still be `SfpOptoeBase` instances in vendor implementations -- they just satisfy the more general `SfpBase` contract at this layer.
 
-Note that the above implementation in `CpoApi` delegates most method calls to the optical engine API by default, since the optical engine reports most information on CPO hardware. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_internal_devices()` and `get_internal_device()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_internal_device("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
+Note that the above implementation in `CpoApi` delegates calls to the optical engine API by default. Most of the existing CmisApi methods will be re-implemented on the CpoApi to return a composite result containing both OE and ELSFP information. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_internal_devices()` and `get_internal_device()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_internal_device("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
 
 ##### 7.3.3 Chassis and Composite SFP Creation
 
@@ -404,10 +423,11 @@ So, in order to instantiate a composite SFP for a port of a hardware platform us
 class CustomVendorElsfpMemMap(ElsfpMemMap):
     def _init_pages(self, codes, bank):
         # Remapped CMIS pages
-        self.advertising_page = CmisAdvertisingPage(codes, bank=bank, page=0xB0)
-        self.thresholds_page = CmisThresholdsPage(codes, bank=bank, page=0xB1)
-        self.performance_monitoring_page = CmisVdmAdvertisingCtrlPage(codes, bank=bank, page=0xB2)
-        self.cdb_message_page = CmisCdbMessagePage(codes, bank=bank, page=0xB3)
+        self.administrative_lower_page = CmisAdministrativeLowerPage(codes, page=0xB0)
+        self.administrative_upper_page = CmisAdministrativeUpperPage(codes, page=0XB1)
+        self.advertising_page = CmisAdvertisingPage(codes, page=0xB2)
+        self.thresholds_page = CmisThresholdsPage(codes, page=0xB3)
+        self.cdb_message_page = CmisCdbMessagePage(codes, bank=bank, page=0xB6)
 
         # Remapped ELSFP-specific pages
         self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank, page=0xB4)
@@ -456,18 +476,37 @@ class ElsfpMemMap(CmisFlatMemMap):
         ...
 ```
 
-We could then initialize our composite SFP using this `CustomVendorElsfpMemMap`:
+We could then initialize our composite SFP using this `CustomVendorElsfpMemMap`. The composite SFP overrides `refresh_xcvr_api()` to assign an `XcvrApiConfig` on each underlying Sfp object via `set_xcvr_api_config()`, and then constructs the unified `CpoApi` from the per-device `get_xcvr_api()` results. Because the config is a mutable attribute on the Sfp rather than something set at construction time, `refresh_xcvr_api()` can apply additional logic on each refresh -- for example, swapping in a different MemMap or API class based on which ELSFP is currently inserted.
+
 ```python
+class VendorCpoJointModeSfp(CpoSfpBase):
+    def refresh_xcvr_api(self):
+        # Pick the appropriate code/MemMap/API combination for each underlying device.
+        # Additional logic can be applied here at refresh time -- e.g. selecting a different
+        # MemMap or API class based on what ELSFP module is currently inserted.
+        cmis_mcu_config = XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=VendorCmisMcuMemMap, api_cls=CmisApi)
+        elsfp_config = XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=CustomVendorElsfpMemMap, api_cls=ElsfpApi)
+
+        self._oe.set_xcvr_api_config(cmis_mcu_config)
+        self._els.set_xcvr_api_config(elsfp_config)
+
+        # Each underlying Sfp builds its XcvrApi from the most recently assigned config.
+        self._xcvr_api = CpoApi(
+            optical_engine_xcvr_api=self._oe.get_xcvr_api(),
+            external_laser_source_xcvr_api=self._els.get_xcvr_api(),
+        )
+
+
 class VendorCpoJointModeChassis(ChassisBase):
   ...
   def construct_sfp(self, bank):
         # Construct individual SFP objects for the optical engine and external laser source.
-        oe = VendorSfp(..., bank=bank, xcvr_api_config=XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=CmisMemMap, api_cls=CmisApi, bank=bank))
-        elsfp = VendorSfp(..., bank=bank, xcvr_api_config=XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=CustomVendorElsfpMemMap, api_cls=ElsfpApi, bank=bank))
+        # No XcvrApiConfig is passed at construction -- the composite SFP applies them in refresh_xcvr_api().
+        oe = VendorSfp(..., bank=bank)
+        elsfp = VendorSfp(..., bank=bank)
 
         # Create a composite SFP to represent this interface
-        # VendorCpoSfp would be a class that inherits from CpoSfpBase
-        composite_sfp = VendorCpoSfp(oe=oe, els=elsfp)
+        composite_sfp = VendorCpoJointModeSfp(oe=oe, els=elsfp)
 
         # Now the same composite SFP abstraction can be used for joint mode. Even though all i2c access physically goes through the same device,
         # software is presented with the same view as if the ELSFP and OE are separate devices. Both joint and separate mode use the same
@@ -480,11 +519,22 @@ class VendorCpoJointModeChassis(ChassisBase):
         oe_voltage = oe.get_voltage()
 ```
 
-*Note: `XcvrApiConfig` is a new mechanism introduced to allow clients to bypass the XcvrApiFactory and force a specific code, memory map and API combination to be used for an Sfp object. See [this PR](https://github.com/nexthop-ai/sonic-platform-common/pull/3) for the implementation details.*
+*Note: `XcvrApiConfig` is a new mechanism introduced to allow clients to bypass the XcvrApiFactory and force a specific code, memory map and API combination to be used for an Sfp object. It is exposed as a mutable attribute on the Sfp via `set_xcvr_api_config()`, so the chosen config can be updated at any time and picked up on the next `get_xcvr_api()`/`refresh_xcvr_api()` call. See [this PR](https://github.com/nexthop-ai/sonic-platform-common/pull/3) for the implementation details.*
 
 The rest of the platform API design remains the same -- the same composite SFP abstraction is used by software for joint mode and separate mode.
 
-##### 7.3.5 Interaction with Custom CMIS Vendor Extensions
+##### 7.3.5 File Structure
+
+All of the above classes (memory maps, APIs and composite SFPs) will be available in the sonic-platform-common repository.
+
+- Base classes providing CMIS spec-compliant behaviour will be available for extension in the sonic-platform-common repository.
+- Vendor and product specific classes should also be made present in the sonic-platform-common repository, so that vendors can re-use classes for various CPO hardware products.
+
+See the below diagram that explains how the various base platform classes can be extended by vendors, and where that code should live.
+
+![](./cpo-file-structure.png)
+
+##### 7.3.6 Interaction with Custom CMIS Vendor Extensions
 
 If a vendor requires the ability to register custom fields within a page or entirely new pages that are not described in any CMIS spec, then the approach described in the [CMIS Vendor Specific DOM Extension HLD](https://github.com/sonic-net/SONiC/pull/2291) should be followed.
 
