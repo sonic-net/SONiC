@@ -195,22 +195,17 @@ The mirrored packet goes through the following processing in the ASIC hardware p
 Encapsulation format (GRE type 0x8949):
 
 ```mermaid
-block-beta
-    columns 5
-    A["Outer Ethernet<br/>14B"]:1
-    B["Outer IP<br/>20B"]:1
-    C["GRE<br/>4B"]:1
-    D["ERSPAN Hdr<br/>22B"]:1
-    E["Original Packet Headers<br/>(truncated to 128B)"]:1
-
-    style A fill:#4472C4,color:#fff
-    style B fill:#4472C4,color:#fff
-    style C fill:#4472C4,color:#fff
-    style D fill:#4472C4,color:#fff
-    style E fill:#ED7D31,color:#fff
+---
+title: ERSPAN Encapsulation Header (60 bytes)
+---
+packet-beta
+0-111: "Outer Ethernet Header (14B)"
+112-271: "Outer IP Header (20B)"
+272-303: "GRE Header (4B)"
+304-479: "ERSPAN Mirror Header (22B)"
 ```
 
-Total mirror packet size: 128B + 60B overhead = 188 bytes (estimated)
+Payload: Original packet truncated to 128B. Total mirror packet size: 60B + 128B = 188 bytes (estimated).
 
 Encapsulation overhead: 60 bytes. The overhead includes the outer Ethernet header (14B), outer IP header (20B), GRE header (4B), and ERSPAN mirror header (22B).
 
@@ -366,7 +361,7 @@ The capability validation follows this sequence:
 ## 3.5 SAI
 ### 3.5.1 Port Mirroring SAI APIs
 Mirror SAI interface APIs are already defined.
-More details about SAI API and attributes are described below SAI Spec @
+More details about SAI API and attributes are described below SAI Spec:
 
 https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
 ```
@@ -592,6 +587,8 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
      |     +--rw dst_port?    union
      |     +--rw src_port?    union
      |     +--rw direction?   enumeration
+     |     +--rw sample_rate?   uint32
+     |     +--rw truncate_size? uint32
      +--ro MIRROR_SESSION_TABLE
         +--ro MIRROR_SESSION_TABLE_LIST* [name]
            +--ro name            string
