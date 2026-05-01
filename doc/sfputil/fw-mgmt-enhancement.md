@@ -102,6 +102,7 @@ The feature is a built-in SONiC enhancement that modifies the `sonic-utilities` 
 │  │  - Parse interface lists                               │ │
 │  │  - Match vendor part numbers                           │ │
 │  │  - Validate port presence                              │ │
+│  │  - Transceiver Deduplication                           │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -294,7 +295,42 @@ The implementation uses a multi-stage filtering approach:
 3. **Apply Vendor PN Filter**: If `-p` specified, match against transceiver info `model` field
 4. **Validate**: Ensure all specified ports are present and accessible
 
-##### 7.5.2. Parallel Processing
+##### 7.5.2.  Transceiver Deduplication
+
+When multiple Ethernet interfaces share the same physical transceiver, the system automatically deduplicates transceivers to avoid redundant operations and potential conflicts.
+
+**Deduplication Criteria:**
+
+Transceivers are identified as duplicates when they share the same serial number. This scenario occurs on certain platforms where multiple logical interfaces map to the same physical transceiver module.
+
+**Selection Strategy:**
+
+When duplicate transceivers are detected:
+- The interface with the lowest port number is selected for the operation
+- Ports are evaluated in numerical order (e.g., Ethernet0, Ethernet4, Ethernet8)
+- Duplicate interfaces are excluded from processing
+
+**Scope:**
+
+Automatic deduplication is applied in the following operations:
+- Firmware version display with tabular format (`-t` option)
+- Multi-port firmware download operations (`-i` or `-p` options)
+- Multi-port firmware upgrade operations (`-i` or `-p` options)
+
+**Example:**
+
+On a platform where `Ethernet0` and `Ethernet1` share the same transceiver (serial number: `ABC123`):
+- `Ethernet0` is selected for firmware operations (lowest port number)
+- `Ethernet1` is automatically excluded
+
+**Benefits:**
+
+1. **Efficiency**: Prevents redundant firmware downloads to the same physical hardware
+2. **Safety**: Avoids conflicts from simultaneous operations on shared transceivers
+3. **Accuracy**: Ensures each unique transceiver appears only once in firmware version displays
+4. **Transparency**: Automatic handling requires no user configuration
+
+##### 7.5.3. Parallel Processing
 
 Multi-port operations leverage Python's `concurrent.futures.ThreadPoolExecutor` for parallel processing:
 
@@ -307,7 +343,7 @@ Multi-port operations leverage Python's `concurrent.futures.ThreadPoolExecutor` 
 - Efficient resource utilization
 - Real-time progress visibility
 
-##### 7.5.3. Progress Display
+##### 7.5.4. Progress Display
 
 The implementation provides two progress display modes:
 
@@ -544,6 +580,12 @@ Low additional memory footprint (Less than 15 MB during firmware upgrade).
    - Failed ports are reported with stage (Download/Activate/Commit) and status code
    - Manual intervention required for persistent failures
    - Re-run upgrade with `-i` specifying only the failed ports
+
+2. **Shared Transceiver Handling**:
+   - Platforms where multiple interfaces share the same physical transceiver are automatically handled through deduplication
+   - Only the lowest-numbered interface per unique transceiver (identified by serial number) will be processed
+   - Duplicate interfaces are silently excluded from operations
+   - See Section 7.5.1 (Transceiver Deduplication) for detailed behavior
 
 ### 13. Testing Requirements/Design
 
