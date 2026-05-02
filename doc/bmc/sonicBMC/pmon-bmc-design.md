@@ -322,7 +322,7 @@ The bmc controller daemon "bmcctld" is started first in BMC pmon container. It a
 Detailed workflow below
 
 ```
-if the previous reboot was a Cold Boot (Full Power Cycle)
+if the previous reboot was a Cold Boot (Full Power Cycle, reboot cause : [REBOOT_CAUSE_POWER_LOSS](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/chassis_base.py#L20))
   - Sleep for power_on_delay configured in CHASSIS_MODULE|SWITCH-HOST (this is configurable value in config_db)
   - This is to make sure the Rack Manager is up and Liquid flow rate is good.
 
@@ -663,7 +663,7 @@ config chassis modules shutdown-timeout SWITCH-HOST <seconds>
 ##### DB schema
 
 ```
-    "CHASSIS_MODULE": {
+    "CHASSIS_MODULE": {                           ; In CONFIG_DB
         "SWITCH-HOST": {
             "admin_status": "up",                 ; admin_status up/down; default is down which keeps SWITCH-HOST powered down when device powers up.
             "power_on_delay": "300",              ; Time in secs BMC waits before powering on Switch-Host when device is powered ON.
@@ -702,7 +702,7 @@ config liquid-cool leak-action [system|rack_mgr] [critical|minor]  [syslog_only|
 ##### DB schema
 
 ```
-  "LEAK_CONTROL_POLICY": {
+  "LEAK_CONTROL_POLICY": {                                      ; In CONFIG_DB
       "system_leak_policy"            : "enabled | disabled",   ; enabled by default
       "system_critical_leak_action"   : "power_off",            ; default is power_off   
       "system_minor_leak_action"      : "syslog_only",          ; default is syslog_only
@@ -754,6 +754,21 @@ show chassis module status
 ------------  ----------------------  -------------  -----------
  Switch-Host      Switch Host System        Offline           <>
 
+```
+
+##### DB schema
+
+```
+    "CHASSIS_MODULE_TABLE": {                       ; In STATE_DB
+        "SWITCH-HOST": {
+            "name": "SWITCH-HOST"
+            "desc": "Switch Host managed by BMC"
+            "slot": "N/A"
+            "serial": "[Serial-number]"
+            "oper_status": "ONLINE"
+            "admin_status": "up"
+        }
+    }
 ```
 
 * **show platform leak control-policy**
@@ -898,4 +913,7 @@ In case of a firmware upgrade which needs reboot of both Switch-Host and BMC, wi
 2. Add support for more Rack manager commands via Redfish for reset_type like ForceRestart, GracefulRestart
 3. Add support for ipv6 address to Host-Bmc-Link
 4. Introduced the Hybrid cooling skus in this design document. Add more details on requirements and actions of various platform daemons in Switch-Host.
+5. Add more details on the actions ( eg: DC personal checkup, RMA etc ) incase if there is a leak sensor faulty.
+   - Can we run the switch with one or more faulty sensor ?
+   - if there a faulty sensor and if location tells close to CPU/ASIC, should the switch be powered down and RAMed ?
    
