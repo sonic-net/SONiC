@@ -322,7 +322,7 @@ The bmc controller daemon "bmcctld" is started first in BMC pmon container. It a
 Detailed workflow below
 
 ```
-if the previous reboot was a Cold Boot (Full Power Cycle, reboot cause : [REBOOT_CAUSE_POWER_LOSS](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/chassis_base.py#L20))
+if the previous reboot was a Cold Boot (Full Power Cycle, reboot cause : REBOOT_CAUSE_POWER_LOSS)
   - Sleep for power_on_delay configured in CHASSIS_MODULE|SWITCH-HOST (this is configurable value in config_db)
   - This is to make sure the Rack Manager is up and Liquid flow rate is good.
 
@@ -619,7 +619,7 @@ This base class is already defined in sonic-platform-common.
 | Method | Present | Action |
 |---------|---------|----------|
 | get_all_modules() | Y | Fetch managed modules here, Switch-Host Module object |
-| get_reboot_cause()| Y | Fetch previous reboot cause, check if it is Cold Boot(Full Power Cycle) |
+| get_reboot_cause()| Y | Fetch previous reboot cause, check if it is Cold Boot(Full Power Cycle, reboot cause : REBOOT_CAUSE_POWER_LOSS) |
 | is_bmc() | New | Retrieves whether the sonic chassis instance is/has a BMC module |
 | is_liquid_cooled() | New | Is this chassis liquid/hybrid cooled ? |
 
