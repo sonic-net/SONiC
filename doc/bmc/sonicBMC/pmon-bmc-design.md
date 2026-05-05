@@ -508,7 +508,7 @@ This base class is already defined in sonic-platform-common, additional new plat
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
 | get_leak_sensor_type() | New | What type of leak sensor is this rope, flex_pcb, spot etc |
 | get_leak_sensor_location() | New | Location of leak sensor |
-| get_leak_severity() | New | Get the severity based on the criticality of the zone or how severe the leak is for a sensor for eg: more liquid presence |
+| get_leak_severity() | New | Get the severity based on the criticality of the location/zone or how severe the leak is for a sensor for eg: more liquid presence |
 | get_leak_profile() | New | Returns the leak sensor profile associated with this leak sensor type. there will be a profile created per leak sensor type rope, flex_pcb, spot etc  |
 
 **Note**
@@ -638,11 +638,11 @@ Applicable to (LC, AC)
 ```
 config chassis modules startup SWITCH-HOST
    - This command is to POWER ON the Switch Host from BMC
-   - Sets the "admin_status to up
+   - Sets the "admin_status" attribute to up
 
 config chassis modules shutdown SWITCH-HOST
    - This command is to graceful POWER OFF the Switch Host from BMC
-   - Sets the "admin_status to down
+   - Sets the "admin_status" attribute to down
    - Default admin_status of SWITCH-HOST is down which keeps SWITCH-HOST powered down when device powers up.
 
 config chassis modules power-on-delay SWITCH-HOST <seconds>
