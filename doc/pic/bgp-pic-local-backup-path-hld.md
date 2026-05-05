@@ -103,14 +103,14 @@ This document covers **PIC Local** only.
 
 The implementation extends the FRR stack:
 1. **bgpd** computes a backup path (or ECMP set) after bestpath selection and sends it to Zebra via ZAPI.
-2. **Zebra** encodes backup nexthops with a `RTNH_F_BACKUP` flag in FPM netlink messages to fpmsyncd.
+2. **Zebra** encodes backup nexthops in FPM netlink messages to fpmsyncd as a SONiC-private attribute (`FPM_RTA_BACKUP_NH = 200`).
 3. **fpmsyncd** stores primary and backup nexthops together in APP_DB, using `primary_nh_count` to distinguish them.
 4. **Orchagent** currently programs only primary nexthops; backup nexthop hardware programming is TBD.
 
 The current HLD intentionally focuses on the end-to-end control-plane paths and data model:
 
 - bgpd: backup path computation and signalling
-- zebra: encoding backup nexthops in FPM (RTNH_F_BACKUP)
+- zebra: encoding backup nexthops in FPM (`FPM_RTA_BACKUP_NH` SONiC-private attribute)
 - fpmsyncd / APP_DB: modelling primary and backup nexthops
 
 The orchagent/SAI parts are marked TBD. It will be covered in another HLD. It gives us an opportunity to get agreement on 
@@ -129,7 +129,7 @@ The orchagent/SAI parts are marked TBD. It will be covered in another HLD. It gi
 3. The backup path MUST NOT include any nexthop that is already in the primary ECMP set. This ensures that the backup path represents a different failure domain.
 4. Backup path computation SHALL be triggered after bestpath selection for each destination.
 5. Backup paths SHALL be sent to Zebra via ZAPI as backup nexthops alongside primary nexthops.
-6. Zebra SHALL encode backup nexthops in FPM netlink messages with a distinguishing flag (Implemented using the flag `RTNH_F_BACKUP`).
+6. Zebra SHALL encode backup nexthops in FPM netlink messages distinctly from primaries (Implemented as a SONiC-private top-level attribute `FPM_RTA_BACKUP_NH = 200` carrying a sequence of `struct rtnexthop` entries).
 7. fpmsyncd SHALL store both primary and backup nexthops in APP_DB with appropriate way to distinguish between them (Implemented using `primary_nh_count` field to distinguish them)
 8. The feature SHALL be configurable per AFI/SAFI (IPv4 unicast, IPv6 unicast only).
 9. The feature SHALL be configurable device-wide (via `BGP_DEVICE_GLOBAL_AF`) or per-VRF (via `BGP_GLOBALS_AF`).
@@ -161,7 +161,7 @@ The overall architecture follows the existing SONiC routing stack. PIC Local add
     │                     fpmsyncd                                    │
     │                                                                 │
     │  - Receives RTM_NEWROUTE netlink messages                       │
-    │  - Parses primary + backup nexthops (RTNH_F_BACKUP flag)        │
+    │  - Parses primary + backup nexthops (FPM_RTA_BACKUP_NH attr)    │
     │  - Writes to APP_DB:ROUTE_TABLE with primary_nh_count           │
     └──────────────────────────────────────────┬──────────────-───────┘
                                                │ APP_DB (Redis)
@@ -194,7 +194,7 @@ Configuration flow:
 | `bgpd/bgp_route.c`    | sonic-frr (FRR patch)   | Backup path computation, ZAPI encoding |
 | `bgpd/bgpd.h`         | sonic-frr (FRR patch)   | New AF flags for backup path config |
 | `bgpd/bgp_zebra.c`    | sonic-frr (FRR patch)   | ZAPI message with backup nexthops |
-| `zebra/rt_netlink.c`  | sonic-frr (FRR patch)   | RTNH_F_BACKUP flag in FPM messages |
+| `dplane_fpm_sonic/dplane_fpm_sonic.c` | sonic-frr (SONiC FPM plugin) | `FPM_RTA_BACKUP_NH` (=200) top-level attribute appender |
 | `fpmsyncd/routesync.cpp` | sonic-swss          | Parse backup nexthops, write primary_nh_count |
 | `fpmsyncd/routesync.h`   | sonic-swss          | primary_nh_count in RouteTableFieldValueTupleWrapper |
 | `orchagent/routeorch.cpp`| sonic-swss          | Read and limit to primary_nh_count nexthops |
@@ -433,21 +433,24 @@ Then `zapi_read_nexthops()` converts them into kernel `nexthop` objects and stor
 
 Zebra communicates routes to fpmsyncd via the **FPM (Forwarding Plane Manager)** interface using Linux netlink messages.
 
-#### 7.3.1 RTNH_F_BACKUP Flag
+#### 7.3.1 FPM_RTA_BACKUP_NH Top-Level Attribute
 
-A custom flag is defined for encoding backup nexthops in `RTA_MULTIPATH`:
+Backup nexthops travel on the FPM wire as a **SONiC-private netlink RTA**, distinct from the standard `RTA_MULTIPATH` that carries primaries:
 
 ```c
-/* Custom SONiC flag to mark backup nexthops in FPM protocol.
- * Value 128 uses the last available bit in rtnh_flags (unsigned char).
- * This flag is set by zebra and consumed by fpmsyncd for failover.
+/*
+ * SONiC-private top-level RTA carrying BGP-PIC backup nexthops on the
+ * FPM wire. Numbered well above the kernel's RTA_MAX (currently around
+ * 30) so it can't collide with future kernel additions. Mirrored byte-
+ * for-byte by the decoder side in
+ * sonic-swss/fpmsyncd/fpm/fpm_backup_nh.h.
+ *
+ * Carries regular IP nexthops only (gateway + ifindex + weight + onlink).
  */
-#ifndef RTNH_F_BACKUP
-#define RTNH_F_BACKUP 128
-#endif
+#define FPM_RTA_BACKUP_NH 200
 ```
 
-This flag repurposes bit 7 of `rtnh_flags` in the `struct rtnexthop` netlink attribute. (Note: Standard Linux kernel flags only use bits 0-6; bit 7 is available for private/vendor use in the FPM protocol.)
+The encoder lives entirely inside `dplane_fpm_sonic` (the SONiC FPM plugin), so no patch to upstream `zebra/rt_netlink.c` is needed.
 
 #### 7.3.2 RTM_NEWROUTE Message Structure
 
@@ -464,10 +467,11 @@ RTM_NEWROUTE
 
   Attributes:
     RTA_DST      = 10.1.0.0          (destination prefix)
-    RTA_MULTIPATH:                   (all nexthops, primary then backup)
+
+    RTA_MULTIPATH:                   (primaries — standard kernel RTA)
       rtnexthop[0]:                  (primary nexthop 1)
         rtnh_len     = sizeof(rtnexthop) + sizeof(RTA_GATEWAY)
-        rtnh_flags   = 0             (no backup flag)
+        rtnh_flags   = 0
         rtnh_hops    = 0             (weight-1)
         rtnh_ifindex = <iface_index>
         Attrs:
@@ -478,37 +482,58 @@ RTM_NEWROUTE
         rtnh_ifindex = <iface_index>
         Attrs:
           RTA_GATEWAY = 192.168.2.1
-      rtnexthop[2]:                  (backup nexthop 1)
+
+    FPM_RTA_BACKUP_NH (=200):        (backups — SONiC-private RTA)
+      rtnexthop[0]:                  (backup nexthop 1)
         rtnh_len     = ...
-        rtnh_flags   = 0x80          (RTNH_F_BACKUP = 128)
+        rtnh_flags   = 0
         rtnh_ifindex = <iface_index>
         Attrs:
           RTA_GATEWAY = 10.0.2.1
 ```
 
-The function `_netlink_route_build_multipath()` in `zebra/rt_netlink.c` is modified to accept an `is_backup` parameter. When `fpm=true` and `is_backup=true`, it sets `rtnh->rtnh_flags |= RTNH_F_BACKUP`.
+`FPM_RTA_BACKUP_NH`'s payload is a sequence of `struct rtnexthop` entries — exactly the same wire shape `RTA_MULTIPATH` uses for primaries — so the only new thing for the decoder to learn is the top-level attribute number.
 
-The FPM encoding loop:
+The encoder helpers live in `dplane_fpm_sonic/dplane_fpm_sonic.c`:
 
 ```c
-// Encode primary nexthops (is_backup=false)
-for each nexthop in re->nhe->nhg:
-    _netlink_route_build_multipath(p, ..., nexthop, &req->n, ..., fpm=true, is_backup=false)
+/*
+ * Emit one nexthop as a struct rtnexthop entry. Scope: regular IP
+ * nexthops only (gateway + ifindex + weight + onlink).
+ */
+static bool fpm_route_build_rtnh(struct nlmsghdr *nlmsg, size_t buflen,
+                                 const struct nexthop *nexthop);
 
-// For FPM: also encode backup nexthops (is_backup=true)
-if (fpm && dplane_ctx_get_backup_ng(ctx)) {
-    const struct nexthop_group *backup_nhg = dplane_ctx_get_backup_ng(ctx);
-    for each backup_nh in backup_nhg:
-        if NEXTHOP_IS_ACTIVE(backup_nh->flags):
-            _netlink_route_build_multipath(p, ..., backup_nh, ..., fpm=true, is_backup=true)
-}
+/*
+ * Append a top-level FPM_RTA_BACKUP_NH attribute to a route message.
+ * No-ops on NULL/empty backup_ng AND when every backup is recursive or
+ * inactive (in which case the wire-format contract is "attribute
+ * absent" rather than "present-and-empty"). Rolls back on partial-
+ * write or empty-result so the caller's buffer is structurally clean.
+ */
+static ssize_t fpm_append_backup_nexthops(struct nlmsghdr *nlmsg, size_t buflen,
+                                          const struct nexthop_group *backup_ng);
 ```
 
-**Important**: Backup nexthops are encoded in FPM messages only — they are NOT installed in the Linux kernel routing table. The `fpm` flag gates the backup encoding.
+`fpm_nl_enqueue()` calls `fpm_append_backup_nexthops()` right after `netlink_route_multipath_msg_encode()` in the standard-route encode path, so `FPM_RTA_BACKUP_NH` lands on every `RTM_NEWROUTE` that carries backup nexthops.
 
-#### 7.3.3 Forcing Multipath Encoding
+#### 7.3.3 Primary Nexthop Encoding Unchanged
 
-Even when a route has only one primary nexthop, if backup nexthops are present, the message is encoded using `RTA_MULTIPATH` (not `RTA_GATEWAY`) to accommodate the backup nexthop entries.
+Single-primary routes stay encoded with `RTA_GATEWAY` + `RTA_OIF` (the kernel's singlepath form); multi-primary routes use `RTA_MULTIPATH`. Adding `FPM_RTA_BACKUP_NH` does not force multipath encoding for primaries — the backup attribute is independent of how primaries are laid out, so libnl's default decode path for primaries is preserved verbatim.
+
+#### 7.3.4 Decoder Side-Channel
+
+libnl's `rtnl_route` parser uses an `rtattr *tb[RTA_MAX + 1]` array and silently drops attributes outside the kernel-defined range, so attribute `200` is invisible to the standard libnl-converted message that `NetDispatcher` dispatches to `RouteSync::onRouteMsg()`. fpmsyncd handles this by peeking at the raw `nlmsghdr` directly:
+
+```cpp
+// In FpmLink::processFpmMessage (per-message, before NetDispatcher):
+m_routesync->setPendingBackupNexthopsFromRawMsg(nl_hdr);
+NetDispatcher::getInstance().onNetlinkMessage(msg);
+```
+
+`setPendingBackupNexthopsFromRawMsg()` walks the top-level RTAs by hand looking for `FPM_RTA_BACKUP_NH`, parses the contained `rtnexthop` sequence into `m_pendingBackupNexthops`, and self-clears its state on each call — so the side channel scopes to exactly the in-flight message and no post-dispatch clear is needed. The hot path (no backups) is a single top-level RTA scan with no allocation or string work, keeping scale-route processing cost essentially unchanged.
+
+`getNextHopList()` and `getNextHopWt()` then merge `m_pendingBackupNexthops` onto the end of the comma-separated `nexthop` / `ifname` / `mpls_nh` / `weight` strings they already build for primaries, and `primary_nh_count` records the boundary. Section 7.4.3 covers the merge in detail.
 
 ---
 
@@ -575,30 +600,43 @@ ROUTE_TABLE:10.1.0.0/24
 
 #### 7.4.3 fpmsyncd Processing
 
-The `getNextHopList()` function in `routesync.cpp` is extended to count primary nexthops:
+`getNextHopList()` in `routesync.cpp` walks libnl's primary nexthops (which already exclude backups — those rode in the SONiC-private `FPM_RTA_BACKUP_NH` attribute that libnl's `rtnl_route` parser ignores) and then merges the backups parked in the side channel by `FpmLink`:
 
 ```cpp
 int RouteSync::getNextHopList(struct rtnl_route *route_obj, string& gw_list,
                               string& mpls_list, string& intf_list)
 {
-    int primary_count = 0;
+    int libnl_count = rtnl_route_get_nnexthops(route_obj);
+    /*
+     * libnl only sees primaries (RTA_MULTIPATH or singlepath); backups
+     * arrive via setPendingBackupNexthopsFromRawMsg() and live in
+     * m_pendingBackupNexthops. primary_nh_count returned to the caller
+     * is the libnl-parsed count.
+     */
+    int primary_count = libnl_count;
 
-    for (int i = 0; i < rtnl_route_get_nnexthops(route_obj); i++) {
+    for (int i = 0; i < libnl_count; i++) {
         struct rtnl_nexthop *nexthop = rtnl_route_nexthop_n(route_obj, i);
-        unsigned int flags = rtnl_route_nh_get_flags(nexthop);
-
-        if (!(flags & RTNH_F_BACKUP)) {
-            // This is a primary nexthop
-            primary_count++;
-        }
-        // Add nexthop to gw_list, intf_list regardless of primary/backup
-        // ... append to lists ...
+        // ... append primary's gw / mpls / ifname to the lists ...
     }
-    return primary_count;  // return to caller
+
+    // Merge backups onto the end of the same lists. Order matters:
+    // orchagent uses primary_nh_count to know that the first N entries
+    // are primaries and the rest are backups.
+    for (const auto &nh : m_pendingBackupNexthops) {
+        gw_list   += nh.gw;
+        mpls_list += "na";   // backups carry no encap (matches old contract)
+        intf_list += getIfName(nh.if_index, ...);
+        // ... NHG_DELIMITER between entries ...
+    }
+
+    return primary_count;
 }
 ```
 
-The returned `primary_count` is stored in `fvw.primary_nh_count` and written to APP_DB.
+`getNextHopWt()` performs the same merge for the per-nexthop `weight` string. The returned `primary_count` is stored in `fvw.primary_nh_count` and written to APP_DB.
+
+`m_pendingBackupNexthops` is a `RouteSync` member used as a per-message side channel — written by `FpmLink` before `NetDispatcher` dispatches the libnl-converted message, read by the consumers above inside the same dispatch path. fpmsyncd is single-threaded, so no synchronization is needed; the member declaration carries a comment noting that contract.
 
 ---
 
@@ -992,17 +1030,21 @@ zebra / zapi_msg.c
 Zebra dataplane (zebra_dplane.c)
    │  ctx->backup_ng = backup nexthop group
    ▼
-zebra/rt_netlink.c
-   │  _netlink_route_build_singlepath() or _netlink_route_multipath()
-   │  For FPM:
-   │    Encode primary nexthops (RTNH_F_BACKUP not set)
-   │    Encode backup nexthops (RTNH_F_BACKUP = 0x80)    ← NEW
+dplane_fpm_sonic / dplane_fpm_sonic.c (SONiC FPM plugin)
+   │  fpm_nl_enqueue() → netlink_route_multipath_msg_encode() (primaries)
+   │                  → fpm_append_backup_nexthops()       ← NEW
+   │                       FPM_RTA_BACKUP_NH (=200)
+   │                         struct rtnexthop[N]           ← backups
    │
-   ▼ (FPM socket — netlink)
+   ▼ (FPM socket — netlink, framed)
+fpmsyncd / fpmlink.cpp
+   │  setPendingBackupNexthopsFromRawMsg(nl_hdr) ← peek raw, decode 200
+   │  NetDispatcher::onNetlinkMessage(msg)       ← libnl primary path
+   ▼
 fpmsyncd / routesync.cpp
    │  onMsg(RTM_NEWROUTE) → onRouteMsg()
-   │  getNextHopList() → count primary_count, build combined lists
-   │  fvw.primary_nh_count = primary_count                ← NEW
+   │  getNextHopList() → libnl primaries + merge m_pendingBackupNexthops
+   │  fvw.primary_nh_count = libnl-parsed primary count    ← NEW
    │
    ▼ (APP_DB via ProducerStateTable)
 APP_DB:ROUTE_TABLE:<prefix>
@@ -1091,7 +1133,7 @@ PIC Local does not affect the critical fastboot path. BGP backup path computatio
 1. **Supported AFIs**: IPv4 unicast and IPv6 unicast only. Not supported for L2VPN EVPN, IPv4 multicast, or IPv6 multicast.
 2. **Single primary nexthop assumption**: The current implementation links backup nexthops only to the first primary nexthop (`api.nexthops[0]`). When primary ECMP is used, all backup nexthops are referenced from nexthop[0] only.
 3. **Backup ECMP bound**: Backup ECMP paths are bounded by the address-family `maximum-paths` configuration.
-4. **RTNH_F_BACKUP is a private flag**: Value 128 (bit 7) in `rtnh_flags` is not a standard Linux kernel flag. It is a private convention between zebra and fpmsyncd, used only in FPM messages. It MUST NOT be passed to the Linux kernel route netlink socket.
+4. **`FPM_RTA_BACKUP_NH = 200` is a SONiC-private wire-format attribute**: it lives in a number space well above the kernel's `RTA_MAX` (which is currently around 30) so it can't collide with future kernel additions, and it is only meaningful between zebra's `dplane_fpm_sonic` plugin and fpmsyncd. The same number MUST be kept in sync on both ends — the encoder (`sonic-frr/dplane_fpm_sonic/dplane_fpm_sonic.c`) and decoder (`sonic-swss/fpmsyncd/fpm/fpm_backup_nh.h`) hold mirror copies of the `#define`. The attribute is never passed to the Linux kernel route netlink socket.
 5. **VRF support**: `BGP_DEVICE_GLOBAL_AF` targets the default VRF only. Per-VRF configuration uses `BGP_GLOBALS_AF`.
 6. **Orchagent backup programming**: Currently orchagent only programs primary nexthops. Hardware-based failover (without orchagent intervention) requires future SAI work — TBD.
 7. **Soft failures**: This feature protects against local link failures detected at the hardware level. BGP/BFD session failures (soft failures) do not benefit from data-plane fast failover with the current implementation.
