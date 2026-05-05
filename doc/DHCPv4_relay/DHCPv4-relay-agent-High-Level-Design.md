@@ -148,7 +148,7 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
     - Number of VRFs - 1024
     - Number of VLANs - 4096
-    - Number of Routed Ports - 1024
+    - Number of Routed Ports - 4096
     - Number of DHCP Servers per interface (VLAN or routed port) - 32
 
 -  **R14:** This proposed DHCP relay agent will need to support all the functionality that has been added over the years in the community through various patches. The complete backward compatibitlity with ISC DHCP is an aspirational goal.
@@ -178,7 +178,7 @@ By enabling the link-selection option, the DHCP relay will use the interface spe
 ##### 5.1.6 Routed Port Support
 The DHCPv4 relay agent now supports routed ports in addition to VLAN interfaces. This enhancement allows DHCP relay functionality on L3 interfaces configured in the INTERFACE table without requiring VLAN encapsulation. Key aspects of routed port support include:
 
-- **Socket Management**: L3 sockets with SO_BINDTODEVICE are used for routed ports, bound to specific interfaces
+- **Socket Management**: L3 sockets are used for routed ports, bound to specific interfaces
 - **Interface Mapping**: For VLANs, member ports map to the VLAN (e.g., Ethernet0 → Vlan100). For routed ports, the port maps to itself (e.g., Ethernet4 → Ethernet4)
 - **Circuit ID Formats**: Multiple configurable formats support both VLAN and routed port scenarios
 - **Configuration Tables**: Both VLAN_INTERFACE and INTERFACE tables are monitored for relay configuration
@@ -195,7 +195,7 @@ The Config Manager thread is responsible for subscribing to the Redis database t
 - **DHCPV4_RELAY Table**: For relay configuration on VLAN and physical port interfaces
 - **VLAN_INTERFACE Table:** For VLAN interface configurations
 - **INTERFACE Table:** For routed port configurations
-- **PORT Table:** For routed port attributes including circuit_id, circuit_id_format, and max_hop_count
+- **PORT Table:** For routed port attributes including circuit_id, and circuit_id_format
 - **INTF Table:** For mapping source interfaces to IP addresses when the source-interface parameter is enabled in the relay configuration.
 - **VRF Table:** For creating sockets to send packets to Server.
 - **FEATURE Table:** To check if port based `dhcp_server` feature is enabled.
@@ -216,7 +216,7 @@ Depending on the configurations, Relay Main establishes sockets to receive and t
 
 - **Sending Packets to the Server:** For transmitting packets to the server, Relay Main opens and binds a socket for the server VRF. If no server VRF is specified in the DHCPV4_RELAY table, the client and server are assumed to be in the same VRF and client-side interface table's (VLAN_INTERFACE or INTERFACE) VRF field is used to bind the socket.
 
-- **Sending Packets to the Client:** A socket is opened on the client-side interface (VLAN or routed port) to forward DHCPv4 packets to the client. For VLANs, this socket is used to broadcast DHCP Offer and Ack packets. For routed ports, L3 sockets with SO_BINDTODEVICE are used, bound to the specific interface.
+- **Sending Packets to the Client:** A socket is opened on the client-side interface (VLAN or routed port) to forward DHCPv4 packets to the client. For VLANs, this socket is used to broadcast DHCP Offer and Ack packets. For routed ports, L3 sockets are used, bound to the specific interface.
 
 When the DHCPv4 relay feature is enabled, the Control Plane Policing (CoPP) manager will configure appropriate trap rules, ensuring that DHCPv4 packets are trapped and rate-limited by the Network Processing Unit (NPU). Once these packets reach the kernel, the DHCP relay main process captures them through the previously described socket mechanisms.
 
@@ -237,7 +237,7 @@ The processing steps are as follows:
         - **interface_ip**: `interface_ip`
         - **custom**: User-defined string from `circuit_id` field
 
-        If `chassis_id` is configured in DEVICE_METADATA table, it is used instead of `hostname`. If neither is present, `sonic` is used as default.
+        If `hostname` is not present in the Device Metadata table, `sonic` is used as hostname instead.
 
 
         | Subopt | Len | Circuit ID |
@@ -501,8 +501,7 @@ A new table, named DHCPV4_RELAY, will be introduced in the config-db to define D
             "vrf_selection": "enable",
             "server_id_override": "enable",
             "agent_relay_mode": "forward_untouched",
-            "circuit_id_format": "default",
-            "chassis_id": "my-chassis-01"
+            "circuit_id_format": "default"
         }
     }
 }
@@ -515,25 +514,11 @@ A new table, named DHCPV4_RELAY, will be introduced in the config-db to define D
         "Ethernet4": {
             "dhcpv4_servers": ["10.0.0.1", "10.0.0.2"],
             "circuit_id_format": "custom",
-            "circuit_id": "CustomCircuitID",
-            "max_hop_count": "10"
+            "circuit_id": "CustomCircuitID"
         }
     },
     "INTERFACE": {
         "Ethernet4|192.168.1.1/24": {}
-    }
-}
-```
-
-**Example 3: DEVICE_METADATA with chassis_id**
-```
-{
-    "DEVICE_METADATA": {
-        "localhost": {
-            "hostname": "sonic-switch",
-            "mac": "00:11:22:33:44:55",
-            "chassis_id": "chassis-rack1-switch2"
-        }
     }
 }
 ```
@@ -606,7 +591,6 @@ sudo config dhcp_relay ipv4 helper del Ethernet4 10.0.0.1
           --circuit-id-format <default|interface_ip|
                                vlan_name|custom>    Format for Circuit ID sub-option
           --circuit-id <string>                     Custom Circuit ID value (used with custom format)
-          --chassis-id <string>                     Chassis ID to use in Circuit ID
           --dhcpv4-servers <ipv4_address_list>      Server IPv4 address list
           -h, -?, --help                            Show this message and exit.
         ```
@@ -696,12 +680,12 @@ root@sonic:/home/cisco# show dhcp_relay ipv4 helper
 
 ```
 root@sonic:/home/cisco# show dhcp_relay ipv4 helper
-NAME       SERVER VRF    SOURCE INTERFACE    LINK SELECTION    VRF SELECTION    SERVER ID OVERRIDE    AGENT RELAY MODE       MAX HOP COUNT  CIRCUIT ID FORMAT  CHASSIS ID           DHCPV4 SERVERS
----------  ------------  ------------------  ----------------  ---------------  --------------------  -------------------  ---------------  -----------------  -------------------  ----------------
-Vlan12     Vrf01         Loopback0           enable            enable           enable                forward_and_replace                4  default            chassis-rack1-sw2    192.168.12.1
-                                                                                                                                                                                      192.168.12.2
-Ethernet4  -             -                   disable           disable          disable               forward_untouched               10  custom             -                    10.0.0.1
-                                                                                                                                                                                      10.0.0.2
+NAME       SERVER VRF    SOURCE INTERFACE    LINK SELECTION    VRF SELECTION    SERVER ID OVERRIDE    AGENT RELAY MODE       MAX HOP COUNT  CIRCUIT ID FORMAT   DHCPV4 SERVERS
+---------  ------------  ------------------  ----------------  ---------------  --------------------  -------------------  ---------------  -----------------  ----------------
+Vlan12     Vrf01         Loopback0           enable            enable           enable                forward_and_replace                4  default              192.168.12.1
+                                                                                                                                                                 192.168.12.2
+Ethernet4  -             -                   disable           disable          disable               forward_untouched               10  custom                  10.0.0.1
+                                                                                                                                                                  10.0.0.2
 ```
 
 ##### 9.2.3 New Show CLI to report per-interface counters
