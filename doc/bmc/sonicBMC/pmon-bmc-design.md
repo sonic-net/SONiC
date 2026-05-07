@@ -504,7 +504,7 @@ This base class is already defined in sonic-platform-common, additional new plat
 | Method | Present | Action |
 |---------|---------|----------|
 | get_name() | Y | Get leak sensor name |
-| is_leak() | Y | Is there a leak detected? **Applies debounce logic defined by <vendor>platform before reporting or clearing a leak** |
+| is_leak() | Y | Is there a leak detected? **Only stable leak conditions** are asserted or cleared. This could be done by debounce logic in <vendor>platform/firmware |
 | is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
 | get_leak_sensor_type() | New | What type of leak sensor is this rope, flex_pcb, spot etc |
 | get_leak_sensor_location() | New | Location of leak sensor |
