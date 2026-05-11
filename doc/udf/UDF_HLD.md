@@ -637,21 +637,151 @@ redis-cli -n 1 HGETALL "ASIC_STATE:SAI_OBJECT_TYPE_UDF_GROUP:<oid>"
 ## 10. Testing Requirements/Design
 
 ### 10.1 Unit Tests
-- UdfGroup: Create/remove, validation (length, type)
-- UdfMatch: L2/L3/GRE matching, priority validation
-- Udf: Dependency handling, offset/base validation
+
+Orchagent unit tests live in `sonic-swss/tests/mock_tests/udforch_ut.cpp`, linked into the existing aclorch unit test binary.
+
+- UdfGroup: create/remove, validation (length, field_type)
+- UdfMatch: L2 / L3 / GRE / L4_DST_PORT matching, priority validation
+- Udf: dependency handling, offset/base validation
 - UdfOrch: CONFIG_DB subscription, group OID resolution, ref-count tracking
 
 ### 10.2 System Tests
-- **End-to-End**: Complete UDF + ACL configuration, packet matching
-- **ACL Integration**: UDF fields in ACL tables/rules, dynamic resolution
-- **Error Handling**: SAI failures, invalid configs, missing dependencies
-- **Scale**: Max objects, performance (< 1s for 100 objects)
+
+System tests live in `sonic-net/sonic-mgmt` at `tests/udf/test_udf.py` (sonic-mgmt PR — Open Item #9). Topology: one DUT + PTF (`pytest.mark.topology("t0", "t1")`). All CONFIG_DB writes go through `sonic-cfggen -j -w`; SAI object correctness is verified by diffing ASIC_DB OID sets before and after each operation.
+
+Module baseline (programmed by the suite's setup fixture):
+
+```
+UDF|G0                       length=3  field_type=GENERIC
+UDF|G1                       length=3  field_type=GENERIC
+UDF_SELECTOR|G0|udp_l4       select_base=L4  select_offset=0  match_l3_type=0x11
+UDF_SELECTOR|G0|proto18_l3   select_base=L3  select_offset=0  match_l3_type=0x12
+UDF_SELECTOR|G1|proto18_l3   select_base=L3  select_offset=0  match_l3_type=0x12
+ACL_TABLE_TYPE|T1            MATCHES=IN_PORTS,G0,G1  ACTIONS=PACKET_ACTION,COUNTER
+ACL_TABLE|TABLE1             type=T1  ports=<UP intf>  stage=ingress
+ACL_RULE|TABLE1|RULE_A       priority=101  G0=0x33/0xff  G1=0x44/0xff  PACKET_ACTION=DROP
+ACL_RULE|TABLE1|RULE_B       priority=101  G0=0x34/0xff  G1=0x45/0xff  PACKET_ACTION=DROP
+```
+
+UDP traffic uses `sport=0x3333 / dport=0x3333`, producing 3 bytes of `0x33` at L4 offset 0 (matches `RULE_A`'s G0 pattern).
+
+#### 10.2.1 Baseline programming
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Apply baseline config (UDF, selectors, ACL_TABLE_TYPE, ACL_TABLE, RULE_A, RULE_B) | Pipeline programs cleanly | ASIC_DB has expected UDF_GROUP / UDF_MATCH / UDF / ACL_TABLE / ACL_ENTRY OIDs; UDF_GROUP refcount = 4 (TABLE_TYPE + TABLE + RULE_A + RULE_B) |
+
+#### 10.2.2 End-to-end traffic
+
+UDP at L4 offset 0; G0 length=3 extracts 3 bytes; rule matches `0x33/0xff` per byte.
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Install `RULE_UDP` (G0=0x33/0xff, priority=200); send 500 UDP packets `sport=0x3333 dport=0x3333` | UDF match — drop | `RULE_UDP` counter delta ≥ 50 |
+| Send 500 UDP packets `sport=0x4444 dport=0x4444` | UDF non-match — forward | `RULE_UDP` counter delta ≤ 10 |
+| Send 500 UDP packets `sport=0x3232 dport=0x3232` | UDF mask check | No match (mask 0xff requires exact 0x33) |
+| Delete `RULE_UDP` from CONFIG_DB | ACL rule remove | `ACL_ENTRY` OID for `RULE_UDP` removed; G0 selectors retained |
+
+#### 10.2.3 UDF/ACL dependency and teardown order
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Delete `UDF\|G0` while selectors and rules still reference it | Wrong-order delete — recoverable | UDF_GROUP retained; orchagent logs error; correct-order delete after still succeeds |
+| Top-down teardown: rules → selectors → group | Ordered teardown | All ACL_ENTRY / UDF / UDF_GROUP OIDs removed in dependency order; recreate works |
+
+#### 10.2.4 ACL rule priority
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Install `R_LOW` (priority=50, G0=0x33) and `RULE_UDP` (priority=200, G0=0x33); send matching UDP | Higher rule priority wins | `RULE_UDP` counter increments; `R_LOW` does not |
+
+#### 10.2.5 Forward reference resolution
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Write `ACL_TABLE_TYPE\|T_FWD` (references `G_FWD`) before `UDF\|G_FWD` and `UDF_SELECTOR\|G_FWD\|test` exist; then create them | Forward reference resolves | TABLE_TYPE OID appears only after `G_FWD` + selector arrive |
+
+#### 10.2.6 Multiple selectors per group
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Baseline: G0 with 2 selectors, G1 with 1 selector | Distinct selectors — distinct OIDs | ≥ 2 SAI UDF OIDs for G0, ≥ 1 for G1; distinct match configs produce distinct UDF_MATCH OIDs |
+
+#### 10.2.7 SAI attribute correctness
+
+Covers all four match-type round-trips, all three base round-trips, auto-mask fill, and match-presence regressions.
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Selector `match_l2_type=0x0800` | L2_TYPE attr round-trip | UDF_MATCH OID has `SAI_UDF_MATCH_ATTR_L2_TYPE = 0x0800` |
+| Selector `match_l3_type=0x06` | L3_TYPE attr round-trip | UDF_MATCH OID has `SAI_UDF_MATCH_ATTR_L3_TYPE = 0x06` |
+| Selector `match_gre_type=0x6558` | GRE_TYPE attr round-trip | UDF_MATCH OID has `SAI_UDF_MATCH_ATTR_GRE_TYPE = 0x6558` |
+| Selector `match_l4_dst_port=0x12B7` | L4_DST_PORT attr round-trip | UDF_MATCH OID has `SAI_UDF_MATCH_ATTR_L4_DST_PORT_TYPE = 0x12B7` |
+| Selector `match_l3_type=0x06` with no explicit mask | Auto-mask fill | UDF_MATCH `L3_TYPE` mask = 0xFF |
+| Selector `select_base=L2 select_offset=12` | L2 base round-trip | UDF OID has `SAI_UDF_ATTR_BASE = SAI_UDF_BASE_L2` |
+| Selector `select_base=L3 select_offset=4` | L3 base round-trip | UDF OID has BASE = `SAI_UDF_BASE_L3` |
+| Selector `select_base=L4 select_offset=0` | L4 base round-trip | UDF OID has BASE = `SAI_UDF_BASE_L4` |
+| Selector `match_l4_dst_port=0` with explicit `mask=0xFFFF` | Port-0 match — explicit | UDF_MATCH OID has L4_DST_PORT=0, MASK=0xFFFF |
+| Selector `match_l4_dst_port=0` with no mask | Port-0 match — auto-fill | UDF_MATCH OID present; port-0 is matchable |
+| Selector with only `match_l2_type=0x0800` (no other match fields) | Single-field match | UDF_MATCH OID created with L2_TYPE attr |
+
+#### 10.2.8 Match-type traffic filtering
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Selector `match_l2_type=0x0800`; send IPv4 UDP | L2 ethertype filter | ACL counter increments |
+| Selector `match_l4_dst_port=0x12B7`; send UDP with `dport=4791` | L4 dst-port match | ACL counter increments |
+| Selector `match_l4_dst_port=0x12B7`; send UDP with `dport=80` | L4 dst-port non-match | No counter increment |
+| Selector `match_l2_type=0x86DD`; send IPv6 UDP | L2 match — IPv6 | ACL counter increments |
+
+#### 10.2.9 Reference counting
+
+Covers UDF_MATCH dedup across groups, UDF_GROUP refcount across ACL layers, and ACL_RULE refcount on selectors.
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Two selectors in different groups with identical match config | UDF_MATCH dedup | One shared UDF_MATCH OID; removing one selector retains it; removing both frees it |
+| `ACL_TABLE_TYPE\|T1` references G0 (no TABLE or rules) | TABLE_TYPE refcount holds | Deleting G0 rejected |
+| Add `ACL_TABLE\|TABLE1` referencing T1 | TABLE refcount independent | Deleting TABLE_TYPE alone rejected while TABLE references G0 |
+| Two TABLEs both reference T1 | Refcount stacks | Deleting one TABLE leaves G0 still held |
+| With RULE_A + RULE_B referencing G0 (G0 has 2 selectors), delete one selector | Intermediate selector deletable | First selector removed; G0 still programmed |
+| After full ACL teardown, delete the last G0 selector | Last selector deletable | Last selector removed cleanly when refcount = 0 |
+
+#### 10.2.10 Immutability and idempotency
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Re-write `UDF_SELECTOR\|G0\|udp_l4` with identical values | Identical SET — no-op | No ASIC_DB churn; OIDs unchanged |
+| Delete `UDF\|G0` while selectors reference it | Delete-while-referenced — recoverable | UDF_GROUP retained; correct delete sequence after succeeds |
+| Replay identical SET twice on a committed selector | Idempotent SET — no refcount leak | Single delete frees UDF_MATCH cleanly |
+
+#### 10.2.11 Validation edge cases
+
+| Step | Goal | Expected results |
+|-|-|-|
+| ACL_RULE references `G_T` which is in udforch but NOT in TABLE's MATCHES | UDF outside MATCHES — accepted | ACL_ENTRY OID created |
+| Delete non-existent `UDF_SELECTOR\|NONEXISTENT\|phantom` | Double-delete — no-op | No ASIC_DB change |
+| Delete non-existent `UDF\|NONEXISTENT_GROUP` | Double-delete (group) — no-op | No ASIC_DB change |
+| Delete `ACL_TABLE_TYPE\|T1` while `ACL_TABLE\|TABLE1` references it | TABLE_TYPE delete blocked by TABLE | TABLE_TYPE retained; error logged |
 
 ### 10.3 Negative Tests
-- Invalid type/priority/base/offset/length
-- Missing mandatory fields
-- Dependency violations
+
+#### 10.3.1 Invalid CONFIG_DB
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Push `UDF\|G_ZERO` with `length=0` | YANG length constraint | Write rejected; no UDF_GROUP OID |
+| Push `ACL_RULE` with match value `not_a_hex/0xff` | Malformed hex | No ACL_ENTRY OID; orchagent logs error |
+| Push `ACL_RULE` referencing non-existent group `G9` | Unresolvable UDF reference | No ACL_ENTRY OID |
+| Push `UDF_SELECTOR` with `select_offset=200` | Large in-range offset — no crash | Existing UDF_GROUP / UDF_MATCH / UDF OIDs retained |
+
+#### 10.3.2 Selector field validation
+
+| Step | Goal | Expected results |
+|-|-|-|
+| Push `UDF_SELECTOR` missing `select_base` | Mandatory field check | Rejected; no UDF_MATCH OID |
+| Push `UDF_SELECTOR` with unknown `select_base` value | Enum constraint | Rejected |
+| Push `UDF_SELECTOR` with only `match_priority` and no L2 / L3 / GRE / L4_DST_PORT | At-least-one-match check | Rejected |
 
 ## 11. Open/Action Items
 
