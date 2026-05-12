@@ -298,7 +298,10 @@ Mirror Orchestration agent is modified to support this feature:
 
 MirrorOrch is extended to manage the lifecycle of SamplePacket SAI objects alongside the existing mirror session objects. When `sample_rate` is configured, MirrorOrch creates a SamplePacket and binds it to the port using `INGRESS_SAMPLEPACKET_ENABLE` + `INGRESS_SAMPLE_MIRROR_SESSION`, instead of the existing `INGRESS_MIRROR_SESSION` used for full-packet mirroring. See Section 3.1.1 for the architecture overview and Section 4 for the detailed workflow.
 
-MirrorOrch also supports updating an existing mirror session. When a SET operation is received for a session that already exists, MirrorOrch performs a delete-and-recreate: it deactivates the existing session, removes the SAI objects, and creates a new session with the updated parameters. This is necessary because many mirror session SAI attributes are CREATE_ONLY and cannot be modified in-place.
+MirrorOrch also supports updating an existing ERSPAN mirror session. When a SET operation is received for a session that already exists, MirrorOrch distinguishes between mutable and immutable fields:
+
+- **Mutable fields** (`sample_rate`, `truncate_size`): Updated in-place by calling `sai_samplepacket_api->set_samplepacket_attribute()` on the existing SamplePacket object, without tearing down the mirror session. This avoids traffic disruption during sampling rate adjustments.
+- **Immutable fields** (`src_ip`, `dst_ip`, `gre_type`, `dscp`, `ttl`, `queue`, `src_port`, `direction`, `policer`): Require a full delete-and-recreate — MirrorOrch deactivates the existing session, removes the SAI objects, and creates a new session with the updated parameters. This is necessary because these mirror session SAI attributes are CREATE_ONLY and cannot be modified in-place.
 
 ## 3.4 Mirror Capability Discovery
 
@@ -674,7 +677,7 @@ Extend the existing config mirror_session erspan add command with two new option
         [--sample_rate <value>] [--truncate_size <value>]
 ```
 
-If a session with the same name already exists, the `add` command updates the session by replacing it with the new parameters (delete + recreate internally).
+If a session with the same name already exists, the `add` command updates the session. Mutable fields (`sample_rate`, `truncate_size`) are updated in-place without disrupting the mirror session. Changes to immutable fields (e.g., `src_ip`, `dst_ip`, `dscp`) trigger a delete and recreate internally.
 
 ### 3.6.3 Show Commands
 
@@ -783,10 +786,17 @@ sequenceDiagram
          mirror_orch ->> syncd: set_port_attr(INGRESS_MIRROR_SESSION)
      end
      syncd ->> asic: Program mirror session + samplepacket
-     Note over config_db,asic: === Update Mirror Session (delete + recreate) ===
+     Note over config_db,asic: === Update Mirror Session (mutable fields: in-place) ===
      config_db ->> mirror_orch: SET MIRROR_SESSION|session1<br/>{sample_rate: 10000, ...}
-     mirror_orch ->> mirror_orch: Session exists, deleteEntry then createEntry
-     Note over mirror_orch,asic: (Executes Delete flow followed by Create flow)
+     mirror_orch ->> mirror_orch: Session exists, route to updateEntry
+     alt Only mutable fields changed (sample_rate, truncate_size)
+         mirror_orch ->> syncd: set_samplepacket_attribute(SAMPLE_RATE)
+         mirror_orch ->> syncd: set_samplepacket_attribute(TRUNCATE_SIZE)
+         mirror_orch ->> state_db: Update MIRROR_SESSION_TABLE
+     else Immutable fields changed (src_ip, dst_ip, dscp, ttl, etc.)
+         mirror_orch ->> mirror_orch: deleteEntry then createEntry
+         Note over mirror_orch,asic: (Executes Delete flow followed by Create flow)
+     end
      Note over config_db,asic: === Delete Mirror Session ===
      config_db ->> mirror_orch: DEL MIRROR_SESSION|session1
      alt Sampled path (samplepacketId != NULL)
@@ -854,7 +864,11 @@ The error handling follows a two-stage validation process:
 - **Logging**: Comprehensive logging for troubleshooting and monitoring
 - **Graceful Rejection**: System rejects unsupported configurations with clear error messages
 
-### 5.2.4 Backward Compatibility
+### 5.2.4 SamplePacket Conflict Detection
+
+Sampled port mirroring and sFlow both use `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE`, which accepts only one SamplePacket OID per port. MirrorOrch checks the current binding before setting it — if the port is already bound by another feature, the mirror session activation is rejected and the session remains inactive.
+
+### 5.2.5 Backward Compatibility
 
 - **Legacy Support**: Existing configurations continue to work
 - **Graceful Migration**: New capability checks don't break existing functionality
