@@ -32,6 +32,7 @@
 | Rev | Date       | Author                                         | Description      |
 |-----|------------|------------------------------------------------|------------------|
 | 0.1 | 2026-04-10 | Venkit Kasiviswanathan                         | Initial version  |
+| 0.2 | 2026-05-12 | Venkit Kasiviswanathan                         | Replace the "stash `backup_idx[]` on the first primary" convention with an explicit, self-describing wire flag: `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` on the ZAPI side, mirrored by a parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` and a `dplane_route_info::backup_all_primaries_down` boolean (with accessor) on the zebra/dplane side. Updates §7.2, §8.1 JSON examples, §12, §13, §14 accordingly. |
 
 ---
 
@@ -102,8 +103,8 @@ This document covers **PIC Local** only.
 **PIC Local** (also called Fast Reroute) protects against failure of a locally connected interface. BGP pre-computes a backup path alongside the primary and installs both in the FIB. When the local link fails, the data plane switches to the backup immediately — without waiting for BGP to reconverge. BGP reconverges in the background and eventually replaces the backup-as-primary with a newly selected best path.
 
 The implementation extends the FRR stack:
-1. **bgpd** computes a backup path (or ECMP set) after bestpath selection and sends it to Zebra via ZAPI.
-2. **Zebra** encodes backup nexthops in FPM netlink messages to fpmsyncd as a SONiC-private attribute (`FPM_RTA_BACKUP_NH = 200`).
+1. **bgpd** computes a backup path (or ECMP set) after bestpath selection and sends it to Zebra via ZAPI. The wire format is self-describing: a new ZAPI message bit `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` names the PIC-Local semantic (engage backups only when *all* primaries are down) — primary nexthops on the wire carry **no** `HAS_BACKUP` flag or `backup_idx[]`.
+2. **Zebra** mirrors the wire bit onto a parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` (so the flag participates in NHE hash key/equality) and onto a `backup_all_primaries_down` boolean inside the dplane context (with accessor `dplane_ctx_get_backup_all_primaries_down()`). zebra also encodes backup nexthops in FPM netlink messages to fpmsyncd as a SONiC-private attribute (`FPM_RTA_BACKUP_NH = 200`).
 3. **fpmsyncd** stores primary and backup nexthops together in APP_DB, using `primary_nh_count` to distinguish them.
 4. **Orchagent** currently programs only primary nexthops; backup nexthop hardware programming is TBD.
 
@@ -193,7 +194,11 @@ Configuration flow:
 |-----------------------|-------------------------|--------|
 | `bgpd/bgp_route.c`    | sonic-frr (FRR patch)   | Backup path computation, ZAPI encoding |
 | `bgpd/bgpd.h`         | sonic-frr (FRR patch)   | New AF flags for backup path config |
-| `bgpd/bgp_zebra.c`    | sonic-frr (FRR patch)   | ZAPI message with backup nexthops |
+| `bgpd/bgp_zebra.c`    | sonic-frr (FRR patch)   | ZAPI message with route-level backup nexthops (sets `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN`; primaries unannotated) |
+| `lib/zclient.h`, `lib/zclient.c` | sonic-frr (FRR patch) | New ZAPI message bit `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` (0x0800) for self-describing route-level backup semantic |
+| `zebra/zebra_nhg.h`, `zebra/zebra_nhg.c` | sonic-frr (FRR patch) | New parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN`; participates in hash key/equality; propagated by `zebra_nhe_copy()`. Recursive-resolution guard so route-level pools are not overwritten by per-NH resolver backups. |
+| `zebra/zebra_dplane.c`, `zebra/zebra_dplane.h` | sonic-frr (FRR patch) | New `dplane_route_info::backup_all_primaries_down` field + `dplane_ctx_get_backup_all_primaries_down()` accessor |
+| `zebra/zapi_msg.c`    | sonic-frr (FRR patch)   | Decode `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN`; set the NHE flag pre-`zebra_nhe_copy()` so hash lookup is correct |
 | `dplane_fpm_sonic/dplane_fpm_sonic.c` | sonic-frr (SONiC FPM plugin) | `FPM_RTA_BACKUP_NH` (=200) top-level attribute appender |
 | `fpmsyncd/routesync.cpp` | sonic-swss          | Parse backup nexthops, write primary_nh_count |
 | `fpmsyncd/routesync.h`   | sonic-swss          | primary_nh_count in RouteTableFieldValueTupleWrapper |
@@ -332,7 +337,7 @@ ZAPI is the internal IPC protocol between FRR daemons (bgpd, ospfd, etc.) and Ze
 
 #### 7.2.1 ZAPI Route Message Structure
 
-For a route with backup nexthops, the `zapi_route` structure is populated as follows:
+For a PIC-Local route with backup nexthops, the `zapi_route` structure is populated as follows:
 
 ```
 struct zapi_route {
@@ -340,44 +345,124 @@ struct zapi_route {
     prefix   prefix;                  // Destination prefix (e.g. 10.1.0.0/24)
     uint32_t message;                 // Flags set include:
                                       //   ZAPI_MESSAGE_NEXTHOP
-                                      //   ZAPI_MESSAGE_BACKUP_NEXTHOPS  (NEW)
+                                      //   ZAPI_MESSAGE_BACKUP_NEXTHOPS              (NEW)
+                                      //   ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN    (NEW)
     uint16_t nexthop_num;             // Number of primary nexthops (e.g. 3)
-    zapi_nexthop nexthops[...];       // Primary nexthops
+    zapi_nexthop nexthops[...];       // Primary nexthops, NO HAS_BACKUP, NO backup_idx[]
 
     uint16_t backup_nexthop_num;      // Number of backup nexthops (e.g. 2)
-    zapi_nexthop backup_nexthops[...];// Backup nexthops (NEW)
+    zapi_nexthop backup_nexthops[...];// Route-level backup pool (NEW)
 };
 ```
 
-The `ZAPI_MESSAGE_BACKUP_NEXTHOPS` flag in `api.message` signals to Zebra that backup nexthops are present.
+Two ZAPI message bits cooperate:
 
-#### 7.2.2 Linking Primary to Backup Nexthops
+```c
+/* lib/zclient.h */
+#define ZAPI_MESSAGE_BACKUP_NEXTHOPS            0x40
+#define ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN  0x0800   /* NEW */
+```
 
-The scheme in zapi can support each primary nexthop to reference its backup nexthops by index. But our desired semantics is to use backup paths only after all the primary paths have gone down. So we have chosen to associate the backup indexes with the first/best primary path.
+- `ZAPI_MESSAGE_BACKUP_NEXTHOPS` says "a backup section follows."
+- `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` says "the section is a *route-scope* pool engaged only when **all** primaries are down" — the PIC-Local semantic.
+
+#### 7.2.2 Backup Semantics: Route-Level vs Per-Nexthop Backup
+
+This is the central design choice. The semantic differs from FRR's pre-existing per-nexthop backup model (used by IP-FRR / TI-LFA) and the difference shows up at every layer below — ZAPI, the parent NHE in zebra, and the dplane context handed to FPM providers.
+
+**What FRR's existing nexthop/ZAPI model already supports.** The `zapi_nexthop` structure carries a per-primary-nexthop backup association:
+
+```c
+struct zapi_nexthop {
+    ...
+    uint8_t backup_num;
+    uint8_t backup_idx[NEXTHOP_MAX_BACKUPS];   /* indices into
+                                                * api->backup_nexthops[]
+                                                */
+};
+```
+
+Each primary nexthop can independently declare which backup nexthops protect it via the `ZAPI_NEXTHOP_FLAG_HAS_BACKUP` flag plus `backup_idx[]`. Two primaries can therefore reference different (possibly disjoint) backup sets — the natural shape for **per-nexthop protection** (TI-LFA / IGP fast reroute), where every primary has its own per-link or per-node alternate.
+
+**What PIC Local wants ("all-primaries-down").** PIC Local does **not** want per-nexthop protection. The intent is:
+
+> While **any** primary nexthop is up, traffic uses the primary set (potentially across all of them via ECMP). The backup nexthops are engaged in the data plane **only when every primary nexthop is down.**
+
+There is one logical backup pool for the whole route, not one per primary. Concretely:
+
+- If primaries are `{P0, P1, P2}` (ECMP) and one or two of them go down, the surviving primaries continue to forward — backups are not used.
+- Only when `{P0, P1, P2}` are *all* down does the data plane fall over to the backup set `{B0, B1, ...}`.
+- The backup set itself may be ECMP'd internally (`install backup-path ecmp`), but it acts as a single tier behind the primaries.
+
+This matches the operator-facing examples PIC Local is designed for — "primary border / backup border", "primary leaf / backup leaf via a different rack" — where the failure event protected against is *loss of the whole primary path*, not loss of one ECMP member.
+
+**How we express this on the wire.** Earlier versions of this design encoded the policy by overloading the first primary nexthop with `ZAPI_NEXTHOP_FLAG_HAS_BACKUP` plus `backup_idx[0..M-1]` (i.e. "anchor the backups to `nexthops[0]`"). That was a positional convention with no protocol-level signal — a reader had to know to look at `nexthops[0]` and to ignore the lack of annotations on the other primaries.
+
+The design now uses an explicit, self-describing message bit:
 
 ```
-Primary nexthop (api.nexthops[0]):
-  type      = NEXTHOP_TYPE_IPV4_IFINDEX
-  gate.ipv4 = <primary NH IP>
-  ifindex   = <primary interface>
-  flags     = ZAPI_NEXTHOP_FLAG_HAS_BACKUP   (NEW)
-  backup_num = 2                              (NEW)
-  backup_idx = [0, 1]                         (NEW - indices into backup_nexthops[])
-
-Backup nexthop 0 (api.backup_nexthops[0]):
-  type      = NEXTHOP_TYPE_IPV4_IFINDEX
-  gate.ipv4 = <backup NH 1 IP>
-  ifindex   = <backup NH 1 interface>
-
-Backup nexthop 1 (api.backup_nexthops[1]):
-  type      = NEXTHOP_TYPE_IPV4_IFINDEX
-  gate.ipv4 = <backup NH 2 IP>
-  ifindex   = <backup NH 2 interface>
+api.message       |= ZAPI_MESSAGE_BACKUP_NEXTHOPS
+api.message       |= ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN
+api.nexthops[..]:
+    no HAS_BACKUP flag, no backup_idx[]      /* primaries untouched */
+api.backup_nexthops[0..M-1]:
+    M backup nexthops belonging to the route as a whole
 ```
+
+The two semantics co-exist in the protocol but are **orthogonal**:
+
+- A producer that wants per-NH protection (TI-LFA, IP-FRR) sets `HAS_BACKUP` + `backup_idx[]` on individual primaries. The new message bit is **not** set.
+- A producer that wants route-level protection (PIC Local) sets the new message bit. The primaries stay clean.
+
+The cost is a single new bit; the benefit is a self-describing wire format that does not depend on convention.
+
+**How the route-level semantic is stored in zebra.** A new flag tracks the same semantic on the parent `nhg_hash_entry`:
+
+```c
+/* zebra/zebra_nhg.h */
+#define NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN (1 << 11)
+```
+
+Set on the **parent** NHE (the one whose `backup_info` is non-NULL) at ZAPI decode time when the wire bit was present. The inner pool NHE keeps `NEXTHOP_GROUP_BACKUP` as before — its meaning ("this NHE is a backup pool") is unchanged.
+
+The flag participates in the NHE hash key and equality so two otherwise-identical NHEs that differ only in semantics produce distinct hash entries:
+
+```c
+/* zebra_nhg_hash_key() */
+if (CHECK_FLAG(nhe->flags, NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN))
+    key = jhash_1word(NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN, key);
+
+/* zebra_nhg_hash_equal() */
+if (CHECK_FLAG(nhe1->flags, NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN) !=
+    CHECK_FLAG(nhe2->flags, NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN))
+    return false;
+```
+
+`zebra_nhe_copy()` propagates the flag across copies so the hash lookup, the insert, and the later dplane-ctx population are all consistent.
+
+**How dplane providers discover the semantic.** `dplane_route_info` gains a boolean that mirrors the parent NHE flag:
+
+```c
+/* zebra/zebra_dplane.c */
+struct dplane_route_info {
+    ...
+    struct nexthop_group  backup_ng;
+    bool                  backup_all_primaries_down;
+    ...
+};
+
+/* zebra/zebra_dplane.h */
+bool dplane_ctx_get_backup_all_primaries_down(
+    const struct zebra_dplane_ctx *ctx);
+```
+
+`dplane_ctx_route_init()` sets the boolean from `re->nhe->flags` at the same site it `copy_nexthops()`-es the backup chain. An external FPM consumer (or the Lua dplane hook) decides between per-NH and route-level encoding by calling the accessor — no convention to remember, no `nexthops[0]`-special-cased reading. The SONiC `dplane_fpm_sonic` plugin only needs the backup chain itself for the `FPM_RTA_BACKUP_NH` emission (see §7.3); the accessor is exposed for any future consumer that wants to differentiate.
+
+**Implication for ECMP backups.** When `install backup-path ecmp` is configured, `api.backup_nexthops[]` may contain multiple entries `{B0, B1, ...}`. Once all primaries are down the data plane is free to load-balance across the entire backup pool. The per-AF `maximum-paths` setting bounds the cardinality of the pool.
 
 #### 7.2.3 ZAPI Message Construction (bgpd/bgp_zebra.c)
 
-The function `bgp_zebra_announce()` is extended to populate backup nexthops:
+The function `bgp_zebra_announce()` is extended to populate backup nexthops. Per §7.2.2, primaries carry no backup annotation — the route-level semantic is conveyed entirely by message bits:
 
 ```c
 /* Process backup paths - iterate through non-selected paths */
@@ -394,29 +479,29 @@ if (CHECK_FLAG(bgp->af_flags[afi][safi], BGP_CONFIG_BACKUP_PATH) &&
         if (!CHECK_FLAG(backup_path->flags, BGP_PATH_BACKUP))
             continue;
 
-        /* Populate backup_api_nh from backup_path's nexthop */
         struct zapi_nexthop *backup_api_nh =
             &api->backup_nexthops[backup_nh_count];
-        /* ... fill in type, gate, ifindex, flags ... */
+        zapi_nexthop_init(backup_api_nh);          /* see note below */
+        /* ... fill in type, gate, ifindex, weight, labels, etc ... */
         backup_nh_count++;
     }
 
     if (backup_nh_count > 0) {
-        /* Set HAS_BACKUP flag and backup_idx on first primary NH */
-        api_nh = &api->nexthops[0];
-        SET_FLAG(api_nh->flags, ZAPI_NEXTHOP_FLAG_HAS_BACKUP);
-        api_nh->backup_num = backup_nh_count;
-        for (i = 0; i < backup_nh_count; i++)
-            api_nh->backup_idx[i] = i;
+        /* Route-level "all-primaries-down" pool. Primaries are NOT
+         * annotated; the semantic is carried by the message bit only.
+         */
         api->backup_nexthop_num = backup_nh_count;
         SET_FLAG(api->message, ZAPI_MESSAGE_BACKUP_NEXTHOPS);
+        SET_FLAG(api->message, ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN);
     }
 }
 ```
 
+**Implementation note.** `zapi_route_init()` deliberately omits the large `nexthops[]` and `backup_nexthops[]` arrays from its memset to keep route construction cheap. The primary loop already calls `zapi_nexthop_init()` per slot to zero just-enough state; the backup loop must do the same. Skipping this step leaves stack residue in `flags` / `seg_num` and corrupts the encoded ZAPI stream — zebra rejects it with `stream_get2: Attempt to get out of bounds`.
+
 #### 7.2.4 Zebra Processing of ZAPI Backup Nexthops
 
-In `zebra/zapi_msg.c`, `zapi_route_decode()` reads backup nexthops when `ZAPI_MESSAGE_BACKUP_NEXTHOPS` is set:
+In `zebra/zapi_msg.c`, `zapi_route_decode()` reads the backup section when `ZAPI_MESSAGE_BACKUP_NEXTHOPS` is set:
 
 ```c
 if (CHECK_FLAG(api.message, ZAPI_MESSAGE_BACKUP_NEXTHOPS)) {
@@ -425,7 +510,26 @@ if (CHECK_FLAG(api.message, ZAPI_MESSAGE_BACKUP_NEXTHOPS)) {
 }
 ```
 
-Then `zapi_read_nexthops()` converts them into kernel `nexthop` objects and stores them in `nhg_backup_info` — Zebra's internal structure for backup nexthop groups. The route entry (`re`) gets its `fib_backup_ng` populated.
+`zapi_read_nexthops()` then converts each entry into a kernel-style `nexthop` and stores it in `nhg_backup_info` inside the route entry's NHE.
+
+When `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` is **also** set, `zread_route_add()` sets `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` on the temporary NHE *before* `zebra_nhe_copy()` so the flag participates in the hash lookup/insert (see §7.2.2). `zebra_nhe_copy()` propagates the flag across copies; `dplane_ctx_route_init()` mirrors it onto the dplane ctx as `backup_all_primaries_down`. Consumers reach the backup chain via `dplane_ctx_get_backup_ng()` and the policy via `dplane_ctx_get_backup_all_primaries_down()`.
+
+#### 7.2.5 Recursive Resolution
+
+Zebra's recursive resolver (`nexthop_active()` → `resolve_backup_nexthops()` in `zebra/zebra_nhg.c`) merges the *resolver's* per-NH backup info into the resolved nexthop's NHE when the resolver carries `NEXTHOP_FLAG_HAS_BACKUP` (TI-LFA / IP-FRR style). This pre-existing mechanism is **not** extended to route-level pools:
+
+- A resolver flagged `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` does not cascade its pool down to a route that resolves through it. Each PIC-Local route uses the pool its own producer (bgpd) computed.
+- The recursive-merge call site is guarded so it does not overwrite a resolved NHE that already has the route-level flag set:
+
+  ```c
+  if (resolver && newhop->backup_num > 0 &&
+      !CHECK_FLAG(nhe->flags, NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN))
+      resolve_backup_nexthops(newhop, match->nhe, resolver, nhe, &map);
+  ```
+
+  Without this guard, a per-NH-protected resolver would append per-NH backups to a parent NHE flagged route-level, producing a pool whose entries had mixed engagement semantics. The guard makes the resolved route's own pool authoritative.
+
+This is intentional for the PIC-Local case in this design — bgpd computes the pool per route — but see §14 for the limitation when one PIC-Local route resolves through another.
 
 ---
 
@@ -832,7 +936,7 @@ For automation and monitoring, the JSON output includes a `"backup": true` field
 
 #### show ip route \<prefix\> json
 
-The JSON routing table output includes a `"backupNexthops"` field alongside the primary `"nexthops"`:
+The JSON routing table output includes a `"backupNexthops"` field alongside the primary `"nexthops"`. PIC-Local routes additionally carry a `"backupAllPrimariesDown": true` field so a JSON consumer can tell the route-level and per-NH semantics apart:
 
 ```json
 {
@@ -849,11 +953,14 @@ The JSON routing table output includes a `"backupNexthops"` field alongside the 
       ],
       "backupNexthops": [
         { "ip": "10.0.2.106", "interfaceName": "r1-eth1", "weight": 1, "active": true }
-      ]
+      ],
+      "backupAllPrimariesDown": true
     }
   ]
 }
 ```
+
+`backupAllPrimariesDown` is emitted only when `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` is set on the parent NHE — that is, only for route-level pools. Per-NH protected routes (`HAS_BACKUP` on individual primaries) render `backupNexthops` without the new field.
 
 ### 8.2 YANG Model
 
@@ -1018,17 +1125,21 @@ bgp_process_main_one()
    ▼
 bgp_zebra_announce()
    │  Build zapi_route:
-   │    api.nexthops[]          = primary nexthops
-   │    api.backup_nexthops[]   = backup nexthops   ← NEW
-   │    api.message |= ZAPI_MESSAGE_BACKUP_NEXTHOPS  ← NEW
+   │    api.nexthops[]          = primary nexthops (no HAS_BACKUP, no backup_idx[])
+   │    api.backup_nexthops[]   = route-scope backup pool          ← NEW
+   │    api.message |= ZAPI_MESSAGE_BACKUP_NEXTHOPS                ← NEW
+   │    api.message |= ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN      ← NEW
    │
    ▼ (ZAPI over Unix socket)
 zebra / zapi_msg.c
    │  zapi_route_decode() → parse backup nexthops
+   │  zread_route_add() → set NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN
+   │                     on tmp NHE before zebra_nhe_copy()        ← NEW
    │  rib_add_multipath_nhe() → store in route entry with backup_info
    ▼
 Zebra dataplane (zebra_dplane.c)
-   │  ctx->backup_ng = backup nexthop group
+   │  ctx->backup_ng                  = backup nexthop group
+   │  ctx->backup_all_primaries_down  = mirrored from parent NHE   ← NEW
    ▼
 dplane_fpm_sonic / dplane_fpm_sonic.c (SONiC FPM plugin)
    │  fpm_nl_enqueue() → netlink_route_multipath_msg_encode() (primaries)
@@ -1131,12 +1242,13 @@ PIC Local does not affect the critical fastboot path. BGP backup path computatio
 ## 12. Restrictions / Limitations
 
 1. **Supported AFIs**: IPv4 unicast and IPv6 unicast only. Not supported for L2VPN EVPN, IPv4 multicast, or IPv6 multicast.
-2. **Single primary nexthop assumption**: The current implementation links backup nexthops only to the first primary nexthop (`api.nexthops[0]`). When primary ECMP is used, all backup nexthops are referenced from nexthop[0] only.
-3. **Backup ECMP bound**: Backup ECMP paths are bounded by the address-family `maximum-paths` configuration.
-4. **`FPM_RTA_BACKUP_NH = 200` is a SONiC-private wire-format attribute**: it lives in a number space well above the kernel's `RTA_MAX` (which is currently around 30) so it can't collide with future kernel additions, and it is only meaningful between zebra's `dplane_fpm_sonic` plugin and fpmsyncd. The same number MUST be kept in sync on both ends — the encoder (`sonic-frr/dplane_fpm_sonic/dplane_fpm_sonic.c`) and decoder (`sonic-swss/fpmsyncd/fpm/fpm_backup_nh.h`) hold mirror copies of the `#define`. The attribute is never passed to the Linux kernel route netlink socket.
-5. **VRF support**: `BGP_DEVICE_GLOBAL_AF` targets the default VRF only. Per-VRF configuration uses `BGP_GLOBALS_AF`.
+2. **Backup ECMP bound**: Backup ECMP paths are bounded by the address-family `maximum-paths` configuration. The bound is independent of the primary `maximum-paths`.
+3. **`FPM_RTA_BACKUP_NH = 200` is a SONiC-private wire-format attribute**: it lives in a number space well above the kernel's `RTA_MAX` (which is currently around 30) so it can't collide with future kernel additions, and it is only meaningful between zebra's `dplane_fpm_sonic` plugin and fpmsyncd. The same number MUST be kept in sync on both ends — the encoder (`sonic-frr/dplane_fpm_sonic/dplane_fpm_sonic.c`) and decoder (`sonic-swss/fpmsyncd/fpm/fpm_backup_nh.h`) hold mirror copies of the `#define`. The attribute is never passed to the Linux kernel route netlink socket.
+4. **VRF support**: `BGP_DEVICE_GLOBAL_AF` targets the default VRF only. Per-VRF configuration uses `BGP_GLOBALS_AF`.
+5. **Backup paths are FPM-only**: zebra populates the dplane context with the backup pool plus the `backup_all_primaries_down` flag, but the in-tree netlink and FPM-netlink providers do not encode backups for the kernel. Backup engagement is the FPM consumer's job (hardware agent, fpmsyncd extension, etc.).
 6. **Orchagent backup programming**: Currently orchagent only programs primary nexthops. Hardware-based failover (without orchagent intervention) requires future SAI work — TBD.
-7. **Soft failures**: This feature protects against local link failures detected at the hardware level. BGP/BFD session failures (soft failures) do not benefit from data-plane fast failover with the current implementation.
+7. **Route-level backup does not propagate through recursive resolution**: If route A is PIC-Local with backup pool `{B0, B1, ...}` and route X resolves recursively through A, X does **not** inherit A's pool. Each route's backup is whatever its own producer (bgpd) computed. The recursive resolver only ever inherits per-NH (TI-LFA-style) backup info, never route-level pools. This is acceptable for the in-tree use case — bgpd computes a pool per route and PIC-Local resolvers are typically static / IGP routes without backups — but it leaves a semantic gap if a future deployment stacks two PIC-Local routes (see §14).
+8. **Soft failures**: This feature protects against local link failures detected at the hardware level. BGP/BFD session failures (soft failures) do not benefit from data-plane fast failover with the current implementation.
 
 ---
 
@@ -1144,7 +1256,13 @@ PIC Local does not affect the critical fastboot path. BGP backup path computatio
 
 ### 13.1 Unit Test Cases (bgpd)
 
-The topotest `bgp_pic_backup_path/test_bgp_pic_backup_path.py` (added in patch `0215-bgpd-Support-Compute-PIC-backup-path.patch`) covers:
+Topotest coverage in `tests/topotests/`:
+
+- `bgp_backup/` — 4-router topology covering single-backup selection, BGP table and routing-table rendering (text + JSON), and dynamic backup re-selection on interface state change under `install backup-path`.
+- `bgp_backup_ecmp/` — 7-router topology covering ECMP backup paths under `install backup-path ecmp`, the ECMP→non-ECMP transition, and feature disablement via `no install backup-path` (flush behaviour).
+- `bgp_backup_recursive/` — 5-router pure-iBGP topology where R1 has loopback-to-loopback sessions to two PE routers (R4 primary, R5 backup) reachable only through separate transit hops. Both BGP next-hops require recursive resolution through static underlay routes, exercising the path zebra takes to merge backup info from a resolver into a recursively-resolved nexthop (and the guard that prevents that merge from clobbering a route-level pool).
+
+Cases exercised:
 
 | # | Test | Description |
 |---|------|-------------|
@@ -1155,8 +1273,9 @@ The topotest `bgp_pic_backup_path/test_bgp_pic_backup_path.py` (added in patch `
 | 5 | Backup not advertised to peers | Verify backup paths are not included in UPDATE messages to BGP peers |
 | 6 | JSON output | Verify `show ip bgp json` includes `"backup": true` for backup paths |
 | 7 | Text output | Verify `show ip bgp` shows `, backup` in path summary |
-| 8 | Route table | Verify `show ip route json` includes `backupNexthops` for backup nexthops |
+| 8 | Route table | Verify `show ip route json` includes `backupNexthops` and `backupAllPrimariesDown: true` for PIC-Local routes |
 | 9 | Config write | Verify `show running-config` includes `install backup-path [ecmp]` in AF block |
+| 10 | Recursive resolution | With both primary and backup BGP next-hops recursively resolved through static underlay routes, verify the resolved NHE carries the route-level pool unchanged (no per-NH merge clobber) |
 
 ### 13.2 Integration Tests (fpmsyncd)
 
@@ -1183,5 +1302,6 @@ The topotest `bgp_pic_backup_path/test_bgp_pic_backup_path.py` (added in patch `
 |---|------|-------|--------|
 | 1 | **Orchagent backup programming**: Design and implement SAI-level programming of backup nexthop groups; enable hardware-based failover on link down | TBD | Open |
 | 2 | **SAI API requirements**: Determine SAI API support needed for primary/backup nexthop group programming and hardware failover notification | TBD | Open |
-| 3 | **Multi-primary to backup linking**: Current design links backups only to `nexthops[0]`; evaluate whether each primary ECMP NH should independently reference backup NHs | TBD | Open |
-| 4 | **Warmboot validation**: Validate that backup nexthops are correctly reconciled after warm restart without creating ASIC inconsistencies | TBD | Open |
+| 3 | **Zebra nexthop-group support**: Backup nexthops are currently expressed as a separate group on each route entry rather than as kernel-style NHGs; integration with zebra's NHG model is left for follow-up. | TBD | Open |
+| 4 | **Route-level backup through recursive resolution**: Route-level pools (`NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN`) do **not** propagate through `resolve_backup_nexthops()` — only per-NH (TI-LFA-style) backup info does. Acceptable for the in-tree use case (bgpd computes a pool per route, PIC-Local resolvers are typically static / IGP without backups), but leaves a semantic gap if a future deployment stacks two PIC-Local routes (e.g. a more-specific BGP route resolving through a less-specific PIC-Local route) and expects "all primaries down" to cascade. Closing this would require extending `resolve_backup_nexthops()` (or adding a parallel route-level path) to copy a resolver's pool plus the flag into a resolved NHE that has no pool of its own, with conflict resolution against any existing per-route pool. | TBD | Open |
+| 5 | **Warmboot validation**: Validate that backup nexthops are correctly reconciled after warm restart without creating ASIC inconsistencies | TBD | Open |
