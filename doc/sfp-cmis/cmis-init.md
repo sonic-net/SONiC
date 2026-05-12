@@ -276,11 +276,11 @@ to support multiple CMIS transceivers in one single thread.
 
   | Start state (timer armed) | End state (timer checked) | Desired condition | Timeout value | On timeout |
   |:---|:---|:---|:---|:---|
-  | `CMIS_STATE_DP_DEINIT` | `CMIS_STATE_AP_CONF` | `ModuleReady` | `max(modulePwrUpDuration, dpDeinitDuration)` | `force_cmis_reinit(retries+1)` |
-  | `CMIS_STATE_DP_DEINIT` | `CMIS_STATE_AP_CONF` | `DataPathDeactivated` | `max(modulePwrUpDuration, dpDeinitDuration)` (same timer, reused) | `force_cmis_reinit(retries+1)` |
-  | `CMIS_STATE_DP_DEINIT` | `CMIS_STATE_DP_INIT` | `ConfigSuccess` | `max(modulePwrUpDuration, dpDeinitDuration)` (inherited; AP_CONF does not re-arm before transitioning to DP_INIT) | `force_cmis_reinit(retries+1)` |
-  | `CMIS_STATE_DP_INIT` | `CMIS_STATE_DP_TXON` | `DataPathInitialized` | `dpInitDuration` | `force_cmis_reinit(retries+1)` |
-  | `CMIS_STATE_DP_TXON` | `CMIS_STATE_DP_ACTIVATE` | `DataPathActivated` | `max(dpInitDuration, dpTxTurnOnDuration)` | `force_cmis_reinit(retries+1)` |
+  | `DP_DEINIT` | `AP_CONF` | `ModuleReady` | `max(modulePwrUpDuration, dpDeinitDuration)` | `force_cmis_reinit(retries + 1)` |
+  | `DP_DEINIT` | `AP_CONF` | `DataPathDeactivated` | `max(modulePwrUpDuration, dpDeinitDuration)` (same timer, reused) | `force_cmis_reinit(retries + 1)` |
+  | `DP_DEINIT` | `DP_INIT` | `ConfigSuccess` | `max(modulePwrUpDuration, dpDeinitDuration)` (inherited; `AP_CONF` does not re-arm before transitioning to `DP_INIT`) | `force_cmis_reinit(retries + 1)` |
+  | `DP_INIT` | `DP_TXON` | `DataPathInitialized` | `dpInitDuration` | `force_cmis_reinit(retries + 1)` |
+  | `DP_TXON` | `DP_ACTIVATE` | `DataPathActivated` | `max(dpInitDuration, dpTxTurnOnDuration)` | `force_cmis_reinit(retries + 1)` |
 
   Notes:
   - "Start state" = the state whose handler arms the timer (right before transitioning out).
