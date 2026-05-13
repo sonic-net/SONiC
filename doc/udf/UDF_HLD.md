@@ -821,6 +821,75 @@ Covers UDF_MATCH dedup across groups, UDF_GROUP refcount across ACL layers, and 
 }
 ```
 
+**Configuration → SAI → FP walkthrough**
+
+The diagram below traces the configuration above through three layers: CONFIG_DB schema, SAI objects programmed by UdfOrch + AclOrch, and the forwarding pipeline (FP). FP behavior varies by vendor SDK; the diagram describes it abstractly.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ Layer 1: CONFIG_DB                                                 │
+│   UDF             BTH_RESERVED  (GENERIC, length=1)                │
+│   UDF_SELECTOR    BTH_RESERVED|roce_v1                             │
+│                     match_l2_type=0x8915                           │
+│                     select_base=L2  select_offset=22               │
+│   UDF_SELECTOR    BTH_RESERVED|roce_v2                             │
+│                     match_l3_type=0x11                             │
+│                     select_base=L4  select_offset=16               │
+│   ACL_TABLE_TYPE  ROCE_ACL_TYPE   matches=IN_PORTS,BTH_RESERVED    │
+│   ACL_TABLE       ROCE_TABLE                                       │
+│   ACL_RULE        BLOCK_RSVD      BTH_RESERVED=0x00/0x7F → DROP    │
+└─────────────────────────────────┬──────────────────────────────────┘
+                                  │  UdfOrch + AclOrch
+                                  ▼
+┌────────────────────────────────────────────────────────────────────┐
+│ Layer 2: SAI objects                                               │
+│   UDF_GROUP   G1   length=1, type=GENERIC                          │
+│   UDF_MATCH   M1   L2_TYPE=0x8915                                  │
+│   UDF_MATCH   M2   L3_TYPE=0x11                                    │
+│   UDF         U1   GROUP=G1, MATCH=M1, BASE=L2, OFFSET=22          │
+│   UDF         U2   GROUP=G1, MATCH=M2, BASE=L4, OFFSET=16          │
+│   ACL_TABLE        USER_DEFINED_FIELD_GROUP_MIN+0 = G1             │
+│   ACL_ENTRY        USER_DEFINED_FIELD_GROUP_MIN+0 = 0x00/0x7F      │
+│                    PACKET_ACTION=DROP, priority=101                │
+└─────────────────────────────────┬──────────────────────────────────┘
+                                  │  vendor SAI → SDK
+                                  ▼
+┌────────────────────────────────────────────────────────────────────┐
+│ Layer 3: Forwarding pipeline (abstract)                            │
+│                                                                    │
+│   The UDF group owns a slot in the ACL key:                        │
+│                                                                    │
+│       ACL key  =  [ standard fields | G1 slot (1 byte) | ... ]     │
+│                                                                    │
+│   Many parse-stage entries can WRITE into G1's slot;               │
+│   the ACL FP entry READS G1's slot and is blind to which           │
+│   parse entry filled it.                                           │
+│                                                                    │
+│   UDF parse stage                                                  │
+│     entry from (M1, U1)   classify L2 EtherType == 0x8915          │
+│                           write G1 ← byte at L2+22                 │
+│     entry from (M2, U2)   classify L3 Protocol  == 0x11            │
+│                           write G1 ← byte at L4+16                 │
+│                                                                    │
+│   ACL lookup stage                                                 │
+│     entry from BLOCK_RSVD read G1, match 0x00/0x7F → DROP          │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Role of the UDF group in the FP**
+
+The UDF group is the binding entity between extraction and ACL match. Every UDF group referenced by an ACL table claims a fixed-width slot in that table's ACL key (slot width = `SAI_UDF_GROUP_ATTR_LENGTH`). Every UDF object created against that group is a parse-stage entry that writes its extracted bytes into the same slot. The ACL FP entry reads only the slot; it has no visibility into which UDF object did the write. This is what lets one ACL rule cover heterogeneous packet shapes (RoCEv1 and RoCEv2 here) using a single key slot and a single FP entry.
+
+**Packet walk-through**
+
+A RoCEv1 frame (EtherType 0x8915) matches the `(M1, U1)` parse entry, which writes the byte at L2+22 into G1's slot. The `BLOCK_RSVD` ACL entry then reads that slot and compares against `0x00/0x7F`; on match, the packet is dropped.
+
+A RoCEv2 frame (IP protocol 0x11) takes the `(M2, U2)` branch, writing the byte at L4+16 into the same G1 slot. The ACL entry behaves identically — one rule, both encapsulations, because both selectors are bound to G1.
+
+**Why two UDF_MATCH objects**
+
+The two selectors classify on different fields (`L2_TYPE` vs `L3_TYPE`), so UdfOrch creates two distinct UDF_MATCH objects. When two selectors carry the same match-field set, UdfOrch de-duplicates them into a single UDF_MATCH (see §6.4 match deduplication via `UdfMatchSignature`).
+
 ### A.2 VXLAN VNI for ECMP Hash
 ```json
 {
