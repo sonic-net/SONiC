@@ -781,9 +781,11 @@ sequenceDiagram
          mirror_orch ->> syncd: create_samplepacket<br/>(SAMPLE_RATE, TYPE=MIRROR_SESSION,<br/>optional: TRUNCATE_ENABLE, TRUNCATE_SIZE)
          mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLEPACKET_ENABLE)
          mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLE_MIRROR_SESSION)
-     else Not supported or sFlowOrch conflict
+     else Sampled mirroring not supported
          mirror_orch ->> mirror_orch: Log warning, fall back to full mirror
          mirror_orch ->> syncd: set_port_attr(INGRESS_MIRROR_SESSION)
+     else Samplepacket conflict detected on port
+         mirror_orch ->> mirror_orch: Log error, session remains inactive
      end
      syncd ->> asic: Program mirror session + samplepacket
      Note over config_db,asic: === Update Mirror Session (mutable fields: in-place) ===
@@ -866,7 +868,7 @@ The error handling follows a two-stage validation process:
 
 ### 5.2.4 SamplePacket Conflict Detection
 
-Sampled port mirroring and sFlow both use `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE`, which accepts only one SamplePacket OID per port. MirrorOrch checks the current binding before setting it — if the port is already bound by another feature, the mirror session activation is rejected and the session remains inactive.
+Sampled port mirroring and sFlow both use `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE`, which accepts only one SamplePacket OID per port. Both MirrorOrch and sFlowOrch check the current binding before setting it — if the port is already bound by another feature, the operation is rejected.
 
 ### 5.2.5 Backward Compatibility
 
