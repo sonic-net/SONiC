@@ -524,7 +524,6 @@ module sonic-monitor-link-group {
                         type leafref { path /port:sonic-port/port:PORT/port:PORT_LIST/port:name; }
                         type leafref { path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name; }
                     }
-                    ordered-by user;
                 }
 
                 leaf-list managed-links {
@@ -532,7 +531,6 @@ module sonic-monitor-link-group {
                         type leafref { path /port:sonic-port/port:PORT/port:PORT_LIST/port:name; }
                         type leafref { path /lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST/lag:name; }
                     }
-                    ordered-by user;
                 }
 
                 leaf description   { type string { length "1..255"; } }
@@ -562,6 +560,7 @@ Fastboot behavior is identical: no data-plane impact; configuration re-derived f
 3. **Timer Persistence:** Startup-delay timers are not persisted across reboots. On restart, groups re-evaluate as fresh creations; see §10.1 for the complete restart behavior.
 4. **Configuration Validation:** `min-monitored-links > count(configured monitored-links)` is rejected at `config load` time by the R-10 YANG `must` constraint; if the constraint is bypassed (e.g., `config load -y` with YANG validation skipped) the daemon accepts the group and it remains always-DOWN at runtime.
 5. **Cross-namespace groups (multi-ASIC):** On multi-ASIC platforms, monitor-link groups are scoped to a single ASIC namespace. Monitored-links and managed-links of the same group must belong to the same ASIC; cross-namespace groups are not supported.
+6. **Port-channel membership not enforced:** Any physical port or port-channel name can be listed in `monitored-links` / `managed-links`. The schema does not check whether a physical port is also a port-channel member — the operator chooses what makes sense for their topology.
 
 ### 11.2 Open Items
 
