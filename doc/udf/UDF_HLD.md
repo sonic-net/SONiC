@@ -796,6 +796,7 @@ Covers UDF_MATCH dedup across groups, UDF_GROUP refcount across ACL layers, and 
 | 7 | HASH type UDF — ECMP hash pipeline wiring via HashOrch | TBD |
 | 8 | Operator notification for rejected config (STATE_DB status, requires item 2) | TBD |
 | 9 | sonic-mgmt E2E test suite — parallel PR | Satishkumar |
+| 10 | Per-platform validation of `select_offset` and `length` — SAI exposes no capability query for the bounds of `SAI_UDF_ATTR_OFFSET` / `SAI_UDF_GROUP_ATTR_LENGTH`. Current Yang range is a static `0-255`. Effective parser reach is ASIC-bound (see §9.1). Future: add SAI capability API for per-platform bounds + per-platform Yang validation; out of scope for this PR. | TBD |
 
 ## Appendix A: Configuration Examples
 
