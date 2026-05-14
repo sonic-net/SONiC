@@ -10,6 +10,7 @@
 | 0.6 | 10/22/2023 | Riff Jiang | Added ENI leak detection |
 | 0.7 | 10/13/2024 | Riff Jiang | Update HA control plane components graph to match with latest design update on database and gNMI. |
 | 0.8 | 01/16/2026 | Changrong Wu | Update HA state machine per latest discussions. |
+| 0.9 | 05/12/2026 | Changrong Wu | Add handling of role activation and bulk sync failures in HA state machine. |
 
 1. [1. Background](#1-background)
 2. [2. Terminology](#2-terminology)
@@ -815,7 +816,7 @@ The specification of each HA state and its transitions is detailed as follows:
 
 - Initiate connections to the peer DPU
 - On successful connection to the peer DPU, transition to *Connected*
-- On connection failures (after 3 retries), follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+- On connection failures (after 3 retries), follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 
 #### 7.2.3 State: Connected
 
@@ -823,22 +824,23 @@ The specification of each HA state and its transitions is detailed as follows:
 - On acquiring the voting result, perform the following state changes:
 	* transition to *InitializingToActive* if won the vote
 	* transition to *InitializingToStandby* if lost the vote
-- If failed to get the voting result, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+- If failed to get the voting result, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 - If the `RequestVote` is rejected by the peer, keep retrying.
 
 #### 7.2.4 State: InitializingToActive
 
 - Wait for the peer to acknowledge the completion of bulk sync via `BulkSyncCompletedAck` event
 - On receiving the acknowledgement, transition to *PendingActiveRoleActivation*
-- On timeout, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+- On timeout, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 - On detecting local failures, transition to *Standby*
 
 #### 7.2.5 State: InitializingToStandby
 
 - Wait for the peer to confirm the completion of bulk sync via `BulkSyncCompleted` event
-- On receiving the acknowledgement, transition to *PendingStandbyRoleActivation*
-- On timeout, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
-- On detecting local failures, transition to *Standby*
+- On receiving the acknowledgement of `Standby` role activated and `BulkSyncCompleted`, transition to *PendingStandbyRoleActivation*
+- On detecting local failures, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
+- Monitor DPU state for role activation
+    * On timeout, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 
 #### 7.2.6 State: PendingActiveRoleActivation
 
@@ -855,10 +857,14 @@ The specification of each HA state and its transitions is detailed as follows:
 - DPU carrying traffic and replicating flows to the standby peer inline
 - Listening for `PlannedSwitchover` and `PlannedPeerShutdown` from the SDN controller
 	* On receiving `PlannedSwitchover` and acknowledgement from the peer DPU, transition to *SwitchingToStandby*
-	* On receiving `PlannedPeerShutdown`, transitiont to *Standalone*
+	* On receiving `PlannedPeerShutdown`, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 - Listening for health signals
 	* On local DPU failure, transition to *Standby*
-	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
+- Monitor Bulk Sync Session state
+    * On session failure, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
+- Monitor DPU state for role activation
+    * On timeout, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 
 #### 7.2.9 State: Standby
 
@@ -867,7 +873,7 @@ The specification of each HA state and its transitions is detailed as follows:
 	* On receiving `PlannedSwitchover`, transition to *SwitchingToActive*
 	* On receiving `PlannedShutdown`, transition to *Destroying*
 - Listening for health signals
-	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 
 #### 7.2.10 State: Standalone
 
@@ -876,6 +882,8 @@ The specification of each HA state and its transitions is detailed as follows:
 	* On receiving `HAStateChanged` from the peer, transition to *Active*
 - Listening for health signals
 	* On local DPU failure, transition to *Standby*
+- Monitor DPU state for role activation
+    * On timeout, roll back to *SwitchingtoStandalone*
 
 #### 7.2.11 State: SwitchingToStandby
 
@@ -883,19 +891,27 @@ The specification of each HA state and its transitions is detailed as follows:
 - On receiving acknowledgement from the peer DPU being Active, transition to *Standby*
 - Listening for health signals
 	* On local DPU failure, transition to *Standby*
-	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 
 #### 7.2.12 State: SwitchingToActive
 
 - On receiving acknowledgement from the peer DPU setting up the forwarding tunnel, transition to *Active*
 - Listening for health signals
 	* On local DPU failure, transition to *Standby*
-	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#1014-entering-standalone-setup)
+	* On remote DPU failure, follow the standard procedure to [Entering standalone setup](#101-working-as-standalone-setup)
 
 #### 7.2.13 State: Destroying
 
 - Draining traffic
 - After the traffic is drained, transition to *Dead*
+
+#### 7.2.14 State: SwitchingToStandalone
+
+*This is an intermediate state before a HA SCOPE enter standalone*
+- Check health signals
+    * transition to *Standalone* if won the check
+    * transition to *Standby* if lost the check
+Note: the determination logic is detailed in [Entering standalone setup](#1013-determine-desired-standalone-setup)
 
 ### 7.3. Primary election
 
@@ -1282,7 +1298,7 @@ Because each ENI is programmed independently with our northbound interface, the 
 
     <p align="center"><img alt="HA planned shutdown standby step 3" src="./images/ha-planned-events-shutdown-step-3.svg"></p>
 
-4. DPU1 can now move to `Destroying` state. In `Destroying` state, the DPU will wait for existing flow replication traffic to drain.
+4. After it got `ShutdownStandby` reply and the confirmation that DPU0 moves to Standalone state,  DPU1 can now move to `Destroying` state. In `Destroying` state, the DPU will wait for existing flow replication traffic to drain.
 
     The NPU associated with DPU1 will set the ha_role field to `Dead`(and activate_role_requested field to true) in DASH_HA_SCOPE_TABLE of DPU_APPL_DB.
     Starting from this, the DPU1 should drain flow replication traffic.
@@ -1649,17 +1665,22 @@ First, we need to check the DPU health signals:
 If we pass the above two steps, both DPU should be running fine at this moment. So, we start to check the ENI status and data path status. To ensure we have the latest state, we will send the `DPURequestEnterStandalone` message with aggregated signals and ENI states to the peer DPU. And upon receiving the message, we will run the following checks:
 
 1. If the signals from local DPU have "Card pinned to standalone", we return `Deny` to the peer DPU.
-2. Check "Manual Pinned" for manual opertaions:
-   1. If the signals from local DPU have "Manual Pinned", which the peer DPU doesn't have, we return `Deny` to the peer DPU.
-   2. If the signals from peer DPU have "Manual Pinned", which the local DPU doesn't have, we return `Allow` to the peer DPU.
-   3. If both sides have "Manual Pinned", we return `Deny` and raise alert after retrying certain amount of times.
+2. Check "Manual pinned" for manual opertaions:
+    1. If the signals from local DPU have "Manual Pinned", which the peer DPU doesn't have, we return `EnterStandby` to the peer DPU.
+    2. If the signals from peer DPU have "Manual Pinned", which the local DPU doesn't have, we return `EnterStandalone` to the peer DPU.
+    3. If both sides have "Manual Pinned", we return `Deny` and raise alert after retrying certain amount of times.
 3. Check "Peer shutdown" for planned shutdown:
-   1. If the signals from local DPU have "Peer shutdown", we return `Deny` to the peer DPU.
-   2. If the signals from peer DPU have "Peer shutdown", we return `Allow` to the peer DPU.
-   3. If both sides have "Peer shutdown", we return `Deny` and raise alert after retrying certain amount of times.
-4. If PreferredStandalone is set to local DPU, we return `Deny` to the peer DPU, otherwise, we return `Allow`.
-   * This covers the last case - high data plane packet drop rate.
-   * The reason we use predefined side here is that - there is no perfect solution in this case, and both side can send request at the same time. If we use information such as packet drop rate, we might get inconsistent data and making conflict decisions. So, instead of being too smart, we prefer to be stable.
+    1. If the signals from local DPU have "Peer shutdown", we return `Deny` to the peer DPU.
+    2. If the signals from peer DPU have "Peer shutdown", we return `EnterStandalone` to the peer DPU.
+    3. If both sides have "Peer shutdown", we return `Deny` and raise alert after retrying certain amount of times.
+4. Check "Role activation failed" for gray DPU failure:
+    1. If the signal is from local DPU, we return `EnterStandalone` to the peer DPU.
+    2. If the signal is from peer DPU, we return `EnterStandby` to the peer DPU.
+
+    Note: when a DPU is activating the standalone role, it can also fail. Yet, since in that scenario, we have determined which side to be standalone so we will just ask the DPU to retry activating standalone role.
+5. If the signals contain "High data plane packet drop rate" or "Bulk sync session failed", check the desired HA state of the HA scopes. If the local DPU is preferred to be standalone, we return `Deny` to the peer DPU, otherwise, we return `Allow`.
+    * We defines the priority of desired HA state as follows: Standalone > Active > Standby
+    * The reason we use predefined side here is that - there is no perfect solution in this case, and both side can send request at the same time. If we use information such as packet drop rate, we might get inconsistent data and making conflict decisions. So, instead of being too smart, we prefer to be stable.
 
 Once the we determined which DPU should be the standalone, we notify all ENIs in the DPU with "Card pinned to standalone" signal, so they can start to drive themselves to standalone.
 
