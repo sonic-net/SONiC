@@ -48,7 +48,7 @@ This document covers all variants of sonic platforms
 3. The thermal algorithm to be invoked from thermalctld.ThermalControlDaemon process via the call self.thermal_manager.run_policy(self.chassis)
 4. Scalable, clearly define boundaries for thermalctld and xcvrd, will not see issues like i2c lockup on devices with many interfaces.
 5. Common thermal algorithm for all sonic platforms, instead of proprietary cooling algorithms which each vendor must maintain.
-
+6. Define thresholds in platform json and it should be applicable via a docker pmon or thermalctld reload, instead of recompilation
 
 ## 1. Thermalctld architecture and improvements
 
