@@ -192,9 +192,6 @@ Latency is computed as:
 
 `< response timestamp > - < request accepted timestamp >`
 
-## Update behavior
-- The update of service is linked with telemetry container.
-- Health of service is also determined via telemetry container.
 
 # Examples
 ## Example 1: reboot cause history
