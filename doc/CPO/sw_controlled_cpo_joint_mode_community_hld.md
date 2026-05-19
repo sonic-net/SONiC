@@ -2,29 +2,34 @@
 
 ## Table of Contents
 
-1. [Revision](#1-revision)
-2. [Overview](#2-overview)
-3. [Definitions/Abbreviations](#3-definitionsabbreviations)
-4. [Scope](#4-scope)
-5. [Requirements](#5-requirements)
-6. [Architecture Design](#6-architecture-design)
-7. [High-Level Design](#7-high-level-design)
-   - 7.1 [CMIS State Machine Thread for CPO Modules](#71-cmis-state-machine-thread-for-cpo-modules)
-   - 7.2 [Module Type ID ↔ Transceiver API Mapping](#72-module-type-id--transceiver-api-mapping)
-   - 7.3 [DOM: CPO Telemetry Statistics](#73-dom-cpo-telemetry-statistics)
-     - 7.3.1 [Class Hierarchy](#731-class-hierarchy)
-     - 7.3.2 [Memory Map - VmoduleCmisMemMap](#732-memory-map---vmodulecmismemmap)
-     - 7.3.3 [API - VmoduleCmisApi](#733-api---vmodulecmisapi)
-8. [SAI API](#8-sai-api)
-9. [Configuration and management](#9-configuration-and-management)
-   - 9.1. [Manifest (if the feature is an Application Extension)](#91-manifest-if-the-feature-is-an-application-extension)
-   - 9.2. [CLI/YANG model Enhancements](#92-cliyang-model-enhancements)
-   - 9.3. [Config DB Enhancements](#93-config-db-enhancements)
-10. [Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
-11. [Memory Consumption](#11-memory-consumption)
-12. [Restrictions/Limitations](#12-restrictionslimitations)
-13. [Testing Requirements/Design](#13-testing-requirementsdesign)
-14. [Open/Action items](#14-openaction-items---if-any)
+- [SW-controlled CPO in Joint Mode](#sw-controlled-cpo-in-joint-mode)
+  - [Table of Contents](#table-of-contents)
+  - [1. Revision](#1-revision)
+  - [2. Overview](#2-overview)
+  - [3. Definitions/Abbreviations](#3-definitionsabbreviations)
+  - [4. Scope](#4-scope)
+    - [Out of Scope (Current Revision):](#out-of-scope-current-revision)
+    - [Added in Rev 0.2:](#added-in-rev-02)
+  - [5. Requirements](#5-requirements)
+  - [6. Architecture Design](#6-architecture-design)
+  - [7. High-Level Design](#7-high-level-design)
+    - [7.1 CMIS State Machine Thread for CPO Modules](#71-cmis-state-machine-thread-for-cpo-modules)
+    - [7.2 DOM: CPO API Wiring](#72-dom-cpo-api-wiring)
+    - [7.3 DOM: CPO EEPROM Layout and STATE\_DB Mapping](#73-dom-cpo-eeprom-layout-and-state_db-mapping)
+      - [7.3.1 Memory Map Composition](#731-memory-map-composition)
+      - [7.3.2 CDB Commands (canonical pattern)](#732-cdb-commands-canonical-pattern)
+      - [7.3.3 STATE\_DB Integration via Aggregator Overrides](#733-state_db-integration-via-aggregator-overrides)
+    - [Platform Implementation Alignment](#platform-implementation-alignment)
+  - [8. SAI API](#8-sai-api)
+  - [9. Configuration and management](#9-configuration-and-management)
+    - [9.1. Manifest (if the feature is an Application Extension)](#91-manifest-if-the-feature-is-an-application-extension)
+    - [9.2. CLI/YANG model Enhancements](#92-cliyang-model-enhancements)
+    - [9.3. Config DB Enhancements](#93-config-db-enhancements)
+  - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
+  - [11. Memory Consumption](#11-memory-consumption)
+  - [12. Restrictions/Limitations](#12-restrictionslimitations)
+  - [13. Testing Requirements/Design](#13-testing-requirementsdesign)
+  - [14. Open/Action items - if any](#14-openaction-items---if-any)
 
 ---
 <br>
@@ -34,7 +39,7 @@
 | Rev | Date       | Author       | Change Description |
 |-----|------------|--------------|--------------------|
 | 0.1 | 2026-03-31 | Tomer Shalvi | Initial version.   |
-| 0.2 | 2026-04-12 | Natanel Gerbi | DOM: CPO telemetry statistics design. Vendor extension framework separated into [standalone HLD](https://github.com/sonic-net/SONiC/pull/2291) |
+| 0.2 | 2026-05-04 | Natanel Gerbi | DOM: CPO data plane -- vendor CPO subclasses (one OE component, one or more ELS components) using B0..B3 vendor mirror pages and CDB commands, exposed to STATE_DB via aggregator-method overrides. No daemon changes. |
 
 <br>
 
@@ -95,9 +100,6 @@ This document builds on existing community HLDs and extends them to support Join
 * [port_mapping_for_cpo](https://github.com/nexthop-ai/SONiC/blob/274228b44de9edbbf6f1585c9bb7392853cbbc08/doc/platform/port_mapping_for_cpo.md)
 * [cmis_banking_support](https://github.com/bobby-nexthop/SONiC/blob/0b09f1cc3e91853fcbabb29efb76fa6ea4b9647d/doc/layer1/cmis_banking_support.md)
 
-This document also depends on:
-* [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291) - Defines the generic `CmisExtendedMemMap`/`CmisExtendedApi` vendor extension framework that CPO telemetry builds on top of.
-
 ### Out of Scope (Current Revision):
 
 This revision of the HLD focuses on the **link-up flow for SW-controlled CPO ports in Joint Mode**.  
@@ -109,7 +111,7 @@ The following aspects are **not covered in this revision**, are currently **unde
 
 ### Added in Rev 0.2:
 
-* DOM: CPO telemetry statistics design, extending the existing DOM flow to include ELS monitoring statistics via the CPO abstraction EEPROM. See Section 7.3. The generic vendor extension framework (`CmisVendorExtension`, `CmisExtendedMemMap`, `CmisExtendedApi`) is defined in a separate HLD: [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291).
+* DOM: CPO telemetry statistics design, extending the existing DOM flow to include OE telemetry and ELS monitoring statistics via the CPO abstraction EEPROM. The design uses **vendor CPO subclasses of `CmisApi`** (one for the Optical Engine, one for the External Laser Source), composed under a thin wrapper. ELS exposes its CMIS-shaped surface through **vendor mirror pages B0..B3** (re-using the standard CMIS page classes at non-standard page numbers). The data is published to STATE_DB by overriding the existing `CmisApi` aggregator methods, so **no changes are required in `xcvrd`, the STATE_DB schema, or the polling loop**. See Section 7.3.
 
 <br>
 
@@ -121,10 +123,8 @@ The following aspects are **not covered in this revision**, are currently **unde
 * While working in CPO Joint Mode, the system shall work directly with the CPO abstraction.
 * The system shall support correct instantiation of the transceiver object for CPO modules (module type id 0x80).
 * The system shall allow CPO modules to be configured via the existing CMIS state machine.
-* The system shall support a CPO-specific CMIS memory map (`VmoduleCmisMemMap`).
-* The system shall support the vendor extension framework (see [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291)) to include Vendor Specific fields.
-* The system shall support vendor-specific EEPROM layouts within the CPO memory map, using the vendor extension framework.
-* The system shall collect and publish CPO-specific ELSFP telemetry (temperature, voltage, laser monitors) to STATE_DB via the existing DOM polling mechanism.
+* The system shall support CPO-specific CMIS memory map(s) for the ELS (External Laser Source) and the OE (Optical Engine).
+* The system shall collect and publish CPO-specific OE and ELS telemetry (temperature, voltage, laser monitors, lane status) to STATE_DB via the existing DOM polling mechanism, without requiring changes to `xcvrd`, the STATE_DB schema, or the polling loop.
 
 **Non-Functional Requirements:**
 * The solution shall maximize the reuse of existing CMIS infrastructure to avoid changing generic code.
@@ -151,6 +151,8 @@ The intent is to keep CPO handling fully isolated from the existing logic for pl
 
 The `CmisCpoManagerTask` thread is instantiated only in Joint Mode. This is controlled via a new flag — *"is_cpo_joint_mode"* — added to `pmon_daemon_control.json` (located at `/usr/share/sonic/device/[PLATFORM]/pmon_daemon_control.json`). When *"is_cpo_joint_mode": true*, the `CmisCpoManagerTask` thread is initialized.
 
+*Initialize `CmisCpoManagerTask` only in Joint Mode.*
+
 ```python
 def run(self):
     # Start the CMIS cpo manager
@@ -163,131 +165,325 @@ def run(self):
 
 The only functional difference is the set of supported module types. While `CmisManagerTask` handles multiple module types (e.g., QSFP-DD, OSFP, QSFP+), `CmisCpoManagerTask` is restricted to CPO modules only:
 
+*Restrict `CmisCpoManagerTask` to the CPO module type.*
+
 ```python
 CMIS_MODULE_TYPES = ['CPO']
 ```
 
 
-### 7.2 Module Type ID ↔ Transceiver API Mapping
+### 7.2 DOM: CPO API Wiring
 
-Extending the module type ID to transceiver API mapping to include the CPO module type 0x80 (xcvr_api_factory).
+The module type ID dispatch table in `xcvr_api_factory` is extended with the CPO module type `0x80`, which routes to a new entry point `_create_cmis_cpo_api(bank_id)`. The `bank_id` (0-3) identifies which 8-lane bank the SFP object represents within the 32-lane CPO module and is taken straight from the platform per-bank SFP object.
 
-```python
-def create_xcvr_api(self):
-    id = self._get_id()
+**`create_xcvr_api`** -- adds one row to the existing ID table; `0x80` is the only new entry, and it is the only ID that needs the bank id.
 
-    id_mapping = {
-        0x18: (self._create_cmis_api, ()),
-        0x19: (self._create_cmis_api, ()),
-        0x80: (self._create_cmis_cpo_api, ()),
-        ...
-    }
-```
-
-The factory introduces `_create_cmis_cpo_api`, which creates the CPO API with vendor extension and bank support. The factory exposes a generic `set_xcvr_params(**kwargs)` method that allows the platform to inject general purpose parameters (such as bank_id, vendor specific class, etc.) after construction, without modifying the SFP inheritance chain. The factory stores them in `_xcvr_params` and reads them when creating the API:
+*Dispatch CPO module type `0x80` to the joint-mode builder.*
 
 ```python
 # In xcvr_api_factory (common code)
-def set_xcvr_params(self, **kwargs):
-    self._xcvr_params.update(kwargs)
-
-def _create_cmis_cpo_api(self):
-    vendor_ext = self._xcvr_params.get('vendor_ext', None)
-    bank_id = self._xcvr_params.get('bank_id', None)
-    if bank_id is None:
-        logger.warning("CPO module created without bank_id, defaulting to 0")
-        bank_id = 0
-    mem_map = VmoduleCmisMemMap(CmisCodes, vendor_ext=vendor_ext)
-    eeprom = XcvrEeprom(self.reader, self.writer, mem_map)
-    return VmoduleCmisApi(eeprom, bank_id=bank_id)
+def create_xcvr_api(self, bank_id=0):
+    id = self._get_id()
+    id_mapping = {
+        ...
+        0x18: (self._create_cmis_api, ()),
+        0x19: (self._create_cmis_api, ()),
+        0x80: (self._create_cmis_cpo_api, (bank_id,)),
+        ...
+    }
+    ...
 ```
+
+**`_create_cmis_cpo_api`** -- pure orchestration: it just calls the OE builder, threads the ELS-upper-admin-page hint that comes back from it into the ELS builder, and wraps both APIs in a `CpoApi`. Vendor resolution lives inside each builder, so the orchestrator stays vendor-agnostic.
+
+*`_create_cmis_cpo_api`: orchestrate the OE and ELS builders.*
 
 ```python
-# Platform SFP object (e.g., sfp.py)
-class CpoPort(SFP):
-    def __init__(self, sfp_index, bank_id=0, asic_id='asic0'):
-        super().__init__(sfp_index, asic_id=asic_id)
-        self._xcvr_api_factory.set_xcvr_params(
-            vendor_ext=MyCpoVendorExtension(),
-            bank_id=bank_id,
-        )
+def _create_cmis_cpo_api(self, bank_id):
+    oe_api, els_admin_upper_page = self._build_cpo_oe_api(bank_id)
+    els_api = self._build_cpo_els_api(els_admin_upper_page, bank_id)
+    return CpoApi(oe_api, els_api)
 ```
 
-The `bank_id` parameter (0-3) identifies which 8-lane bank this SFP object represents within the 32-lane CPO module. It is used by `VmoduleCmisApi` for CDB commands that require a lane bank selector.
 
-This change also introduces a new memory map: **`VmoduleCmisMemMap`**, built on the vendor extension framework through a two-layer inheritance hierarchy:
+**`_build_cpo_oe_api` / `_build_cpo_els_api`** -- per-component, per-vendor dispatch tables. Each builder resolves *its own* vendor and dispatches:
 
-1. **`CmisExtendedMemMap`** (inherits from `CmisMemMap`) - the general-purpose vendor extension layer defined in [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291). It accepts an optional `vendor_ext` object at init time and dynamically injects vendor-specific field definitions into the memory map. This layer is not CPO-specific.
+* `_build_cpo_oe_api` reads the **OE vendor** from the standard CMIS page-0 vendor name (`self._get_vendor_name()`). It returns a `(oe_api, els_admin_upper_page)` tuple: the OE-component `CmisApi` plus the **ELSFP `CmisAdministrativeUpperPage` ID** that the OE vendor's vModule FW exposes (the page that carries the ELS vendor name, OUI, PN, etc.). The in-page byte offsets are inherited from the standard CMIS layout, so the orchestrator only needs the page ID.
+* `_build_cpo_els_api` takes that `els_admin_upper_page` and calls the dedicated helper **`_get_vendor_els_name(els_admin_upper_page)`** to read the ELS vendor name from EEPROM (the in-page byte offset is taken from the `CmisAdministrativeUpperPage` class, so callers never repeat it). It then dispatches to the matching ELS branch and returns just the ELS-component `CmisApi`.
 
-2. **`VmoduleCmisMemMap`** (inherits from `CmisExtendedMemMap`) - adds the **ELSFP pages 0x1A/0x1B** (lane monitors, flags, thresholds, setpoints) as defined in the OIF-CMIS-ELSFP specification. This is the CPO vModule-specific layer.
+*Per-component, per-vendor dispatch in `_build_cpo_oe_api` / `_build_cpo_els_api`. The vendor `CdbMemMap` is injected via `_create_api(..., cdb_mem_map=...)`.*
 
-The same two-layer pattern applies to the API side: `CmisExtendedApi` -> `VmoduleCmisApi` (see Section 7.3 for details).
+```python
+def _build_cpo_oe_api(self, bank_id):
+    oe_vendor = self._get_vendor_name()
+    # Vendor-1 OE: vendor OE codes + memmap + API; CDB memmap injects
+    # cdb_handler for vendor-1 OE CDB commands. The vendor-1 vModule FW
+    # exposes the ELS vendor name on VENDOR1_ELS_ADMIN_UPPER_PAGE.
+    if oe_vendor == VENDOR1_OE_NAME:
+        oe_api = self._create_api(Vendor1CpoOeCodes, Vendor1CpoOeMemMap,
+                                  Vendor1CpoOeCmisApi, bank=bank_id,
+                                  cdb_mem_map=Vendor1CpoOeCdbMemMap(Vendor1CpoOeCdbCodes))
+        return oe_api, VENDOR1_ELS_ADMIN_UPPER_PAGE
+    # Vendor-2 OE: same shape, vendor-2 ELS upper admin page.
+    if oe_vendor == VENDOR2_OE_NAME:
+        oe_api = self._create_api(Vendor2CpoOeCodes, Vendor2CpoOeMemMap,
+                                  Vendor2CpoOeCmisApi, bank=bank_id,
+                                  cdb_mem_map=Vendor2CpoOeCdbMemMap(Vendor2CpoOeCdbCodes))
+        return oe_api, VENDOR2_ELS_ADMIN_UPPER_PAGE
+    # Default OE: stock CmisApi + CmisMemMap, no cdb_mem_map -> cdb_handler
+    # is None; no ELS upper admin page -> default ELS component will be used.
+    oe_api = self._create_api(CmisCodes, CmisMemMap, CmisApi, bank=bank_id)
+    return oe_api, None
 
-Note: This simplifies things to the NOS in comparison to Separate mode, where two new memory maps are suggested - see section 6.2.5 in *CPO-support-in-SONiC.md*.
+def _build_cpo_els_api(self, els_admin_upper_page, bank_id):
+    els_vendor = self._get_vendor_els_name(els_admin_upper_page)
+    # Vendor-1 ELS: vendor ELS codes + memmap + API; CDB memmap injects
+    # cdb_handler for vendor-1 ELS CDB commands.
+    if els_vendor == VENDOR1_ELS_NAME:
+        return self._create_api(Vendor1CpoElsCodes, Vendor1CpoElsCmisMemMap,
+                                Vendor1CpoElsCmisApi, bank=bank_id,
+                                cdb_mem_map=Vendor1CpoElsCdbMemMap(Vendor1CpoElsCdbCodes))
+    # Vendor-2 ELS: same shape, vendor-2 modules.
+    if els_vendor == VENDOR2_ELS_NAME:
+        return self._create_api(Vendor2CpoElsCodes, Vendor2CpoElsCmisMemMap,
+                                Vendor2CpoElsCmisApi, bank=bank_id,
+                                cdb_mem_map=Vendor2CpoElsCdbMemMap(Vendor2CpoElsCdbCodes))
+    # Default ELS: stock ElsfpCmisApi + ElsfpCmisMemMap, no cdb_mem_map.
+    return self._create_api(CmisCodes, ElsfpCmisMemMap, ElsfpCmisApi, bank=bank_id)
+```
 
-### 7.3 DOM: CPO Telemetry Statistics
+Onboarding a new vendor is therefore: add `<Vendor>Cpo{Oe,Els}Codes` / `MemMap` / `CmisApi` modules under `sonic_xcvr/{codes,mem_maps,api}/<vendor>/`, plus optional `CdbCodes` / `CdbMemMap` modules under `sonic_xcvr/cdb/<vendor>/`, then add one `if`-arm in each relevant builder (`_build_cpo_oe_api` reports the OE-vendor's `els_admin_upper_page` ID alongside the OE API; `_build_cpo_els_api` returns just the ELS API). `_create_cmis_cpo_api`, `create_xcvr_api`, and `CpoApi` are untouched.
 
-CPO telemetry builds on the generic vendor extension framework defined in [Vendor-Specific DOM Extensions for CMIS Modules](https://github.com/sonic-net/SONiC/pull/2291). This section covers only the CPO-specific vModule layer that sits on top of that framework.
+**`CpoApi`** -- the generic joint-mode wrapper that ties the OE and ELS components together. Defined in `sonic_xcvr/api/public/cpo.py` and inheriting from `CmisApi`, it composes the OE and ELS `CmisApi` components built above. Each vendor component sits on top of its own MemMap + CDB MemMap, overrides the standard `CmisApi.get_transceiver_*()` aggregators to contribute its CPO-specific fields, and feeds `CpoApi` -- which calls each component and merges their dicts:
 
-#### 7.3.1 Class Hierarchy
+*Joint-mode composition: `CpoApi` wraps the OE and ELS vendor components.*
 
 ```mermaid
-flowchart LR
-    subgraph MemMap ["Memory Map"]
-        CMM["CmisMemMap"] --> CEM["CmisExtendedMemMap\n+ vendor_ext"] --> VMM["VmoduleCmisMemMap\n+ ELSFP"]
+flowchart TB
+    subgraph OE_COMPONENT ["Optical Engine"]
+        OE_MM["Vendor1CpoOeMemMap(CmisMemMap)"]
+        OE_CDB["Vendor1CpoOeCdbMemMap(CdbMemMap)"]
+        OE_API["<b>Vendor1CpoOeCmisApi(CmisApi)</b>"]
+        OE_MM --> OE_API
+        OE_CDB --> OE_API
     end
-    subgraph API ["API"]
-        CA["CmisApi"] --> CEA["CmisExtendedApi\n+ vendor getters"] --> VA["VmoduleCmisApi\n+ ELSFP"]
+
+    subgraph ELS_COMPONENT ["External Laser Source"]
+        ELS_MM["Vendor1CpoElsCmisMemMap(ElsfpCmisMemMap)"]
+        ELS_CDB["Vendor1CpoElsCdbMemMap(CdbMemMap)"]
+        ELS_API["<b>Vendor1CpoElsCmisApi(ElsfpCmisApi)</b>"]
+        ELS_MM --> ELS_API
+        ELS_CDB --> ELS_API
     end
-    EXT["CmisVendorExtension\n(platform)"] -.-> CEM
-    EXT -.-> CEA
 
-    style CEM fill:#90EE90
-    style CEA fill:#90EE90
+    CPO["<b>CpoApi(CmisApi)</b><br/>for each get_transceiver_*():<br/>&nbsp;&nbsp;result = OE.get_transceiver_*()<br/>&nbsp;&nbsp;result.update( ELS.get_transceiver_*() )<br/>&nbsp;&nbsp;return result"]
 
-    linkStyle 0,1,2,3 stroke:#333
+    OE_API ==>|"overrides CmisApi<br/>get_transceiver_* getters"| CPO
+    ELS_API ==>|"overrides CmisApi<br/>get_transceiver_* getters"| CPO
 ```
 
-The green nodes (`CmisExtendedMemMap`, `CmisExtendedApi`) are defined in the [companion HLD](https://github.com/sonic-net/SONiC/pull/2291). CPO adds one layer on top:
+**Platform SFP object** -- the platform side of the wiring. As described in *cmis_banking_support.md* §7.8.2 (and discussed further in §7.4 below), each per-bank SFP object represents one 8-lane bank of a CPO module. Joint-mode platforms just override `refresh_xcvr_api()` on their `Sfp(SfpBase)` subclass to feed `bank_id` into the factory:
 
-- **`VmoduleCmisMemMap`** (inherits from `CmisExtendedMemMap`) - adds ELSFP pages 0x1A/0x1B (lane monitors, flags, thresholds, setpoints) as defined in the OIF-CMIS-ELSFP specification.
-- **`VmoduleCmisApi`** (inherits from `CmisExtendedApi`) - extends aggregators with ELSFP inline getters. Accepts a `bank_id` (0-3) parameter per CpoPort, used by CDB commands to request the correct 8-lane bank.
-
-#### 7.3.2 Memory Map - VmoduleCmisMemMap
+*Platform SFP object: feed `bank_id` into the factory.*
 
 ```python
-class VmoduleCmisMemMap(CmisExtendedMemMap):
-    def __init__(self, codes, vendor_ext=None):
-        super().__init__(codes, vendor_ext)
-
-        # ELSFP 0x1A - thresholds, flags, lane state
-        self.ELSFP_THRESH = RegGroupField(..., self.getaddr(0x1A, 128), ...)
-        self.ELSFP_FLAGS  = RegGroupField(..., self.getaddr(0x1A, 192), ...)
-
-        # ELSFP 0x1B - lane monitors, setpoints
-        self.ELSFP_LANE_MONITORS = RegGroupField(..., self.getaddr(0x1B, 128), ...)
-        self.ELSFP_SETPOINTS     = RegGroupField(..., self.getaddr(0x1B, 192), ...)
+# Platform SFP object (sonic_platform/sfp.py)
+class Sfp(SfpBase):
+    def refresh_xcvr_api(self):
+        """
+        Updates the XcvrApi associated with this SFP.
+        """
+        self._xcvr_api = self._xcvr_api_factory.create_xcvr_api(self.bank_id)
 ```
 
-#### 7.3.3 API - VmoduleCmisApi
+**New files.** All of the joint-mode CPO code lands in `sonic-platform-common` under `sonic_xcvr/`. The `public/` subtree holds the shared infrastructure (the joint-mode wrapper plus the ELSFP base classes); each vendor that ships extensions adds parallel sub-trees under `codes/<vendor>/`, `mem_maps/<vendor>/`, `api/<vendor>/`, and `cdb/<vendor>/`.
 
-Each aggregator override calls `super()` (which already includes general CMIS + vendor data from `CmisExtendedApi`) and adds ELSFP inline getters (0x1A/0x1B).
+*Proposed file structure under `sonic-platform-common/sonic_platform_base/sonic_xcvr/`.*
+
+```text
+sonic-platform-common/sonic_platform_base/sonic_xcvr/
+├── api/
+│   ├── public/
+│   │   ├── cpo.py                       CpoApi joint-mode wrapper
+│   │   └── elsfp_cmis.py                ElsfpCmisApi base
+│   ├── vendor1/
+│   │   ├── cpo_oe.py                    Vendor1CpoOeCmisApi
+│   │   └── cpo_els.py                   Vendor1CpoElsCmisApi
+│   └── vendor2/
+│       ├── cpo_oe.py                    Vendor2CpoOeCmisApi
+│       └── cpo_els.py                   Vendor2CpoElsCmisApi
+├── codes/
+│   ├── vendor1/
+│   │   ├── cpo_oe.py                    Vendor1CpoOeCodes
+│   │   └── cpo_els.py                   Vendor1CpoElsCodes
+│   └── vendor2/
+│       └── ...                          same shape per vendor
+├── mem_maps/
+│   ├── public/
+│   │   └── elsfp_cmis.py                ElsfpCmisMemMap
+│   ├── vendor1/
+│   │   ├── cpo_oe.py                    Vendor1CpoOeMemMap
+│   │   └── cpo_els.py                   Vendor1CpoElsCmisMemMap (B0..B3 vendor mirrors)
+│   └── vendor2/
+│       └── ...                          same shape per vendor
+└── cdb/
+    ├── public/
+    │   └── cdb.py                       CDBCommand, CdbMemMap base classes
+    ├── vendor1/
+    │   ├── cpo_oe_codes.py              Vendor1CpoOeCdbCodes
+    │   ├── cpo_oe_memmap.py             Vendor1CpoOeCdbMemMap  (vendor OE CDB cmd)
+    │   ├── cpo_els_codes.py             Vendor1CpoElsCdbCodes
+    │   └── cpo_els_memmap.py            Vendor1CpoElsCdbMemMap (vendor ELS CDB cmd)
+    └── vendor2/
+        └── ...                          same shape per vendor
+```
+
+### 7.3 DOM: CPO EEPROM Layout and STATE_DB Mapping
+
+OE and ELS telemetry are exposed by vendor-specific subclasses of the standard `CmisApi`/`CmisMemMap`/`ElsfpCmisApi`/`ElsfpCmisMemMap` machinery. The OE and ELS components are composed at runtime by `CpoApi` (the generic joint-mode wrapper in `sonic_xcvr/api/public/cpo.py`), and each vendor component overrides the relevant `CmisApi` aggregator methods to contribute its CPO-specific fields. The wrapper then merges the OE and ELS dicts into the single dict that `xcvrd` writes to STATE_DB. As a result, **no changes are required in `xcvrd`, in the STATE_DB schema, or in the polling loop** -- all CPO telemetry rides the existing aggregator path.
+
+#### 7.3.1 Memory Map Composition
+
+The CMIS page-class abstraction re-used here -- composing a memmap from `CmisPage` subclasses, declaring fields with `getaddr()`, and getting page-aware addressing for free -- and the standard ELSFP pages (0x1A / 0x1B) it sits on top of, are described in the upstream HLD: [ELSFP Memory map and paging support -- sonic-net/SONiC#2207](https://github.com/sonic-net/SONiC/issues/2207).
+
+This section only describes what joint-mode CPO layers on top of that: the **vendor mirror pages** for ELS.
+
+The table below shows **example** of mapped layout:
+
+| Vendor page | Re-uses class | Mirrors | Carries |
+|---|---|---|---|
+| `0xB0` -- ModuleStatus | `CmisAdministrativeLowerPage` | CMIS page 0 lower memory | ModuleState, ModuleFaultCause, module-level monitors (Temperature, Vcc, ...), module flags |
+| `0xB1` -- Identity     | `CmisAdministrativeUpperPage` | CMIS page 0 upper (admin)  | Vendor name, OUI, PN, rev, serial, date code, ext-id (power class, max power), connector type |
+| `0xB2` -- Advertising  | `CmisAdvertisingPage`         | CMIS page 1 (advertising)  | HW major / minor revision, advertising flags |
+| `0xB3` -- Thresholds   | `CmisThresholdsPage`          | CMIS page 2 (thresholds)   | Temperature / Voltage / Tx_power / Tx_bias / Rx_power -- high/low alarm and high/low warning thresholds |
+
+#### 7.3.2 CDB Commands (canonical pattern)
+
+The CMIS Command/Diagnostic Block (CDB) is the standard request/reply mailbox carved out of the EEPROM: the consumer writes a command + payload into the CDB region, the module processes it, and writes back a structured reply that the consumer reads back. All CDB traffic flows through the generic `CdbCmdHandler` already provided by `CmisApi.cdb_handler`.
+
+Vendor components expose CDB-driven getters by wiring each CDB command in two places. The **MemMap layer** declares the command (its opcode, request/reply lengths) and the layout of the reply as a `RegGroupField` of typed fields, plus an `encode()` that packs the LPL request payload. The **API layer** simply orchestrates `cdb_handler.send_cmd()` + `cdb_handler.read_reply()` and returns the decoded dict -- no CDB framing or wire-level reply layout leaks to call sites. The vendor `CdbMemMap` is plumbed into the API by the factory via `_create_api(..., cdb_mem_map=...)` (see the `_build_cpo_*_api` snippets in §7.2).
+the pattern looks like:
+
+*MemMap layer -- declare the CDB command and the layout of its reply.*
 
 ```python
-class VmoduleCmisApi(CmisExtendedApi):
-    def __init__(self, xcvr_eeprom, bank_id=0):
-        super().__init__(xcvr_eeprom)
-        self.bank_id = bank_id
+# MemMap layer  (sonic_xcvr/cdb/<vendor>/cpo_oe_memmap.py)
+# Declares the CDB command and the layout of its reply.
 
-    def get_transceiver_dom_real_value(self):
-        result = super().get_transceiver_dom_real_value()
-        result.update(self._get_elsfp_lane_monitors())
+import struct
+
+from ...fields import cdb_consts
+from ...fields.xcvr_field import NumberRegField, RegGroupField
+from ..public.cdb import CDBCommand, CdbMemMap
+
+
+class CdbReadOeTelemetry(CDBCommand):
+    """Read OE telemetry: LPL request, EPL reply."""
+
+    def __init__(self,
+                 cmd_id=OE_TELEMETRY_CDB_CMD,
+                 reply_field=OE_TELEMETRY_REPLY_GROUP):
+        super().__init__(
+            cmd_id,
+            epl=OE_TELEMETRY_EPL_LEN,
+            lpl=OE_TELEMETRY_LPL_LEN,
+            rpl_field=reply_field,
+        )
+
+    def encode(self, payload):
+        """Pack the dict-payload into the LPL bytes."""
+        bank_id      = payload.get("bank_id", 0) & 0xFF
+        request_mask = payload.get("request_mask",
+                                   OE_TELEMETRY_REQUEST_MASK_ALL) & 0xFFFFFFFF
+        lpl_bytes = struct.pack("B", bank_id) + struct.pack(">I", request_mask)
+        return super().encode(payload=lpl_bytes)
+
+
+class Vendor1CpoOeCdbMemMap(CdbMemMap):
+    def __init__(self, codes):
+        super().__init__(codes)
+        getaddr = self.getaddr
+
+        reply_fields = [
+            NumberRegField(OE_TLM_CAPABILITY,
+                           getaddr(cdb_consts.EPL_PAGE, 128 + _OFF_CAPABILITY),
+                           size=4, format=">I"),
+            NumberRegField(OE_TLM_VALID,
+                           getaddr(cdb_consts.EPL_PAGE, 128 + _OFF_VALID),
+                           size=4, format=">I"),
+            # ... per-lane fields (NumberRegField + RegBitsField for nibble-packed
+            #     vectors, u16 / u8 vectors built by small helper fns) ...
+        ]
+        self.oe_telemetry_reply = RegGroupField(OE_TELEMETRY_REPLY_GROUP,
+                                                *reply_fields)
+
+        # Register the command on this memmap so cdb_handler can find it.
+        self.read_oe_telemetry_cmd = CdbReadOeTelemetry()
+```
+
+*API layer -- thin orchestration of `send_cmd` + `read_reply`.*
+
+```python
+# API layer  (sonic_xcvr/api/<vendor>/cpo_oe.py)
+# Orchestrates send_cmd + read_reply; returns the raw decoded reply dict.
+
+from ...cdb.vendor1.cpo_oe_memmap import (
+    OE_TELEMETRY_CDB_CMD,
+    OE_TELEMETRY_REQUEST_MASK_ALL,
+)
+
+class Vendor1CpoOeCmisApi(CmisApi):
+
+    def get_oe_telemetry(self, bank_id=0,
+                         request_mask=OE_TELEMETRY_REQUEST_MASK_ALL):
+        """Issue the CDB cmd and return the decoded reply dict."""
+        if self.cdb_handler is None:
+            return None  # CDB not wired (default OE component)
+
+        payload = {"bank_id": bank_id, "request_mask": request_mask}
+        try:
+            ok = self.cdb_handler.send_cmd(OE_TELEMETRY_CDB_CMD, payload=payload)
+        except Exception:
+            return None
+        if not ok:
+            return None
+
+        try:
+            return self.cdb_handler.read_reply(OE_TELEMETRY_CDB_CMD)
+        except Exception:
+            return None
+```
+
+New vendors / new CDB commands plug in by adding a `CDBCommand` subclass + reply `RegGroupField` to their `CdbMemMap`, plus a thin API getter that calls `send_cmd` / `read_reply` against it. Consumers (the aggregator overrides in §7.3.3 and any other caller) just invoke that getter and receive the decoded dict.
+
+#### 7.3.3 STATE_DB Integration via Aggregator Overrides
+
+The standard `CmisApi` aggregators (`get_transceiver_info`, `get_transceiver_dom_real_value`, `get_transceiver_status_flags`, etc.) are wired in layers so that each class only contributes the fields it owns:
+
+* **Generic CMIS layer (`CmisApi`)** -- provides the standard CMIS aggregator output (vendor / PN / serial / VDM / DOM / ...).
+* **Generic ELSFP layer (`ElsfpCmisApi`)** -- overrides each aggregator to expose the generic ELSFP getters (`get_elsfp_lane_monitors`, `get_elsfp_lane_thresholds`, `get_elsfp_fault_warning_codes`, ...). All returned keys are `els_*`-prefixed.
+* **Vendor OE component (e.g. `Vendor1CpoOeCmisApi`)** -- chains `super().<aggregator>()` to inherit the standard CMIS dict, then overlays its OE-specific extension (e.g. OE CDB telemetry).
+* **Vendor ELS component (e.g. `Vendor1CpoElsCmisApi`)** -- chains `super().<aggregator>()` to inherit the generic ELSFP dict, then overlays its ELS-specific extension (vendor mirror pages, ELS CDB readouts). All extensions stay `els_*`-prefixed.
+* **`CpoApi` wrapper** -- for each aggregator, takes the OE-component dict as the base and `dict.update()`s the ELS-component dict on top. Because every ELS-side key is `els_*`-prefixed, the merge is a disjoint union and the ELS component never overwrites OE/CMIS keys.
+
+Every contributor (generic-layer aggregator, vendor-side getter) returns a dict. Vendor components chain `super()` and `update()`. 
+
+**example OE:**
+```python
+class Vendor1CpoOeCmisApi(CmisApi):
+    def get_transceiver_vdm_real_value(self):
+        result = super().get_transceiver_vdm_real_value()
+        result.update(self.get_oe_telemetry())   # vendor OE CDB
         return result
+```
 
-    def _get_elsfp_lane_monitors(self):
-        return self.xcvr_eeprom.read('ELSFP_LANE_MONITORS')
-
-    # Same pattern for other aggregators with ELSFP-specific getters
+**example ELS:**
+```python
+class Vendor1CpoElsCmisApi(ElsfpCmisApi):
+    def get_transceiver_status_flags(self):
+        result = super().get_transceiver_status_flags()
+        result.update(self.get_els_laser_monitoring())  # vendor ELS CDB
+        return result
 ```
 
 <br>
@@ -325,6 +521,8 @@ In addition to the bank-aware EEPROM access commands introduced in *cmis_banking
 `show interfaces transceiver error-status [<interface_name>] [-hw]`
 
 This command extends the existing transceiver status reporting to include **CPO vendor-specific error conditions**, such as laser or fiber-related failures.
+
+*Example output of `show interfaces transceiver error-status`.*
 
 ```text
 show interfaces transceiver error-status [<interface_name>] [-hw]
