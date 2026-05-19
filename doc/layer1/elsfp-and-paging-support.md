@@ -205,32 +205,26 @@ The CmisMemMap class is refactored to be a container for CmisPage objects, while
 
 ```python
 class CmisMemMap(XcvrMemMap):
-    def get_field_from_pages(self, field_name, *pages):
-        fields = []
-        for page in pages:
-            fields.extend(page.get_field_values(field_name))
-        return fields
-
     def __init__(self, codes):
         super(CmisMemMap, self).__init__(codes)
-        #CMIS pages
-        self.administrative_upper_page = CmisAdministrativeUpperPage(codes) #0x00U
-        self.advertising_page = CmisAdvertisingPage(codes) #0x01
-        .
-        .
-        .
-        self.cdb_message_page = CmisCdbMessagePage(codes) #0x9F
-        self.TRANS_CDB= RegGroupField(consts.TRANS_CDB_FIELD,
-            *self.get_field_from_pages(consts.TRANS_CDB_FIELD, self.advertising_page, self.cdb_message_page)
+        self.pages = []
+        self.add_pages(
+            CmisAdministrativeUpperPage(codes),  # 0x00U
+            CmisAdvertisingPage(codes),          # 0x01
+            .
+            .
+            .
+            CmisCdbMessagePage(codes),           # 0x9F
         )
 
-        self.ADVERTISING = RegGroupField(consts.ADVERTISING_FIELD,
-            *self.get_field_from_pages(consts.ADVERTISING_FIELD, self.advertising_page)
-        )
-        .
-        .
-        .
+    def add_pages(self, *pages):
+        """Append pages to self.pages and register their fields onto self."""
+        self.pages.extend(pages)
+        for page in pages:
+            page.register_fields(self)
 ```
+
+Each `CmisPage` exposes a `register_fields(memmap)` method that sets its fields on the memory map. When multiple pages contribute to the same `RegGroupField` (e.g. `TRANS_CDB_FIELD` spans pages 01h and 9Fh), `register_fields` merges the new contributions into the existing group and re-sorts members by offset.
 
 ### 7.3 ELSFP Memory mapping
 
@@ -325,44 +319,19 @@ The ElsfpMemMap will only take a subset of CMIS pages and add the ELSFP pages. I
 
 ```python
 class ElsfpMemMap(CmisFlatMemMap):
-    def __init__(self, codes, bank):
-        super(ElsfpMemMap, self).__init__(codes, bank)
-        #CMIS pages
-        self.administrative_upper_page = CmisAdministrativeUpperPage(codes, bank=bank)
-        self.advertising_page = CmisAdvertisingPage(codes, bank=bank)
-        .
-        .
-        .
-        #CMIS field registration
-        self.ADVERTISING = RegGroupField(consts.ADVERTISING_FIELD,
-            *self.get_field_from_pages(consts.ADVERTISING_FIELD, self.advertising_page)
+    def __init__(self, codes, bank=0):
+        super(ElsfpMemMap, self).__init__(codes, bank=bank)
+        self.add_pages(
+            # CMIS pages applicable to ELSFP
+            CmisAdvertisingPage(codes),                   # 0x01
+            CmisThresholdsPage(codes),                    # 0x02
+            # ELSFP pages
+            ElsfpAdvertisementsFlagsPage(codes, bank=bank),  # 0x1A
+            ElsfpControlsMonitorsPage(codes, bank=bank),     # 0x1B
+            .
+            .
+            .
         )
-        .
-        .
-        .
-
-        #ELSFP pages
-        self.elsfp_advertisements_flags_page = ElsfpAdvertisementsFlagsPage(codes)
-        self.elsfp_controls_monitors_page = ElsfpControlsMonitorsPage(codes)
-        .
-        .
-        .
-        #ELSFP field registration
-        self.OPTICAL_POWER = RegGroupField(elsfp_consts.OPTICAL_POWER_FIELD,
-            *self.elsfp_advertisements_flags_page.get_field_values(elsfp_consts.OPTICAL_POWER_FIELD)
-        )
-        self.LASER_BIAS = RegGroupField(elsfp_consts.LASER_BIAS_FIELD,
-            *self.elsfp_advertisements_flags_page.get_field_values(elsfp_consts.LASER_BIAS_FIELD)
-        )
-        .
-        .
-        self.BIAS_CURRENT_SETPOINT = RegGroupField(elsfp_consts.BIAS_CURRENT_SETPOINT_FIELD,
-            *self.elsfp_controls_monitors_page.get_field_values(elsfp_consts.BIAS_CURRENT_SETPOINT_FIELD)
-        )
-        .
-        .
-        .
-
 ```
 
 #### 7.3.4 Custom Page remapping
@@ -465,7 +434,7 @@ The implementation is split into the following pull requests:
 
 | PR # | Description | Repository | Link |
 |------|-------------|------------|------|
-| PR 1 | Memory Map Refactor into pages | sonic-platform-common | [nexthop-ai/sonic-platform-common#1](https://github.com/nexthop-ai/sonic-platform-common/pull/1) |
+| PR 1 | Memory Map Refactor into pages | sonic-platform-common | [sonic-net/sonic-platform-common#667](https://github.com/sonic-net/sonic-platform-common/pull/667) |
 | PR 2 | ELSFP pages and Memory Map | sonic-platform-common | [nexthop-ai/sonic-platform-common#2](https://github.com/nexthop-ai/sonic-platform-common/pull/2) |
 
 
