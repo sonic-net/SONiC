@@ -11,6 +11,8 @@
 - [7. High-Level Design](#7-high-level-design)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and Management](#9-configuration-and-management)
+- [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
+- [11. Memory Consumption](#11-memory-consumption)
 - [12. Restrictions/Limitations](#12-restrictionslimitations)
 - [13. Testing Requirements/Design](#13-testing-requirementsdesign)
 - [14. Open/Action Items](#14-openaction-items)
@@ -20,9 +22,10 @@
 
 ### 1. Revision
 
-| Rev | Date       | Author        | Change Description |
-|-----|------------|---------------|--------------------|
-| 0.1 | 2026-03-18 | Rohit Sharma  | Initial version    |
+| Rev | Date       | Author        | Change Description                                  |
+|-----|------------|---------------|-----------------------------------------------------|
+| 0.1 | 2026-03-18 | Rohit Sharma  | Initial version                                     |
+| 0.2 | 2026-05-18 | Rohit Sharma  | Addressed review comments                           |
 
 ### 2. Scope
 
@@ -59,7 +62,7 @@ This section lists all the requirements for the transceiver firmware management 
 
 #### 5.1. Functional Requirements
 
-1. **Interface List Filtering**: Support filtering operations by comma-separated list of interface names
+1. **Interface List Filtering**: Support filtering operations by comma-separated list of interface names and ranges
 2. **Vendor Part Number Filtering**: Support filtering operations by vendor part number(s)
 3. **Tabular Display**: Provide compact tabular output format for firmware version information
 4. **Concurrent Download**: Support concurrent firmware download operations across multiple transceivers without automatic activation
@@ -172,7 +175,7 @@ This is a built-in SONiC feature that extends the existing `sfputil` CLI utility
 
 **New Options**:
 - `-t`: Display output in compact tabular format
-- `-i <INTERFACE_LIST>`: Filter by comma-separated interface names
+- `-i <INTERFACE_LIST>`: Filter by comma-separated interface names and ranges
 - `-p <PART_NUMBER_LIST>`: Filter by comma-separated vendor part numbers
 
 **Usage Examples**:
@@ -182,6 +185,12 @@ sudo sfputil show fwversion -t
 
 # Display firmware version for specific interfaces
 sudo sfputil show fwversion -i Ethernet0,Ethernet4,Ethernet8
+
+# Display firmware version for an interface range (range expanded to all matching present ports)
+sudo sfputil show fwversion -i Ethernet16-80 -t
+
+# Display firmware version using a mix of single interfaces and ranges
+sudo sfputil show fwversion -i Ethernet0,Ethernet4,Ethernet16-80 -t
 
 # Display firmware version for all transceivers with specific part number
 sudo sfputil show fwversion -p ALPHA123456 -t
@@ -195,7 +204,7 @@ sudo sfputil show fwversion -i Ethernet0,Ethernet4 -t
 **Command**: `sfputil firmware download`
 
 **New Options**:
-- `-i <INTERFACE_LIST> <FILEPATH>`: Download firmware for comma-separated interface list with specified firmware file
+- `-i <INTERFACE_LIST> <FILEPATH>`: Download firmware for comma-separated interface list with specified firmware file. The list supports interface range syntax (e.g., `Ethernet16-80`) that can be intermixed with single interface entries
 - `-p <PART_NUMBER_LIST> <FILEPATH>`: Download firmware for all ports matching vendor part number with specified firmware file
 
 Both `-i` and `-p` can be specified multiple times to target different groups with different firmware files.
@@ -204,6 +213,12 @@ Both `-i` and `-p` can be specified multiple times to target different groups wi
 ```bash
 # Download firmware for specific interfaces
 sudo sfputil firmware download -i Ethernet0,Ethernet4,Ethernet8 /path/to/firmware.bin
+
+# Download firmware using an interface range (range expanded to all matching present ports)
+sudo sfputil firmware download -i Ethernet16-80 /path/to/firmware.bin
+
+# Download firmware using a mix of single interfaces and ranges
+sudo sfputil firmware download -i Ethernet0,Ethernet4,Ethernet16-80 /path/to/firmware.bin
 
 # Download firmware for all transceivers with specific part number
 sudo sfputil firmware download -p Deltaxxxxxxxxxx004 /path/to/firmware_v1.2.3.bin
@@ -219,14 +234,25 @@ sudo sfputil firmware download \
 **Download Process Flow**:
 ```
 1. Parse and validate input parameters
-2. Identify target ports based on filters
-3. Display pre-download status
-4. Execute parallel firmware download operations:
-   a. Download firmware to transceiver
-   b. Verify download completion
-5. Display failure cause table for any failed ports
-6. Display post-download status
-7. Report final results
+2. Identify target ports based on filters; reject overlapping groups
+   with conflicting firmware files (see Section 7.5.1)
+3. Verify CMIS firmware-management capability per port via
+   get_module_fw_mgmt_feature(); exclude unsupported ports with a
+   per-port reason and proceed with the rest
+4. Display pre-download status
+5. Execute parallel firmware download operations per port:
+   a. cdb_start_firmware_download()
+   b. Download firmware payload to transceiver
+   c. cdb_firmware_download_complete() to verify completion
+   d. On ANY failure in steps a-c, issue the CDB Abort command to
+      return the module to an idle state before reporting the failure.
+      This prevents the module from being left in an indeterminate
+      "download in progress" state that would block subsequent retries.
+      Reference: CMIS_and_C-CMIS_support_for_ZR.md
+6. Display failure cause table for any failed ports (stage, status
+   code, decoded reason, recovery hint)
+7. Display post-download status
+8. Report final results
 ```
 
 **Key Differences from Upgrade**:
@@ -240,7 +266,7 @@ sudo sfputil firmware download \
 **Command**: `sfputil firmware upgrade`
 
 **New Options**:
-- `-i <INTERFACE_LIST> <FILEPATH>`: Upgrade firmware for comma-separated interface list with specified firmware file
+- `-i <INTERFACE_LIST> <FILEPATH>`: Upgrade firmware for comma-separated interface list with specified firmware file. The list supports interface range syntax (e.g., `Ethernet16-80`) that can be intermixed with single interface entries
 - `-p <PART_NUMBER_LIST> <FILEPATH>`: Upgrade firmware for all ports matching vendor part number with specified firmware file
 
 Both `-i` and `-p` can be specified multiple times to target different groups with different firmware files.
@@ -252,6 +278,12 @@ sudo sfputil firmware upgrade Ethernet0 /path/to/firmware.bin
 
 # Upgrade firmware for specific interfaces
 sudo sfputil firmware upgrade -i Ethernet0,Ethernet4,Ethernet8 /path/to/firmware.bin
+
+# Upgrade firmware using an interface range (range expanded to all matching present ports)
+sudo sfputil firmware upgrade -i Ethernet16-80 /path/to/firmware.bin
+
+# Upgrade firmware using a mix of single interfaces and ranges
+sudo sfputil firmware upgrade -i Ethernet0,Ethernet4,Ethernet16-80 /path/to/firmware.bin
 
 # Upgrade firmware for all transceivers with specific part number
 sudo sfputil firmware upgrade -p ALPHA123456 /path/to/firmware_v1.2.3.bin
@@ -265,16 +297,36 @@ sudo sfputil firmware upgrade \
 **Upgrade Process Flow**:
 ```
 1. Parse and validate input parameters
-2. Identify target ports based on filters
-3. Display pre-upgrade status
-4. Execute parallel firmware upgrade operations:
-   a. Download firmware to transceiver
-   b. Run/activate new firmware
-   c. Verify firmware switch completion
-   d. Commit firmware
-5. Display failure cause table for any failed ports
-6. Display post-upgrade status
-7. Report final results
+2. Identify target ports based on filters; reject overlapping groups
+   with conflicting firmware files (see Section 7.5.1)
+3. Verify CMIS firmware-management capability per port via
+   get_module_fw_mgmt_feature(); exclude unsupported ports with a
+   per-port reason and proceed with the rest
+4. Display pre-upgrade status
+
+   --- Phase 1/3: Download ---
+5. Execute parallel firmware download per port:
+   a. cdb_start_firmware_download()
+   b. Download firmware payload
+   c. cdb_firmware_download_complete()
+   d. On ANY failure in steps a-c, issue the CDB Abort command for
+      that port so the module returns to idle. The port is marked
+      Failed(Download) and is EXCLUDED from Phase 2 and Phase 3. The
+      remaining ports advance.
+
+   --- Phase 2/3: Activate ---
+6. For each port whose download completed cleanly:
+   a. cdb_run_firmware() to activate the new image
+   b. Verify firmware-switch completion
+
+   --- Phase 3/3: Commit ---
+7. For each port whose activation completed cleanly:
+   a. cdb_commit_firmware()
+
+8. Display failure cause table for any failed ports (stage, status
+   code, decoded reason, recovery hint)
+9. Display post-upgrade status
+10. Report final results
 ```
 
 #### 7.4. DB and Schema Changes
@@ -288,12 +340,45 @@ sudo sfputil firmware upgrade \
 
 ##### 7.5.1. Port Selection and Filtering
 
-The implementation uses a multi-stage filtering approach:
+For `firmware download` / `firmware upgrade`, the CLI builds a deterministic **port-to-firmware mapping** before any firmware operation begins. For `show fwversion`, the same selection logic is used to produce a port set (no firmware file is involved).
+
+**Per-group expansion:**
+
+Each `-i <INTERFACE_LIST> <FILEPATH>` and `-p <PART_NUMBER_LIST> <FILEPATH>` instance on the command line forms one independent **group**. Groups are processed in the order they appear. For each group:
 
 1. **Get Present Ports**: Query all ports with transceivers present via `get_present_sfp_ports_names_list()`, which skips RJ45 ports and ports without presence
-2. **Apply Interface Filter**: If `-i` specified, intersect with provided list
-3. **Apply Vendor PN Filter**: If `-p` specified, match against transceiver info `model` field
-4. **Validate**: Ensure all specified ports are present and accessible
+2. **Expand Group Selector**:
+   - For an `-i` group, parse each comma-separated token in `<INTERFACE_LIST>`.
+   - For a `-p` group, match `<PART_NUMBER_LIST>` against the transceiver info `model` field across all present ports
+3. **Intersect With Present Ports**: The group's expanded port set is intersected with the present ports
+4. **Pair With Firmware File**: Each surviving port in the group is paired with the group's `<FILEPATH>`, producing `(port → firmware_path)` entries
+
+**Combining groups into a single mapping:**
+
+After all groups are expanded, the per-group entries are merged into a single port-to-firmware mapping that drives the parallel firmware operation. Overlap handling is deterministic and validated up front:
+
+1. **Cross-type overlap between `-i` and `-p` is always rejected**: If a port is selected by **both** a `-p` group (via vendor-PN match) **and** an `-i` group (explicit interface or interface range), the command is rejected with `ERROR_INVALID_PORT` regardless of whether the two groups specify the same firmware file or different ones.
+2. **Same firmware in multiple groups of the same type** (`-i` × `-i` or `-p` × `-p`): If a port appears in more than one group of the same type and all such groups specify the **same** firmware file path, the port is included once. No error.
+3. **Conflicting firmware across groups of the same type** (`-i` × `-i` or `-p` × `-p`): If a port appears in more than one group of the same type with **different** firmware file paths, this is a configuration error. The CLI exits with `ERROR_INVALID_PORT`.
+4. **Empty selection**: If, after all groups are processed, the merged mapping is empty (no present port matched any group), the CLI prints an informational message and exits without performing any firmware operation.
+
+**Final validation:**
+
+- Every explicitly named interface must resolve to a present port, otherwise exit with an `ERROR_INVALID_PORT` exit.
+- Ports excluded purely because they fell within an unconfigured portion of an interface range are silently dropped, not treated as errors.
+
+##### 7.5.1.1. Interface Range Expansion
+
+The interface range syntax provides a concise way to target a contiguous block of ports without listing each one individually.
+
+**Syntax:**
+
+```
+<PREFIX><START_INDEX>-<END_INDEX>
+```
+
+For example, `Ethernet16-80` represents the range starting at index 16 and ending at index 80, inclusive.
+Malformed ranges shall result in CLI command getting rejected.
 
 ##### 7.5.2.  Transceiver Deduplication
 
@@ -334,13 +419,12 @@ On a platform where `Ethernet0` and `Ethernet1` share the same transceiver (seri
 
 Multi-port operations leverage Python's `concurrent.futures.ThreadPoolExecutor` for parallel processing:
 
-- **Concurrency Model**: One thread per transceiver operation
+- **Concurrency Model**: Bounded worker pool (up to 128)
 - **Error Isolation**: Failures in individual ports don't affect others; each port reports its own status
-- **Thread Safety**: Port status updates are protected
+- **Thread Safety**: Port status updates are protected by a `threading.Lock`.
 
 **Benefits**:
-- Significant time savings for multi-port operations
-- Efficient resource utilization
+- Significant time savings for multi-port operations versus serial execution
 - Real-time progress visibility
 
 ##### 7.5.4. Progress Display
@@ -389,8 +473,12 @@ port_status = {
 ##### 7.6.3. Failure Information
 ```python
 ports_failed_status_info = {
-    'Ethernet0': (download_ok, run_ok, commit_ok, error_reason),
-    # Example: (True, False, False, "status=2")
+    'Ethernet0': {
+        'stage': 'Activate',          # Download | Activate | Commit
+        'status_code': 2,             # raw CDB/Platform API code
+        'reason': 'Image rejected by transceiver; image incompatible',
+        'recovery_hint': 'Use a firmware image matching the module PN/revision.',
+    },
 }
 ```
 
@@ -416,21 +504,34 @@ transceiver_info_map = {
 
 The implementation includes comprehensive error handling:
 
-1. **Input Validation**:
-   - Verify port names are valid
-   - Ensure transceivers are present
-   - Validate firmware file paths
+1. **Input Validation** (performed before any firmware operation is dispatched):
+   - Verify port names and ranges are valid
+   - Ensure transceivers are present on every explicitly named target
+   - **Verify CMIS firmware-management capability per target via `get_module_fw_mgmt_feature()`**.
+   - Validate firmware file paths (existence, readability)
+   - Reject overlapping `-i`/`-p` groups that map the same port to different firmware files (Section 7.5.1)
 
 2. **Operation Errors**:
    - CDB command failures
-   - Firmware download errors
+   - Firmware download errors → CDB Abort is issued for the affected port so the module is returned to an idle state and can be retried cleanly (see download/upgrade flows in Section 7.3)
    - Firmware activation failures
    - Commit operation failures
+   - Each failure is recorded with the failing stage (Download / Activate / Commit), the raw CDB/status code, a **decoded reason string**, and a **recovery hint** (see [Failure Reason Decoding](#771-failure-reason-decoding))
 
 3. **User Feedback**:
    - Clear error messages
-   - Specific failure reasons
-   - Actionable guidance
+   - Specific failure reasons (numeric code + decoded reason text)
+   - Actionable guidance (recovery hint per failure)
+
+##### 7.7.1. Failure Reason Decoding
+
+CDB and platform-API status codes returned by firmware operations are decoded into human-readable strings before display. The decoding table is maintained in `sfputil/main.py` and is sourced from the CMIS specification (CDB error codes) plus a small set of `sfputil`-internal failure modes (e.g., timeout, capability missing). The failure cause table in multi-port operations displays three columns:
+
+| Column        | Source                                                                      |
+|---------------|-----------------------------------------------------------------------------|
+| Stage Failed  | Pipeline stage at which the failure occurred (Download / Activate / Commit) |
+| Status Code   | Raw numeric code from the CDB/Platform API                                  |
+| Reason        | Decoded human-readable description of the status code                       |
 
 #### 7.8. Platform-Specific Considerations
 
@@ -455,7 +556,7 @@ No new Docker containers or dependencies. The feature runs within the existing h
 
 #### 7.12. Build Dependencies
 
-No new build dependencies. Uses existing Python standard library and SONiC dependencies.
+No new build dependencies. Uses existing Python standard library and SONiC dependencies. In particular, `enlighten` is already declared in `sonic-utilities/setup.py` and is used by the current single-port `sfputil firmware upgrade` implementation — this enhancement reuses it without adding a new package requirement.
 
 ### 8. SAI API
 
@@ -485,7 +586,10 @@ Usage: sfputil show fwversion [OPTIONS] [<port_name>]
 
 Options:
   -t                              Display firmware version in tabular format
-  -i <INTERFACE_LIST>             Comma-separated list of interfaces
+  -i <INTERFACE_LIST>             Comma-separated list of interfaces. Each
+                                  entity may be a single interface (Ethernet0)
+                                  or an inclusive interface range
+                                  (Ethernet16-80).
   -p <PART_NUMBER_LIST>           Comma-separated list of vendor part numbers
   --help                          Show this message and exit.
 ```
@@ -501,7 +605,10 @@ Usage: sfputil firmware download [OPTIONS]
 Options:
   -i <INTERFACE_LIST> <FILEPATH>  Download firmware for comma-separated
                                   interface list with specified firmware file.
-                                  Example: -i Ethernet0,Ethernet4
+                                  Each entity may be a single interface or an
+                                  inclusive interface range (e.g.,
+                                  Ethernet16-80); tokens may be mixed.
+                                  Example: -i Ethernet0,Ethernet4,Ethernet16-80
                                   /path/to/firmware.bin
   -p <PART_NUMBER_LIST> <FILEPATH>
                                   Download firmware for all ports with
@@ -521,7 +628,10 @@ Usage: sfputil firmware upgrade [OPTIONS] [PORT_NAME] [FILEPATH]
 Options:
   -i <INTERFACE_LIST> <FILEPATH>  Upgrade firmware for comma-separated
                                   interface list with specified firmware file.
-                                  Example: -i Ethernet0,Ethernet4
+                                  Each entity may be a single interface or an
+                                  inclusive interface range (e.g.,
+                                  Ethernet16-80); tokens may be mixed.
+                                  Example: -i Ethernet0,Ethernet4,Ethernet16-80
                                   /path/to/firmware.bin
   -p <PART_NUMBER_LIST> <FILEPATH>
                                   Upgrade firmware for all ports with
@@ -571,8 +681,12 @@ Low additional memory footprint (Less than 15 MB during firmware upgrade).
    - No wildcard or regex pattern matching
 
 3. **Interface Validation**:
-   - All specified interfaces must have transceivers present
-   - Operation exits with `ERROR_INVALID_PORT` if any specified port is not present
+   - All explicitly specified interfaces must have transceivers present
+   - Operation exits with `ERROR_INVALID_PORT` if any explicitly specified port is not present
+
+4. **Interface Range Syntax**:
+   - Range bounds use the form `<PREFIX><START>-<END>` (e.g., `Ethernet16-80`) and are inclusive on both ends
+   - The interface prefix is implicit from the left-hand side; the form `Ethernet16-Ethernet80` is also accepted, but prefixes on both sides must match
 
 #### 12.2. Operational Considerations
 
@@ -606,6 +720,11 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-SHOW-07 | Combine `-i` and `-t` | Filtered tabular output |
 | FW-SHOW-08 | Invalid interface name | Error message displayed |
 | FW-SHOW-09 | Interface without transceiver | Appropriate error handling |
+| FW-SHOW-10 | Filter by interface range (`-i Ethernet16-80`) | Only configured ports within the range shown |
+| FW-SHOW-11 | Filter by mixed range and single interfaces (`-i Ethernet0,Ethernet4,Ethernet16-80`) | Union of all matching ports shown, deduplicated |
+| FW-SHOW-12 | Reversed range (`-i Ethernet80-16`) | Error message displayed, exits with `ERROR_INVALID_PORT` |
+| FW-SHOW-13 | Malformed range (`-i Ethernet16-`) | Error message displayed, exits with `ERROR_INVALID_PORT` |
+| FW-SHOW-14 | Range matching zero configured ports (`-i Ethernet9999-99999`) | "No matching ports for range" message displayed |
 
 ##### 13.1.2. Test Cases for Firmware Download
 
@@ -621,6 +740,17 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-DL-08 | Mixed success/failure scenario | Successful ports downloaded, failures reported |
 | FW-DL-09 | No matching ports for vendor PN | Appropriate message displayed |
 | FW-DL-10 | Verify firmware not auto-activated | Firmware downloaded but not running |
+| FW-DL-11 | Download with interface range (`-i Ethernet16-80`) | All configured ports within range downloaded |
+| FW-DL-12 | Download with mixed range and single interfaces (`-i Ethernet0,Ethernet4,Ethernet16-80`) | Union of all matching ports downloaded, deduplicated |
+| FW-DL-13 | Reversed range (`-i Ethernet80-16`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-14 | Malformed range (`-i Ethernet16-`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-15 | Overlapping `-i` groups, same firmware file (e.g., `-i Ethernet0,Ethernet4 fw.bin -i Ethernet4,Ethernet8 fw.bin`) | Overlap accepted; `Ethernet4` deduplicated and downloaded once |
+| FW-DL-16 | Overlapping `-i` groups, **different** firmware files (e.g., `-i Ethernet0,Ethernet4 fw_v1.bin -i Ethernet4,Ethernet8 fw_v2.bin`) | Conflict table printed listing `Ethernet4` with both candidate firmware files and group selectors; exits with `ERROR_INVALID_PORT` **before** any download is initiated |
+| FW-DL-17 | Overlapping `-i` and `-p` groups, **different** firmware files (e.g., `-i Ethernet0 fw_a.bin -p VendorPN_X fw_b.bin` where `Ethernet0` has model `VendorPN_X`) | Conflict table printed listing `Ethernet0` with both candidate firmware files; exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-17a | Overlapping `-i` and `-p` groups, **same** firmware file (e.g., `-i Ethernet0 fw.bin -p VendorPN_X fw.bin` where `Ethernet0` has model `VendorPN_X`) | Cross-type overlap is rejected regardless of firmware path equality. Conflict table printed listing `Ethernet0` with the `-i` token and the `-p` selector; exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-17b | `-i` interface range overlapping with `-p` match (e.g., `-i Ethernet0-32 fw_a.bin -p VendorPN_X fw_b.bin` where some ports in the range have model `VendorPN_X`) | Conflict table printed for every port covered by both the expanded `-i` range and the `-p` match; exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-18 | Overlapping `-p` groups via partial PN match collision, **different** firmware files | Conflict table printed for every port matched by both PNs; exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-19 | Overlap with **same** firmware path expressed differently (e.g., `/tmp/fw.bin` vs `/tmp/./fw.bin`) | Paths normalized via `os.path.realpath`; treated as same firmware, accepted, deduplicated |
 
 ##### 13.1.3. Test Cases for Firmware Upgrade
 
@@ -637,6 +767,17 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-UPG-09 | Firmware activation failure | Error reported with stage and status code |
 | FW-UPG-10 | Mixed success/failure scenario | Successful ports upgraded, failures reported |
 | FW-UPG-11 | No matching ports for vendor PN | Appropriate message displayed |
+| FW-UPG-12 | Upgrade with interface range (`-i Ethernet16-80`) | All configured ports within range upgraded |
+| FW-UPG-13 | Upgrade with mixed range and single interfaces (`-i Ethernet0,Ethernet4,Ethernet16-80`) | Union of all matching ports upgraded, deduplicated |
+| FW-UPG-14 | Reversed range (`-i Ethernet80-16`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no upgrade initiated |
+| FW-UPG-15 | Malformed range (`-i Ethernet16-`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no upgrade initiated |
+| FW-UPG-16 | Overlapping `-i` groups, same firmware file (e.g., `-i Ethernet0,Ethernet4 fw.bin -i Ethernet4,Ethernet8 fw.bin`) | Overlap accepted; `Ethernet4` deduplicated and upgraded once |
+| FW-UPG-17 | Overlapping `-i` groups, **different** firmware files (e.g., `-i Ethernet0,Ethernet4 fw_v1.bin -i Ethernet4,Ethernet8 fw_v2.bin`) | Conflict table printed listing `Ethernet4` with both candidate firmware files and group selectors; exits with `ERROR_INVALID_PORT` **before** any upgrade phase is initiated; module state unchanged |
+| FW-UPG-18 | Overlapping `-i` and `-p` groups, **different** firmware files (e.g., `-i Ethernet0 fw_a.bin -p VendorPN_X fw_b.bin` where `Ethernet0` has model `VendorPN_X`) | Conflict table printed listing `Ethernet0`; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
+| FW-UPG-18a | Overlapping `-i` and `-p` groups, **same** firmware file (e.g., `-i Ethernet0 fw.bin -p VendorPN_X fw.bin` where `Ethernet0` has model `VendorPN_X`) | Cross-type overlap is rejected regardless of firmware path equality. Conflict table printed listing `Ethernet0` with the `-i` token and the `-p` selector; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
+| FW-UPG-18b | `-i` interface range overlapping with `-p` match (e.g., `-i Ethernet0-32 fw_a.bin -p VendorPN_X fw_b.bin` where some ports in the range have model `VendorPN_X`) | Conflict table printed for every port covered by both the expanded `-i` range and the `-p` match; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
+| FW-UPG-19 | Overlapping `-p` groups via partial PN match collision, **different** firmware files | Conflict table printed for every port matched by both PNs; exits with `ERROR_INVALID_PORT`; no upgrade initiated |
+| FW-UPG-20 | Overlap with **same** firmware path expressed differently (e.g., `/tmp/fw.bin` vs `/tmp/./fw.bin`) | Paths normalized via `os.path.realpath`; treated as same firmware, accepted, deduplicated |
 
 #### 13.2. System Test Cases
 
@@ -933,11 +1074,11 @@ CDB: Finished firmware download: 17:32:01. Time taken: 108 seconds
 Succeeded: 23, Failed: 3
 
 Failed ports:
-Interface    Stage Failed      Status Code
------------  --------------  -------------
-Ethernet8    Download                    3
-Ethernet72   Download                   64
-Ethernet504  Download                   69
+Interface    Stage Failed      Status Code  Reason
+-----------  --------------  -------------  ---------------------------------------------
+Ethernet8    Download                    3  Invalid firmware image format
+Ethernet72   Download                   64  Transfer timed out; module unresponsive
+Ethernet504  Download                   69  Firmware rejected by transceiver; incompatible
 ...
 ```
 ### B.3. Firmware Upgrade
@@ -1095,12 +1236,12 @@ CDB: Finished firmware upgrade: 17:37:37. Time taken: 116 seconds
 Succeeded: 22, Failed: 4
 
 Failed ports:
-Interface    Stage Failed      Status Code
------------  --------------  -------------
-Ethernet16   Download                    3
-Ethernet72   Download                   64
-Ethernet160  Download                    3
-Ethernet384  Download                   69
+Interface    Stage Failed      Status Code  Reason
+-----------  --------------  -------------  ---------------------------------------------
+Ethernet16   Download                    3  Invalid firmware image format
+Ethernet72   Download                   64  Transfer timed out; module unresponsive
+Ethernet160  Download                    3  Invalid firmware image format
+Ethernet384  Download                   69  Firmware rejected by transceiver; incompatible
 ...
 ```
 
@@ -1113,6 +1254,12 @@ sudo sfputil show fwversion -t
 # Show firmware version for specific interfaces
 sudo sfputil show fwversion -i Ethernet0,Ethernet4
 
+# Show firmware version for an interface range
+sudo sfputil show fwversion -i Ethernet16-80 -t
+
+# Show firmware version mixing single interfaces and a range
+sudo sfputil show fwversion -i Ethernet0,Ethernet4,Ethernet16-80 -t
+
 # Show firmware version for specific vendor PN
 sudo sfputil show fwversion -p Alphaxxxxxxxx001
 
@@ -1121,6 +1268,12 @@ sudo sfputil show fwversion Ethernet128
 
 # Download firmware for multiple interfaces (without auto-activation)
 sudo sfputil firmware download -i Ethernet0,Ethernet4 /path/to/firmware.bin
+
+# Download firmware using an interface range
+sudo sfputil firmware download -i Ethernet16-80 /path/to/firmware.bin
+
+# Download firmware mixing single interfaces and a range
+sudo sfputil firmware download -i Ethernet0,Ethernet4,Ethernet16-80 /path/to/firmware.bin
 
 # Download firmware by vendor PN
 sudo sfputil firmware download -p Deltaxxxxxxxxxx004 /path/to/firmware.bin
@@ -1137,6 +1290,12 @@ sudo sfputil firmware upgrade Ethernet0 /path/to/firmware.bin
 
 # Upgrade multiple interfaces (summary progress mode)
 sudo sfputil firmware upgrade -i Ethernet0,Ethernet4 /path/to/firmware.bin
+
+# Upgrade using an interface range
+sudo sfputil firmware upgrade -i Ethernet16-80 /path/to/firmware.bin
+
+# Upgrade mixing single interfaces and a range
+sudo sfputil firmware upgrade -i Ethernet0,Ethernet4,Ethernet16-80 /path/to/firmware.bin
 
 # Upgrade by vendor PN
 sudo sfputil firmware upgrade -p Alphaxxxxxxxx001 /path/to/alpha_fw.bin
