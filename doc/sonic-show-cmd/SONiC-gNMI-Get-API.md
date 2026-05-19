@@ -16,24 +16,18 @@ SONiC on-demand show command execution via gNMI
 - [Future plan](#future-plan)
 
 # Goals
-1. Provide a way to execute show CLI commands on device (on-demand) and get the output.
-2. Avoid interactive login to the device for command execution.
-3. Return output in JSON format equivalent to CLI output.
-4. Support throttling targets:
+1. Provide a gNMI based API as a read only interface for retrieving SONiC device metadata, which can allow remote invocation without interactive user login.
+2. Provide a way to implement show CLI commands using gNMI APIs.
+3. Provide a structured response that can be consumed by application.
+4. Support Rate limiting using configurable paramters. For instance:
    - Up to 32 parallel command executions per device.
    - Up to 100 maximum concurrent connections.
 
 # Problems to solve
-Existing tools (or new tools) that require device data for lifecycle workflows do not always have near real-time access to SONiC state.
-
-Today, data collection generally happens in two ways:
+Existing tools (or new tools) that require device metadata OR diagnostic data for lifecycle workflows uses CLI.
 1. Log in to the device and run CLI commands.
-   - This needs manual or scripted login workflows.
-   - It introduces device access/security overhead.
-   - It is slower due to multiple execution steps.
-2. Use telemetry service output.
-   - Telemetry is interval-based for many workflows.
-   - Not all show command outputs are available.
+   - Requires user account/password based authentication, instead of certificate based authentication
+   - Introduces overhead for constructing the input and parsing the output of the CLI commands when used by application/automation.
 
 Below is the diagram for current execution paths.
 
@@ -41,14 +35,11 @@ Below is the diagram for current execution paths.
 ![Current Flow](CurrentFlow.jpg)
 
 # What we bring in
-1. Enable gNMI protocol support for on-demand retrieval/streaming of device data.
-2. Expose APIs that automation can call and consume in JSON format.
-3. Provide near real-time, on-demand execution controlled by the caller.
-4. Keep execution resource usage low.
-   - Memory: ~194 MB (P90)
-   - CPU: ~4% (P90) 
-5. Provide native gNMI benefits such as parallel streams and secure transport.
-6. Enable top-level AAA integration so automation can access data without interactive shell login.
+1. Enable gNMI APIs to provide device metadata and diagnostic data in strctured format(json).
+2. Enbable certificate based authentication and autherization based data retrival.
+3. Provide native gNMI benefits such as parallel streams and secure transport.
+4. Enable show CLI(Read-Only) to use gNMI APIs for future CLI implementation.
+5. Plan to migrate existing show CLIs to use gNMI based framework.
 
 ## New flow (desired) diagram
 ![New Flow](NewFlow.jpg)
@@ -96,24 +87,47 @@ $ show reboot-cause history
 }
 ```
 
-# gNMI client
-Any gNMI client can be used to query this data from SONiC.
+# CLI OR gNMI client
+CLI OR any gNMI Client can be used to query the metadata OR diagnostic data from SONiC Device.
 
 On device, Telemetry container runs the gNMI server using server certificate and trusted CA roots. A client certificate can be:
 - Issued by a CA already present in SONiC trusted root, or
 - Issued by a new CA that is explicitly added to SONiC trusted root.
 
-Once certificates are configured, the gNMI client communicates with the gNMI server in Telemetry container.
+Once certificates are configured, the CLI or gNMI client communicates with the gNMI server in Telemetry container.
+
+## CLI Command to gNMI Path Conversion
+The gNMI path structure cab be directly drived from the existing SONiC CLI commands to preserve consistency and simplify adoption. Instead of introducing a new schema, a deterministic transformation model can be used to convert CLI commands into hierarchical gNMI paths.
+The mapping is 1:1 with CLI behavior to ensure predictable conversion, easy debugging, and CLI to gNMI parity.
+
+Key Design Points
+- CLI as source of truth: The existing show CLI structure cab be used as-is to define the gNMI path hierarchy.
+- Hierarchical mapping: Each CLI token (command/sub-command) maps to a corresponding segment in the gNMI path.
+```
+show <cmd1> <cmd2> <cmd3> → <cmd1>/<cmd2>/<cmd3>
+```
+- Options mapped as key filters: CLI options can be translated into gNMI path key-value selectors.
+Options with value → [key=value]
+Boolean flags → [key=True]
+
 
 ## Example get command
 ```bash
-./gnmi_cli -client_types=gnmi \
+cli -client_types=gnmi \
   -a <DEVICE-IP>:<PORT> \
   -ca <path_to_CA_crt> \
   -client_crt <path_to_client_crt> \
   -client_key <path_to_client_key> \
   -t OTHERS -logtostderr \
   -qt p -pi 10s -q show/interface/status/Ethernet0
+
+cli -client_types=gnmi \
+  -a <DEVICE-IP>:<PORT> \
+  -ca <path_to_CA_crt> \
+  -client_crt <path_to_client_crt> \
+  -client_key <path_to_client_key> \
+  -t OTHERS -logtostderr \
+  -qt p -pi 10s -q show/interface[interface=Ethernet0]/status
 ```
 
 # New design (HLD)
@@ -160,40 +174,8 @@ A parameter is required.
   -qt p -pi 10s -q show/interface[interface=Ethernet0]/status
 ```
 
-# STATS update
-The stats are maintained to capture the status of service.  
-Intend is to track the progress and create monitoring on these stats. Same monitoring can be used to create alerts.  
-Note: Below mentioned data is collected manually, right now we don't have such stats dumped in DB/Logs.
-**TODO:** Update the stats data from gNMI Watchdog results
 
-## Counters
-- `show-cmd-requests-total`
-  - Total gNMI on-demand show requests accepted by telemetry service.
-- `show-cmd-responses-success`
-  - Total successful responses sent to gNMI clients.
-- `show-cmd-responses-failed`
-  - Total failed responses due to internal execution or mapping errors.
-- `show-cmd-missed-slow-receiver`
-  - Total responses dropped due to client-side back pressure or slow receive path.
-- `show-cmd-throttled-requests`
-  - Total requests rejected by throttling controls.
-- `show-cmd-active-sessions`
-  - Current active concurrent client sessions.
-
-## Latency
-- `show-cmd-latency-avg-ms`
-  - Average latency over moving window for recent requests.
-- `show-cmd-latency-p95-ms`
-  - 95th percentile latency over moving window.
-- `show-cmd-latency-p99-ms`
-  - 99th percentile latency over moving window.
-
-Latency is computed as:
-
-`< response timestamp > - < request accepted timestamp >`
-
-
-# Examples
+# Examples with output
 ## Example 1: reboot cause history
 ```bash
 ./gnmi_cli -client_types=gnmi \
@@ -253,14 +235,93 @@ Latency is computed as:
 }
 ```
 
-  # Requirements
-  1. Support up to 32 parallel command executions per device.
-  2. Support up to 100 concurrent client connections.
-  3. Preserve AAA-based authentication and authorization controls for all requests.
-  4. Return output in structured JSON format equivalent to CLI semantics.
-  5. Support both non-parameterized and parameterized query paths.
-  6. Ensure secure transport using mutual TLS certificates.
-  7. Expose operational counters and latency metrics through DB and gNMI stream.
+# Stop the Bleeding: Enforcing gNMI-first for Show Commands
+
+To prevent further divergence between CLI and gNMI implementations, all `show` command development will follow a **gNMI-first approach**. Direct additions to CLI (`sonic-utilities`) without corresponding gNMI APIs will be restricted.
+
+## Governance: Mandatory Review Gate
+
+- Introduce a **reviewer group for `sonic-utilities` repository**
+- Any new `show` CLI command:
+  - **Requires mandatory approval** from the reviewer group
+  - Must include:
+    - Corresponding **gNMI API implementation**
+    - Valid **CLI → gNMI path mapping**
+- CLI-only implementations will be **rejected**
+
+## Developer Workflow
+
+All new `show` functionality must follow:
+```Implementation → gNMI API → CLI Integration```
+
+## Developing gNMI APIs
+
+A **Golang-based library** will be provided for implementing all new functionality.
+
+### Key Points
+
+- Developers implement logic in **Golang**, not in CLI Python
+- The library handles:
+  - Data retrieval
+  - Business logic
+  - JSON response generation
+
+- Existing CLI implementations will be:
+  - Converted into **Golang reference examples**
+  - Provided as **working samples** for reuse
+
+### Example (Conceptual)
+
+```go
+func GetFoo(ctx context.Context, params FooParams) (FooResponse, error) {
+    // business logic (migrated from CLI)
+}
+```
+
+## Calling gNMI API from CLI
+
+The CLI acts as a thin client layer over gNMI.
+
+### Flow
+
+1. CLI parses user input  
+   show interfaces counters --period=5  
+
+2. Convert CLI → gNMI path  
+   interfaces/counters[period=5]  
+
+3. Connect to local gNMI server on device  
+
+4. Execute gNMI query  
+   paths: ["SHOW/interfaces/counters[period=5]"]  
+
+5. Receive JSON response  
+
+6. Convert JSON → human-readable CLI output  
+   - Use existing Python tabular formatting utilities  
+
+## Migration of Existing CLI Commands
+
+- All existing show CLI commands will be gradually migrated to the same model:
+  - Move core logic → Golang gNMI library  
+  - CLI becomes consumer of gNMI API  
+
+- Migration approach:  
+  Existing CLI → Extract logic → Implement in gNMI → Rewire CLI to gNMI  
+
+- This migration is expected to be phased over ~1 year:
+  - No disruption to existing workflows  
+  - Incremental validation and rollout  
+
+## Responsibilities Split
+
+| Layer        | Responsibility                          |
+|--------------|----------------------------------------|
+| gNMI Server  | Core logic, data retrieval, API surface |
+| Golang Lib   | Feature implementation                  |
+| CLI (Python) | Input parsing, path generation, output formatting |
+
+
 
   # Test
   Tests are required to keep behavior stable across releases and to validate concurrency, reliability, and output consistency.  
@@ -284,10 +345,9 @@ Latency is computed as:
     - Validate timeout handling for slow backend data sources.
 
 # Future plan
-1. Enable the Stats and configure  monitoring/alerting on it.
-2. Expand virtual path coverage for additional show commands.
-3. Using new go-lang library in CLI calls.
+1. We will have versioning in gNMI Response which is default concept for gNMI to track response changes.
+2. We should have generic gNMI stats to provide each query level latency, status as well as QPS and other summarized statistics.
+3. Migrate existing show CLI commands to use gNMI based infra.
 4. Add schema validation for output consistency across releases.
-5. Add formal SLA definitions for latency and throughput.
-6. Add unit and scale tests for concurrency and throttling behavior.
-7. Publish API/query path catalog for automation consumers.
+5. Add unit and scale tests for concurrency and throttling behavior.
+6. Publish API/query path catalog for automation consumers.
