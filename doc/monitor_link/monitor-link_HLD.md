@@ -21,7 +21,6 @@
 |-----|------------|------------------|--------------------|
 | 0.1 | 2026-04-28 | Satishkumar Rodd | Initial version    |
 | 0.2 | 2026-05-12 | Satishkumar Rodd | Rename uplinks/downlinks to monitored-links/managed-links (R-4); drop empty-string defaults on leaf-lists (R-7); extend `must` constraint to bound `min-monitored-links` by `count(monitored-links)` (R-10) |
-| 0.3 | 2026-05-12 | Satishkumar Rodd | Add dependency-cycle rejection between groups (R-6); state-transition tracking in STATE_DB (`last_state_change_*`, `pending_start_time`, `total_transitions`); `show monitor-link` renders last-change / counters / PENDING progress; `show interface status` and `show interface description` render `error-down (mlg)` for MLG-held interfaces |
 
 
 ## 2. Scope
