@@ -95,13 +95,8 @@ Future enhancements may include advanced hardware health monitoring, telemetry d
 - The front-panel serial port can be dynamically switched between the BMC and main CPU.
 - Predefined hotkeys will be used to toggle between the two UART interfaces.
 
-##### 5.1.6 OBMC Console
-- **BMC-SONiC-OS** will use [obmc-console](https://github.com/openbmc/obmc-console) for console management.
-- A clone of this project will be created and added as a submodule in the sonic-buildimage repository.
-- The switch CPU console will be accessible by invoking the obmc-console-client inside the obmc-console docker.
-- The switch CPU console will also be accessible over the network via ssh to a specific port on the BMC.
-- It will capture and log the main switch CPU’s serial console output for later review.
-- Log rotation, compression and export to an external server will be supported
+##### 5.1.6 Console Management
+- **BMC-SONiC-OS** will use the native console support present in SONiC for console management. Refer to https://github.com/sonic-net/SONiC/pull/2178
 
 ##### 5.1.7 OBMC Web
 - **BMC-SONiC-OS** will use [OpenBMC Web (bmcweb)](https://github.com/openbmc/bmcweb) as the RESTful (Redfish) API server.
