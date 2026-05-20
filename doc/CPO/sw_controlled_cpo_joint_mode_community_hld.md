@@ -143,33 +143,15 @@ As a result, the following extensions are needed:
 
 ### 7.1 CMIS State Machine Thread for CPO Modules
 
-The CMIS state machine thread is responsible for module configuration. It orchestrates the bring-up of a CMIS transceiver, transitioning it from the inserted state to a ready-for-traffic state.
-
-A new thread, `CmisCpoManagerTask`, will be introduced in `xcvrd` to handle this flow specifically for CPO modules. This thread reuses the existing CMIS logic by inheriting from `CmisManagerTask`, with only minimal adjustments.
-
-The intent is to keep CPO handling fully isolated from the existing logic for pluggable modules.
-
-The `CmisCpoManagerTask` thread is instantiated only in Joint Mode. This is controlled via a new flag — *"is_cpo_joint_mode"* — added to `pmon_daemon_control.json` (located at `/usr/share/sonic/device/[PLATFORM]/pmon_daemon_control.json`). When *"is_cpo_joint_mode": true*, the `CmisCpoManagerTask` thread is initialized.
-
-*Initialize `CmisCpoManagerTask` only in Joint Mode.*
+The CMIS state machine thread is responsible for module configuration. It orchestrates the bring-up of a CMIS transceiver, transitioning it from the inserted state to a ready-for-traffic state.  
+To support CPO modules, the existing `CmisManagerTask` thread in `xcvrd` will be extended to handle the `CPO` module type. No new dedicated CPO configuration thread will be introduced.
+The only required change in this area is to add `CPO` to the list of CMIS module types handled by `CmisManagerTask`:
 
 ```python
-def run(self):
-    # Start the CMIS cpo manager
-    cmis_cpo_manager = None
-    if self.is_cpo_joint_mode:
-        cmis_cpo_manager = CmisCpoManagerTask(...)
-        cmis_cpo_manager.start()
-        self.threads.append(cmis_cpo_manager)
+CMIS_MODULE_TYPES = ['QSFP-DD', 'QSFP_DD', 'OSFP', 'OSFP-8X', 'QSFP+C', 'CPO']
 ```
 
-The only functional difference is the set of supported module types. While `CmisManagerTask` handles multiple module types (e.g., QSFP-DD, OSFP, QSFP+), `CmisCpoManagerTask` is restricted to CPO modules only:
-
-*Restrict `CmisCpoManagerTask` to the CPO module type.*
-
-```python
-CMIS_MODULE_TYPES = ['CPO']
-```
+With this change, CPO modules will be processed by the existing CMIS state machine flow.
 
 
 ### 7.2 DOM: CPO API Wiring
