@@ -7,7 +7,7 @@
 - [3. Definitions/Abbreviations](#3-definitionsabbreviations)
 - [4. Overview](#4-overview)
 - [5. Requirements](#5-requirements)
-- [6. Architecture Design](#6-architecture-design)
+- [6. CDB Timeouts](#6-cdb-timeouts)
 - [7. High-Level Design](#7-high-level-design)
   - [7.1 Timeout Resolution Flow](#71-timeout-resolution-flow)
   - [7.2 Commands Using Module Advertised MaxDuration (CMIS Compliant)](#72-commands-using-module-advertised-maxduration-cmis-compliant)
@@ -29,6 +29,7 @@
 | Rev | Date       | Author | Change Description |
 |-----|------------|--------|--------------------|
 | 0.1 | 2026-05-19 | Pavan Kalyan Nakka      | Initial version    |
+| 0.2 | 2026-05-20 | Pavan Kalyan Nakka      | Addressed review comments |
 
 ## 2. Scope
 
@@ -68,21 +69,22 @@ This change uses the module advertised MaxDuration as the per-command timeout wh
 
 ### Functional Requirements
 
-1. For CDB commands where the CMIS defines a MaxDuration field, use the module advertised value as the command timeout.
-2. For CDB commands where the CMIS does not define a MaxDuration field, use a fixed default timeout.
+1. For CDB commands where the CMIS defines a MaxDuration field, use the module advertised value (plus a safety margin) as the command timeout.
+2. For CDB commands where the CMIS does not define a MaxDuration field, use the fixed default timeout of 9960 ms (defined in [sonic-platform-common](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_xcvr/cdb/cdb.py#L65-L66)).
 3. Fall back to the default timeout when CDB 0041h is not supported by the module or returns invalid data.
 4. Continue to use CDB status polling for early completion detection regardless of timeout value.
+5. Add a safety margin on top of the advertised MaxDuration to account for latency.
 
 ### Non-Functional Requirements
 
 1. No increase in firmware upgrade time for modules that already complete within the current timeout window.
 2. Backward compatibility with modules that do not support CDB 0041h.
 
-## 6. Architecture Design
+## 6. CDB Timeouts
 
-No changes to the overall SONiC architecture. This modifies timeout in the CDB command execution path (`CdbFwHandler` in `sonic-platform-common/sonic_platform_base/sonic_xcvr/cdb/cdb_fw.py`).
+The current default firmware CDB commands timeout in SONiC is **9960 ms**, defined in [sonic-platform-common](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_xcvr/cdb/cdb.py#L65-L66). This fixed value is used for all firmware related CDB commands today.
 
-The firmware upgrade flow queries MaxDuration values via CDB 0041h at the start, then passes the appropriate timeout to each subsequent CDB command:
+This change modifies the timeout in the CDB command execution path (`CdbFwHandler` in `sonic-platform-common/sonic_platform_base/sonic_xcvr/cdb/cdb_fw.py`). The firmware upgrade flow queries MaxDuration values via CDB 0041h at the start, then passes the appropriate timeout (with a safety margin) to each subsequent CDB command:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -102,6 +104,7 @@ The firmware upgrade flow queries MaxDuration values via CDB 0041h at the start,
 │      └── Commit FW Image (010Ah)      ── use default timeout         │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+**Note:** The effective timeout for advertised commands is `MaxDuration × M + SAFETY_MARGIN`. This ensures the module is not timed out prematurely due to communication overhead outside of the module's control.
 
 ## 7. High-Level Design
 
@@ -115,12 +118,12 @@ CDB command issued
     ▼
 Does the CMIS spec define a MaxDuration for this command (via CDB 0041h)?
     │
-    ├── Yes ──► Use the module advertised MaxDuration as the timeout  ─┐
-    │                                                                  │
-    └── No  ──► Use the fixed default timeout ─────────────────────────┤
-                                                                       │
-                                                                       ▼
-               Poll CDB status register for early completion regardless of timeout value
+    ├── Yes ──► Use the module advertised MaxDuration + SAFETY_MARGIN as the timeout  ─┐
+    │                                                                                  │
+    └── No  ──► Use the fixed default timeout ─────────────────────────────────────────┤
+                                                                                       │
+                                                                                       ▼
+                                               Poll CDB status register for early completion regardless of timeout value
 ```
 
 ### 7.2 Commands Using Module Advertised MaxDuration (CMIS Compliant)
@@ -140,7 +143,7 @@ If CDB 0041h is not supported, these commands fall back to the default timeout.
 
 ### 7.3 CDB Commands in the Firmware Upgrade Workflow
 
-The following table lists all CDB commands involved in the firmware upgrade process along with proposed timeout behavior:
+The following table lists all CDB commands involved in the firmware upgrade process along with proposed timeout behavior. Commands marked "Default" use the fixed default timeout of **9960 ms** (as defined in [sonic-platform-common](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_xcvr/cdb/cdb.py#L65-L66)) except the Run FW Image command that has its own fixed timeout value (as defined in [sonic-platform-common](https://github.com/sonic-net/sonic-platform-common/blob/master/sonic_platform_base/sonic_xcvr/fields/cdb_consts.py#L61)):
 
 #### Table 3: Upgrade Workflow CDB Commands
 | # | Command | CMD ID | MaxDuration | 
@@ -156,8 +159,6 @@ The following table lists all CDB commands involved in the firmware upgrade proc
 | 9 | Commit FW Image | 010Ah | Default |
 | 10 | Enter Password | 0001h | Default |
 
-**Note:** The Run FW Image command already uses its own fixed timeout value independent of the default.
-
 ### 7.4 Repository to Change
 
 | Repository            | Files to Modify |
@@ -168,11 +169,11 @@ The following table lists all CDB commands involved in the firmware upgrade proc
 
 1. **Parse MaxDuration in `initFwHandler()`** — Extend the existing CDB 0041h response parsing to extract MaxDuration fields (bytes 144–153), read the M multiplier from bit 137.3, multiply the U16 values by M, and store the resulting ms values as instance attributes.
 
-2. **Pass timeouts to `send_cmd()`** — Update the following methods to pass their respective MaxDuration value:
-   - `start_fw_download()` -> `timeout_start`
-   - `abort_fw_download()` -> `timeout_abort`
-   - `write_lpl_block()` / `write_epl_block()` -> `timeout_write`
-   - `complete_fw_download()` -> `timeout_complete`
+2. **Pass timeouts to `send_cmd()`** — Update the following methods to pass their respective MaxDuration value + SAFETY_MARGIN:
+   - `start_fw_download()` -> `timeout_start + SAFETY_MARGIN`
+   - `abort_fw_download()` -> `timeout_abort + SAFETY_MARGIN`
+   - `write_lpl_block()` / `write_epl_block()` -> `timeout_write + SAFETY_MARGIN`
+   - `complete_fw_download()` -> `timeout_complete + SAFETY_MARGIN`
 
 3. **Fallback** — If the 0041h reply does not contain valid MaxDuration values (e.g., zero or module doesn't support it), retain `None` so `wait_for_cdb_status()` falls back to its existing default.
 
