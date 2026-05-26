@@ -250,9 +250,6 @@ TAM_FEATURES|IFA
     "status": "ACTIVE"               # Enable/disable IFA
     "poll-interval": "2000"
 
-TAM_FEATURES|MICROBURST
-    "status": "INACTIVE"             # Enable/disable Microburst detection
-    "poll-interval": "1000"
 ```
 
 ##### TAM_SESSION Table (INT Configuration)
@@ -369,8 +366,6 @@ Switches can operate in different INT roles:
 
 #### 7.1 INT Object Creation Sequence
 
-The INT configuration uses a simplified object model compared to MOD (Mirror on Drop). INT doesn't require the full genetlink/hostif infrastructure since it operates on forwarded packets, not punted packets.
-
 **INT Object Creation Order:**
 ```
 1. samplepacket (platform-dependent, required by some platforms)
@@ -381,14 +376,6 @@ The INT configuration uses a simplified object model compared to MOD (Mirror on 
    a. acl_counter (packet/byte statistics)
    b. acl_entry (with ACTION_INT_INSERT action)
 ```
-
-**Key Differences from MOD:**
-- **No genetlink infrastructure**: INT doesn't punt to CPU, so no hostif/trap objects needed
-- **No collector object**: INT modifies forwarded packets, not generating new telemetry packets
-- **No tam_event/tam objects**: INT uses direct ACL action binding to tam_int object
-- **No switch attribute binding**: INT is activated per-port via ACL entries, not globally
-- **Per-port granularity**: Each port gets its own ACL entry for independent control
-
 **Dependency Chain:**
 ```
 samplepacket (independent)
@@ -398,17 +385,6 @@ acl_table (independent)
 acl_counter (depends on: acl_table)
 acl_entry (depends on: acl_table, acl_counter, tam_int)
 ```
-
-**Comparison with MOD Architecture:**
-
-| Aspect | MOD (Mirror on Drop) | INT (In-band Telemetry) |
-|--------|---------------------|-------------------------|
-| **Packet Path** | Dropped packets → CPU | Forwarded packets → modified |
-| **Infrastructure** | genetlink/hostif/trap | Direct ACL action |
-| **Activation** | Switch attribute | Per-port ACL entries |
-| **Collector** | tam_collector object | No collector needed |
-| **Report Mechanism** | Genetlink multicast | In-band header insertion |
-| **Object Count** | 12 objects | 5-6 objects |
 
 // Action:
 SAI_ACL_ENTRY_ATTR_ACTION_TAM_INT_OBJECT = tam_int_id
@@ -1197,8 +1173,6 @@ IFA uses a specialized format for flow analytics:
 │  DROPMONITOR: ENABLED (genetlink to CPU)     │
 │  INT:         ENABLED (header insertion)     │
 │  IFA:         ENABLED (flow analytics)       │
-│  HDC:         DISABLED                       │
-│  MICROBURST:  DISABLED                       │
 ├──────────────────────────────────────────────┤
 │  Each feature maintains independent:         │
 │  - SAI TAM objects                           │
@@ -1215,12 +1189,6 @@ IFA uses a specialized format for flow analytics:
 - Different ACL tables per feature
 - Independent sampling rates
 - Separate flex counters
-
-**Interaction Considerations:**
-- INT and MOD operate on different packet paths (forwarded vs. dropped)
-- IFA and INT can both monitor same flows
-- HDC threshold triggers can coexist with INT insertion
-- Sampling rates apply independently per feature
 
 ### 11. Database Schemas
 
@@ -1661,7 +1629,6 @@ INT testing covers unit tests, system tests, scale tests, and warmboot/fastboot 
 2. **P4-based INT Customization**: Allow custom INT metadata fields
 3. **Hardware IPFIX Export**: Direct export from ASIC without CPU involvement
 4. **Enhanced IFA Analytics**: More sophisticated latency analysis and anomaly detection
-5. **Microburst Detection**: Full implementation of queue depth spike monitoring
 6. **INT-over-gRPC**: Alternative to IPFIX for telemetry export
 7. **Dynamic Flow Group Updates**: Runtime modification of ACL rules without disruption
 8. **Multi-Tenant INT**: Namespace isolation for multi-tenant environments
@@ -1675,7 +1642,6 @@ INT testing covers unit tests, system tests, scale tests, and warmboot/fastboot 
 - SAI TAM Specification: github.com/opencomputeproject/SAI
 - GitHub Issue: sonic-net/SONiC#2141
 - TAM Infrastructure HLD: TAM_Infra_HLD.md
-- TAM MOD HLD: TAM_MOD_HLD.md
 
 ### Appendix A: INT Instruction Bitmap Reference
 

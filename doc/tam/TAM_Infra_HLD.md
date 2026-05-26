@@ -20,7 +20,6 @@ This document describes the infrastructure components for Telemetry and Monitori
 | MOD | Mirror on Drop |
 | INT | In-band Network Telemetry |
 | IFA | In-band Flow Analyzer |
-| HDC | High Delay Capture |
 | UDT | User Defined Trap |
 | Genetlink | Generic Netlink - Linux kernel-to-userspace communication |
 | IPFIX | IP Flow Information Export |
@@ -51,18 +50,12 @@ TAM_Infra_HLD.md (THIS DOCUMENT)
             - ACL-based activation
             - Per-flow INT header insertion
             - Section 7.4: Detailed INT SAI configuration
-
-        TAM_HDC_HLD.md (HDC Feature HLD)
-            - High Delay Capture specifics
-            - Latency threshold configuration
-            - SAI object model for latency event detection
 ```
 
 **Navigation Guidelines:**
 - **Infrastructure questions?**  -> Read this document
 - **MOD implementation details?**  -> See [TAM_MOD_HLD.md](TAM_MOD_HLD.md)
 - **INT/IFA implementation details?**  -> See [TAM_int.md](TAM_int.md)
-- **HDC implementation details?**  -> See TAM_HDC_HLD.md (forthcoming)
 - **Platform-specific variations?**  -> Check Section 9 here + feature-specific HLDs
 
 ### 4. Overview
@@ -78,12 +71,6 @@ The SONiC TAM infrastructure provides a **unified, scalable platform** for advan
 - **In-band Network Telemetry (INT)**: Embeds real-time telemetry metadata directly into data plane packets as they traverse the network, allowing per-flow path tracking, latency measurement, and queue depth monitoring without dedicated control plane traffic.
 
 - **In-band Flow Analyzer (IFA)**: Extends INT with flow-level aggregation and long-term tracking, focusing on latency analysis and path visualization across multi-hop networks.
-
-- **High Delay Capture (HDC)**: Detects packets experiencing abnormally high latency and triggers mirroring or metadata collection, useful for identifying network congestion hotspots.
-
-- ** Elephant Flow Detection (EFD**:Elephant Flow Detection is a network telemetry feature that identifies and flags high-bandwidth traffic flows ("elephant flows") that exceed configured rate thresholds, helping operators manage network congestion and performance.
-
-- ** Watson Interface **: Watson is a high-speed streaming telemetry interface that transmits device statistics and events continuously at sub-second intervals. TAM Counter Subscription is the SAI-level mechanism that enables applications to subscribe to specific statistics for streaming through Watson.
 
 #### 4.2 Architectural Philosophy
 
@@ -131,7 +118,6 @@ The TAM infrastructure is designed to achieve the following objectives:
 - **Feature-Specific HLDs**: 
   - [TAM_MOD_HLD.md](TAM_MOD_HLD.md) - Mirror on Drop (MOD) implementation
   - [TAM_int.md](TAM_int.md) - INT/IFA implementation
-  - TAM_HDC_HLD.md - High Delay Capture (HDC) implementation (forthcoming)
 
 ### 5. Architecture
 
@@ -277,13 +263,6 @@ TAM_FEATURES|INT
     "status": "ACTIVE"               # In-band Network Telemetry
     "poll-interval": "1500"
 
-TAM_FEATURES|HDC
-    "status": "INACTIVE"             # High Delay Capture
-    "poll-interval": "2000"
-
-TAM_FEATURES|MICROBURST
-    "status": "INACTIVE"             # Microburst Detection
-    "poll-interval": "1000"
 ```
 
 **Validation:**
@@ -314,12 +293,6 @@ TAM_SESSION|s-int
     "hop-limit": "16"                # Max INT hops
     "instruction-bitmap": "0x0F"     # INT metadata to collect
 
-TAM_SESSION|s-hdc
-    "type": "HDC"                    # HDC session
-    "flowgroup": "fg-all"            # ACL rule for flow selection
-    "collector": "c1"                # Collector reference
-    "latency-threshold": "1000"      # Threshold in microseconds
-    "sample-rate": "s1"              # Sampling rate
 ```
 
 **Reference Validation:**
@@ -328,7 +301,6 @@ All references (flowgroup, collector, sample-rate) must point to existing object
 **Feature-Specific Configuration:**
 - For MOD-specific CONFIG_DB schemas and session configuration, see [TAM_MOD_HLD.md Section 6](TAM_MOD_HLD.md#6-configuration-management)
 - For INT-specific CONFIG_DB schemas and session configuration, see [TAM_int.md Section 6](TAM_int.md#6-configuration-management)
-- For HDC-specific CONFIG_DB schemas and session configuration, see TAM_HDC_HLD.md (forthcoming)
 
 ##### TAM_FLOW_GROUP Table
 Defines flow groups for filtering telemetry.
@@ -900,9 +872,9 @@ if (status != SAI_STATUS_SUCCESS) {
 
 ```cpp
 string platform = getenv("ASIC_VENDOR");
-const string MRVL_TL_PLATFORM_SUBSTRING = "marvell";
+const string vendor_substring = "vendor_substring";
 
-if (platform.find(MRVL_TL_PLATFORM_SUBSTRING) != string::npos) {
+if (platform.find(vendor_substring) != string::npos) {
     // Platform A: unified event model (single TAM event object)
 } else {
     // Platform B: per-stage event model (IPP/MMU/EPP)
