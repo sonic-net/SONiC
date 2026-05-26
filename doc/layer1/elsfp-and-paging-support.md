@@ -435,7 +435,7 @@ The implementation is split into the following pull requests:
 | PR # | Description | Repository | Link |
 |------|-------------|------------|------|
 | PR 1 | Memory Map Refactor into pages | sonic-platform-common | [sonic-net/sonic-platform-common#667](https://github.com/sonic-net/sonic-platform-common/pull/667) |
-| PR 2 | ELSFP pages and Memory Map | sonic-platform-common | [nexthop-ai/sonic-platform-common#2](https://github.com/nexthop-ai/sonic-platform-common/pull/2) |
+| PR 2 | ELSFP pages and Memory Map | sonic-platform-common | [sonic-net/sonic-platform-common#678](https://github.com/sonic-net/sonic-platform-common/pull/678) |
 
 
 
