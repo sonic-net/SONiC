@@ -28,6 +28,7 @@
   - [DPU Cold Reboot](#dpu-cold-reboot)
   - [Full SmartSwitch Reboot](#full-smartswitch-reboot)
 - [Scenario DB State Summary](#scenario-db-state-summary)
+- [Testing](#testing)
 - [Repository Change Summary](#repository-change-summary)
 - [References](#references)
 
@@ -132,6 +133,8 @@ All timers and thresholds used by PMON for DPU failure detection and recovery ar
 | `reset_limit` | 5 | Yes (`platform.json`) | `chassisd` | Maximum number of consecutive unplanned power-cycle attempts before marking DPU as unrecoverable |
 
 > **Note:** `chassisd` polls `dpu_data_plane_state` alongside `dpu_control_plane_state` and `dpu_midplane_link_state`, but `dpu_data_plane_state` alone does not trigger recovery actions. A data-plane-down with control-plane-up scenario indicates that the DPU SONiC stack is running but the data plane pipeline has not converged — this is expected during initial programming or after a configuration change. Recovery is triggered only when `dpu_control_plane_state` or `dpu_midplane_link_state` transitions to `down`. The `dpu_data_plane_state` is used by `chassisd` solely to determine full DPU readiness for setting `ready_status` to `true`.
+
+> **Auto-recovery trigger vs. planned operations:** `chassisd` auto-recovery is triggered **only** for unplanned failures. During planned operations (graceful shutdown via `config chassis module shutdown` or DPU reboot via `reboot -d`), the `state_transition_in_progress` field in `CHASSIS_MODULE_TABLE|DPU<dpu_index>` is set to `True` **before** the DPU control plane goes down. When `chassisd` observes `dpu_control_plane_state: down`, it checks `state_transition_in_progress`: if `True`, `chassisd` skips auto-recovery because the shutdown/reboot is intentional. Auto-recovery is only initiated when `dpu_control_plane_state` or `dpu_midplane_link_state` transitions to `down` **and** no planned transition is in progress (`state_transition_in_progress == False`). There is no additional timeout configured for this check — the distinction is purely flag-based.
 
 ---
 
@@ -330,22 +333,30 @@ The `pmon` (Platform Monitor) daemon on the NPU crashes. This is a **critical** 
 ### databasedpu crash on NPU ###
 
 **Description:**
-The `databasedpu<dpu-index>` (per-DPU Redis database instance) on the NPU crashes. Each DPU has a dedicated Redis instance on the NPU (port 6381 + DPU ID, bound to midplane bridge IP 169.254.200.254).
+The `databasedpu<dpu-index>` (per-DPU Redis database instance) on the NPU crashes. Each DPU has a dedicated Redis instance on the NPU (port 6381 + DPU ID, bound to midplane bridge IP 169.254.200.254). These per-DPU Redis instances host the DPU's APPL_DB, CONFIG_DB, STATE_DB, etc. — they are **not** the same as CHASSIS_STATE_DB. The DPU's `orchagent` and `syncd` read/write from these instances, while `chassisd` monitors DPU health via CHASSIS_STATE_DB (a separate Redis instance on the NPU).
 
 **Detection (by PMON):**
-- `chassisd` cannot read DPU state from the corresponding Redis instance.
+- `chassisd` does **not** directly detect the `databasedpuN` service crash. The detection is indirect:
+  1. When `databasedpuN` crashes, the DPU's `orchagent` and other services lose DB connectivity.
+  2. Critical services on the DPU fail, causing `SYSTEM_READY` on the DPU to go `false`.
+  3. The DPU updates its `dpu_control_plane_state` to `down` in CHASSIS_STATE_DB (which is a separate Redis instance and remains accessible).
+  4. `chassisd` observes `dpu_control_plane_state: down` on its next poll cycle.
+- If the `databasedpuN` crash is caused by a midplane failure, then CHASSIS_STATE_DB also becomes inaccessible from the DPU side, and `chassisd` detects the failure via `dpu_midplane_link_state: down` instead.
 
 **PMON Action:**
-- `chassisd` detects loss of DPU state, sets `ready_status` to `false`, and updates `last_down_time`.
-- After `systemd` restarts the Redis instance and DPU reconnects, `chassisd` polls DPU state, sets `ready_status` back to `true`, and updates `last_ready_time` once all states are verified.
+- `chassisd` sets `ready_status` to `false` and updates `last_down_time`.
+- If `dpu_control_plane_state` or `dpu_midplane_link_state` is observed as `down`, `chassisd` initiates a DPU power-cycle (same as any other unplanned failure).
+- After `systemd` restarts the Redis instance and the DPU recovers (or after power-cycle recovery), `chassisd` polls DPU state, sets `ready_status` back to `true`, and updates `last_ready_time` once all states are verified.
 
 **DB State Transition:**
 
 | DB Field | Before | During Failure | After Recovery |
 | -------- | :----: | :------------: | :------------: |
+| `dpu_control_plane_state` | `up` | `down` | `up` |
 | `ready_status` | `true` | `false` | `true` |
 | `last_down_time` | — | `<UTC timestamp>` | — |
 | `last_ready_time` | — | — | `<UTC timestamp>` |
+| `reset_count` | N | N | N+1 |
 
 ---
 
@@ -590,12 +601,37 @@ Planned reboot of the entire SmartSwitch (NPU + all DPUs) via CLI: `reboot`. All
 
 ---
 
+## Testing ##
+
+All DPU failure mode tests run with **auto-recovery enabled** by default (the production configuration). Specific tests explicitly disable and re-enable auto-recovery to validate the `ManualIntervention` path. The existing SmartSwitch test suites (e.g., `test_reload_dpu`) continue to run unmodified — auto-recovery does not interfere with planned reboot/shutdown tests because `chassisd` checks `state_transition_in_progress` before triggering recovery.
+
+Test implementation: [`tests/smartswitch/platform_tests/test_dpu_failure_modes.py`](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/smartswitch/platform_tests/test_dpu_failure_modes.py)
+
+| Test Class | Scenario | Validates |
+| ---------- | -------- | --------- |
+| `TestDatabaseDpuCrash` | Kill per-DPU Redis instance (`databasedpuN`) on NPU | `chassisd` detects loss (`ready_status=false`), `systemd` restarts service, `chassisd` recovers (`ready_status=true`) |
+| `TestPcieFailure` | Remove DPU PCIe device via sysfs | `pcied` detects detach (`PCIE_DETACH_INFO dpu_state=detached`), `chassisd` marks DPU not-ready, power-cycles, performs PCIe rescan, recovers |
+| `TestControlPlaneOnlyDown` | Stop critical container (`swss`) on DPU | `dpu_control_plane_state=down` while midplane stays up; `chassisd` detects and power-cycles DPU |
+| `TestAutoRecoveryDisabled` | Disable `FEATURE\|dpu-auto-recovery`, trigger failure | Confirms `chassisd` does NOT power-cycle (ManualIntervention); re-enable and verify recovery |
+| `TestUnrecoverableState` | Repeatedly trigger failures until `reset_count` ≥ `reset_limit` | `recovery_status=unrecoverable`; `chassisd` stops retrying |
+| `TestStateMachineTransitions` | Planned shutdown → offline → startup → ready | `last_down_time` and `last_ready_time` updated correctly; `recovery_status` stays `recoverable` |
+| `TestShutdownDuringAutoRecovery` | Issue module shutdown while `chassisd` is mid-recovery | `chassisd` aborts auto-recovery, DPU transitions to Offline cleanly |
+| `TestDpuFailureAfterConfigReload` | Config reload on NPU, then trigger DPU failure | `chassisd` recovery works post-reload; `reset_count` increments |
+
+**Test infrastructure:**
+- Shared `ensure_all_dpus_ready` fixture (in `tests/smartswitch/conftest.py`) ensures all testable DPUs are admin-up, online, and DB-ready before each test, and recovers any offline DPUs in teardown.
+- Tests use `assert_dpu_db_state_ready()` helper to verify full DPU readiness (`ready_status=true`, `recovery_status=recoverable`, all planes up).
+- Topology: `smartswitch` — requires NPU DUT with DPU SSH access via `dpuhosts`.
+
+---
+
 ## Repository Change Summary ##
 
 | Repository | Component | Changes |
 | ---------- | --------- | ------- |
 | [sonic-platform-daemons](https://github.com/sonic-net/sonic-platform-daemons) | `chassisd` | DPU failure detection, automated power-cycle recovery, new CHASSIS_STATE_DB fields (`ready_status`, `recovery_status`, `reset_count`, `last_down_time`, `last_ready_time`) |
 | [sonic-buildimage](https://github.com/sonic-net/sonic-buildimage) | PMON container | Configuration updates for new `chassisd` failure recovery features |
+| [sonic-mgmt](https://github.com/sonic-net/sonic-mgmt) | --- | DPU failure mode tests (`test_dpu_failure_modes.py`) |
 
 ---
 
