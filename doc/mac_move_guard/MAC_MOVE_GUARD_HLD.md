@@ -21,6 +21,7 @@
     - [6.2.6 Orchagent restart handling](#626-orchagent-restart-handling)
   - [6.3 Data structures](#63-data-structures)
   - [6.4 SWSS and syncd changes](#64-swss-and-syncd-changes)
+  - [6.5 Interaction with Notification Dedup](#65-interaction-with-notification-dedup)
 - [7. Configuration and Management](#7-configuration-and-management)
   - [7.1 CONFIG_DB](#71-config_db)
   - [7.2 DB and Schema changes](#72-db-and-schema-changes)
@@ -38,9 +39,10 @@
 Rev | Date | Author | Change Description
 ----|------|--------|-------------------
 |v0.1|2026-05-25|Sudheer Y R(Nexthop)|Initial version of MAC Move Guard HLD
+|v0.2|2026-05-27|Sudheer Y R(Nexthop)|Folded MacMoveGuardOrch into FdbOrch as a composition member; simplified orchagent-restart handling to a cleanup-on-startup sweep with minimal STATE_DB footprint
 
 ## 2. Scope
-This document describes the high level design of the MAC Move Guard feature in SONiC. MAC Move Guard detects abnormally high rates of MAC address moves between Layer-2 ports within a VLAN/bridge domain and applies a configurable mitigation action against the offending MAC, for a period of configured interval. The feature is implemented entirely inside `orchagent` as a new orchestrator (`MacMoveGuardOrch`) that subscribes to FDB events emitted by `FdbOrch` and drives `PortsOrch` / SAI FDB / SAI VLAN / SAI Bridge APIs to apply mitigation.
+This document describes the high level design of the MAC Move Guard feature in SONiC. MAC Move Guard detects abnormally high rates of MAC address moves between Layer-2 ports within a VLAN/bridge domain and applies a configurable mitigation action against the offending MAC, for a period of configured interval. The feature is implemented entirely inside `orchagent` as a new helper class `MacMoveGuard` that lives in [`macmoveguard.{h,cpp}`](orchagent/macmoveguard.h) and is owned by `FdbOrch` via composition. `FdbOrch` calls into the guard inline when it emits MAC learn/move updates; the guard drives `PortsOrch` / `sai_acl_api` / `sai_switch_api` to apply mitigation.
 
 ## 3. Definitions/Abbreviations
 Definitions/Abbreviation|Description
@@ -65,8 +67,8 @@ MAC Move Guard provides a contained, automatic mitigation that is split into: de
 Per (VLAN, MAC), the orchestrator maintains a sliding window of move timestamps. On each move event it prunes entries older than `detect_interval` and re-derives the move count. When the count exceeds `threshold`, the MAC enters the **Bad MAC** state.
 
 Two FDB-event paths feed detection:
-1. **Native** SAI MAC move (`SAI_FDB_EVENT_MOVE`) is delivered as-is through `SUBJECT_TYPE_MAC_MOVE`.
-2. **Synthesized** move — for SDKs that only emit `AGED` then `LEARNED` instead of a native MOVE, the orch reconstructs the MOVE from a residual cache entry on the LEARN path.
+1. **Native** SAI MAC move (`SAI_FDB_EVENT_MOVE`) is delivered as-is: `FdbOrch` calls `m_macMoveGuard->onMacMove(...)` with both old and new ports.
+2. **Synthesized** move — for SDKs that only emit `AGED` then `LEARNED` instead of a native MOVE, the guard reconstructs the MOVE from a residual cache entry on the LEARN path (`FdbOrch` calls `m_macMoveGuard->onMacLearn(...)` for every learn event).
 
 ### 4.2 Mitigation actions
 Two mitigation actions are supported. They are mutually exclusive — only one is in effect at a time, configured by the `action` field in CONFIG_DB.
@@ -76,26 +78,30 @@ SAI Action | Effect on the bad MAC
 `DISABLE_PORT` | Pin the MAC to one selected port; admin-disable every other port it was bouncing on
 `DISABLE_LEARN_ON_MAC_WITH_ACL` | Install a pre-ingress ACL entry matching `(vlan, smac)` with `SAI_ACL_ACTION_TYPE_SET_DO_NOT_LEARN` so the bad MAC stops being (re)learned while forwarding continues via the existing FDB entry
 
-If the orchestrator cannot program `DISABLE_LEARN_ON_MAC_WITH_ACL`, it is flagged `action_not_supported`: configuration is still accepted and bad MACs are still tracked and persisted to STATE_DB, but no ACL table or entry is programmed.
+If the orchestrator cannot program `DISABLE_LEARN_ON_MAC_WITH_ACL`, it is flagged `action_not_supported`: configuration is still accepted and bad MACs are still tracked in memory, but no ACL table or entry is programmed. The DLOMWA action writes nothing to STATE_DB regardless of platform support.
 
 ### 4.3 Mitigation duration
-A `SelectableTimer` fires every 30 s. For every bad MAC whose `action_expiry_time` has passed, the orchestrator reverses the action that was applied (re-enable the port for `DISABLE_PORT`, remove the per-MAC ACL entry for `DISABLE_LEARN_ON_MAC_WITH_ACL`). Action state is reference-counted, so a shared target (e.g. a port disabled because two bad MACs were both bouncing on it) is reverted only when the last bad MAC releases it. Both the bad-MAC identity and its recovery context are mirrored to STATE_DB so the recovery can complete even if `orchagent` restarts in the middle of the action interval (see [§6.2.6](#626-orchagent-restart-handling)).
+A `SelectableTimer` fires every 30 s. For every bad MAC whose `action_expiry_time` has passed, the guard reverses the action that was applied (re-enable the port for `DISABLE_PORT`, remove the per-MAC ACL entry for `DISABLE_LEARN_ON_MAC_WITH_ACL`). Action state is reference-counted, so a shared target (e.g. a port disabled because two bad MACs were both bouncing on it) is reverted only when the last bad MAC releases it. The `action_interval` countdown lives only in memory — if `orchagent` restarts mid-interval, the guard does not attempt to resume the countdown. Instead it reverts any hardware state it left behind on startup (see [§6.2.6](#626-orchagent-restart-handling)); if the offending MAC is still flapping, it will re-trip the threshold and the mitigation will be re-applied.
 
 ## 5. Requirements
+### Phase-1: Local MAC move support
 - Detect MAC moves on a per (VLAN, MAC) basis using a sliding-window threshold
 - Support two mitigation actions: `DISABLE_PORT` and `DISABLE_LEARN_ON_MAC_WITH_ACL`
 - Mitigation stays for a configurable action interval
 - CONFIG_DB-driven configuration via a single `GLOBAL` row, validated by a new YANG model
-- Persist bad-MAC identities and recovery context in STATE_DB so an `orchagent` restart cleanly completes (or aborts) any in-flight mitigation
+- On `orchagent` restart, revert any hardware state left behind from a previous run (admin-disabled ports and the pre-ingress ACL table) so it does not leak; the in-flight `action_interval` is not preserved across the restart
 - Flag `DISABLE_LEARN_ON_MAC_WITH_ACL` as `action_not_supported` when it cannot be programmed; continue to track bad MACs but skip ACL programming
+
+### Phase-2: EVPN MAC move support
+- Detect EVPN-driven MAC mobility in addition to local data-plane moves, and apply the same mitigation actions
 
 ## 6. Module Design
 ### 6.1 Overall design
 - Management framework writes the `MAC_MOVE_GUARD|GLOBAL` row to CONFIG_DB using the YANG model in [§7.3](#73-yang-model)
-- `MacMoveGuardOrch` (new) in orchagent subscribes to the `MAC_MOVE_GUARD` table and configures itself
-- `MacMoveGuardOrch` attaches as an `Observer` on `FdbOrch` and consumes `SUBJECT_TYPE_MAC_LEARN` / `SUBJECT_TYPE_MAC_MOVE`
+- `MacMoveGuard` is owned by `FdbOrch` via composition (`std::unique_ptr<MacMoveGuard> m_macMoveGuard`). It registers its `MAC_MOVE_GUARD` config-table `Consumer` and its recovery `SelectableTimer` with `FdbOrch`'s executor list; `FdbOrch::doTask(Consumer&)` and `FdbOrch::doTask(SelectableTimer&)` route those tasks back to the guard
+- `FdbOrch` invokes `m_macMoveGuard->onMacLearn(...)` and `onMacMove(...)` inline as part of emitting MAC-update notifications — there is no observer indirection
 - Mitigation is applied by calling `PortsOrch::setPortAdminStatusByAlias()` (for `DISABLE_PORT`) and `sai_acl_api` directly (for `DISABLE_LEARN_ON_MAC_WITH_ACL`, which uses a single pre-ingress ACL table bound to `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`)
-- Bad-MAC identities and their recovery context are mirrored to STATE_DB (`MAC_MOVE_GUARD`) so the orchestrator can reconstruct in-flight mitigation across a restart (see [§6.2.6](#626-orchagent-restart-handling))
+- Only the `DISABLE_PORT` action leaves a STATE_DB footprint: a single row (`MAC_MOVE_GUARD|HW_RESOURCES`) holding a CSV of admin-disabled port aliases. DLOMWA writes nothing — its pre-ingress ACL table is rediscovered on restart by signature-matching the table bound to `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`. The guard's constructor runs a one-shot cleanup sweep that reverts any such hardware state (see [§6.2.6](#626-orchagent-restart-handling))
 - A 30 s `SelectableTimer` is used to apply the mitigation action for the configured duration, and to manage the MAC state
 - syncd / SAI: no changes
 
@@ -105,11 +111,6 @@ The picture below groups the relationships by *role*. The numbered arrows descri
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#EAF1F8','primaryBorderColor':'#5B7BAB','primaryTextColor':'#2C3E50','lineColor':'#7A8B9F','secondaryColor':'#F4F0E8','tertiaryColor':'#F9FAFC','fontSize':'12px'},'flowchart':{'useMaxWidth':false,'nodeSpacing':25,'rankSpacing':35}}}%%
 flowchart TB
     HWIN:::invis
-    subgraph DETECT["DETECTION PLANE"]
-        direction TB
-        FDB["FdbOrch"]
-    end
-
     subgraph MGMT["MANAGEMENT PLANE"]
         direction TB
         CLI["sonic config utilities"]
@@ -117,9 +118,11 @@ flowchart TB
         CLI --> CFGDB
     end
 
-    subgraph CTRL["CONTROL PLANE"]
+    subgraph CTRL["CONTROL PLANE — orchagent"]
         direction TB
-        MMG["<b>MacMoveGuardOrch</b><br/>observer + 30s timer"]
+        subgraph FDBBOX["<b>FdbOrch</b>"]
+            MMG["<b>MacMoveGuard</b><br/>(composition member)<br/>30 s recovery timer"]
+        end
     end
 
     subgraph ACTION["ACTION PLANE"]
@@ -128,40 +131,41 @@ flowchart TB
         SAIACL["sai_acl_api"]
         SAISW["sai_switch_api<br/>(PRE_INGRESS bind)"]
     end
-    STATE["STATE_DB<br/>MAC_MOVE_GUARD"]
+    STATE["STATE_DB<br/>MAC_MOVE_GUARD|HW_RESOURCES<br/>(disabled_ports CSV)"]
     HWOUT:::invis
 
-    HWIN -->|"raw FDB events from hardware<br/>(SAI notif via syncd)"| FDB
+    HWIN -->|"raw FDB events from hardware<br/>(SAI notif via syncd)"| FDBBOX
     CFGDB -->|"(1) config"| MMG
-    FDB -->|"(2) notify"| MMG
+    FDBBOX -->|"(2) onMacLearn /<br/>onMacMove"| MMG
     MMG -->|"(3) action"| PO
     MMG -->|"(3) action"| SAIACL
     MMG -->|"(3) action"| SAISW
-    MMG <-->|"(3a) persist /<br/>restore on restart"| STATE
+    MMG <-->|"(3a) DISABLE_PORT only:<br/>write disabled_ports CSV;<br/>cleanup sweep on startup"| STATE
     ACTION -.->|"(4) SAI calls to hardware<br/>(via syncd)"| HWOUT
 
     classDef invis fill:transparent,stroke:transparent,color:transparent
 ```
 
-`MacMoveGuardOrch` holds:
+`MacMoveGuard` holds:
 - maps: `m_macTrackingState`, `m_disabledPorts`, `m_learntMac`
 - ACL state: `m_learnDisableAclTable`, `m_learnDisableAclEntryCount`, `m_aclSetDoNotLearnSupported`
-- STATE_DB handle: `m_stateBadMacTable` (`MAC_MOVE_GUARD` table)
-- timer: `m_recoveryTimer` (30 s)
-- handlers: `handleMacLearn()`, `handleMacMove()`, `checkRecovery()`, `restoreBadMacState()`
+- STATE_DB handle: `m_stateTable` (`MAC_MOVE_GUARD` table, used only for the single `HW_RESOURCES` row holding the disabled-ports CSV)
+- timer: `m_recoveryTimer` (30 s) — owned by an `ExecutableTimer` registered on the parent `FdbOrch`
+- public entrypoints called from `FdbOrch`: `onMacLearn()`, `onMacMove()`, `doConfigTask()`, `doRecoveryTimerTask()`
+- internal handlers: `handleMacLearn()`, `handleMacMove()`, `checkRecovery()`, `restoreHwResources()`
 
 **Numbered flows (one bad-MAC episode):**
-1) Administrator writes `MAC_MOVE_GUARD|GLOBAL` to CONFIG_DB; `MacMoveGuardOrch::doTask(Consumer&)` consumes it and (when `action=DISABLE_LEARN_ON_MAC_WITH_ACL`) reconciles the pre-ingress ACL table lifecycle
-2) FDB events originate in the ASIC; the SDK invokes the SAI FDB-event callback registered by `syncd`, which forwards the event on the swss notification channel where `FdbOrch::handleSaiFdbEvent()` consumes it and emits `SUBJECT_TYPE_MAC_LEARN` / `SUBJECT_TYPE_MAC_MOVE` to `MacMoveGuardOrch::update()`
-3) On threshold breach `MacMoveGuardOrch` either calls `PortsOrch::setPortAdminStatusByAlias()` (`DISABLE_PORT`) or installs a per-MAC pre-ingress ACL entry via `sai_acl_api` (`DISABLE_LEARN_ON_MAC_WITH_ACL`); in both cases the bad-MAC identity and recovery context are mirrored to STATE_DB (3a)
+1) Administrator writes `MAC_MOVE_GUARD|GLOBAL` to CONFIG_DB; the executor that `MacMoveGuard` registered on `FdbOrch` drains the consumer, `FdbOrch::doTask(Consumer&)` recognises the `MAC_MOVE_GUARD` table name and forwards it to `m_macMoveGuard->doConfigTask()`; on `action=DISABLE_LEARN_ON_MAC_WITH_ACL` the guard reconciles the pre-ingress ACL table lifecycle
+2) FDB events originate in the ASIC; the SDK invokes the SAI FDB-event callback registered by `syncd`, which forwards the event on the swss notification channel where `FdbOrch::handleSaiFdbEvent()` consumes it. For learn and move events, `FdbOrch` calls `m_macMoveGuard->onMacLearn()` / `onMacMove()` inline
+3) On threshold breach `MacMoveGuard` either calls `PortsOrch::setPortAdminStatusByAlias()` (`DISABLE_PORT`) or installs a per-MAC pre-ingress ACL entry via `sai_acl_api` (`DISABLE_LEARN_ON_MAC_WITH_ACL`); for `DISABLE_PORT` the updated set of admin-disabled ports is rewritten to the single STATE_DB row (3a). DLOMWA writes nothing to STATE_DB
 4) These SAI calls reach the hardware via `syncd` and reshape what the SDK will emit next: a disabled port emits no further LEARNs; a MAC matched by a `SET_DO_NOT_LEARN` ACL entry stops being (re)learned while existing forwarding continues
 
-**Recovery timer (out-of-band).** A 30-second `SelectableTimer` inside `MacMoveGuardOrch` drives `checkRecovery()`. On each tick it iterates `m_macTrackingState`, prunes each MAC's sliding window, garbage-collects quiet non-bad MACs from the map, and for any bad MAC whose `action_expiry_time` has elapsed invokes `releaseBadMac()` to revert the applied SAI action. The timer is not on the data path — it is purely housekeeping.
+**Recovery timer (out-of-band).** A 30-second `SelectableTimer` registered by `MacMoveGuard` on its parent `FdbOrch` drives `checkRecovery()` (via `FdbOrch::doTask(SelectableTimer&)` → `m_macMoveGuard->doRecoveryTimerTask()`). On each tick the guard iterates `m_macTrackingState`, prunes each MAC's sliding window, garbage-collects quiet non-bad MACs from the map, and for any bad MAC whose `action_expiry_time` has elapsed invokes `releaseBadMac()` to revert the applied SAI action. The timer is not on the data path — it is purely housekeeping.
 
 ### 6.2 Configuration and control flow
 
 #### 6.2.1 Detection: native SAI MAC move
-The SDK does **not** call `FdbOrch` directly. FDB events originate in the ASIC; the SDK invokes the SAI FDB-event callback that `syncd` registered at boot. `syncd` forwards the event onto the swss notification channel, where `FdbOrch::handleSaiFdbEvent()` decodes it and emits the appropriate observer notification (`SUBJECT_TYPE_MAC_MOVE` for a native move). `MacMoveGuardOrch::handleMacMove()` processes that notification:
+The SDK does **not** call `FdbOrch` directly. FDB events originate in the ASIC; the SDK invokes the SAI FDB-event callback that `syncd` registered at boot. `syncd` forwards the event onto the swss notification channel, where `FdbOrch::handleSaiFdbEvent()` decodes it. For a native MOVE event, `FdbOrch` calls `m_macMoveGuard->onMacMove(...)` inline with both old and new ports, and `MacMoveGuard::handleMacMove()` processes it:
 
 <div align="center">
 
@@ -171,12 +175,12 @@ sequenceDiagram
     participant ASIC as ASIC SDK
     participant SYN as syncd
     participant FDB as FdbOrch
-    participant MMG as MMGuardOrch
+    participant MMG as MacMoveGuard
     participant TS as trackingState
 
     ASIC->>SYN: SAI FDB callback MOVE A→B
     SYN->>FDB: notification channel
-    FDB->>MMG: SUBJECT_TYPE_MAC_MOVE old=A new=B
+    FDB->>MMG: onMacMove(old=A, new=B)
     MMG->>TS: update (M,V) state
     Note over MMG,TS: 1. push timestamp to move_timestamps<br/>2. ports_seen[B] = now, last_port = B<br/>3. prune entries older than detect_interval<br/>4. move_count = move_timestamps.size()<br/>5. if move_count >= threshold: markBadMac, apply action
 ```
@@ -184,11 +188,11 @@ sequenceDiagram
 </div>
 
 1) ASIC SDK invokes the SAI FDB-event callback for `SAI_FDB_EVENT_MOVE`; `syncd` posts the event onto the swss notification channel
-2) `FdbOrch::handleSaiFdbEvent()` consumes the notification and emits `SUBJECT_TYPE_MAC_MOVE` to attached observers
-3) `MacMoveGuardOrch::handleMacMove()` updates `m_macTrackingState[(M,V)]`: pushes the move timestamp, records the new port in `ports_seen` / `last_port`, prunes entries older than `detect_interval`, recomputes `move_count`, and if it reaches `threshold` calls `markBadMac()` to apply the configured action
+2) `FdbOrch::handleSaiFdbEvent()` consumes the notification and calls `m_macMoveGuard->onMacMove(...)` inline
+3) `MacMoveGuard::handleMacMove()` updates `m_macTrackingState[(M,V)]`: pushes the move timestamp, records the new port in `ports_seen` / `last_port`, prunes entries older than `detect_interval`, recomputes `move_count`, and if it reaches `threshold` calls `markBadMac()` to apply the configured action
 
 #### 6.2.2 Detection: synthesized move from AGED + LEARNED
-Some SDKs report a port change as `AGED` on the old port followed by `LEARNED` on the new port, with no native MOVE. The orchestrator never erases `m_learntMac` on AGE; that residual entry is what allows a later LEARN on a different port to be recognized as a move.
+Some SDKs report a port change as `AGED` on the old port followed by `LEARNED` on the new port, with no native MOVE. The guard never erases `m_learntMac` on AGE; that residual entry is what allows a later LEARN on a different port to be recognized as a move.
 
 <div align="center">
 
@@ -198,12 +202,12 @@ sequenceDiagram
     participant ASIC as ASIC SDK
     participant SYN as syncd
     participant FDB as FdbOrch
-    participant MMG as MMGuardOrch
+    participant MMG as MacMoveGuard
     participant C as learntMac
 
     ASIC->>SYN: LEARN on A
     SYN->>FDB: notification
-    FDB->>MMG: MAC_LEARN
+    FDB->>MMG: onMacLearn(A)
     MMG->>C: read prev = none
     MMG->>C: write (M,V) → A
     Note over MMG: no move
@@ -216,7 +220,7 @@ sequenceDiagram
 
     ASIC->>SYN: LEARN on B
     SYN->>FDB: notification
-    FDB->>MMG: MAC_LEARN
+    FDB->>MMG: onMacLearn(B)
     MMG->>C: read prev = A
     MMG->>C: write (M,V) → B
     Note over MMG: prev != B<br/>synthesize move
@@ -226,7 +230,7 @@ sequenceDiagram
 </div>
 
 1) First `LEARN` on `A`: `handleMacLearn()` finds `m_learntMac[(M,V)]` empty, sets it to `A`, returns (not a move)
-2) `AGE` on `A`: `MacMoveGuardOrch` is **not** subscribed to AGE; `m_learntMac[(M,V)] = A` is intentionally retained
+2) `AGE` on `A`: `MacMoveGuard` is **not** invoked on AGE; `m_learntMac[(M,V)] = A` is intentionally retained
 3) Subsequent `LEARN` on `B`: `handleMacLearn()` reads `prev = A`, writes `B`, and synthesizes a `MacMoveNotification{old:A, new:B}` which it forwards to `handleMacMove()` — joining the same code path as the native MOVE in [§6.2.1](#621-detection-native-sai-mac-move)
 
 #### 6.2.3 Mitigation: DISABLE_PORT
@@ -277,18 +281,17 @@ flowchart TD
     D --> F
     F --> G[Bad MAC detected]
     G --> H{action_not_supported?}
-    H -->|yes| I[Persist bad MAC to STATE_DB<br/>skip ASIC programming]
+    H -->|yes| I[In-memory only<br/>skip ASIC programming]
     H -->|no| J[Install ACL entry<br/>vlan, smac → SET_DO_NOT_LEARN]
-    J --> K[Persist bad MAC<br/>+ acl_entry_id<br/>+ acl_table_id to STATE_DB]
 ```
 
 </div>
 
 1) Administrator configures `enabled=true, action=DISABLE_LEARN_ON_MAC_WITH_ACL` in `MAC_MOVE_GUARD|GLOBAL`
-2) `doTask` snapshots the previous `(enabled, action)` and calls `reconcileLearnDisableAclTable()`. On a transition **into** `(enabled, DLOMWA)` the orch creates the pre-ingress ACL table and binds it to `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`. If the action cannot be programmed it is flagged `action_not_supported` (NOTICE log, no table created). On a transition **out of** `(enabled, DLOMWA)` (action change or disable), every installed entry is removed and the table is destroyed
+2) `doConfigTask` snapshots the previous `(enabled, action)` and calls `reconcileLearnDisableAclTable()`. On a transition **into** `(enabled, DLOMWA)` the guard creates the pre-ingress ACL table and binds it to `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`. If the action cannot be programmed it is flagged `action_not_supported` (NOTICE log, no table created). On a transition **out of** `(enabled, DLOMWA)` (action change or disable), every installed entry is removed and the table is destroyed
 3) On threshold breach, `markBadMac()` installs one entry per bad MAC into the ACL table (skipped silently when the action is `action_not_supported` and no table exists); `state.learn_disable_acl_entry_id` is recorded and `m_learnDisableAclEntryCount` is incremented
-4) `persistBadMac()` writes the entry id, the ACL table OID, and the action expiry epoch to STATE_DB so the entry can be cleaned up after an `orchagent` restart
-5) On recovery, `releaseBadMac()` removes the ACL entry, decrements `m_learnDisableAclEntryCount`, and drops the STATE_DB row. The ACL table is **not** torn down per-entry; it stays for the lifetime of the configuration
+4) Nothing is written to STATE_DB. The ACL table + entries live only in the ASIC; the in-memory bookkeeping (`m_learnDisableAclTable`, per-MAC entry OIDs, refcount) is enough to revert during normal operation. After an `orchagent` restart the in-memory state is lost, and the cleanup sweep ([§6.2.6](#626-orchagent-restart-handling)) re-discovers the table by signature-matching whatever is bound to `SAI_SWITCH_ATTR_PRE_INGRESS_ACL` and tears it down wholesale
+5) On recovery, `releaseBadMac()` removes the ACL entry and decrements `m_learnDisableAclEntryCount`. The ACL table is **not** torn down per-entry; it stays for the lifetime of the configuration
 
 #### 6.2.5 Recovery
 A 30 s `SelectableTimer` drives `checkRecovery()`. For each bad MAC whose `action_expiry_time` has elapsed, `releaseBadMac()` dispatches on the configured action and reverts the SAI state. Non-bad MACs whose `move_timestamps` deque is empty (i.e. no moves in the last detection window) are garbage-collected.
@@ -320,23 +323,27 @@ flowchart TD
 5) For bad MACs whose `action_expiry_time` has passed, call `releaseBadMac()` to revert the action and transition the MAC back to TRACKED
 
 #### 6.2.6 Orchagent restart handling
-A bad MAC's mitigation is in effect for the configured `action_interval` (default 600 s, max 24 h). If `orchagent` restarts during that interval, two pieces of hardware state survive in the ASIC:
+A bad MAC's mitigation is in effect for the configured `action_interval` (default 600 s, max 24 h). If `orchagent` restarts during that interval, two pieces of hardware state can survive in the ASIC:
 
-- For `DISABLE_PORT`: the `SAI_PORT_ATTR_ADMIN_STATE=false` written via `PortsOrch::setPortAdminStatusByAlias()` is persisted in CONFIG_DB (`PORT|<alias>:admin_status`) and re-applied by `PortsOrch` on every start.
-- For `DISABLE_LEARN_ON_MAC_WITH_ACL`: the pre-ingress ACL table, its switch binding, and every per-MAC entry survive in the ASIC because they were written through `syncd` — but the OIDs and the per-bad-MAC association are lost from `MacMoveGuardOrch`'s in-memory state.
+- For `DISABLE_PORT`: `SAI_PORT_ATTR_ADMIN_STATE=false` written via `PortsOrch::setPortAdminStatusByAlias()` stays applied in the ASIC.
+- For `DISABLE_LEARN_ON_MAC_WITH_ACL`: the pre-ingress ACL table, its switch binding, and every per-MAC entry survive in the ASIC because they were written through `syncd`.
 
-Without persistence, both would leak: the disabled ports would stay down forever, and the orphaned ACL entries would silently keep suppressing learning for the offending MACs. To prevent this, every bad MAC is mirrored to STATE_DB under `MAC_MOVE_GUARD|<bv_id_hex>:<mac>` at the moment of detection (`persistBadMac()`) and dropped at the moment of recovery (`removeBadMacFromState()`). The constructor calls `restoreBadMacState()` to rebuild the in-memory tracking state from STATE_DB; the next `checkRecovery()` tick then resumes the recovery timeline against the persisted absolute expiry, either continuing the action until the original deadline or — if the deadline has already passed — reverting immediately.
+If these were left alone they would leak: the disabled ports would stay down forever and the orphaned ACL entries would silently keep suppressing learning. To prevent the leak the guard runs a **one-shot cleanup sweep** in its constructor (`restoreHwResources()`) that reverts both kinds of hardware state. There is no replay of in-memory bad-MAC tracking and no attempt to preserve the `action_interval` countdown — the trade-off is that a still-flapping MAC will re-trip the threshold after the restart and the mitigation will be re-applied.
 
-Persisted fields per bad MAC:
+**Cleanup sweep, step by step:**
+
+1. **DISABLE_PORT** — read the single STATE_DB row `MAC_MOVE_GUARD|HW_RESOURCES`. Its `disabled_ports` field is a comma-separated list of port aliases the guard admin-disabled in the previous run. Re-enable each via `PortsOrch::setPortAdminStatusByAlias(port, true)` and then delete the row.
+2. **DISABLE_LEARN_ON_MAC_WITH_ACL** — read `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`. If non-null, fetch the bound table's attributes via `sai_acl_api->get_acl_table_attribute()` and check the **signature**: `SAI_ACL_TABLE_ATTR_ACL_STAGE == SAI_ACL_STAGE_PRE_INGRESS`, `SAI_ACL_TABLE_ATTR_FIELD_SRC_MAC == true`, `SAI_ACL_TABLE_ATTR_FIELD_OUTER_VLAN_ID == true`, and `SAI_ACL_TABLE_ATTR_ACL_ACTION_TYPE_LIST == [SAI_ACL_ACTION_TYPE_SET_DO_NOT_LEARN]`. If all four match, treat it as ours, enumerate the table's entries via `SAI_ACL_TABLE_ATTR_ENTRY_LIST`, delete each entry, unbind the switch attr, and delete the table. If the signature does not match, leave the table alone — another feature owns it.
+
+After the sweep the guard starts with empty `m_macTrackingState`, empty `m_disabledPorts`, and `m_learnDisableAclTable == SAI_NULL_OBJECT_ID`. Normal CONFIG_DB processing then proceeds — if `action=DISABLE_LEARN_ON_MAC_WITH_ACL` is configured, `reconcileLearnDisableAclTable()` will create a fresh table and bind it; per-MAC entries are installed when MACs subsequently trip the threshold.
+
+The single STATE_DB row used by the cleanup sweep:
 
 Field | Used by | Purpose
 ------|---------|--------
-`action` | both | Determines which case in `releaseBadMac()` to dispatch
-`action_expiry_epoch` | both | Wall-clock epoch (seconds); on restore, `(epoch - now)` becomes the remaining steady-clock interval, clamped to 0
-`pinned_port` | `DISABLE_PORT` | Re-populated into `state.pinned_port`
-`disabled_ports` | `DISABLE_PORT` | Comma-separated alias list; re-populates `state.disabled_ports` and `m_disabledPorts[port].insert(key)` so per-port ref-counts are rebuilt
-`acl_entry_id` | `DISABLE_LEARN_ON_MAC_WITH_ACL` | The SAI ACL entry OID to remove on recovery
-`acl_table_id` | `DISABLE_LEARN_ON_MAC_WITH_ACL` | The ACL table OID; the first restored entry adopts it into `m_learnDisableAclTable`; subsequent entries cross-check it and warn on mismatch
+`disabled_ports` | `DISABLE_PORT` | Comma-separated alias list of currently admin-disabled ports. Rewritten on every `markBadMac()` / `releaseBadMac()` that adds or removes a port. Absent (row deleted) when no ports are guard-disabled.
+
+DLOMWA writes nothing to STATE_DB; the cleanup sweep rediscovers its table by ASIC-side signature match.
 
 <div align="center">
 
@@ -344,42 +351,41 @@ Field | Used by | Purpose
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#EAF1F8','primaryBorderColor':'#5B7BAB','primaryTextColor':'#2C3E50','lineColor':'#7A8B9F','secondaryColor':'#F4F0E8','tertiaryColor':'#F9FAFC','noteBkgColor':'#FFF8E1','noteTextColor':'#5C4500','noteBorderColor':'#D4B563','actorBkg':'#EAF1F8','actorBorder':'#5B7BAB','actorTextColor':'#2C3E50','fontSize':'9px'},'sequence':{'useMaxWidth':false,'actorFontSize':9,'noteFontSize':9,'messageFontSize':9,'mirrorActors':false,'noteAlign':'left','wrap':true}}}%%
 sequenceDiagram
     participant CFG as CONFIG_DB
-    participant MMG as MMGuardOrch
-    participant STATE as STATE_DB<br/>MAC_MOVE_GUARD
+    participant MMG as MacMoveGuard
+    participant STATE as STATE_DB<br/>HW_RESOURCES
     participant SAI as syncd / ASIC
 
     Note over MMG: --- normal operation ---
     CFG->>MMG: enabled=true, action=DLOMWA
     MMG->>SAI: create ACL table + bind to PRE_INGRESS
     MMG->>SAI: install per-MAC ACL entry (M1)
-    MMG->>STATE: persist M1<br/>{action, expiry_epoch, acl_entry_id, acl_table_id}
-    MMG->>SAI: setPortAdminStatus(P2, false)<br/>(M2 / DISABLE_PORT, different config in past)
-    MMG->>STATE: persist M2<br/>{action, expiry_epoch, pinned_port, disabled_ports}
+    Note over MMG,STATE: DLOMWA: no STATE_DB write
+    MMG->>SAI: setPortAdminStatus(P2, false)<br/>(M2 / DISABLE_PORT)
+    MMG->>STATE: rewrite disabled_ports CSV
 
     Note over MMG: --- orchagent crash / restart ---
-    MMG->>STATE: getKeys() / get()
-    STATE-->>MMG: M1, M2 + persisted fields
-    MMG->>MMG: rebuild m_macTrackingState,<br/>m_disabledPorts, m_learnDisableAclTable,<br/>m_learnDisableAclEntryCount
-    Note over MMG,SAI: ACL table OID + switch bind survive in ASIC<br/>port admin-down re-applied by PortsOrch from CONFIG_DB
-
-    Note over MMG: --- recovery tick (30s) ---
-    MMG->>MMG: checkRecovery()
-    alt expiry passed
-        MMG->>SAI: remove ACL entry (M1)
-        MMG->>STATE: del M1
-        MMG->>SAI: setPortAdminStatus(P2, true)
-        MMG->>STATE: del M2
-    else expiry still ahead
-        Note over MMG: keep BAD, recheck next tick
-    end
+    Note over MMG: constructor runs<br/>restoreHwResources()
+    MMG->>STATE: read disabled_ports CSV
+    STATE-->>MMG: "P2"
+    MMG->>SAI: setPortAdminStatus(P2, true)
+    MMG->>STATE: delete HW_RESOURCES row
+    MMG->>SAI: read SAI_SWITCH_ATTR_PRE_INGRESS_ACL → table OID
+    MMG->>SAI: get_acl_table_attribute(signature)
+    Note over MMG: signature matches → ours
+    MMG->>SAI: get_acl_table_attribute(ENTRY_LIST)
+    MMG->>SAI: remove_acl_entry(*)
+    MMG->>SAI: unbind PRE_INGRESS_ACL
+    MMG->>SAI: remove_acl_table
+    Note over MMG: in-memory state empty<br/>no action_interval continuity
 ```
 
 </div>
 
 Edge cases and invariants:
 
-- **Action transitions across restart**: if CONFIG_DB now specifies a different `action` than what was persisted, `restoreBadMac()` honours the **persisted** action when reverting (since that's what was actually programmed in the ASIC). New violations after the restart use the new action.
-- **Feature disabled across restart**: `restoreBadMacState()` runs unconditionally in the constructor, before CONFIG_DB has been processed. The first `doTask()` then sees `enabled=false` (or a missing row) and `clearAllState()` reverts every restored entry — guaranteeing no leak even when the operator disables the feature while bad MACs are in effect.
+- **Foreign pre-ingress ACL table**: if a different feature has bound a table to the pre-ingress slot, its signature will not match ours and the cleanup sweep leaves it alone. (The guard's normal-path `ensureLearnDisableAclTable()` also refuses to overwrite a non-null binding, so the two features cannot coexist on the pre-ingress slot regardless.)
+- **Stale rows from an older schema**: STATE_DB rows written by the previous (per-bad-MAC) schema have keys other than `HW_RESOURCES`; the cleanup sweep ignores them. They are not actively cleaned, but they are not consulted either.
+- **Feature disabled across restart**: the cleanup sweep runs unconditionally in the constructor before CONFIG_DB is processed, so disabled ports are re-enabled and the stale ACL table is torn down regardless of what CONFIG_DB now says. There is no need for `clearAllState()` to do any post-restart work.
 
 ### 6.3 Data structures
 
@@ -434,13 +440,21 @@ STATE_DB handle:
 
 Field | Type | Purpose
 ------|------|--------
-`m_stateBadMacTable` | `unique_ptr<swss::Table>` | `MAC_MOVE_GUARD` table in STATE_DB used by `persistBadMac()` / `removeBadMacFromState()` / `restoreBadMacState()` (see [§6.2.6](#626-orchagent-restart-handling))
+`m_stateTable` | `unique_ptr<swss::Table>` | `MAC_MOVE_GUARD` table in STATE_DB. Used only to write a single row keyed `HW_RESOURCES` with a `disabled_ports` CSV (rewritten when the set of admin-disabled ports changes, deleted when empty). The constructor calls `restoreHwResources()` once to revert any leftover hardware state (see [§6.2.6](#626-orchagent-restart-handling))
 
 ### 6.4 SWSS and syncd changes
-- New `MacMoveGuardOrch`: consumes the `MAC_MOVE_GUARD` CONFIG_DB table, attaches as an `Observer` on `FdbOrch`, owns its own 30 s `SelectableTimer`, persists bad-MAC state to STATE_DB, and drives `PortsOrch` + `sai_acl_api` directly
-- `FdbOrch`: two new notification subjects, `SUBJECT_TYPE_MAC_LEARN` and `SUBJECT_TYPE_MAC_MOVE`, emitted from the existing `SAI_FDB_EVENT_LEARNED` and `SAI_FDB_EVENT_MOVE` handlers. No change to FDB programming or aging behavior
-- STATE_DB: new `MAC_MOVE_GUARD` table, one row per bad MAC keyed by `<bv_id_hex>:<mac>`; schema documented in [§6.2.6](#626-orchagent-restart-handling)
+- `MacMoveGuard` (new) added in [`orchagent/macmoveguard.{h,cpp}`](orchagent/macmoveguard.h). It is owned by `FdbOrch` via composition (`std::unique_ptr<MacMoveGuard> m_macMoveGuard`); it does not inherit from `Orch` or `Observer`. It registers its `MAC_MOVE_GUARD` config-table `Consumer` and recovery `SelectableTimer` with the parent `FdbOrch`'s executor list (via `Orch::addExecutor`, reached through a `friend class MacMoveGuard;` declaration on `FdbOrch`)
+- `FdbOrch` constructor takes one new required parameter (`DBConnector* configDb`) so it can construct the guard; it is wired in [`orchdaemon.cpp`](orchagent/orchdaemon.cpp) where `gFdbOrch` is built. STATE_DB access reuses the existing `TableConnector` already passed to `FdbOrch`. `FdbOrch::doTask(Consumer&)` and `FdbOrch::doTask(SelectableTimer&)` route the guard's tasks back via `m_macMoveGuard->doConfigTask()` / `doRecoveryTimerTask()`. `FdbOrch`'s `SAI_FDB_EVENT_LEARNED` / `SAI_FDB_EVENT_MOVE` handlers call `m_macMoveGuard->onMacLearn(...)` / `onMacMove(...)` inline. The previous standalone `MacMoveGuardOrch` Orch and the `SUBJECT_TYPE_MAC_LEARN` / `SUBJECT_TYPE_MAC_MOVE` observer subjects are removed
+- STATE_DB: new `MAC_MOVE_GUARD` table, at most one row (`HW_RESOURCES`) holding a `disabled_ports` CSV; absent when no ports are guard-disabled. Schema documented in [§7.2](#72-db-and-schema-changes)
 - syncd / SAI: no changes
+
+### 6.5 Interaction with Notification Dedup
+A separate SONiC effort ([sonic-net/SONiC#2334](https://github.com/sonic-net/SONiC/pull/2334)) introduces a Notification Dedup mechanism that coalesces repeated SAI notifications — including FDB events — at the syncd / swss layer and publishes aggregated counters for the dedup'd events. When that feature is deployed alongside MAC Move Guard, the two form a layered defence:
+
+- Notification Dedup absorbs the storm at the notification layer: repeated FDB events for the same `(VLAN, MAC)` are collapsed, lowering control-plane CPU during a MAC-move storm.
+- MAC Move Guard reacts to the dedup'd event stream; once `threshold` is crossed, its mitigation action (port admin-down or `SET_DO_NOT_LEARN` ACL) halts the data-plane source of the storm. With the source quieted, the dedup counter rate falls to zero on its own.
+
+**Tuning recommendation.** With Notification Dedup enabled, the per-MAC event rate that reaches `FdbOrch` (and therefore the guard) is a coalesced count, not the raw hardware rate. The operator should configure a **lower `threshold` over a larger `detect_interval`** in this case — for example `threshold ≈ 50` with `detect_interval ≈ 10s` instead of the defaults. The lower per-window count is appropriate because each surviving event already represents many hardware-level events. The longer window gives Notification Dedup a representative aggregate to act on. The net effect is that MMG trips earlier on a representative sample of the storm and applies mitigation at the hardware level *before* the storm has had time to broaden — which is precisely what minimizes both control-plane load and forwarding disruption. The exact values depend on the dedup window and counter semantics defined in the Notification Dedup HLD.
 
 ## 7. Configuration and Management
 ### 7.1 CONFIG_DB
@@ -473,18 +487,13 @@ ACTION              = action_value                   ; default DISABLE_PORT
 action_value        = "DISABLE_PORT" / "DISABLE_LEARN_ON_MAC_WITH_ACL"
 ```
 
-In addition, `MacMoveGuardOrch` maintains a STATE_DB table for bad-MAC recovery across `orchagent` restarts (see [§6.2.6](#626-orchagent-restart-handling)). This table is written and read only by `orchagent` and is not part of the user-configurable surface:
+In addition, `MacMoveGuard` maintains a STATE_DB table used **only** for the cleanup-on-restart sweep (see [§6.2.6](#626-orchagent-restart-handling)). It holds at most a single row that records the ports currently admin-disabled by the guard. DLOMWA writes nothing — its pre-ingress ACL table is rediscovered on restart by signature-matching the table bound to `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`. This table is written and read only by `orchagent` and is not part of the user-configurable surface:
 
 ```
-; STATE_DB MAC_MOVE_GUARD table — one row per bad MAC
-key                 = MAC_MOVE_GUARD:<bv_id_hex>:<mac>   ; bv_id as 0x… hex, mac as colon-separated bytes
+; STATE_DB MAC_MOVE_GUARD table — at most one row, key fixed to HW_RESOURCES
+key                 = MAC_MOVE_GUARD:HW_RESOURCES
 ; field             = value
-action              = "DISABLE_PORT" / "DISABLE_LEARN_ON_MAC_WITH_ACL"
-action_expiry_epoch = 1*DIGIT                            ; wall-clock seconds since epoch
-pinned_port         = port_alias                         ; DISABLE_PORT only
-disabled_ports     = port_alias *("," port_alias)        ; DISABLE_PORT only, comma-separated
-acl_entry_id        = "0x" 1*HEXDIG                      ; DISABLE_LEARN_ON_MAC_WITH_ACL only
-acl_table_id        = "0x" 1*HEXDIG                      ; DISABLE_LEARN_ON_MAC_WITH_ACL only (table OID, redundant per row)
+disabled_ports      = port_alias *("," port_alias)        ; comma-separated; field/row absent when empty
 ```
 
 > Note: Refer to swss-schema.md for general BNF conventions used across SONiC documents.
@@ -574,7 +583,7 @@ Notes:
 - `max-elements 1` enforces the "only `GLOBAL`" constraint, mirroring the orch's runtime check
 - Range constraints keep sonic config utilities from accepting nonsensical values such as zero or negative seconds
 - Defaults are aligned with the orch's in-class defaults (`m_threshold = 1000`, `m_durationSeconds = 5`, `m_recoverySeconds = 600`, `m_action = DISABLE_PORT`)
-- Adding a new action means adding an `enum` value to `mac-move-guard-action` and a `case` in `MacMoveGuardOrch::doTask()`
+- Adding a new action means adding an `enum` value to `mac-move-guard-action` and a `case` in `MacMoveGuard::doConfigTask()`
 
 ### 7.4 CLI examples
 No new CLI commands are introduced. Configuration is applied through sonic config utilities, which validate the input against the YANG model in [§7.3](#73-yang-model) before writing CONFIG_DB.
@@ -612,27 +621,28 @@ Persist across reboot:
 config save -y
 ```
 
-Operational visibility is provided through orchagent syslog at NOTICE level, including bad-MAC detection, port admin-down/up transitions, ACL table/entry creation and removal for `DISABLE_LEARN_ON_MAC_WITH_ACL`, `action_not_supported` reporting, STATE_DB restore on startup, and action-interval expiry.
+Operational visibility is provided through orchagent syslog at NOTICE level, including bad-MAC detection, port admin-down/up transitions, ACL table/entry creation and removal for `DISABLE_LEARN_ON_MAC_WITH_ACL`, `action_not_supported` reporting, restart cleanup actions (port re-enable, stale ACL table tear-down), and action-interval expiry.
 
 ## 8. Warmboot
 - Warmboot is not supported
-- Stateful `orchagent` restart is supported: STATE_DB rows survive the restart, the pre-ingress ACL table / per-MAC entries remain installed in the ASIC, and `restoreBadMacState()` rebuilds the in-memory bookkeeping so in-flight mitigation completes against the original deadline (see [§6.2.6](#626-orchagent-restart-handling))
+- `orchagent` restart is supported via a one-shot cleanup sweep: any leftover hardware state from the previous run (admin-disabled ports listed in STATE_DB, plus the pre-ingress ACL table identified by signature match) is reverted in the `MacMoveGuard` constructor. The `action_interval` countdown is not preserved across the restart; a still-flapping MAC will re-trip the threshold and the mitigation will be re-applied (see [§6.2.6](#626-orchagent-restart-handling))
 
 ## 9. Memory Consumption
 - Minimal control-plane state in orchagent
 - `m_macTrackingState` and `m_learntMac` are bounded in steady state by the SDK's MAC-table size. Quiet MACs are garbage-collected from `m_macTrackingState` by `checkRecovery()` after one detection-interval of silence, and `m_learntMac` entries are pruned by `pruneLearntMacCache()` on the same schedule
 - `m_disabledPorts` and the per-bad-MAC ACL entry count (`m_learnDisableAclEntryCount`) are bounded by the number of bad MACs currently in effect
-- STATE_DB footprint: one row per bad MAC (≤ a few hundred bytes per row); bounded by the same population
+- STATE_DB footprint: at most a single row (`MAC_MOVE_GUARD|HW_RESOURCES`) with a `disabled_ports` CSV; zero rows when no ports are guard-disabled. DLOMWA leaves no STATE_DB footprint
 - No growth when feature disabled
 
 ## 10. Restrictions/Limitations
 - **`DISABLE_PORT` is disruptive.** Every port the bad MAC was bouncing on (except the pinned one) is admin-disabled; all unrelated traffic on those ports is dropped until the action interval expires
+- **`DISABLE_LEARN_ON_MAC_WITH_ACL` scale is bounded by ACL entry capacity.** Each bad MAC consumes one entry in the pre-ingress ACL table. The maximum number of MACs that can be simultaneously disabled is therefore capped by the number of ACL entries the platform supports at the `PRE_INGRESS` stage (which is itself shared with any other PRE_INGRESS consumer). Beyond that cap, additional bad MACs cannot be programmed and the guard logs an ERROR
 - **No `show` commands yet.** Operational visibility today is via orchagent syslog and STATE_DB inspection; a `show mac-move-guard` CLI is not provided
 - **Warmboot is not supported** (see [§8](#8-warmboot))
 
 ## 11. Testing Requirements
 ### 11.1 Unit tests (one-liners)
-The mock-based gtest suite lives at `sonic-swss:tests/mock_tests/macmoveguardorch/macmoveguardorch_ut.cpp`. It covers (at minimum):
+The mock-based gtest suite lives at `sonic-swss:tests/mock_tests/macmoveguard/macmoveguard_ut.cpp`. It covers (at minimum):
 
 1) Threshold trips at exactly N=`threshold` MOVE events within `detect_interval`; bad MAC FSM enters BAD_MAC
 2) Threshold trips identically when moves are synthesized from alternating LEARN events on two ports for the same MAC
@@ -640,18 +650,17 @@ The mock-based gtest suite lives at `sonic-swss:tests/mock_tests/macmoveguardorc
 4) `DISABLE_PORT` pinning: with two bad MACs sharing two ports, exactly one port is admin-disabled and reference-counted correctly
 5) `DISABLE_PORT` recovery: after `action_interval`, port is re-enabled; if a second bad MAC still requires it, the port stays down
 6) `DISABLE_LEARN_ON_MAC_WITH_ACL` supported: enabling the feature with this action creates the ACL table and binds it to `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`
-7) `DISABLE_LEARN_ON_MAC_WITH_ACL` flagged `action_not_supported`: no ACL table is created, NOTICE is logged once, but bad MAC detection still persists rows to STATE_DB
+7) `DISABLE_LEARN_ON_MAC_WITH_ACL` flagged `action_not_supported`: no ACL table is created, NOTICE is logged once, bad-MAC detection still runs in memory; nothing is written to STATE_DB
 8) `DISABLE_LEARN_ON_MAC_WITH_ACL` entry lifecycle: on bad-MAC detection a per-MAC ACL entry is installed with `SET_DO_NOT_LEARN`; on recovery the entry is removed; the ACL table is not torn down until the action changes or the feature is disabled
 9) Action transition: switching from `DISABLE_PORT` to `DISABLE_LEARN_ON_MAC_WITH_ACL` (and vice versa) tears down all entries created by the previous action's bad MACs and creates/destroys the ACL table accordingly via `reconcileLearnDisableAclTable()`
-10) Feature disable cleanup: all disabled ports re-enabled, all ACL entries removed, ACL table destroyed and unbound from `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`, all STATE_DB rows dropped before maps are cleared
+10) Feature disable cleanup: all disabled ports re-enabled, all ACL entries removed, ACL table destroyed and unbound from `SAI_SWITCH_ATTR_PRE_INGRESS_ACL`, the STATE_DB `HW_RESOURCES` row is dropped, all in-memory maps are cleared
 11) GC of quiet MACs: after one detection interval of silence, tracking entry is erased
 12) Config rejection: non-`GLOBAL` keys are dropped with WARN; bad `action` value falls back to `DISABLE_PORT` with WARN; invalid integer values logged at ERROR without crashing
 13) YANG validation: sonic config utilities reject out-of-range `detect_interval`, invalid `action`, and non-`GLOBAL` keys before they reach CONFIG_DB
-14) Restart restore — `DISABLE_PORT`: pre-populate STATE_DB with a bad-MAC row (action, expiry epoch in the future, pinned_port, disabled_ports), construct the orch, verify `m_disabledPorts` ref-counts and `m_macTrackingState` entry are rebuilt; advance time past expiry and verify `checkRecovery()` re-enables the port and drops the STATE_DB row
-15) Restart restore — `DISABLE_LEARN_ON_MAC_WITH_ACL`: pre-populate STATE_DB with multiple bad-MAC rows sharing the same `acl_table_id`, verify the first row adopts `m_learnDisableAclTable` and subsequent rows are consistency-checked; on recovery the per-MAC ACL entries are removed via `sai_acl_api`
-16) Restart restore — expired action: persisted `action_expiry_epoch` already in the past — restored state has a clamped (0 s) remaining interval, next `checkRecovery()` tick reverts the action immediately
-17) Restart restore — feature now disabled: STATE_DB has bad-MAC rows but CONFIG_DB has `enabled=false` — `clearAllState()` (triggered by the first `doTask`) reverts every restored entry and drops the rows
-18) Restart restore — malformed STATE_DB key/value: row is dropped from STATE_DB with a WARN; no exception escapes the constructor
+14) Restart cleanup — `DISABLE_PORT`: pre-populate `MAC_MOVE_GUARD|HW_RESOURCES` with a `disabled_ports` CSV and mark those ports admin-down in the SAI mock; constructing the guard re-enables each port, clears the STATE_DB row, and leaves all in-memory bad-MAC tracking empty
+15) Restart cleanup — pre-ingress ACL table: pre-stage a bound pre-ingress ACL table with our signature (`stage=PRE_INGRESS`, `FIELD_SRC_MAC=true`, `FIELD_OUTER_VLAN_ID=true`, `action_list=[SET_DO_NOT_LEARN]`) and a few entries; constructing the guard enumerates the entry list, deletes each entry, unbinds the switch attr, and deletes the table
+16) Restart cleanup — foreign ACL table left alone: a pre-ingress table whose signature does not match (e.g. different action type) is **not** touched
+17) Restart cleanup — stale schema tolerance: a STATE_DB row left over from the older per-bad-MAC schema is ignored; the constructor does not throw and starts with empty in-memory state
 
 ### 11.2 System tests
 System tests live under `sonic-mgmt:tests/fdb/`. Both tests below drive a PTF-side MAC-move storm that rotates a small pool of source MACs between two VLAN-member ports on the DUT so each MAC crosses the per-MAC threshold within the detect interval.
@@ -661,14 +670,14 @@ System tests live under `sonic-mgmt:tests/fdb/`. Both tests below drive a PTF-si
    - Stop the storm and assert the disabled port returns to oper-up after the action interval elapses.
    - Teardown: delete the CONFIG_DB row, force any guard-disabled port back to admin-up, and flush the FDB.
 
-2) **DISABLE_LEARN_ON_MAC_WITH_ACL** — configure with `action=DISABLE_LEARN_ON_MAC_WITH_ACL` and a long action interval so the bad MAC cannot age out while assertions run.
-   - Wait until at least one bad MAC is published to `STATE_DB:MAC_MOVE_GUARD` with `action=DISABLE_LEARN_ON_MAC_WITH_ACL`, a non-null ACL entry OID, and an ACL table OID.
-   - Verify the ACL table exists in ASIC_DB with stage `SAI_ACL_STAGE_PRE_INGRESS`, match fields `SRC_MAC` and `OUTER_VLAN_ID` enabled, and `SAI_ACL_ACTION_TYPE_SET_DO_NOT_LEARN` in the action-type list.
-   - Verify the per-MAC ACL entry exists in ASIC_DB, references the ACL table OID, matches the bad MAC and VLAN, and has the `SET_DO_NOT_LEARN` action.
+2) **DISABLE_LEARN_ON_MAC_WITH_ACL** — configure with `action=DISABLE_LEARN_ON_MAC_WITH_ACL` and a long action interval so the bad MAC cannot age out while assertions run. (DLOMWA leaves no STATE_DB footprint; verification is done entirely via ASIC_DB and syslog.)
+   - Wait until the pre-ingress ACL table appears in ASIC_DB and `SAI_SWITCH_ATTR_PRE_INGRESS_ACL` points at it; capture the table OID. Verify the table has stage `SAI_ACL_STAGE_PRE_INGRESS`, match fields `SRC_MAC` and `OUTER_VLAN_ID` enabled, and `SAI_ACL_ACTION_TYPE_SET_DO_NOT_LEARN` in the action-type list.
+   - Wait until at least one ACL entry whose `SAI_ACL_ENTRY_ATTR_TABLE_ID` points at that table OID appears in ASIC_DB. Parse the entry's `SAI_ACL_ENTRY_ATTR_FIELD_SRC_MAC` to extract the tracked MAC, and verify `SAI_ACL_ENTRY_ATTR_FIELD_OUTER_VLAN_ID` matches the storm VLAN and the entry has the `SET_DO_NOT_LEARN` action.
    - With the storm still running, disable rsyslog rate-limiting in the swss container, poll orchagent syslog for further "BAD MAC ... continues to move" lines for the tracked MAC, and require that no new matching line appears for a sustained quiescence window — proof that the ACL entry has taken effect.
-   - Stop the storm, reapply CONFIG_DB with a short action interval, and assert that both the ASIC_DB ACL entry and the STATE_DB bad-MAC row are removed within the new interval plus a grace period.
+   - Stop the storm, reapply CONFIG_DB with a short action interval, and assert that the ASIC_DB ACL entry is removed within the new interval plus a grace period.
    - Teardown: delete the CONFIG_DB row, restore rsyslog rate-limiting, remove the dedicated VLAN and its members, and flush the FDB.
 
 ## 12. Open/Action items
-- `show mac-move-guard` CLI backed by STATE_DB counters (total bad MACs, total disabled ports, total ACL entries, per-MAC history)
-- Warm-restart fidelity: integrate STATE_DB persistence into the swss warm-restart save/restore sequence so bad-MAC mitigation completes seamlessly across a planned warm reboot
+- `show mac-move-guard` CLI for operational visibility (bad MACs currently tracked, ports admin-disabled by the guard, installed ACL entries)
+- **Support EVPN MAC moves.** Today the guard only sees local data-plane learning / move events delivered through `SAI_FDB_EVENT_LEARNED` / `SAI_FDB_EVENT_MOVE`. EVPN-driven MAC mobility is invisible to the guard. Extend detection to cover this path.
+- **Drive detection off Notification Dedup counters.** Once Notification Dedup ([sonic-net/SONiC#2334](https://github.com/sonic-net/SONiC/pull/2334)) is in place, consume its aggregated counters (in place of, or in addition to, the raw SAI FDB event stream) so detection is based on the canonical dedup'd rate rather than each orch maintaining its own sliding window. See [§6.5](#65-interaction-with-notification-dedup).
