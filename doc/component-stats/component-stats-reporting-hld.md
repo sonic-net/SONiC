@@ -22,6 +22,7 @@
 | Rev | Date       | Author        | Change Description                                       |
 |-----|------------|---------------|----------------------------------------------------------|
 | 0.1 | 2026-05-12 | Yutong Zhang  | Initial revision (split from component-stats Framework HLD) |
+| 0.2 | 2026-05-27 | Yutong Zhang  | Reframe §7.2 as a Metric Name / Label List / Description table |
 
 ### 2. Scope
 
@@ -161,28 +162,60 @@ redis-cli -n 2 HGETALL "SWSS_STATS:PORT_TABLE"
 
 The shape mirrors the existing `COUNTERS:*` keys produced by the Flex-Counter pipeline so that on-box tooling (`redis-cli`, `show ... stats`) needs no changes.
 
-#### 7.2 SWSS-specific vocabulary
+#### 7.2 SWSS metric design
 
-The SWSS facade (`SwssStats`) writes to:
+When telegraf reads a `SWSS_STATS:<table>` hash from `COUNTERS_DB` and
+forwards it via mdm, each `(key, field)` pair surfaces downstream as a
+single metric with one label carrying the orchagent table name. The
+SWSS facade emits the following four metrics:
 
-| Key                                  | Field      | Meaning                                         |
-|--------------------------------------|------------|-------------------------------------------------|
-| `SWSS_STATS:<orchagent table name>`  | `SET`      | Number of `SET` operations seen on the table.   |
-| `SWSS_STATS:<orchagent table name>`  | `DEL`      | Number of `DEL` operations seen on the table.   |
-| `SWSS_STATS:<orchagent table name>`  | `COMPLETE` | Number of operations that finished successfully.|
-| `SWSS_STATS:<orchagent table name>`  | `ERROR`    | Number of operations that finished with error.  |
+| Metric Name           | Label List    | Description                                                                       |
+|-----------------------|---------------|-----------------------------------------------------------------------------------|
+| `SWSS_STATS_SET`      | `swss.table`  | Count of `SET` operations enqueued on the orchagent table named by the label.     |
+| `SWSS_STATS_DEL`      | `swss.table`  | Count of `DEL` operations enqueued on the orchagent table named by the label.    |
+| `SWSS_STATS_COMPLETE` | `swss.table`  | Count of operations that finished successfully on the table.                      |
+| `SWSS_STATS_ERROR`    | `swss.table`  | Count of operations that finished with error on the table.                        |
 
-`<orchagent table name>` is the same identifier used by orchagent (e.g. `PORT_TABLE`, `VLAN_TABLE`, `ROUTE_TABLE`); no transformation is applied.
+Notes:
+
+- All values are monotonically increasing `uint64` counters. Consumers
+  compute rate-of-change; absolute values reset on container restart
+  (see §10).
+- The label value (`swss.table`) is the orchagent table identifier
+  verbatim — e.g. `PORT_TABLE`, `VLAN_TABLE`, `ROUTE_TABLE` — so
+  dashboards can filter on a specific table without parsing the Redis
+  key.
+- Mapping back to `COUNTERS_DB`: the metric `SWSS_STATS_<X>`
+  corresponds to Redis key `SWSS_STATS:<entity>` with hash field
+  `<X>`; the label value is the `<entity>` part of the key. See §7.1
+  for the key layout and §7.4 for the dirty-tracking semantics that
+  guarantee idle entities do not produce reporting traffic.
 
 #### 7.3 Conventions for future components
 
-When onboarding a new component (`gnmi`, `bmp`, `telemetry`, …) using the framework:
+When onboarding a new component (`gnmi`, `bmp`, `telemetry`, …) using
+the framework:
 
-1. Pick a stable, uppercase component name `C`. Counters land under `C_STATS:*` automatically.
-2. Define a short, finite set of metric names (verbs/states) that describe the events the component cares about. Avoid putting cardinality-heavy values (interface name, neighbour IP) inside the metric name; put them in the entity (`E`) instead. Telegraf reads the entity from the Redis key and the metric from the hash field, so dashboards can pivot freely.
-3. Document the vocabulary in the component's own HLD (one row per field, the same shape as §7.2).
+1. Pick a stable, uppercase component name `C`. Counters land under
+   `C_STATS:*` automatically and surface downstream as metrics named
+   `C_STATS_<VERB>`.
+2. Define a short, finite vocabulary of `<VERB>` names that describe
+   the event classes the component cares about (e.g. `SUBSCRIBE`,
+   `GET`, `SET`, `ERROR`). Avoid putting cardinality-heavy values
+   (interface name, neighbour IP, gNMI path) inside the metric name;
+   put them in the entity (`E`) so they become the label value
+   downstream. Telegraf reads the entity from the Redis key and the
+   metric from the hash field, so dashboards can pivot freely without
+   metric-name explosion.
+3. Document the vocabulary in the component's own HLD as a Metric
+   Name | Label List | Description table, identical in shape to §7.2.
+   A typical label name is `c.entity` for a generic component, or a
+   domain-specific synonym such as `gnmi.path` / `bmp.peer` /
+   `swss.table` when that reads better on dashboards.
 
-No telegraf configuration change is required to onboard a new component, provided telegraf is configured to scan `*_STATS:*` patterns (NDM HLD §5.2.1).
+No telegraf configuration change is required to onboard a new
+component, provided telegraf is configured to scan `*_STATS:*` patterns
+(NDM HLD §5.2.1).
 
 #### 7.4 Interaction with the producer
 
@@ -256,3 +289,4 @@ The library-level invariants (`HSET` on dirty entities, idle suppression, field 
 - The single reporting path in this revision is `COUNTERS_DB -> telegraf -> mdm -> Geneva`. Direct OTLP export from the application (the `OpenTelemetry SDK -> mdm` path described in NDM HLD §4) is a possible future addition; it would be specified in a future revision of this document if and when SONiC components need lower reporting latency than 1 s polling can provide.
 - Garbage collection of stale `*_STATS:<entity>` keys on long-lived containers is left for a future revision. The current behaviour (cleared on container restart) is sufficient for the planned consumers.
 - When additional components (`gnmi`, `bmp`, `telemetry`, …) adopt the framework, each one should add its vocabulary table to §7.3 by a small follow-up PR on this HLD.
+

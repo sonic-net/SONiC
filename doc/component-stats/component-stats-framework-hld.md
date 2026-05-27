@@ -23,6 +23,7 @@
 |-----|------------|---------------|------------------------------------------------------|
 | 0.1 | 2026-04-28 | Yutong Zhang  | Initial revision                                     |
 | 0.2 | 2026-05-12 | Yutong Zhang  | Split out the reporting pipeline into a separate HLD |
+| 0.3 | 2026-05-27 | Yutong Zhang  | Trim inline code, focus on metric design tables      |
 
 ### 2. Scope
 
@@ -198,19 +199,17 @@ Process-wide:
 
 #### 7.4 Hot path
 
-```cpp
-void ComponentStats::increment(const string& entity, const string& metric, uint64_t n) {
-  if (!isEnabled() || n == 0) return;
+After the first use of a given `(entity, metric)` pair, `increment()` does
+exactly two atomic RMWs and nothing else:
 
-  auto& e = getOrCreateEntity(entity);              // mutex on first use only
-  auto& c = getOrCreateCounter(e, metric);          // mutex on first use only
+1. **Relaxed `fetch_add`** on the counter value — accumulates the event.
+2. **Release `fetch_add`** on the per-entity *version* — marks the entity
+   dirty and publishes the new counter value to the writer thread.
+   Pairs with the writer's acquire-load (see §7.6).
 
-  c.value  .fetch_add(n, memory_order_relaxed);     // (1) counter
-  e.version.fetch_add(1, memory_order_release);     // (2) dirty-bump (release)
-}
-```
-
-Cost after warm-up: two atomic RMWs. No mutex acquisition, no allocation, no syscall.
+No mutex acquisition, no allocation, no syscall on the hot path. The
+structural mutex is taken only the first time a given `(entity, metric)`
+pair is seen, to insert it into the per-entity map.
 
 #### 7.5 Writer thread
 
@@ -261,40 +260,63 @@ Without it, on weakly ordered architectures (ARM, POWER) the writer could see th
 
 #### 7.7 `SwssStats` thin facade
 
-`SwssStats` (in `sonic-swss/orchagent/`) is reduced to a translation layer that owns only the SWSS-specific vocabulary and the global enable flag consumed by `orch.cpp`:
+`SwssStats` (in `sonic-swss/orchagent/`) is a ~130-line translation layer
+that owns only the SWSS-specific vocabulary and the global
+`gSwssStatsRecord` enable flag consumed by `orch.cpp`. Every call
+delegates directly to `swss::ComponentStats::increment()`:
 
-```cpp
-SwssStats::SwssStats() : m_impl(swss::ComponentStats::create("SWSS")) {}
+| `SwssStats` call            | Delegates to                      | Reports as (see Reporting HLD §7.2) |
+|-----------------------------|-----------------------------------|--------------------------------------|
+| `recordTask(t, "SET")`      | `increment(t, "SET")`             | `SWSS_STATS_SET{swss.table=t}`       |
+| `recordTask(t, "DEL")`      | `increment(t, "DEL")`             | `SWSS_STATS_DEL{swss.table=t}`       |
+| `recordComplete(t, n)`      | `increment(t, "COMPLETE", n)`     | `SWSS_STATS_COMPLETE{swss.table=t}`  |
+| `recordError(t, n)`         | `increment(t, "ERROR", n)`        | `SWSS_STATS_ERROR{swss.table=t}`     |
 
-void SwssStats::recordTask(const std::string& t, const std::string& op) {
-  if      (op == "SET") m_impl->increment(t, "SET");
-  else if (op == "DEL") m_impl->increment(t, "DEL");
-}
-void SwssStats::recordComplete(const std::string& t, uint64_t n) { m_impl->increment(t, "COMPLETE", n); }
-void SwssStats::recordError   (const std::string& t, uint64_t n) { m_impl->increment(t, "ERROR",    n); }
-```
+The public surface (`gSwssStatsRecord`, `SwssStats::getInstance()`,
+`recordTask` / `recordComplete` / `recordError`) and the on-the-wire
+`SWSS_STATS:<table>` Redis layout are deliberately kept narrow and
+stable so the SWSS vocabulary remains independent of future evolution
+of the underlying `ComponentStats` library.
 
-The whole file is ~130 lines of straightforward delegation. **The public surface (`gSwssStatsRecord`, `SwssStats::getInstance()`, `recordTask`/`recordComplete`/`recordError`) and the on-the-wire `SWSS_STATS:<table>` Redis layout are deliberately kept narrow and stable so that the SWSS-specific vocabulary remains independent of future evolution of the underlying `ComponentStats` library.**
-
-The exact `SWSS_STATS:<table>` schema (key layout, field names, types) is documented in the [Reporting HLD](./component-stats-reporting-hld.md), which owns the contract with downstream consumers.
+The full SWSS metric design (metric names, labels, descriptions) and
+the exact `SWSS_STATS:<table>` Redis schema are owned by the
+[Reporting HLD §7.2](./component-stats-reporting-hld.md#72-swss-metric-design),
+which is the contract with downstream consumers.
 
 #### 7.8 Adopting the library in a new container
 
-To add equivalent metrics to e.g. `gnmi`, write a facade analogous to §7.7:
+A new component `C` adopts the framework by:
 
-```cpp
-class GnmiStats {
-public:
-  static GnmiStats* getInstance();
-  void recordSubscribe(const std::string& path) { m_impl->increment(path, "SUBSCRIBE"); }
-  void recordError    (const std::string& path) { m_impl->increment(path, "ERROR");     }
-private:
-  GnmiStats() : m_impl(swss::ComponentStats::create("GNMI")) {}
-  std::shared_ptr<swss::ComponentStats> m_impl;
-};
-```
+1. Picking an uppercase component name `C`. Counters automatically land in
+   `COUNTERS_DB` under `C_STATS:*` and surface downstream as metrics
+   named `C_STATS_<VERB>` with one label per entity.
+2. **Designing a finite vocabulary** of verb-style metric names for the
+   events the component cares about. Anything high-cardinality
+   (interface name, neighbour IP, gNMI path, BMP peer) **must** go into
+   the entity (the part after the `:` in the Redis key) rather than the
+   metric name, so that dashboards can pivot on the label without
+   explosion in metric count. See
+   [Reporting HLD §7.3](./component-stats-reporting-hld.md#73-conventions-for-future-components)
+   for the rationale.
+3. Documenting that vocabulary as a Metric Name | Label List |
+   Description table in the component's own HLD, identical in shape to
+   the SWSS table in Reporting HLD §7.2.
+4. Writing a thin facade (~30 LoC) that calls
+   `swss::ComponentStats::increment()` for each event.
 
-Result: counters land in `COUNTERS_DB` under keys `GNMI_STATS:<path>`. No new threads, no new Redis client management, no new test harness needed. Reporting then picks them up automatically via the pipeline described in the Reporting HLD.
+No new threads, no new Redis client management, no new test harness
+needed. Reporting picks the metrics up automatically via the
+`*_STATS:*` pattern match.
+
+Illustrative future vocabulary for `gnmi` (to be finalised when the
+gNMI facade lands):
+
+| Metric Name             | Label List   | Description                                                  |
+|-------------------------|--------------|--------------------------------------------------------------|
+| `GNMI_STATS_SUBSCRIBE`  | `gnmi.path`  | Number of `Subscribe` requests received on the path.         |
+| `GNMI_STATS_GET`        | `gnmi.path`  | Number of `Get` RPCs handled on the path.                    |
+| `GNMI_STATS_SET`        | `gnmi.path`  | Number of `Set` RPCs handled on the path.                    |
+| `GNMI_STATS_ERROR`      | `gnmi.path`  | Number of RPCs that returned an error on the path.           |
 
 ### 8. SAI API
 
@@ -374,3 +396,4 @@ End-to-end validation of the reporting path (telegraf → mdm → Geneva) is cov
 - Phase 1 (this HLD's two PRs) lands the `ComponentStats` library and the `SwssStats` facade with the DB sink fully active.
 - Phase 2 onboards additional SONiC containers (`gnmi`, `bmp`, `telemetry`, …) by adding their own facades. Each is a self-contained PR in the relevant repository.
 - Phase 3 (future) may add direct OTLP export from the library to a local agent for components that need lower reporting latency than the DB → telegraf path provides. Out of scope for this HLD.
+
