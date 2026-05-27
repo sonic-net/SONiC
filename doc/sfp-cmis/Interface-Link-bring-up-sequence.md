@@ -36,7 +36,7 @@ Deterministic Approach for Interface Link bring-up sequence
 | 0.8 | 02/16/2022  | Shyam Kumar                        | Updated feature-enablement workflow
 | 0.9 | 04/05/2022  | Shyam Kumar                        | Addressed review comments           |
 | 1.0 | 10/20/2023  | Mihir Patel                        | Added Port re-initialization during syncd/swss/orchagent crash section           |
-| 1.1 | 04/28/2026  | Arpit Kumar                        | Redesigned SI settings sync: two-field protocol (APPL_DB si_settings_notification + STATE_DB si_settings_ack), monotonic counter, CMIS_STATE_SI_SETTINGS_WAIT state; notification moved to CMIS_STATE_INSERTED and SffManagerTask gated by notify_si_settings flag; SI_SETTINGS_WAIT timeout triggers force_cmis_reinit |
+| 1.1 | 04/28/2026  | Arpit Kumar                        | Redesigned SI settings sync: two-field protocol (APPL_DB si_settings_notification + STATE_DB si_settings_ack), CMIS_STATE_SI_SETTINGS_WAIT state; notification moved to CMIS_STATE_INSERTED and SffManagerTask gated by notify_si_settings flag; SI_SETTINGS_WAIT timeout triggers force_cmis_reinit |
 
 
 # About this Manual
@@ -224,7 +224,7 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 
 | Value                        | Written by                                                                                                                                                                          | Purpose                                                                                   |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `SI_SETTINGS_DEFAULT:<N>`    | 1\. SfpStateUpdateTask during transceiver removal (increments N)<br>2. xcvrd during boot-up initialization                                                                          | Signals to OA that transceiver was removed or SI settings are in default state             |
+| `SI_SETTINGS_DEFAULT:<N>`    | 1\. SfpStateUpdateTask during transceiver removal (increments N)                                                                          | Signals to OA that transceiver was removed or SI settings are in default state             |
 | `SI_SETTINGS_NOTIFIED:<N>`   | 1\. SffManagerTask for non-CMIS SM driven transceivers (on module insertion)<br>2. CmisManagerTask for CMIS SM driven transceivers (written in CMIS_STATE_INSERTED when `notify_si_settings=True`) | Signals to OA that SI settings have been written to PORT_TABLE (APPL_DB) for sequence N   |
 
 **STATE_DB PORT_TABLE `si_settings_ack`** — written by Orchagent, read by xcvrd  
@@ -233,7 +233,7 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 | ----------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `SI_SETTINGS_DEFAULT:0` | Orchagent during port initialization                                                 | Initial state; indicates SI settings have not been applied                                                    |
 | `SI_SETTINGS_DEFAULT:<N>` | Orchagent upon receiving `SI_SETTINGS_DEFAULT:<N>` from xcvrd via APPL_DB         | Acknowledges transceiver removal; used by xcvrd on restart to determine update is needed                      |
-| `SI_SYNC_DONE:<N>`      | Orchagent after successfully applying serdes settings for sequence N                | CmisManagerTask checks this in CMIS_STATE_SI_SETTINGS_WAIT to proceed to CMIS_STATE_DP_INIT; also used by `can_skip_cmis_init_after_restart` to verify SI settings are already applied |
+| `SI_SYNC_DONE:<N>`      | Orchagent after successfully applying serdes settings for sequence N                | CmisManagerTask checks this in CMIS_STATE_SI_SETTINGS_WAIT to proceed to CMIS_STATE_DP_INIT |
 
 
 2. Update and notify SI settings to OA  
@@ -250,9 +250,9 @@ A transceiver is classified as CMIS SM driven transceiver if its module type is 
 
 
 3. The OA upon receiving SI settings (via `si_settings_notification` update in APPL_DB) will  
-	- Disable port admin status (without updating host_tx_ready, to avoid triggering xcvrd)
+	- Disable host port if cached admin_state is up (without updating host_tx_ready, to avoid triggering xcvrd)
 	- Request SAI-SDK to apply the SI settings via syncd
-		- If SAI-SDK returns success, OA will write `si_settings_ack = SI_SYNC_DONE:<N>` to PORT_TABLE|\<port\> (STATE_DB), where N matches the notification number received
+		- If SAI-SDK returns success, OA will write `si_settings_ack = SI_SYNC_DONE:<N>` to PORT_TABLE|\<port\> (STATE_DB), where N matches the notification number received, then the OA will enable the host port (depends on the admin_state flag)
 		- In case of failure, OA will log an error message and proceed to handling the next port
 	- If `si_settings_notification == SI_SETTINGS_DEFAULT:<N>` is received (transceiver removed), OA writes `si_settings_ack = SI_SETTINGS_DEFAULT:<N>` to STATE_DB (no serdes programming)
 
@@ -359,10 +359,10 @@ sequenceDiagram
         opt xcvr_inserted (TRANSCEIVER_INFO SET) and not is_cmis_api
             SffManagerTask ->> SffManagerTask: sfp.get_transceiver_info()
             opt is_npu_si_settings_update_required
-                SffManagerTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport><br>si_settings_notification = SI_SETTINGS_NOTIFIED:<N>
+                SffManagerTask ->> APPL_DB: Update SI params from media_settings.json to PORT_TABLE:<lport><br>si_settings_notification = SI_SETTINGS_NOTIFIED:<N+1>
                 APPL_DB -->> OA: Notify SI settings (via ConsumerStateTable)
                 Note over OA: Disable admin status (update_host_tx_ready=false)<br>setPortSerdesAttribute
-                OA ->> STATE_DB: PORT_TABLE|<lport>.si_settings_ack = SI_SYNC_DONE:<N>
+                OA ->> STATE_DB: PORT_TABLE|<lport>.si_settings_ack = SI_SYNC_DONE:<N+1>
                 Note over OA: initHostTxReadyState
             end
         end
@@ -384,19 +384,18 @@ stateDiagram-v2
     CMIS_STATE_INSERTED --> if_state
     note right of CMIS_STATE_INSERTED
         If notify_si_settings=True (module insertion or SI failure reinit):
-          Read transceiver info via api
           Write SI params + si_settings_notification = SI_SETTINGS_NOTIFIED[N] to APPL_DB
-          Reset notify_si_settings = False
     end note
     if_state --> CMIS_STATE_READY : if host_tx_ready != True or admin_status != up - Action disable TX
     if_state --> if_state2 : if host_tx_ready == True and admin_status == up
-    if_state2 --> if_state4 : if appl >= 1 and host_lanes_mask > 0 and SI_lanes_mask > 0
+    if_state2 --> CMIS_STATE_DP_PRE_INIT_CHECK : if appl >= 1 and host_lanes_mask > 0 and SI_lanes_mask > 0
     if_state2 --> CMIS_STATE_FAILED : if appl < 1 or host_lanes_mask <= 0 or SI_lanes_mask <= 0
     note left of CMIS_STATE_FAILED : PORT_TABLE.port.CMIS_REINIT_REQUIRED = false
+
+    CMIS_STATE_DP_PRE_INIT_CHECK --> if_state4
     if_state4 --> CMIS_STATE_READY : if can_skip_cmis_init_after_restart (app matches, SI synced, ConfigSuccess, DataPathActivated)
     note left of CMIS_STATE_READY : PORT_TABLE.port.CMIS_REINIT_REQUIRED = false
     if_state4 --> CMIS_STATE_DP_DEINIT : if PORT_TABLE.port.CMIS_REINIT_REQUIRED == true or is_cmis_application_update_required
-
     CMIS_STATE_DP_DEINIT --> CMIS_STATE_AP_CONF
 
     note left of CMIS_STATE_AP_CONF
@@ -409,7 +408,7 @@ stateDiagram-v2
     if_state3 --> CMIS_STATE_SI_SETTINGS_WAIT : si_settings_notification == SI_SETTINGS_NOTIFIED[N] in APPL_DB
     if_state3 --> CMIS_STATE_DP_INIT : si_settings_notification not set or == SI_SETTINGS_DEFAULT
     CMIS_STATE_SI_SETTINGS_WAIT --> CMIS_STATE_DP_INIT : STATE_DB si_settings_ack == SI_SYNC_DONE[N]
-    CMIS_STATE_SI_SETTINGS_WAIT --> CMIS_STATE_INSERTED : 10s timeout - reset si_settings_notification to DEFAULT,\nset notify_si_settings=True, force_cmis_reinit(retries+1)
+    CMIS_STATE_SI_SETTINGS_WAIT --> CMIS_STATE_INSERTED : Timeout - reset si_settings_notification to DEFAULT,set notify_si_settings=True, force_cmis_reinit(retries+1)
     note right of CMIS_STATE_SI_SETTINGS_WAIT
         Polls STATE_DB si_settings_ack for SI_SYNC_DONE[N]
         N must match the notification number sent in APPL_DB
