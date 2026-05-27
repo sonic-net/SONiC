@@ -23,6 +23,7 @@
 |-----|------------|---------------|----------------------------------------------------------|
 | 0.1 | 2026-05-12 | Yutong Zhang  | Initial revision (split from component-stats Framework HLD) |
 | 0.2 | 2026-05-27 | Yutong Zhang  | Reframe §7.2 as a Metric Name / Label List / Description table |
+| 0.3 | 2026-05-27 | Yutong Zhang  | Align §7.5 and §13.2 with the §7.2 metric naming         |
 
 ### 2. Scope
 
@@ -231,7 +232,12 @@ Telegraf is expected to:
 
 - Run on the switch alongside the SONiC containers (NDM HLD §5.2.2 "telegraf container").
 - Scan `COUNTERS_DB` for keys matching `*_STATS:*`.
-- Convert each `(key, field)` pair into a metric named `sonic.<lower(component)>.<field>` with attributes `entity=<E>`, `host=<hostname>`.
+- Convert each `(key, field)` pair into a metric in the schema defined
+  by §7.2 / §7.3 of this HLD: the metric name is
+  `<UPPER(component)>_STATS_<field>`, the entity part of the Redis key
+  becomes the label value, and the label name is component-specific
+  (e.g. `swss.table` for SWSS — see §7.2). The hostname is attached as
+  an additional label by telegraf itself.
 - Forward to mdm.
 
 The exact telegraf configuration (input plugin, polling interval, output to mdm) is owned by the NDM HLD §5.2.1. This HLD only commits to the schema described in §7.1 / §7.2 / §7.3.
@@ -282,7 +288,11 @@ The library-level invariants (`HSET` on dirty entities, idle suppression, field 
   - The key shape matches §7.1.
   - All four SWSS fields (`SET`, `DEL`, `COMPLETE`, `ERROR`) are present and are decimal integers.
   - After a quiescent dwell, no `HSET` traffic is observed (idle suppression).
-- End-to-end with telegraf (on a testbed configured per the NDM HLD): exercise orchagent and confirm metrics named `sonic.swss.SET` (etc.) arrive in Geneva with attribute `entity=<table>`.
+- End-to-end with telegraf (on a testbed configured per the NDM HLD):
+  exercise orchagent and confirm the four metrics defined in §7.2
+  (`SWSS_STATS_SET` / `SWSS_STATS_DEL` / `SWSS_STATS_COMPLETE` /
+  `SWSS_STATS_ERROR`) arrive in Geneva carrying the `swss.table` label
+  for the exercised orchagent tables.
 
 ### 14. Open/Action items
 
