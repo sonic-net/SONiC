@@ -25,7 +25,7 @@
 | 0.2 | 2026-05-12 | Yutong Zhang  | Split out the reporting pipeline into a separate HLD |
 | 0.3 | 2026-05-27 | Yutong Zhang  | Trim inline code, focus on metric design tables      |
 | 0.4 | 2026-05-27 | Yutong Zhang  | Clarify Metric / Label terminology in §3             |
-| 0.5 | 2026-05-27 | Yutong Zhang  | Clarify §7.8 facade LoC vs SwssStats LoC discrepancy |
+| 0.5 | 2026-05-27 | Yutong Zhang  | Fix §4/§6 LoC claims to be consistent with §7.8          |
 
 ### 2. Scope
 
@@ -65,7 +65,7 @@ This HLD specifies a single, reusable producer that:
 
 1. accumulates counters in process-local atomic state with negligible hot-path cost,
 2. mirrors them to `COUNTERS_DB` so `redis-cli`, `show ... stats` CLIs, and any other on-box tooling continue to work,
-3. exposes a stable public API so each container only needs to write a thin (~100 LoC) facade.
+3. exposes a stable public API so each container only needs to write a thin facade (see §7.8 for sizing guidance).
 
 How the `COUNTERS_DB` rows then reach Geneva or any other off-box system is the responsibility of the [Reporting HLD](./component-stats-reporting-hld.md).
 
@@ -130,7 +130,7 @@ The architecture is unchanged at the SONiC system level. A new library is introd
 +------------------------------------------------------------------------+
 ```
 
-**Layering rule.** `swss-common` knows nothing of orchagent or any specific container; each container knows only its own facade plus `swss::ComponentStats`. New containers get the sink for free by writing a ~100-line wrapper.
+**Layering rule.** `swss-common` knows nothing of orchagent or any specific container; each container knows only its own facade plus `swss::ComponentStats`. New containers get the sink for free by writing a thin wrapper (see §7.8 for sizing guidance).
 
 **Sink design properties.**
 
