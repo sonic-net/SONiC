@@ -2,28 +2,34 @@
 
 # Table of Contents
 
+- [Static Configuration of SRv6 in SONiC HLD](#static-configuration-of-srv6-in-sonic-hld)
+- [Table of Contents](#table-of-contents)
 - [Revision](#revision)
 - [Definition/Abbreviation](#definitionabbreviation)
-- [About This Manual](#about-this-manual)
-- [1 Introuduction and Scope](#1-introuduction-and-scope)
+    - [Table 1: Abbreviations](#table-1-abbreviations)
+- [About this Manual](#about-this-manual)
+- [1 Introduction and Scope](#1-introduction-and-scope)
 - [2 Feature Requirements](#2-feature-requirements)
-- [2.1 Functional Requirements](#21-functional-requirements)
-- [2.2 Configuration and Managment Requirements](#22-configuration-and-management-requirements)
-- [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
+  - [2.1 Functional Requirements](#21-functional-requirements)
+  - [2.2 Configuration and Management Requirements](#22-configuration-and-management-requirements)
+  - [2.3 Warm Boot Requirements](#23-warm-boot-requirements)
 - [3 Feature Design](#3-feature-design)
-- [3.1 New Table in ConfigDB](#31-new-table-in-configdb)
-- [3.2 Bgpcfgd Changes](#32-bgpcfgd-changes)
-- [3.3 YANG Model](#33-yang-model)
+  - [3.1 New Table in ConfigDB](#31-new-table-in-configdb)
+  - [3.2 Bgpcfgd changes](#32-bgpcfgd-changes)
+  - [3.2.1 Bgpcfgd Locator Configuration Compilation](#321-bgpcfgd-locator-configuration-compilation)
+  - [3.2.2 Bgpcfgd Static SIDs Configuration Compilation](#322-bgpcfgd-static-sids-configuration-compilation)
+  - [3.3 YANG Model](#33-yang-model)
 - [4 Unit Test](#4-unit-test)
-- [5 References ](#5-references)
+- [5 References](#5-references)
 
 # Revision
 
 | Rev  |   Date    |           Author           | Change Description      |
-| :--: | :-------: | :------------------------: | :---------------------: |
-| 0.1  | 12/5/2024 |       Changrong Wu         |  Initial version        |
+| :--: | :-------: | :------------------------: | :--------------------- |
+| 0.1  | 12/5/2024 |       Changrong Wu         | Initial version        |
 | 0.2  | 12/20/2024 |      Changrong Wu         | Update to use two tables per SONiC Routing WG discussion |
 | 0.3  | 03/17/2025 |      Changrong Wu         | Add Bgpcfgd configuration compilation examples |
+| 0.4  | 11/12/2025 |      Baorong Liu, Carmine Scarpitta,Ahmed Abdelsalam          | Add configuration for uA |
 
 
 # Definition/Abbreviation
@@ -43,7 +49,7 @@
 
 This document provides general information about the design of the enhancements in SONiC to support static configuration of Segment Routing over IPv6 protocol, which is crucial for SRv6 SDN deployment (without usage of BGP).
 
-# 1 Introuduction and Scope
+# 1 Introduction and Scope
 
 This document describes the high-level design of the new features in SONiC to support SRv6 SDN.
 The new features include the addtion of a new table in CONFIG_DB to enable configuration of SRv6 and the enhancement of bgpcfgd to program FRR with input from CONFIG_DB.
@@ -133,6 +139,8 @@ key = SRV6_MY_SIDS|locator|ip_prefix
 action = behavior            ; behaviors defined for the SID, default uN
 decap_dscp_mode = decap_dscp_mode  ; Mandatory, the parameter that specifies how the node should handle DSCP bits when it performs decapsulation
 decap_vrf = VRF_TABLE.key          ; Optional, VRF name for decapsulation actions, default "default", only applicable to uDT4/uDT46/uDT6 actions
+interface = string                 ; Mandatory if action = uA, interface for this SID
+adj = inet:ipv6-address            ; Optional, next hop ip address for this SID; if omitted, the next hop is automatically resolved from the interface
 
 For example:
     "SRV6_MY_SIDS" : {
@@ -149,6 +157,48 @@ For example:
            "decap_dscp_mode": "uniform"
         },
     }
+Example for SID with uN action and SID with uA action configuration (2 SIDs configuration):
+    "SRV6_MY_SIDS" : {
+        "loc2|FCBB:BBBB:21::/48" : {
+           "action": "uN",
+           "decap_dscp_mode": "pipe"
+        },
+        "loc2|FCBB:BBBB:21:FE24::/64" : {
+           "action": "uA",
+           "decap_dscp_mode": "pipe",
+           "interface": "Ethernet24",
+           "adj": "2001:db8:4:501::5"
+        }
+    }
+    Example for 'adj' ommitted:
+    "SRV6_MY_SIDS" : {
+        "loc2|FCBB:BBBB:21::/48" : {
+           "action": "uN",
+           "decap_dscp_mode": "pipe"
+        },
+        "loc2|FCBB:BBBB:21:FE24::/64" : {
+           "action": "uA",
+           "decap_dscp_mode": "pipe",
+           "interface": "Ethernet24"
+        }
+    }
+Example for SID with uA action only configuration(1 SID configuration):
+    "SRV6_MY_SIDS" : {
+        "loc2|FCBB:BBBB:FE28::/48" : {
+           "action": "uA",
+           "decap_dscp_mode": "pipe",
+           "interface": "Ethernet28",
+           "adj": "2001:db8:4:502::5"
+        }
+    }
+    Example for 'adj' ommitted:
+    "SRV6_MY_SIDS" : {
+        "loc2|FCBB:BBBB:FE28::/48" : {
+           "action": "uA",
+           "decap_dscp_mode": "pipe",
+           "interface": "Ethernet28"
+        }
+    }
 ```
 
 We plan to support the staic configurations of the SRv6 behaviors in the system gradually.
@@ -158,6 +208,7 @@ The current list of supported SRv6 behaviors allowed to be define in CONFIG_DB i
 | :------ | :----- |
 | uN | End with NEXT-CSID |
 | uDT46 | End.DT46 with CSID |
+| uA | End.X with NEXT-CSID |
 
 ## 3.2 Bgpcfgd changes
 
@@ -174,6 +225,9 @@ For the following locator configuration entry in CONFIG_DB:
 "SRV6_MY_LOCATORS" : {
    "loc1" : {
       "prefix" : "FCBB:BBBB:20::"
+   },
+   "loc2" : {
+      "prefix" : "FCBB:BBBB:21::"
    }
 }
 ```
@@ -185,6 +239,12 @@ segment-routing
          locator loc1
             prefix fcbb:bbbb:20::/48 block-len 32 node-len 32 func-bits 16
             behavior usid
+         exit
+         !
+         locator loc2
+            prefix fcbb:bbbb:21::/48 block-len 32 node-len 16 func-bits 16
+            behavior usid
+         exit
 ```
 
 ## 3.2.2 Bgpcfgd Static SIDs Configuration Compilation
@@ -200,6 +260,21 @@ For the following SIDs configuration entries in CONFIG_DB:
       "decap_vrf": "Vrf1",
       "decap_dscp_mode": "pipe"
    },
+   "loc2|FCBB:BBBB:21::/48" : {
+      "action": "uN",
+      "decap_dscp_mode": "pipe"
+   },
+   "loc2|FCBB:BBBB:21:FE24::/64" : {
+      "action": "uA",
+      "decap_dscp_mode": "pipe",
+      "interface": "Ethernet24",
+      "adj": "2001:db8:4:501::5"
+   },
+   "loc2|FCBB:BBBB:FE28::/48" : {
+      "action": "uA",
+      "decap_dscp_mode": "pipe",
+      "interface": "Ethernet28"
+   }
 }
 ```
 Bgpcfgd will compile the following configuration in FRR:
@@ -209,6 +284,9 @@ segment-routing
       static-sids
          sid fcbb:bbbb:20::/48 locator loc1 behavior uN
          sid fcbb:bbbb:20:f1::/64 locator loc1 behavior uDT46 vrf Vrf1
+         sid fcbb:bbbb:21::/48 locator loc2 behavior uN
+         sid fcbb:bbbb:21:fe24::/64 locator loc2 behavior uA interface Ethernet24 nexthop 2001:db8:4:501::5
+         sid fcbb:bbbb:fe28::/48 locator loc2 behavior uA interface Ethernet28
 ```
 
 ## 3.3 YANG Model
@@ -232,10 +310,12 @@ module: sonic-srv6
            +--rw action?            enumeration
            +--rw decap_vrf?         union
            +--rw decap_dscp_mode?   enumeration
+           +--rw interface?         string
+           +--rw adj?               inet:ipv6-address
 ```
 Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/master/src/sonic-yang-models) for the YANG model defined with standard IETF syntax.
 
-## 4 Unit Test
+# 4 Unit Test
 
 |Test Cases | Test Result |
 | :------ | :----- |
@@ -245,8 +325,12 @@ Refer to [sonic-yang-models](https://github.com/sonic-net/sonic-buildimage/tree/
 |(Negative case) add config for a SID with an unsupported action in CONFIG_DB | verify that the configuration did not get into FRR config |
 |delete config for a SID with uN action in CONFIG_DB | verify the locator config entry is deleted in FRR config|
 |delete config for a SID with uDT46 action in CONFIG_DB | verify the opcode config entry for the uDT46 action is deleted in FRR config|
+|add config for a SID with uA action in CONFIG_DB | verify the SID with uA action entry is created in FRR config, including 2 cases: 1 SID with uA action. 2 SIDs, one has uN action and the one following it has uA action|
+|delete config for a SID with uA action in CONFIG_DB | verify the SID with uA action entry is deleted in FRR config|
+|add config for a SID with action set to uDT46 and decap_vrf set to "default" in CONFIG_DB | verify the uDT46 SID config entry is created in FRR config with "vrf default"|
+|delete config for a SID action set to uDT46 and decap_vrf set to "default" in CONFIG_DB | verify the uDT46 SID config entry is deleted in FRR config|
 
 
-## 5 References
+# 5 References
 
 

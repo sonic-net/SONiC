@@ -18,7 +18,7 @@
     - [CLI Design](#cli-design)
         - [Show CLI](#show-cli)
         - [Config CLI](#config-cli)
-
+- [Feature limitaion](#feature-limitaion)
 
 
 ## Revision
@@ -27,6 +27,7 @@
 | -------- | ----------- | ---------------- | ------------------ |
 | 1.0      | Jul 17 2024 | Wenda Chu        | Initial proposal   |
 | 1.1      | April 17 2025| Wenda Chu       | Update the output shcema of CLI and state transition diagram|
+| 1.2      | Aug 14 2025 | Wenda Chu        | Declare limitation of feature |
 
 ## Definitions/Abbreviations
 
@@ -357,3 +358,6 @@ Then we will implement test in sonic-mgmt repo to test if this feature works inc
 2. Add aggregated address with bbr-required equals false and check whether the address will be generated when switch the state of BBR feature.
 3. Remove aggregated address in config db and check whether the address will be removed from state db and bgp container.
 4. More tests details will be published in sonic-mgmt repo.
+
+## Feature limitaion
+In CLOS network, aggregate deployment without simultaneous operation on all devices in same layer could lead to traffic imbalance due to traffic prefers go to detail routes, please only use this feature in traffic insensitve scenario or ensure deploy aggregate routes on all devices in same layer simultaneously.

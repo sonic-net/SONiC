@@ -72,7 +72,7 @@ Flow counter shall utilize the following existing infrastructure:
 
 The following describes the configuration and flows for host interface traps counter:
 
-![architecture](https://github.com/Junchao-Mellanox/SONiC/blob/flow-counter/doc/flow_counters/architecture.png)
+![architecture](architecture.png)
 
 (1) Customer uses the counterpoll CLI to enable/disable Flex Counters for Trap Flow Counter. If needed the default polling interval can be changed. The Flex Counter Orch Agent should be extended to support the Trap group. Configuration is pushed into CFG_FLEX_COUNTER_TABLE in CONFIG DB
 

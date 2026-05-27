@@ -84,7 +84,7 @@
 
 # 3. Terminologies
 
-![Diagram 3](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_3.png)
+![Diagram 3](MCLAG_HLD_3.png)
 Diagram 3
 
 # 4. Design considerations
@@ -120,19 +120,19 @@ The features below are not supported currently, may provide solutions in future 
 
 RFC7275 describes 4 use-cases, this ICCPd or ICCP lite support all of these use-cases:
 
-![Diagram 5.1.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.1.png)
+![Diagram 5.1.1](MCLAG_HLD_5.1.1.png)
 
 In the scenario of figure 2, the PEs within an RG (Redundancy Group) are co-located in the same physical location, e.g., point of presence (POP) or central office (CO). Furthermore, dedicated links provide the interconnect for ICCP among the PEs.
 
-![Diagram 5.1.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.2.png)
+![Diagram 5.1.2](MCLAG_HLD_5.1.2.png)
 
 In the scenario of figure 3, the PEs within an RG (Redundancy Group) are co-located in the same physical location (POP, CO). However, unlike the previous scenario, there are no dedicated links between the PEs. The interconnect for ICCP is provided through the core network to which the PEs are connected. Figure 3 depicts this model.
 
-![Diagram 5.1.3](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.3.png)
+![Diagram 5.1.3](MCLAG_HLD_5.1.3.png)
 
 In the scenario of figure 4, the PEs within an RG (Redundancy Group) are located in different physical locations to provide geographic redundancy. A dedicated interconnect is provided to link the PEs. The resiliency mechanisms for the interconnect are similar to those highlighted in the co-located interconnect counterpart.
 
-![Diagram 5.1.4](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.1.4.png)
+![Diagram 5.1.4](MCLAG_HLD_5.1.4.png)
 
 In the scenario of figure 5, the PEs of an RG (Redundancy Group) are located in different physical locations and the interconnect for ICCP is provided over the PSN network to which the PEs are connected. This interconnect option is more likely to be the one used for geo-redundancy, as it is more economically appealing compared to the geo-redundant dedicated interconnect option.
 
@@ -157,7 +157,7 @@ The ICCP Connection state machine is defined to have six states in RFC 7275 sect
 
 - OPERATIONAL: This state indicates that the ICCP connection is operational.
 
-![Diagram 5.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_5.2.png)
+![Diagram 5.2](MCLAG_HLD_5.2.png)
 Diagram 5.2
 
 RFC7275 also describes so called “Application Connection State Machine”, which are designed for application exclusively, and each application maintains its own state machines.
@@ -229,14 +229,14 @@ MC-LAG domain ID, must be from 1 to 65535.
 
 ## 6.2. MC-LAG L3 scenario configuration
 
-![Diagram 6.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_6.2.png)
+![Diagram 6.2](MCLAG_HLD_6.2.png)
 Diagram 6.2
 
 In the L3 scenario, peer-link configuration is unnecessary. MC-LAG enabled interface PortChannel0001 is L3 interface.
 
 ## 6.3. MC-LAG L2 scenario configuration
 
-![Diagram 6.3](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_6.3.png)
+![Diagram 6.3](MCLAG_HLD_6.3.png)
 Diagram 6.3
 
 In the L2 scenario, peer-link PortChannel0002 and MC-LAG enabled interface PortChannel0001 are both the member of vlan100. PortChannel0001 and PortChannel0002 use L2 forwarding.
@@ -247,7 +247,7 @@ In the L2 scenario, peer-link PortChannel0002 and MC-LAG enabled interface PortC
 
 ### 7.1.1. MC-LAG enabled interface up
 
-![Diagram 7.1.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.1.1.png)
+![Diagram 7.1.1](MCLAG_HLD_7.1.1.png)
 Diagram 7.1.1
 
 - In the above diagram, PortChannel0001 and PortChannel0002 areis mclag MC-LAG enabled interfaces, status is up.
@@ -257,7 +257,7 @@ Diagram 7.1.1
 
 ### 7.1.2. MC-LAG enabled interface down
 
-![Diagram 7.1.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.1.2.png)
+![Diagram 7.1.2](MCLAG_HLD_7.1.2.png)
 Diagram 7.1.2
 
 - In the above diagram, PortChannel0001 is MC-LAG enabled interface, status is down.
@@ -285,7 +285,7 @@ Diagram 7.1.2
 
 ### 7.2.1. MC-LAG enabled interface up
 
-![Diagram 7.2.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.2.1.png)
+![Diagram 7.2.1](MCLAG_HLD_7.2.1.png)
 Diagram 7.2.1
 
 - In the above diagram, PortChannel0001 is MC-LAG enabled port, status is up, PortChannel0002 is peer link. PortChannel0001 and PortChannel0002 are in same VLAN. Just like portChannel0001, PortChannel0002 uses L2 forwarding. Assume PA to PEER1 connection is part of the same VLAN as PortChannel0001.
@@ -297,7 +297,7 @@ Diagram 7.2.1
 
 ### 7.2.2. MC-LAG enabled interface down
 
-![Diagram 7.2.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.2.2.png)
+![Diagram 7.2.2](MCLAG_HLD_7.2.2.png)
 Diagram 7.2.2
 
 - In the above diagram, PortChannel0001 is MC-LAG enabled interface, status is down, PortChannel0002 is the peer link. Assume PA to PEER1 connection is part of the same VLAN as PortChannel0001.
@@ -336,7 +336,7 @@ Diagram 7.2.2
 
 ### 7.3.1. Keepalive link failure
 
-![Diagram 7.3.1](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.1.png)
+![Diagram 7.3.1](MCLAG_HLD_7.3.1.png)
 Diagram 7.3.1
 
 - The peer keepalive is the MLAG control channel in current implementation.
@@ -347,7 +347,7 @@ Diagram 7.3.1
 
 ### 7.3.2. Peer device failure
 
-![Diagram 7.3.2](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.3.2.png)
+![Diagram 7.3.2](MCLAG_HLD_7.3.2.png)
 Diagram 7.3.2
 
 - Peer device failure will cause ICCP connection to go down.
@@ -357,7 +357,7 @@ Diagram 7.3.2
 
 ## 7.4. Peer link down
 
-![Diagram 7.4](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_7.4.png)
+![Diagram 7.4](MCLAG_HLD_7.4.png)
 Diagram 7.4
 
 - In this scenario, peers may be directly connected, or use other tools such as BFD to detect the status of peer-link(Not supported currently).
@@ -374,7 +374,7 @@ The MC-LAG code will run in a separate container. The following chart is with ad
 
 Note: ICCPd docker container doesn't start by default, it could be started on demand. Linux command `sudo systemctl start iccpd` can be used to start ICCPd docker container, `sudo systemctl enable iccpd` will start ICCPd docker automatic after rebooting.
 
-![Diagram 8](https://github.com/shine4chen/SONiC/blob/mclag/images/mclag_hld/MCLAG_HLD_8.png)
+![Diagram 8](MCLAG_HLD_8.png)
 Diagram 8
 
 Flow 1: ICCPd reads MCLAG related configuration from CONFIG_DB
