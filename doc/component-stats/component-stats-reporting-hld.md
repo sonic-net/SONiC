@@ -24,6 +24,7 @@
 | 0.1 | 2026-05-12 | Yutong Zhang  | Initial revision (split from component-stats Framework HLD) |
 | 0.2 | 2026-05-27 | Yutong Zhang  | Reframe §7.2 as a Metric Name / Label List / Description table |
 | 0.3 | 2026-05-27 | Yutong Zhang  | Align §7.5 and §13.2 with the §7.2 metric naming         |
+| 0.4 | 2026-05-27 | Yutong Zhang  | Sync §3 Metric / Label definitions with Framework HLD     |
 | 0.5 | 2026-05-27 | Yutong Zhang  | Fix §14 to direct component vocab tables to their own HLD |
 
 ### 2. Scope
