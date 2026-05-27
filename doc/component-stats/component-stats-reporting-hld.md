@@ -24,6 +24,7 @@
 | 0.1 | 2026-05-12 | Yutong Zhang  | Initial revision (split from component-stats Framework HLD) |
 | 0.2 | 2026-05-27 | Yutong Zhang  | Reframe §7.2 as a Metric Name / Label List / Description table |
 | 0.3 | 2026-05-27 | Yutong Zhang  | Align §7.5 and §13.2 with the §7.2 metric naming         |
+| 0.4 | 2026-05-27 | Yutong Zhang  | Sync §3 Metric / Label definitions with Framework HLD     |
 
 ### 2. Scope
 
@@ -49,7 +50,8 @@ Direct application-side OTLP export (e.g. the `OpenTelemetry SDK -> mdm` path de
 |-----------------|---------------------------------------------------------------------------------------------|
 | Component       | A SONiC container that produces service-level counters (e.g. `swss`, `gnmi`, `bmp`).        |
 | Entity          | A logical grouping of metrics inside a component (e.g. an orchagent table, a gNMI path).    |
-| Metric          | A named `uint64` counter or gauge inside an entity.                                         |
+| Metric          | A named `uint64` counter or gauge inside an entity (e.g. `SET`, `DEL`, `COMPLETE`, `ERROR`). Stored as a Redis hash field on the producer side; surfaces downstream as a wire metric named `<COMPONENT>_STATS_<metric>` (see §7.2 for the SWSS instance). |
+| Label           | A key/value attribute attached to a wire metric. The entity name (the part after the `:` in the Redis key) becomes the label value; the label name is component-specific (e.g. `swss.table` for SWSS — see §7.2). |
 | ComponentStats  | The reusable producer library specified in the Framework HLD.                               |
 | `COUNTERS_DB`   | The existing SONiC Redis database (logical DB 2) holding counter rows.                      |
 | telegraf        | The off-box-friendly metric agent running on the switch; configured and operated by NDM.    |
@@ -299,4 +301,5 @@ The library-level invariants (`HSET` on dirty entities, idle suppression, field 
 - The single reporting path in this revision is `COUNTERS_DB -> telegraf -> mdm -> Geneva`. Direct OTLP export from the application (the `OpenTelemetry SDK -> mdm` path described in NDM HLD §4) is a possible future addition; it would be specified in a future revision of this document if and when SONiC components need lower reporting latency than 1 s polling can provide.
 - Garbage collection of stale `*_STATS:<entity>` keys on long-lived containers is left for a future revision. The current behaviour (cleared on container restart) is sufficient for the planned consumers.
 - When additional components (`gnmi`, `bmp`, `telemetry`, …) adopt the framework, each one should add its vocabulary table to §7.3 by a small follow-up PR on this HLD.
+
 
