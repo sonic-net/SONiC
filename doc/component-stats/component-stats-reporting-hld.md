@@ -24,7 +24,7 @@
 | 0.1 | 2026-05-12 | Yutong Zhang  | Initial revision (split from component-stats Framework HLD) |
 | 0.2 | 2026-05-27 | Yutong Zhang  | Reframe §7.2 as a Metric Name / Label List / Description table |
 | 0.3 | 2026-05-27 | Yutong Zhang  | Align §7.5 and §13.2 with the §7.2 metric naming         |
-| 0.4 | 2026-05-27 | Yutong Zhang  | Sync §3 Metric / Label definitions with Framework HLD     |
+| 0.5 | 2026-05-27 | Yutong Zhang  | Fix §14 to direct component vocab tables to their own HLD |
 
 ### 2. Scope
 
@@ -300,6 +300,6 @@ The library-level invariants (`HSET` on dirty entities, idle suppression, field 
 
 - The single reporting path in this revision is `COUNTERS_DB -> telegraf -> mdm -> Geneva`. Direct OTLP export from the application (the `OpenTelemetry SDK -> mdm` path described in NDM HLD §4) is a possible future addition; it would be specified in a future revision of this document if and when SONiC components need lower reporting latency than 1 s polling can provide.
 - Garbage collection of stale `*_STATS:<entity>` keys on long-lived containers is left for a future revision. The current behaviour (cleared on container restart) is sufficient for the planned consumers.
-- When additional components (`gnmi`, `bmp`, `telemetry`, …) adopt the framework, each one should add its vocabulary table to §7.3 by a small follow-up PR on this HLD.
+- When additional components (`gnmi`, `bmp`, `telemetry`, …) adopt the framework, each one should add its vocabulary table (in the `Metric Name | Label List | Description` shape of §7.2) to **its own component's HLD**, following the conventions in §7.3. A cross-reference to that table may optionally be added to §7.3 of this HLD so that all known vocabularies are discoverable from one place.
 
 
