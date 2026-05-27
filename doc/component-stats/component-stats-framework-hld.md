@@ -25,6 +25,7 @@
 | 0.2 | 2026-05-12 | Yutong Zhang  | Split out the reporting pipeline into a separate HLD |
 | 0.3 | 2026-05-27 | Yutong Zhang  | Trim inline code, focus on metric design tables      |
 | 0.4 | 2026-05-27 | Yutong Zhang  | Clarify Metric / Label terminology in §3             |
+| 0.5 | 2026-05-27 | Yutong Zhang  | Clarify §7.8 facade LoC vs SwssStats LoC discrepancy |
 
 ### 2. Scope
 
@@ -303,8 +304,12 @@ A new component `C` adopts the framework by:
 3. Documenting that vocabulary as a Metric Name | Label List |
    Description table in the component's own HLD, identical in shape to
    the SWSS table in Reporting HLD §7.2.
-4. Writing a thin facade (~30 LoC) that calls
+4. Writing a thin facade that calls
    `swss::ComponentStats::increment()` for each event.
+   A minimal facade needs only ~30 LoC. The SwssStats facade is larger
+   (~130 LoC) because it also integrates a `gSwssStatsRecord` enable flag
+   and a singleton into orchagent's existing `orch.cpp` infrastructure;
+   new containers that do not need that extra plumbing stay near ~30 LoC.
 
 No new threads, no new Redis client management, no new test harness
 needed. Reporting picks the metrics up automatically via the
@@ -398,5 +403,6 @@ End-to-end validation of the reporting path (telegraf → mdm → Geneva) is cov
 - Phase 1 (this HLD's two PRs) lands the `ComponentStats` library and the `SwssStats` facade with the DB sink fully active.
 - Phase 2 onboards additional SONiC containers (`gnmi`, `bmp`, `telemetry`, …) by adding their own facades. Each is a self-contained PR in the relevant repository.
 - Phase 3 (future) may add direct OTLP export from the library to a local agent for components that need lower reporting latency than the DB → telegraf path provides. Out of scope for this HLD.
+
 
 
