@@ -24,6 +24,7 @@
 | 0.1 | 2026-04-28 | Yutong Zhang  | Initial revision                                     |
 | 0.2 | 2026-05-12 | Yutong Zhang  | Split out the reporting pipeline into a separate HLD |
 | 0.3 | 2026-05-27 | Yutong Zhang  | Trim inline code, focus on metric design tables      |
+| 0.4 | 2026-05-27 | Yutong Zhang  | Clarify Metric / Label terminology in §3             |
 
 ### 2. Scope
 
@@ -47,7 +48,8 @@ The library publishes counters into `COUNTERS_DB` so that:
 |-----------------|---------------------------------------------------------------------------------------------|
 | Component       | A SONiC container that produces service-level counters (e.g. `swss`, `gnmi`, `bmp`).        |
 | Entity          | A logical grouping of metrics inside a component (e.g. an orchagent table, a gNMI path).    |
-| Metric          | A named uint64 counter or gauge inside an entity (e.g. `SET`, `DEL`, `COMPLETE`, `ERROR`).  |
+| Metric          | A named uint64 counter or gauge inside an entity (e.g. `SET`, `DEL`, `COMPLETE`, `ERROR`). Stored as a Redis hash field on the producer side; surfaces downstream as a wire metric named `<COMPONENT>_STATS_<metric>` — see the [Reporting HLD §7.2](./component-stats-reporting-hld.md#72-swss-metric-design) for the wire schema. |
+| Label           | A key/value attribute attached to a wire metric by telegraf. The entity name (the part after the `:` in the Redis key) is surfaced as a component-specific label such as `swss.table`. |
 | ComponentStats  | The new shared library in `sonic-swss-common` providing the producer mechanism.             |
 | SwssStats       | A SWSS-specific facade over `ComponentStats` (lives in `sonic-swss`).                       |
 | DB sink         | The output path that mirrors counters into `COUNTERS_DB`.                                   |
@@ -396,4 +398,5 @@ End-to-end validation of the reporting path (telegraf → mdm → Geneva) is cov
 - Phase 1 (this HLD's two PRs) lands the `ComponentStats` library and the `SwssStats` facade with the DB sink fully active.
 - Phase 2 onboards additional SONiC containers (`gnmi`, `bmp`, `telemetry`, …) by adding their own facades. Each is a self-contained PR in the relevant repository.
 - Phase 3 (future) may add direct OTLP export from the library to a local agent for components that need lower reporting latency than the DB → telegraf path provides. Out of scope for this HLD.
+
 
