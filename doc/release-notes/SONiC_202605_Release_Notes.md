@@ -1,4 +1,4 @@
-# SONiC 202605 Release Notes
+# SONiC 202605 Release Notes (Draft)
 
 This document captures the new features added and enhancements done on existing features/sub-features for the SONiC [202605](https://github.com/orgs/sonic-net/projects/35/) release.
 
