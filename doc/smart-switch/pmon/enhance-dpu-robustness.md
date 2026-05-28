@@ -28,6 +28,7 @@
   - [DPU Cold Reboot](#dpu-cold-reboot)
   - [Full SmartSwitch Reboot](#full-smartswitch-reboot)
 - [Scenario DB State Summary](#scenario-db-state-summary)
+- [CLI](#cli)
 - [Testing](#testing)
 - [Repository Change Summary](#repository-change-summary)
 - [References](#references)
@@ -286,7 +287,7 @@ Any process crashes on the DPU and `dpu_control_plane_state` transitions to `dow
 
 **PMON Action:**
 - `chassisd` sets `ready_status` to `false` and updates `last_down_time` for the corresponding DPU.
-- `chassisd` immediately issues a power-cycle of the DPU and increments `reset_count`.
+- On the **same poll cycle** that detects `dpu_control_plane_state: down`, `chassisd` issues a power-cycle of the DPU and increments `reset_count`. There is no additional timeout or grace period — the only detection latency is the 10-second poll interval itself.
 - After the DPU comes back, `chassisd` verifies all DPU states (midplane, control plane, data plane), sets `ready_status` back to `true`, and updates `last_ready_time`.
 - If `reset_count` reaches `reset_limit`, `chassisd` sets `recovery_status` to `"unrecoverable"` and stops further automatic power-cycle attempts.
 - **When auto-recovery is disabled:** `chassisd` skips the power-cycle. The DPU remains in **ManualIntervention** with `ready_status: false`; operator must reset the DPU manually.
@@ -430,11 +431,7 @@ The PCIe bus between the NPU and a local DPU fails, making the DPU unreachable f
 
 **PMON Action:**
 - `chassisd` sets `ready_status` to `false` and updates `last_down_time`.
-- `chassisd` immediately power-cycles the DPU (midplane link loss and PCIe detach confirm the DPU is unreachable) and increments `reset_count`.
-- After power-cycle, PCIe rescan is performed:
-  - Platform vendor API: `pci_reattach()` (provided by `sonic_platform`).
-- `chassisd` verifies all DPU states (midplane, control plane, data plane), sets `ready_status` back to `true`, and updates `last_ready_time`.
-- **When auto-recovery is disabled:** `chassisd` skips both the power-cycle and the PCIe reattach. `PCIE_DETACH_INFO|DPU<dpu_index>|dpu_state` remains `detached` and the DPU stays in **ManualIntervention** until the operator triggers recovery.
+- If the DPU is already offline/unreachable (midplane link down, PCIe detached), `chassisd` does **not** issue an immediate power-cycle. `chassisd `sets `ready_status` back to `false`, and updates `last_down_time`.
 
 **DB State Transition:**
 
@@ -598,6 +595,29 @@ Planned reboot of the entire SmartSwitch (NPU + all DPUs) via CLI: `reboot`. All
 | DPU dead – power cycle | down | down | false | Power-cycle DPU; increment `reset_count` |
 | DPU dead – unrecoverable | down | down | false | `reset_count` reached `reset_limit`; `recovery_status` set to `"unrecoverable"`; raise alert |
 | Full SmartSwitch reboot (planned) | down → up | down → up | false → true | gNOI halt; power-cycle; re-verify |
+
+---
+
+## CLI ##
+
+The new DPU recovery state fields are exposed to operators via the existing `show chassis modules status` command, extended to include recovery information:
+
+```
+admin@sonic:~$ show chassis modules status
+  Name    Description    Physical-Slot    Oper-Status    Admin-Status    Ready-Status    Recovery-Status    Reset-Count    Last-Down-Time              Last-Ready-Time
+------  -------------  ---------------  -------------  --------------  --------------  -----------------  -------------  --------------------------  --------------------------
+  DPU0    DPU Module 0               1    Online         up              true            recoverable                  2    2026-05-28 10:15:30 UTC      2026-05-28 10:18:45 UTC
+  DPU1    DPU Module 1               2    Online         up              true            recoverable                  0    —                           2026-05-28 09:00:12 UTC
+  DPU2    DPU Module 2               3    Offline        down            false           unrecoverable                5    2026-05-28 11:02:00 UTC      —
+```
+
+| Column | Source DB Field | Description |
+| ------ | --------------- | ----------- |
+| `Ready-Status` | `CHASSIS_STATE_DB: DPU_STATE\|DPU<N>: ready_status` | Whether the DPU is fully up and serving traffic |
+| `Recovery-Status` | `CHASSIS_STATE_DB: DPU_STATE\|DPU<N>: recovery_status` | `recoverable` or `unrecoverable` |
+| `Reset-Count` | `CHASSIS_STATE_DB: DPU_STATE\|DPU<N>: reset_count` | Number of unplanned power-cycles since last `chassisd` restart |
+| `Last-Down-Time` | `CHASSIS_STATE_DB: DPU_STATE\|DPU<N>: last_down_time` | UTC timestamp of last DPU failure |
+| `Last-Ready-Time` | `CHASSIS_STATE_DB: DPU_STATE\|DPU<N>: last_ready_time` | UTC timestamp of last successful DPU recovery |
 
 ---
 
