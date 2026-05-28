@@ -132,9 +132,9 @@ All timers and thresholds used by PMON for DPU failure detection and recovery ar
 | `pcied` PCIe poll interval | 60 seconds | No | `pcied` | Interval at which `pcied` checks PCIe link status for all DPUs. A PCIe failure may go undetected for up to 60 seconds. |
 | `dpu_halt_services_timeout` | 60 seconds | Yes (`platform.json`) | `gnoi_reboot_daemon.py` | Maximum time to wait for DPU services to halt gracefully during reboot/shutdown |
 | `dpu_boot_timeout` | 300 seconds | Yes (`platform.json`) | `chassisd` | Maximum time to wait for a DPU to reach `Ready` state (all planes up) after a power-cycle. If the DPU does not become ready within this timeout, `chassisd` treats it as a boot failure and initiates another power-cycle (incrementing `reset_count`). Covers broken-image and stuck-boot scenarios. |
-| `dpu_reset_limit` | 5 | Yes (`platform.json`) | `chassisd` | Maximum number of consecutive unplanned power-cycle attempts before marking DPU as unrecoverable |
+| `dpu_reset_limit` | 2 | Yes (`platform.json`) | `chassisd` | Maximum number of consecutive unplanned power-cycle attempts before marking DPU as unrecoverable |
 
-> **Note:** `chassisd` polls `dpu_data_plane_state` alongside `dpu_control_plane_state` and `dpu_midplane_link_state`, but `dpu_data_plane_state` alone does not trigger recovery actions. A data-plane-down with control-plane-up scenario indicates that the DPU SONiC stack is running but the data plane pipeline has not converged — this is expected during initial programming or after a configuration change. Recovery is triggered only when `dpu_control_plane_state` or `dpu_midplane_link_state` transitions to `down`. The `dpu_data_plane_state` is used by `chassisd` solely to determine full DPU readiness for setting `ready_status` to `true`.
+> **Note:** `chassisd` polls `dpu_data_plane_state` alongside `dpu_control_plane_state` and `dpu_midplane_link_state`, but `dpu_data_plane_state` alone does not trigger recovery actions. A data-plane-down with control-plane-up scenario indicates that the DPU SONiC stack is running but the data plane pipeline has not converged — this is expected during initial programming or after a configuration change. Recovery is triggered only when `dpu_control_plane_state` or `dpu_midplane_link_state` transitions to `down`. The `dpu_data_plane_state` is used by `chassisd` solely to determine full DPU readiness for setting `ready_status` to `true`. During the **Booting** state, if `dpu_control_plane_state` transitions to `up` but `dpu_data_plane_state` remains `down` when `dpu_boot_timeout` expires, `chassisd` logs a WARNING-level syslog (`DPU<N>: data plane not up after <timeout>s`) but does **not** trigger a power-cycle. The `ready_status` remains `false` until the operator investigates or the data plane recovers. This warning only applies during boot — if a DPU is already in **Ready** state and `dpu_data_plane_state` drops to `down` while control plane stays `up`, `chassisd` sets `ready_status` to `false` but does not trigger a power-cycle or timeout. The DPU stays operational (no recovery action) until the data plane recovers or control plane also goes down.
 
 > **Auto-recovery trigger vs. planned operations:** `chassisd` auto-recovery is triggered **only** for unplanned failures. During planned operations (graceful shutdown via `config chassis module shutdown` or DPU reboot via `reboot -d`), the `state_transition_in_progress` field in `CHASSIS_MODULE_TABLE|DPU<dpu_index>` is set to `True` **before** the DPU control plane goes down. When `chassisd` observes `dpu_control_plane_state: down`, it checks `state_transition_in_progress`: if `True`, `chassisd` skips auto-recovery because the shutdown/reboot is intentional. Auto-recovery is only initiated when `dpu_control_plane_state` or `dpu_midplane_link_state` transitions to `down` **and** no planned transition is in progress (`state_transition_in_progress == False`). There is no additional timeout configured for this check — the distinction is purely flag-based.
 
@@ -205,7 +205,7 @@ DPU_STATE|DPU<dpu_index>:
 | Field | Description | Set by | Cleared by |
 | ----- | ----------- | ------ | ---------- |
 | `ready_status` | Set to `"true"` when the DPU is fully up and ready (midplane, control plane, data plane all up). Set to `"false"` when the DPU goes down or undergoes a reset. | `chassisd` | `chassisd` (set to `"false"` on failure/reset) |
-| `recovery_status` | Set to `"recoverable"` on initialization. Set to `"unrecoverable"` when `reset_count` reaches `dpu_reset_limit`. | `chassisd` | `chassisd` (reset to `"recoverable"` on planned restart) |
+| `recovery_status` | Set to `"recoverable"` on initialization. Set to `"unrecoverable"` when `reset_count` reaches `dpu_reset_limit`. Reset back to `"recoverable"` (and `reset_count` to 0) on: (1) `chassisd` restart (pmon crash / NPU reboot), or (2) operator-initiated `config chassis module startup DPU<x>` on an unrecoverable DPU. | `chassisd` | `chassisd` (reset to `"recoverable"` on chassisd restart or operator module startup) |
 | `reset_count` | Number of unplanned DPU resets. Reset to 0 on `chassisd` reset on NPU (e.g., NPU reboot, `pmon` restart). | `chassisd` | `chassisd` |
 | `last_down_time` | UTC timestamp of the last time the DPU went down | `chassisd` | — |
 | `last_ready_time` | UTC timestamp of the last time the DPU became ready | `chassisd` | — |
@@ -243,18 +243,19 @@ stateDiagram-v2
     Booting --> PowerCycle : boot timeout expired [auto-recovery enabled]
     Booting --> ManualIntervention : boot timeout expired [auto-recovery disabled]
 
-    Ready --> SWFailure : Control plane down
+    Ready --> SWFailure : Control plane down (midplane up)
     SWFailure --> PowerCycle : auto-recovery enabled
     SWFailure --> ManualIntervention : auto-recovery disabled
 
-    Ready --> PowerCycle : HW failure detected [auto-recovery enabled]
-    Ready --> ManualIntervention : HW failure detected [auto-recovery disabled]
+    Ready --> PowerCycle : HW failure detected (midplane down) [auto-recovery enabled]
+    Ready --> ManualIntervention : HW failure detected (midplane down) [auto-recovery disabled]
 
     PowerCycle --> Booting : Power cycle issued
-    PowerCycle --> Unrecoverable : reset count >= reset limit
+    PowerCycle --> Unrecoverable : reset count >= dpu_reset_limit
 
     ManualIntervention --> Booting : Operator power-cycle / module startup
 
+    Booting --> Offline : CLI module shutdown during boot
     Ready --> PlannedShutdown : CLI module shutdown
     Ready --> PlannedReboot : CLI reboot DPU
 
@@ -263,18 +264,18 @@ stateDiagram-v2
 
     Offline --> Booting : CLI module startup
 
-    Unrecoverable --> Booting : chassisd reset on NPU
+    Unrecoverable --> Booting : Operator module startup or chassisd restart
 ```
 
 | State | `ready_status` | `recovery_status` | Key DB Indicators |
 | ----- | :------------: | :----------------: | ----------------- |
 | **Booting** | `false` | `recoverable` | `dpu_control_plane_state: down`; `chassisd` starts `dpu_boot_timeout` timer — if DPU does not reach Ready before timeout, triggers PowerCycle (or ManualIntervention if auto-recovery disabled) |
 | **Ready** | `true` | `recoverable` | All three states `up` |
-| **SWFailure** | `false` | `recoverable` | `dpu_control_plane_state: down`, `dpu_midplane_link_state: up`; transient state before `chassisd` selects `PowerCycle` or `ManualIntervention` based on the auto-recovery feature flag |
+| **SWFailure** | `false` | `recoverable` | `dpu_control_plane_state: down`, `dpu_midplane_link_state: up`; transient state before `chassisd` selects `PowerCycle` or `ManualIntervention` based on the auto-recovery feature flag. If **both** control plane and midplane are down, this is treated as a HW failure — skips SWFailure and goes directly to PowerCycle/ManualIntervention. |
 | **PowerCycle** | `false` | `recoverable` | `chassisd` issuing power-cycle; `reset_count` incremented |
 | **ManualIntervention** | `false` | `recoverable` | DPU down; `FEATURE&#124;dpu-auto-recovery` `state` is `disabled` / `always_disabled`; no power-cycle issued; awaits operator action |
 | **Offline** | `false` | `recoverable` | `oper_status: Offline` |
-| **Unrecoverable** | `false` | `unrecoverable` | `reset_count` ≥ `dpu_reset_limit` |
+| **Unrecoverable** | `false` | `unrecoverable` | `reset_count` ≥ `dpu_reset_limit`; operator can recover via `config chassis module startup DPU<x>` which resets `recovery_status` to `recoverable` and `reset_count` to 0 |
 
 ---
 
@@ -318,7 +319,7 @@ The `pmon` (Platform Monitor) daemon on the NPU crashes. This is a **critical** 
 - DPU health state updates to `CHASSIS_STATE_DB` stop during the outage.
 
 **PMON Action:**
-- On `chassisd` bringup sequence after restart, `chassisd` sets `ready_status` to `false` and updates `last_down_time` for **all** DPUs.
+- On `chassisd` bringup sequence after restart, `chassisd` resets `reset_count` to 0 for **all** DPUs, sets `ready_status` to `false`, and updates `last_down_time` for **all** DPUs.
 - `chassisd` re-polls all DPU states and updates `CHASSIS_STATE_DB` with current values.
 - For each DPU found healthy, `chassisd` sets `ready_status` back to `true` and updates `last_ready_time`.
 
@@ -329,6 +330,9 @@ The `pmon` (Platform Monitor) daemon on the NPU crashes. This is a **critical** 
 | `ready_status` (all DPUs) | `true` | stale | `false` → `true` (per DPU) |
 | `last_down_time` (all DPUs) | — | — | `<UTC timestamp>` |
 | `last_ready_time` (all DPUs) | — | — | `<UTC timestamp>` (per DPU) |
+| `reset_count` (all DPUs) | N | stale | 0 |
+
+> **Note:** `reset_count` is reset to 0 on `chassisd` restart. This means a DPU that was close to `dpu_reset_limit` gets a fresh retry budget after a pmon crash. This is by design — the pmon restart itself represents operator-level intervention, and persistent hardware issues will be caught again within `dpu_reset_limit` attempts.
 
 > **Note:** If only `chassisd` crashes within the `pmon` container (while `pmon` itself stays running), `supervisord` inside `pmon` restarts `chassisd` automatically. The recovery behavior is identical to the full `pmon` crash case described above — `chassisd` re-initializes all DPU states on startup.
 
@@ -361,6 +365,7 @@ The `databasedpu<dpu-index>` (per-DPU Redis database instance) on the NPU crashe
 | `last_down_time` | — | `<UTC timestamp>` | — |
 | `last_ready_time` | — | — | `<UTC timestamp>` |
 | `reset_count` | N | N | N+1 |
+| `recovery_status` | `recoverable` | `recoverable` | `recoverable` (or `unrecoverable` if N+1 ≥ `dpu_reset_limit`) |
 
 ---
 
@@ -408,6 +413,7 @@ The DPU loses power unexpectedly or shuts down without graceful notification (e.
 - `chassisd` sets `ready_status` to `false` and updates `last_down_time`.
 - `chassisd` immediately power-cycles the DPU (midplane and control plane are already confirmed down) and increments `reset_count`.
 - After power-cycle, `chassisd` verifies all DPU states, sets `ready_status` back to `true`, and updates `last_ready_time`.
+- If `reset_count` reaches `dpu_reset_limit`, `chassisd` sets `recovery_status` to `"unrecoverable"` and stops further automatic power-cycle attempts.
 - **When auto-recovery is disabled:** `chassisd` skips the power-cycle. The DPU remains in **ManualIntervention** with `ready_status: false`; operator must trigger recovery.
 
 **DB State Transition:**
@@ -420,6 +426,7 @@ The DPU loses power unexpectedly or shuts down without graceful notification (e.
 | `last_down_time` | — | `<UTC timestamp>` | — |
 | `last_ready_time` | — | — | `<UTC timestamp>` |
 | `reset_count` | N | N | N+1 |
+| `recovery_status` | `recoverable` | `recoverable` | `recoverable` (or `unrecoverable` if N+1 ≥ `dpu_reset_limit`) |
 
 ---
 
@@ -434,7 +441,10 @@ The PCIe bus between the NPU and a local DPU fails, making the DPU unreachable f
 
 **PMON Action:**
 - `chassisd` sets `ready_status` to `false` and updates `last_down_time`.
-- If the DPU is already offline/unreachable (midplane link down, PCIe detached), `chassisd` does **not** issue an immediate power-cycle. `chassisd `sets `ready_status` back to `false`, and updates `last_down_time`.
+- Since midplane is down (PCIe detached implies midplane unreachable), `chassisd` initiates a DPU power-cycle (`power_down()` → `pci_detach()` → `power_up()` → `pci_reattach()`) and increments `reset_count`.
+- After power-cycle and PCIe rescan, `chassisd` verifies all DPU states (midplane, control plane, data plane), sets `ready_status` back to `true`, and updates `last_ready_time`.
+- If `reset_count` reaches `dpu_reset_limit`, `chassisd` sets `recovery_status` to `"unrecoverable"` and stops further automatic power-cycle attempts.
+- **When auto-recovery is disabled:** `chassisd` skips the power-cycle. The DPU remains in **ManualIntervention** with `ready_status: false`; operator must trigger recovery.
 
 **DB State Transition:**
 
@@ -446,6 +456,7 @@ The PCIe bus between the NPU and a local DPU fails, making the DPU unreachable f
 | `last_down_time` | — | `<UTC timestamp>` | — |
 | `last_ready_time` | — | — | `<UTC timestamp>` |
 | `reset_count` | N | N | N+1 |
+| `recovery_status` | `recoverable` | `recoverable` | `recoverable` (or `unrecoverable` if N+1 ≥ `dpu_reset_limit`) |
 
 ---
 
@@ -514,6 +525,7 @@ Orderly shutdown of a DPU via CLI command: `config chassis module shutdown DPU<x
 
 **Race Condition Handling:**
 - If module shutdown is requested during a DPU reboot: operation fails; retry after reboot completes.
+- If module shutdown is requested while DPU is in **Booting** state (e.g., during initial boot or after a power-cycle): `chassisd` cancels the `dpu_boot_timeout` timer, skips further recovery, powers down the DPU, and transitions directly to **Offline**.
 - If switch reboot is requested during module shutdown: graceful shutdown completes; switch reboot proceeds.
 - Concurrent startup/shutdown on the same module: fails; user retries later.
 - If `config chassis module shutdown` is issued while `chassisd` is in the middle of an auto-recovery power-cycle for the same DPU: `chassisd` detects the admin-down request, aborts the auto-recovery loop, and proceeds with the graceful shutdown sequence.
@@ -535,6 +547,8 @@ Reboot a DPU with full power-cycle via CLI: `reboot -d <DPU_ID>`.
 6. PCIe reattach: platform vendor API `pci_reattach()`.
 7. DPU boots, services start, reports `dpu_control_plane_state=up`.
 8. `chassisd` verifies all DPU states and sets `ready_status` to `true`.
+
+> **Note:** `dpu_boot_timeout` applies to the Booting phase after a planned reboot as well. If the DPU fails to reach `Ready` within the timeout (e.g., broken image installed during upgrade), `chassisd` treats it as a boot failure and initiates another power-cycle, incrementing `reset_count`. The planned reboot's `state_transition_in_progress` flag is already cleared by step 5, so it does not suppress the boot-timeout recovery.
 
 **DB State Transition:**
 
@@ -567,6 +581,8 @@ Planned reboot of the entire SmartSwitch (NPU + all DPUs) via CLI: `reboot`. All
 7. `chassisd` power-cycles each DPU and performs PCIe reattach.
 8. Each DPU boots: midplane attach → SONiC boot → container startup → reports `dpu_control_plane_state=up`.
 
+> **Note — Multiple DPU recovery:** When multiple (or all) DPUs need recovery simultaneously, `chassisd` issues power-cycles sequentially (one DPU at a time) to avoid power-rail overload and PCIe bus contention. The `dpu_boot_timeout` is tracked per-DPU independently. If a platform supports parallel DPU power-cycle (declared in `platform.json` via `parallel_dpu_recovery: true`), `chassisd` may issue power-cycles in parallel batches.
+
 **DB State Transition:**
 
 | DB Field | Before | During Reboot | After Recovery |
@@ -587,7 +603,7 @@ Planned reboot of the entire SmartSwitch (NPU + all DPUs) via CLI: `reboot`. All
 
 | DPU Scenario | `dpu_control_plane_state` | `dpu_midplane_link_state` | `ready_status` | PMON Action |
 | ------------ | :-----------------------: | :-----------------------: | :-----------: | ----------- |
-| DPU booting – initial state | down | down | false | `chassisd` polls; waiting for DPU to come up |
+| DPU booting – initial state | down | down → up | false | `chassisd` polls; midplane comes up first, then waits for control plane and data plane within `dpu_boot_timeout` |
 | DPU healthy and running – first boot | up | up | true | Set `ready_status=true` after verifying all states |
 | DPU crash / unplanned reboot | down | down | false | Power-cycle DPU; increment `reset_count` |
 | DPU up after crash | up | up | true | Set `ready_status=true` after verifying all states |
@@ -622,7 +638,7 @@ admin@sonic:~$ show chassis modules recovery
 ------  --------------  -----------------  -------------  --------------------------  --------------------------
   DPU0            true    recoverable                  2    2026-05-28 10:15:30 UTC      2026-05-28 10:18:45 UTC
   DPU1            true    recoverable                  0    —                           2026-05-28 09:00:12 UTC
-  DPU2           false    unrecoverable                5    2026-05-28 11:02:00 UTC      —
+  DPU2           false    unrecoverable                2    2026-05-28 11:02:00 UTC      —
   ..
 ```
 
