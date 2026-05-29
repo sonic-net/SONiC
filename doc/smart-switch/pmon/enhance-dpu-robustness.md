@@ -257,7 +257,7 @@ stateDiagram-v2
 
 | State | `ready_status` | `recovery_status` | Key DB Indicators |
 | ----- | :------------: | :----------------: | ----------------- |
-| **Booting** | `false` | `recoverable` | `dpu_midplane_link_state: up`, `dpu_control_plane_state: down`; `dpu_boot_timeout` timer running |
+| **Booting** | `false` | `recoverable` | `dpu_boot_timeout` timer running AND NOT (`dpu_midplane_link_state: up` AND `dpu_control_plane_state: up`) |
 | **Ready** | `true` | `recoverable` | `dpu_midplane_link_state: up`, `dpu_control_plane_state: up`, `dpu_data_plane_state: up` |
 | **WaitForSelfRecovery** | `false` | `recoverable` | `dpu_control_plane_state: down` OR `dpu_midplane_link_state: down`; `dpu_self_recovery_timeout` timer running |
 | **PowerCycle** | `false` | `recoverable` | `dpu_midplane_link_state: down`, `dpu_control_plane_state: down`; `reset_count` incremented; power-cycle in progress |
