@@ -68,7 +68,7 @@ While FRR supports this and most modern DC fabrics rely on it, operators current
 3. Add a `PEER_UNNUMBERED` peer-group at the FRR side, carrying the AF-agnostic policy infrastructure.
 4. Extend orchagent (`vnetorch.cpp`, parallel to the merged `vrforch.cpp` change in PR #3973) so that LLv6 traffic destined to the device in a VNET is trapped to CPU
 5. Extend orchagent(`vnetorch.cpp`) so that RFC 5549 duplicate-IP ECMP routes are programmed correctly in ASIC_DB
-6. The rendered FRR session MUST come up over IPv6 link-local with `extended-next-hop` negotiated, so both IPv4 and IPv6 NLRI can be exchanged on the single session by default, if the user chooses to opt out of IPv4 prefixes announcements, then a `v6only: false` should be provided in the `BGP_NEIGHBOR` table
+6. The rendered FRR session MUST come up over IPv6 link-local with `extended-next-hop` negotiated, so both IPv4 and IPv6 NLRI can be exchanged on the single session by default, if the user chooses to opt out of IPv4 prefixes announcements, then a `v6only: true` should be provided in the `BGP_NEIGHBOR` table
 7. Unnumbered BGP MUST work for neighbors that live in the **default** VRF **and** in a **non-default VRF / VNET**. This implies:
    - **LLv6 IP2Me** routes (`fe80::/10` catch-all) MUST be installed in every non-default VR at create time so that BGP TCP/179 and NDP packets in that VRF are trapped to CPU instead of silently dropped.
    - **RFC 5549 ECMP** routes (multiple egress interfaces sharing the same well-known link-local nexthop placeholder, e.g. `169.254.0.1`) MUST be programmed as multi-member next-hop groups in `ASIC_DB`, not collapsed to a single next-hop.
