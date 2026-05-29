@@ -29,7 +29,7 @@
 
 ## Scope
 
-This HLD adds support for **unnumbered BGP** (IPv6 link-local with RFC 5549 extended-next-hop) and Multi ASN support in SONiC through  `CONFIG_DB` → `bgpcfgd` → FRR. It tracks the solution for [sonic-net/sonic-buildimage#26960](https://github.com/sonic-net/sonic-buildimage/issues/26960), and additionally includes changes to support unnumbered BGP in a VNET/VRF space
+This HLD adds support for **unnumbered BGP** over IPv6 link-local, IPv4 advertisements over an IPv6 nexthop(RFC 5549 extended-next-hop) and Multi ASN support in SONiC through  `CONFIG_DB` → `bgpcfgd` → `FRR`. It tracks the solution for [sonic-net/sonic-buildimage#26960](https://github.com/sonic-net/sonic-buildimage/issues/26960), and additionally includes changes to support unnumbered BGP in a VNET/VRF space
 
 In scope:
 
@@ -184,7 +184,7 @@ Unnumbered BGP inside a VNET requires two orchagent changes, both in `orchagent/
 
 For unnumbered ECMP, FRR/Zebra installs every path via the same well-known LLv6 placeholder (e.g. `169.254.0.1`) — only the egress interface differs across paths. Today's `doRouteTask<VNetVrfObject>` builds the next-hop-group string from `nh.ips.getIpAddresses()`, which is a `set<IpAddress>` that **de-duplicates** equal IPs. Result: every ECMP member beyond the first is silently dropped, and the route is programmed as a single next-hop instead of an NHG.
 
-Fix: when `ips.size() == 1` and `ifnames.size() > 1`, fan the single IP out across all interfaces to produce one `ip@iface` token per egress interface. The existing (distinct-IP) branch is preserved unchanged for all other cases, so non-unnumbered ECMP behavior is untouched.
+Fix: Preserve the original IP addresses in a vector/string instead of a set.
 
 
 ## Implementation Approaches
