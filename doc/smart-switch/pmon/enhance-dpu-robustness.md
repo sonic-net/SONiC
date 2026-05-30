@@ -261,7 +261,7 @@ stateDiagram-v2
 | **Ready** | `true` | `recoverable` | `dpu_midplane_link_state: up`, `dpu_control_plane_state: up`, `dpu_data_plane_state: up` |
 | **WaitForSelfRecovery** | `false` | `recoverable` | `dpu_control_plane_state: down` OR `dpu_midplane_link_state: down`; `dpu_self_recovery_timeout` timer running |
 | **PowerCycle** | `false` | `recoverable` | `dpu_midplane_link_state: down`, `dpu_control_plane_state: down`; `reset_count` incremented; power-cycle in progress |
-| **ManualIntervention** | `false` | `recoverable` | `dpu_control_plane_state: down` OR `dpu_midplane_link_state: down`; `FEATURE|dpu-auto-recovery` `state`: `disabled` / `always_disabled` |
+| **ManualIntervention** | `false` | `recoverable` | `dpu_control_plane_state: down` OR `dpu_midplane_link_state: down`; `FEATURE\|dpu-auto-recovery` `state`: `disabled` / `always_disabled` |
 | **Offline** | `false` | `recoverable` | `oper_status: Offline`; DPU admin-down via `config chassis module shutdown` |
 | **Unrecoverable** | `false` | `unrecoverable` | `reset_count` ≥ `dpu_reset_limit`; `dpu_control_plane_state: down`; `dpu_midplane_link_state: down` |
 
