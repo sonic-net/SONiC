@@ -237,9 +237,11 @@ stateDiagram-v2
 
     WaitForSelfRecovery --> Booting : DPU self-recovered (midplane up OR control plane up)
     WaitForSelfRecovery --> PowerCycle : self-recovery timeout expired
+    WaitForSelfRecovery --> Offline : CLI module shutdown
 
     PowerCycle --> Booting : Power cycle issued
     PowerCycle --> Unrecoverable : reset count >= dpu_reset_limit
+    PowerCycle --> Offline : CLI module shutdown
 
     ManualIntervention --> Booting : Operator power-cycle / module startup
 
@@ -257,7 +259,7 @@ stateDiagram-v2
 
 | State | `ready_status` | `recovery_status` | Key DB Indicators |
 | ----- | :------------: | :----------------: | ----------------- |
-| **Booting** | `false` | `recoverable` | `dpu_boot_timeout` timer running AND NOT (`dpu_midplane_link_state: up` AND `dpu_control_plane_state: up`) |
+| **Booting** | `false` | `recoverable` | `dpu_boot_timeout` timer running AND NOT (`dpu_midplane_link_state: up` AND `dpu_control_plane_state: up` AND `dpu_data_plane_state: up`) |
 | **Ready** | `true` | `recoverable` | `dpu_midplane_link_state: up`, `dpu_control_plane_state: up`, `dpu_data_plane_state: up` |
 | **WaitForSelfRecovery** | `false` | `recoverable` | `dpu_control_plane_state: down` OR `dpu_midplane_link_state: down`; `dpu_self_recovery_timeout` timer running |
 | **PowerCycle** | `false` | `recoverable` | `dpu_midplane_link_state: down`, `dpu_control_plane_state: down`; `reset_count` incremented; power-cycle in progress |
@@ -307,15 +309,15 @@ Any unplanned event that causes `dpu_control_plane_state` or `dpu_midplane_link_
 
 **DB State Transition (DPU does NOT self-recover — power-cycle issued):**
 
-| DB Field | Before | During WaitForSelfRecovery | After Power-Cycle Recovery |
-| -------- | :----: | :------------------------: | :------------------------: |
-| `dpu_control_plane_state` | `up` | `down` | `up` |
-| `dpu_midplane_link_state` | `up` | `down` | `up` |
-| `ready_status` | `true` | `false` | `true` |
-| `last_down_time` | — | `<UTC timestamp>` | — |
-| `last_ready_time` | — | — | `<UTC timestamp>` |
-| `reset_count` | N | N | N+1 |
-| `recovery_status` | `recoverable` | `recoverable` | `recoverable` (or `unrecoverable` if N+1 ≥ `dpu_reset_limit`) |
+| DB Field | Before | During WaitForSelfRecovery | After Power-Cycle (success) | After Power-Cycle (limit reached) |
+| -------- | :----: | :------------------------: | :-------------------------: | :-------------------------------: |
+| `dpu_control_plane_state` | `up` | `down` | `up` | `down` |
+| `dpu_midplane_link_state` | `up` | `down` | `up` | `down` |
+| `ready_status` | `true` | `false` | `true` | `false` |
+| `last_down_time` | — | `<UTC timestamp>` | — | `<UTC timestamp>` |
+| `last_ready_time` | — | — | `<UTC timestamp>` | — |
+| `reset_count` | N | N | N+1 | N+1 (= `dpu_reset_limit`) |
+| `recovery_status` | `recoverable` | `recoverable` | `recoverable` | `unrecoverable` |
 
 > **Note:** `chassisd` polls `dpu_data_plane_state` alongside `dpu_control_plane_state` and `dpu_midplane_link_state`, but `dpu_data_plane_state` alone does not trigger recovery actions. The `dpu_data_plane_state` is used solely to determine full DPU readiness for setting `ready_status` to `true`.
 
@@ -372,9 +374,9 @@ Orderly shutdown of a DPU via CLI command: `config chassis module shutdown DPU<x
 4. `gnoi_reboot_daemon.py` detects the transition and sends gNOI Reboot RPC (Method: `HALT`) to DPU.
 5. DPU gracefully shuts down all services via `reboot -p`.
 6. NPU polls `gnoi_client -rpc RebootStatus` until `active=false` (services terminated).
-7. `state_transition_in_progress` set to `False`.
-8. `module_base.py` calls platform API `power_down()` to power off DPU.
-9. PCIe detach: platform vendor API `pci_detach()`.
+7. `module_base.py` calls platform API `power_down()` to power off DPU.
+8. PCIe detach: platform vendor API `pci_detach()`.
+9. `state_transition_in_progress` set to `False`.
 10. Sensor ignore configs added, sensord restarted.
 
 **DB State Transition:**
@@ -440,8 +442,8 @@ Planned reboot of the entire SmartSwitch (NPU + all DPUs) via CLI: `reboot`. All
 3. Timeout per DPU: `dpu_halt_services_timeout` (default from `platform.json`, typically 60 seconds).
 4. For each DPU: PCIe detach via platform vendor API `pci_detach()`.
 5. NPU proceeds with its own reboot sequence.
-6. On NPU boot, PCIe enumeration discovers all DPUs.
-7. `chassisd` power-cycles each DPU and performs PCIe reattach.
+6. On NPU boot, `chassisd` starts and detects the previous graceful reboot cause.
+7. `chassisd` power-cycles each admin-up DPU (`power_down()` → `pci_detach()` → `power_up()` → `pci_reattach()`).
 8. Each DPU boots: midplane attach → SONiC boot → container startup → reports `dpu_control_plane_state=up`.
 
 > **Note — Multiple DPU recovery:** When multiple (or all) DPUs need recovery simultaneously, `chassisd` issues power-cycles sequentially (one DPU at a time) to avoid power-rail overload and PCIe bus contention. The `dpu_boot_timeout` is tracked per-DPU independently. If a platform supports parallel DPU power-cycle (declared in `platform.json` via `parallel_dpu_recovery: true`), `chassisd` may issue power-cycles in parallel batches.
