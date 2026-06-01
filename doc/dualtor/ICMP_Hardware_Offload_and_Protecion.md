@@ -5,6 +5,7 @@ ICMP Hardware Offload is a new features aimed at improving link state failure de
 | Rev |     Date    |         Author        |          Change Description      |
 |:---:|:-----------:|:---------------------:|:--------------------------------:|
 | 1.0 | 03/27/2025  | Manas Kumar Mandal    | Initial Version                  |
+| 1.1 | 05/28/2026  | Manas Kumar Mandal    | ICMP session counters and CLI    |
 
 ## Definitions/Abbreviations
 
@@ -43,11 +44,15 @@ This document describes high level design details of SONiC's ICMP Hardware Offlo
       - [TLV generation considerations](#tlv-generation-considerations)
     - [Orchagent](#orchagent)
       - [IcmpOrch](#icmporch)
+      - [ICMP echo session counters](#icmp-echo-session-counters)
 - [DB Schema Changes](#db-schema-changes)
   - [Config-DB](#config-db)
   - [App-DB](#app-db)
   - [State-DB](#state-db)
 - [Command Line](#command-line)
+  - [Show CLI](#show-cli)
+  - [Clear CLI](#clear-cli)
+  - [Counterpoll CLI](#counterpoll-cli)
 - [Testing](#testing)
 
 <!-- /code_chunk_output -->
@@ -177,6 +182,19 @@ Vrf-name : Interface Alias : Session GUID : Session Type
   * 'RX': Install a monitor only icmp echo session and set the tx_interval to zero which will not send any icmp echo session.
 * Interface Alias 'default' will set the SAI atttribute hw_lookup to true and NPU will perform forwarding lookup basd on dst_ip to determine the outgoing interface.
 
+#### ICMP echo session counters
+IcmpOrch exposes per-session RX/TX statistics that are surfaced through `COUNTERS_DB` and consumed by the `show icmp stats` CLI. The implementation lives in a generic `SaiOffloadStatsHandler<>` template (shared with future offload session types) and selects one of two back-ends per platform during orchagent startup:
+
+* **Selective counter back-end (preferred):** Used when the platform implements `SAI_ICMP_ECHO_SESSION_ATTR_SELECTIVE_COUNTER_LIST`. For each ICMP echo session, IcmpOrch creates two SAI selective counter objects, one for the RX direction (`SAI_ICMP_ECHO_SESSION_STAT_IN_PACKETS`) and one for the TX direction (`SAI_ICMP_ECHO_SESSION_STAT_OUT_PACKETS`), and attaches them to the session via the selective-counter-list attribute. syncd polls `SAI_COUNTER_STAT_PACKETS` and `SAI_COUNTER_STAT_BYTES` for every counter OID into `COUNTERS_DB`. Two `COUNTERS_ICMP_ECHO_SESSION_NAME_MAP` entries are written per session, suffixed with `|IN` and `|OUT`, so the CLI can resolve each direction independently. This back-end reports both packet and byte counts.
+
+* **Native counter back-end (fallback):** Used when the selective-counter attribute is not implemented. IcmpOrch registers the ICMP echo session OID itself with `FlexCounterManager` using `CounterType::ICMP_ECHO_SESSION`. syncd polls `sai_get_icmp_echo_session_stats_ext()` for `SAI_ICMP_ECHO_SESSION_STAT_IN_PACKETS` and `SAI_ICMP_ECHO_SESSION_STAT_OUT_PACKETS` directly into `COUNTERS_DB`. One un-suffixed name-map entry is written per session. Because the native SAI stat enum exposes only packet counters, byte columns surface as `N/A` in the CLI.
+
+The selected mode is per platform (one capability query at IcmpOrch construction time), but is per session in `COUNTERS_DB` from the CLI's perspective: `show icmp stats` inspects each name-map row independently and renders selective or native columns accordingly, so the two back-ends can coexist if a fleet is mid-upgrade.
+
+Counter collection is gated by the `FLEX_COUNTER_TABLE|ICMP_SESSION` row in CONFIG_DB. `flexcounterorch` watches this row and calls `IcmpOrch::setCountersState(true|false)` whenever `FLEX_COUNTER_STATUS` changes. Enabling the group attaches counters to every existing session and registers them with `FlexCounterManager`; disabling detaches and destroys them. A separate `POLL_INTERVAL` (milliseconds) field controls how often syncd refreshes the values. By default the group is disabled, so `show icmp stats` returns no rows until the operator turns it on with `counterpoll icmp enable`.
+
+Additionally, IcmpOrch resolves the platform's preferred `SAI_*_ATTR_STATS_COUNT_MODE` enum value once at startup (via `sai_query_attribute_enum_values_capability`) and applies it to every subsequent session create. The resolved mode is held inside the stats handler so it can be reused by other offload session types. The preferred order is `PACKET_AND_BYTE`, `PACKET`, `BYTE`, `NONE`; the first supported value wins.
+
 ### DB Schema Changes
 
 #### Config-DB
@@ -211,6 +229,22 @@ Additionally, two new timer configuration fields are introduced in the MUX_CABLE
             "prober_type": "hardware",
             "self_interval": "4",
             "peer_interval": "6"
+        }
+    }
+}
+```
+
+A new `ICMP_SESSION` row is added to the existing `FLEX_COUNTER_TABLE` to drive per-session ICMP echo counter collection. `flexcounterorch` watches this row and forwards state transitions to `IcmpOrch::setCountersState()`. Both fields are managed through the `counterpoll icmp` CLI; manual editing is not expected.
+
+  * **FLEX_COUNTER_STATUS:** `enable` to start counter collection, `disable` to stop it. Default `disable`.
+  * **POLL_INTERVAL:** Polling interval in milliseconds for syncd to refresh counter values into `COUNTERS_DB`. Valid range is 1000-30000 ms. Default `10000` ms.
+
+```
+{
+    "FLEX_COUNTER_TABLE": {
+        "ICMP_SESSION": {
+            "FLEX_COUNTER_STATUS": "enable",
+            "POLL_INTERVAL": "10000"
         }
     }
 }
@@ -320,11 +354,114 @@ Up sessions: 2
 RX sessions: 1
 ```
 
+**New CLI to show hardware icmp session stats**
+
+`show icmp stats` renders per-session RX (IN) / TX (OUT) packet and byte counts collected from `COUNTERS_DB`. The CLI reads the `COUNTERS_ICMP_ECHO_SESSION_NAME_MAP` to enumerate sessions and classifies each row as selective (per-direction OID, suffixed `|IN` / `|OUT`) or native (per-session OID, no suffix). Native sessions render `N/A` for byte columns because the SAI native stat enum exposes only packet counts; selective sessions report both packet and byte counts.
+
+The command requires the ICMP session counter group to be enabled (see `counterpoll icmp enable` below). When the group is disabled or no sessions exist, the command prints an explanatory message and returns nothing.
+
+* Without arguments, every session present in `COUNTERS_ICMP_ECHO_SESSION_NAME_MAP` is listed.
+* An optional `<key>` argument (`scope:port:guid:mode`, with either `:` or `|` as separator) filters to a single session.
+* `-c` / `--clear` snapshots the current counters as the per-user baseline; subsequent invocations subtract that baseline so values appear as deltas since the last clear. The baseline is global; passing `<key>` with `-c` is ignored with a warning. Same effect as `sonic-clear icmp counters` (see Clear CLI below).
+* When a baseline exists, the command prints `Last cached time was <timestamp>` above the table.
+* Counter values that the platform has not yet polled, or stats not produced by the selected back-end, render as `N/A` (rather than 0) to avoid misleading deltas.
+
+```
+$ show icmp stats
+Key                                    State      RX Pkts  RX Bytes      TX Pkts  TX Bytes
+-------------------------------------  -------  ---------  ----------  ---------  ----------
+default:Ethernet0:0x4eb39592:RX        Up            1234  188802              0  0
+default:Ethernet152:0x39e05375:NORMAL  Up            5555  N/A              4444  N/A
+default:Ethernet8:0x69f578f5:NORMAL    Up            9876  1511028          9870  800370
+```
+
+```
+$ show icmp stats default|Ethernet0|0x4eb39592|RX
+Key                              State      RX Pkts    RX Bytes    TX Pkts    TX Bytes
+-------------------------------  -------  ---------  ----------  ---------  ----------
+default:Ethernet0:0x4eb39592:RX  Up            1234      188802          0           0
+```
+
+In the example above, `Ethernet152` runs the native back-end and reports packets only, while `Ethernet0` and `Ethernet8` run the selective back-end and report both packets and bytes. The CLI handles the mixed deployment transparently.
+
+### Clear CLI
+
+**New CLI to clear hardware icmp session counter baseline**
+
+`sonic-clear icmp counters` snapshots the current per-session per-direction packet / byte counts as the new baseline. Subsequent `show icmp stats` calls subtract this baseline until the next clear. Hardware counters and `COUNTERS_DB` rows are untouched; only the per-user baseline file (`UserCache(app_name='icmpstat')`) is rewritten. Native sessions capture only packet counts; bytes continue to render as `N/A`.
+
+```
+$ sudo sonic-clear icmp counters
+Cleared ICMP echo session counter baseline at 2026-05-28 09:30:11
+```
+
+The same operation can be triggered from the show command:
+
+```
+$ show icmp stats -c
+Cleared ICMP echo session counter baseline at 2026-05-28 09:30:11
+```
+
+### Counterpoll CLI
+
+**New CLI to manage ICMP echo session counter polling**
+
+`counterpoll icmp` controls the `FLEX_COUNTER_TABLE|ICMP_SESSION` CONFIG_DB row that gates per-session counter collection in orchagent and syncd. `flexcounterorch` consumes changes to this row and forwards them to `IcmpOrch::setCountersState()`, which in turn drives the selective / native counter wiring described above.
+
+The group is **disabled by default**; operators must run `counterpoll icmp enable` once before counters appear in `COUNTERS_DB` or `show icmp stats`. Enabling and disabling are idempotent and may be invoked at any time; the orch attaches counters to existing sessions on enable and detaches/destroys them on disable.
+
+* **counterpoll icmp enable**
+
+  Sets `FLEX_COUNTER_TABLE|ICMP_SESSION:FLEX_COUNTER_STATUS = enable`. IcmpOrch creates and attaches selective counters (or registers native OIDs) for every existing session and any new session created afterwards.
+
+  ```
+  $ sudo counterpoll icmp enable
+  ```
+
+* **counterpoll icmp disable**
+
+  Sets `FLEX_COUNTER_TABLE|ICMP_SESSION:FLEX_COUNTER_STATUS = disable`. IcmpOrch detaches counters from all existing sessions, clears them from `FlexCounterManager`, and removes the SAI counter objects (selective mode) or unregisters the session OIDs (native mode).
+
+  ```
+  $ sudo counterpoll icmp disable
+  ```
+
+* **counterpoll icmp interval &lt;ms&gt;**
+
+  Sets `FLEX_COUNTER_TABLE|ICMP_SESSION:POLL_INTERVAL`. Accepts an integer in the range 1000-30000 milliseconds. Default is 10000 ms. syncd picks up the new interval without requiring a counter restart.
+
+  ```
+  $ sudo counterpoll icmp interval 5000
+  ```
+
+* **counterpoll show**
+
+  The existing `counterpoll show` command lists the ICMP echo session counter group alongside the other flex-counter groups:
+
+  ```
+  $ counterpoll show
+  Type                  Interval (in ms)  Status
+  --------------------  ----------------  --------
+  ...
+  ICMP_SESSION_STAT     10000             enable
+  ...
+  ```
+
+**Sample operator workflow to enable ICMP echo session stats**
+
+```
+$ sudo counterpoll icmp enable
+$ sudo counterpoll icmp interval 5000   # optional, defaults to 10000 ms
+$ show icmp stats
+```
+
 ## Testing
 - Unit tests for LinkMgrd
 - Unit tests for IcmpOrch
+- Unit tests for IcmpOrch counter wiring (selective and native back-ends; toggle via `setCountersState` and `FLEX_COUNTER_TABLE|ICMP_SESSION`)
 - Unit tests for MuxOrch / MuxCableOrch / MuxCfgOrch
 - Unit tests for Yang-model and CLIs
+- Unit tests for `show icmp stats`, `sonic-clear icmp counters`, and `counterpoll icmp enable/disable/interval`, covering selective + native back-ends and the mixed-deployment case
 - Existing SONiC Management tests for dual-ToR:
 - New SONiC Management test for dual-ToR:
     - Add support for hardware based ICMP echo session configurations
