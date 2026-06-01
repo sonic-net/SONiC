@@ -22,10 +22,6 @@
 | Rev | Date       | Author        | Change Description                                   |
 |-----|------------|---------------|------------------------------------------------------|
 | 0.1 | 2026-04-28 | Yutong Zhang  | Initial revision                                     |
-| 0.2 | 2026-05-12 | Yutong Zhang  | Split out the reporting pipeline into a separate HLD |
-| 0.3 | 2026-05-27 | Yutong Zhang  | Trim inline code, focus on metric design tables      |
-| 0.4 | 2026-05-27 | Yutong Zhang  | Clarify Metric / Label terminology in §3             |
-| 0.5 | 2026-05-27 | Yutong Zhang  | Fix §4/§6 LoC claims to be consistent with §7.8          |
 
 ### 2. Scope
 
