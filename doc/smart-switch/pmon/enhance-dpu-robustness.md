@@ -237,22 +237,20 @@ stateDiagram-v2
 
     WaitForSelfRecovery --> Booting : DPU self-recovered (midplane up OR control plane up)
     WaitForSelfRecovery --> PowerCycle : self-recovery timeout expired
-    WaitForSelfRecovery --> Offline : CLI module shutdown
+    WaitForSelfRecovery --> AdminDown : CLI module shutdown
+    WaitForSelfRecovery --> Booting : CLI reboot DPU (cancel timer, power-cycle)
 
     PowerCycle --> Booting : Power cycle issued
     PowerCycle --> Unrecoverable : reset count >= dpu_reset_limit
-    PowerCycle --> Offline : CLI module shutdown
+    PowerCycle --> AdminDown : CLI module shutdown
 
     ManualIntervention --> Booting : Operator power-cycle / module startup
 
-    Booting --> Offline : CLI module shutdown during boot
-    Ready --> PlannedShutdown : CLI module shutdown
-    Ready --> PlannedReboot : CLI reboot DPU
+    Booting --> AdminDown : CLI module shutdown during boot
+    Ready --> AdminDown : CLI module shutdown (gNOI HALT then power down)
+    Ready --> Booting : CLI reboot DPU (gNOI HALT then power cycle)
 
-    PlannedShutdown --> Offline : gNOI HALT then power down
-    PlannedReboot --> Booting : gNOI HALT then power cycle
-
-    Offline --> Booting : CLI module startup
+    AdminDown --> Booting : CLI module startup
 
     Unrecoverable --> Booting : Operator module startup or chassisd restart
 ```
@@ -264,7 +262,7 @@ stateDiagram-v2
 | **WaitForSelfRecovery** | `false` | `recoverable` | `dpu_control_plane_state: down` OR `dpu_midplane_link_state: down`; `dpu_self_recovery_timeout` timer running |
 | **PowerCycle** | `false` | `recoverable` | `dpu_midplane_link_state: down`, `dpu_control_plane_state: down`; `reset_count` incremented; power-cycle in progress |
 | **ManualIntervention** | `false` | `recoverable` | `dpu_control_plane_state: down` OR `dpu_midplane_link_state: down`; `FEATURE\|dpu-auto-recovery` `state`: `disabled` / `always_disabled` |
-| **Offline** | `false` | `recoverable` | `oper_status: Offline`; DPU admin-down via `config chassis module shutdown` |
+| **AdminDown** | `false` | `recoverable` | `oper_status: Offline`; DPU admin-down via `config chassis module shutdown` |
 | **Unrecoverable** | `false` | `unrecoverable` | `reset_count` ≥ `dpu_reset_limit`; `dpu_control_plane_state: down`; `dpu_midplane_link_state: down` |
 
 ---
@@ -321,7 +319,7 @@ Any unplanned event that causes `dpu_control_plane_state` or `dpu_midplane_link_
 
 > **Note:** `chassisd` polls `dpu_data_plane_state` alongside `dpu_control_plane_state` and `dpu_midplane_link_state`, but `dpu_data_plane_state` alone does not trigger recovery actions. The `dpu_data_plane_state` is used solely to determine full DPU readiness for setting `ready_status` to `true`.
 
-> **Note:** During **WaitForSelfRecovery**, if a planned operation (`config chassis module shutdown`) is requested, `chassisd` cancels the self-recovery timer, powers down the DPU, and transitions to **Offline**.
+> **Note:** During **WaitForSelfRecovery**, if a planned operation (`config chassis module shutdown`) is requested, `chassisd` cancels the self-recovery timer, powers down the DPU, and transitions to **AdminDown**.
 
 ---
 
@@ -390,7 +388,7 @@ Orderly shutdown of a DPU via CLI command: `config chassis module shutdown DPU<x
 
 **Race Condition Handling:**
 - If module shutdown is requested during a DPU reboot: operation fails; retry after reboot completes.
-- If module shutdown is requested while DPU is in **Booting** state (e.g., during initial boot or after a power-cycle): `chassisd` cancels the `dpu_boot_timeout` timer, skips further recovery, powers down the DPU, and transitions directly to **Offline**.
+- If module shutdown is requested while DPU is in **Booting** state (e.g., during initial boot or after a power-cycle): `chassisd` cancels the `dpu_boot_timeout` timer, skips further recovery, powers down the DPU, and transitions directly to **AdminDown**.
 - If switch reboot is requested during module shutdown: graceful shutdown completes; switch reboot proceeds.
 - Concurrent startup/shutdown on the same module: fails; user retries later.
 - If `config chassis module shutdown` is issued while `chassisd` is in the middle of an auto-recovery power-cycle for the same DPU: `chassisd` detects the admin-down request, aborts the auto-recovery loop, and proceeds with the graceful shutdown sequence.
@@ -528,8 +526,8 @@ Test implementation: [`tests/smartswitch/platform_tests/test_dpu_failure_modes.p
 | `TestControlPlaneOnlyDown` | Stop critical container (`swss`) on DPU | `dpu_control_plane_state=down` while midplane stays up; `chassisd` enters **WaitForSelfRecovery**, waits `dpu_self_recovery_timeout`, then power-cycles DPU |
 | `TestAutoRecoveryDisabled` | Disable `FEATURE\|dpu-auto-recovery`, trigger failure | Confirms `chassisd` does NOT power-cycle (ManualIntervention); re-enable and verify recovery |
 | `TestUnrecoverableState` | Repeatedly trigger failures until `reset_count` ≥ `dpu_reset_limit` | `recovery_status=unrecoverable`; `chassisd` stops retrying |
-| `TestStateMachineTransitions` | Planned shutdown → offline → startup → ready | `last_down_time` and `last_ready_time` updated correctly; `recovery_status` stays `recoverable` |
-| `TestShutdownDuringAutoRecovery` | Issue module shutdown while `chassisd` is mid-recovery | `chassisd` aborts auto-recovery, DPU transitions to Offline cleanly |
+| `TestStateMachineTransitions` | Planned shutdown → AdminDown → startup → ready | `last_down_time` and `last_ready_time` updated correctly; `recovery_status` stays `recoverable` |
+| `TestShutdownDuringAutoRecovery` | Issue module shutdown while `chassisd` is mid-recovery | `chassisd` aborts auto-recovery, DPU transitions to AdminDown cleanly |
 | `TestDpuFailureAfterConfigReload` | Config reload on NPU, then trigger DPU failure | `chassisd` recovery works post-reload; `reset_count` increments |
 
 **Test infrastructure:**
