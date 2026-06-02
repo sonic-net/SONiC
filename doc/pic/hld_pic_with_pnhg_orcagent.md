@@ -40,6 +40,7 @@ Rev v1.0
 This document is a High-Level Design (HLD) for orchagent's support of *protection* next-hop groups (NHGs).  This describes the platform implementation of the PIC feature covered by the [https://github.com/sonic-net/SONiC/pull/2292](https://github.com/sonic-net/SONiC/pull/2292), where NHGs whose member set is partitioned into a **primary** subset and a **standby** subset, with hardware/SDK-assisted switching between the two.
 
 The design is platform-capability driven: orchagent uses the protection-NHG path only when SAI advertises support; otherwise the route falls back to ECMP over the primary subset.  
+
 ---
 
 ## 3\. Scope
