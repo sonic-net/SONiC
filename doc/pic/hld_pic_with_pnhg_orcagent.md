@@ -105,7 +105,7 @@ As mentioned earlier, this HLD is the platform complement of the feature describ
 - When **any primary** next hop becomes reachable again, switch the active subset **back to primary**.  
 - While at least one primary is reachable (i.e., not switched over), neighbor events on individual primaries shall **shrink or grow the primary subset programmed in SAI** without changing the switchover state.  
 - While not switched over, neighbor events on individual standbys shall keep the standby subset programmed in SAI in sync with their reachability state, so that a future switchover lands on a current set.  
-- While switched over (standbys active), neighbor events on individual standbys are **deferred** — orchagent does not perturb the standby set in SAI in the current design. This would cause traffic to blackhole.  But given that this is a second order failure and the fact that it leads to a degenerate case where there are no primary or secondary paths with similar results, this is not a concern.  Since this is solution for faster convergence, the expectation is that this is just a transistor state and that control plane would eventually come and update the routes with best paths available.  
+- While switched over (standbys active), neighbor events on individual standbys are **deferred** — orchagent does not perturb the standby set in SAI in the current design. This would cause traffic to blackhole if the traffic was being hashed to the standby path that is down.  But given that this is a second order failure and the fact that it leads to a degenerate case where there are no primary or secondary paths with similar results, this is not a concern.  Since this is solution for faster convergence, the expectation is that this is just a transit state and that control plane would eventually come and update the routes with best paths available.  
 - Multiple routes whose primary and standby sets are identical shall **share** a single protection NHG (deduplication keyed on the member tuple).
 
 ### 6.2 Configuration
@@ -115,7 +115,7 @@ As mentioned earlier, this HLD is the platform complement of the feature describ
 ### 6.3 Scalability
 
 - There is no change to scale numbers due to this feature.  The number of distinct protection NHGs in the system is bounded by the SAI/SDK NHG capacity.  
-- The max member count per group is also similar to the ECMP behavior, except in case of Protection NHGs, the max member count is enforced on the total size including primary and standby members.    
+- The max member count per group is also similar to the ECMP behavior, except in case of Protection NHGs, the max member count could be enforced on the total size including primary and standby members.    
 - Routes with identical primary+standby sets share one NHG (refcounted).
 
 ### 6.4 Boot and Replay
@@ -221,7 +221,7 @@ When a `ROUTE_TABLE` entry is processed, RouteOrch classifies it based on `prima
 | `primary_nh_count` | Outcome |
 | :---- | :---- |
 | equal to `len(nexthop)` | Existing path: ECMP, single-NH, blackhole, or interface route as appropriate. |
-| `> len(nexthop) or 0` | Invalid: warn, skip the row. |
+| `> len(nexthop)` | Invalid: warn, skip the row. |
 | `0 < primary_nh_cout < len(nexthop)` and platform supports it | **Protection-NHG path**: first `primary_nh_count` nexthops are primary, rest are standby. |
 | `0 < pc < len(nexthop)` and platform does **not** support it | Truncate to primaries only, program as ECMP. Logged at WARN. |
 
