@@ -90,6 +90,7 @@
     - [OIDsforSensorandTransciver.MD](doc/xrcvd/OIDsforSensorandTransciver.MD)
     - [SensorMonitor.PNG](doc/xrcvd/SensorMonitor.PNG)
     - [transceiver-monitor-hld.md](doc/xrcvd/transceiver-monitor-hld.md)
+    - [xcvrd_config_hld.md](doc/xrcvd/xcvrd_config_hld.md)
   - vxlan
     - [Vxlan_hld.md](doc/vxlan/Vxlan_hld.md)
   - barefoot_dtel
