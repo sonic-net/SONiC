@@ -1,4 +1,4 @@
-# SONiC Repo Maintainer Nomination Process
+# SONiC Repo Maintainer Process
 
 A lightweight guideline for nominating and onboarding a maintainer for a SONiC repository. It complements the maintainer roster in [SONiC_Repo_Maintainer.md](./SONiC_Repo_Maintainer.md), the project [governance model](../../governance.md).
 
@@ -32,7 +32,8 @@ A nominee may be put forward by **themselves, an existing maintainer of the repo
 ## Review & Approval
 
 1. The repo's existing maintainers and the TSC review the PR against the eligibility guidance above.
-2. The TSC approves the nomination. Approved entries are recorded in [SONiC_Repo_Maintainer.md](./SONiC_Repo_Maintainer.md).
+2. Must be approved by all existing repo maintainers and majority of TSC members
+3. Approved entries are recorded in [SONiC_Repo_Maintainer.md](./SONiC_Repo_Maintainer.md).
 
 ## Onboarding
 
