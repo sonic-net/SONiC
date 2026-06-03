@@ -1,6 +1,6 @@
-# SONiC Repo Maintainer Nomination - Voting Results
+# SONiC Repo Maintainer List
 
-| Repo | Maintainer Nominee | Github Id | Comments |
+| Repo | Maintainer | Github Id | Comments |
 |---|---|---|---|
 | sonic-ztp | Rajendra Dendukuri (Broadcom) | rajendra-dendukuri | enabled |
 | sonic-stp | Divya Chandralekha (Broadcom) | divyachandralekha | enabled |
@@ -58,7 +58,7 @@
 | sonic-gnmi (previously sonic-telemetry) | Qi Luo (Microsoft) | qiluo-msft | enabled |
 |  | Shashank Neelam | sneelam20 | Replace Tomek on 3/5/2024 |
 |  | Shishao (Alibaba) | shishao7sxm | invitation sent |
-|  | Seifert, Eric (DELL) reviewer | seiferteric | enabled |
+|  | Seifert, Eric (DELL) | seiferteric | enabled |
 |  | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
 | sonic-utilities | Qi Luo (Microsoft) | qiluo-msft | enabled |
 | sonic-wpa-supplicant | Ze Gan (Microsoft) | Pterosaur | enabled |
