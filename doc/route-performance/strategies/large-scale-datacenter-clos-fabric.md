@@ -126,7 +126,7 @@ orchagent → ResponsePublisher::publish() → Redis PUB/SUB + APPL_STATE_DB wri
   → fpmsyncd NotificationConsumer → sendOffloadReply() → FPM → zebra RTM_F_OFFLOAD → route advertised
 ```
 
-This is the remaining Redis bottleneck on orchagent's main thread. `ResponsePublisher` async offload moves APPL_STATE_DB writes, notifications, and recordings to a background thread, controlled by `DEVICE_METADATA|localhost:route_state_async_publish` (enabled by default).
+This is the remaining Redis bottleneck on orchagent's main thread. `ResponsePublisher` async offload moves APPL_STATE_DB writes, notifications, and recordings to a background thread, controlled by `SYSTEM_DEFAULTS|async_rec:status`.
 
 | What orchagent main thread does | All-Redis Default | ZMQ + Async Offload | End-state |
 |---|---|---|---|
@@ -265,11 +265,9 @@ Extend sonic-mgmt route performance tests to collect CPU and memory profiles dur
 **Goal:** Production deployment of ZMQ northbound + southbound with FIB suppression enabled.
 
 **Configuration knobs:**
-- ZMQ northbound: `orch_northbound_route_zmq_enabled = true`
-- ZMQ southbound: `orch_southbound_zmq_enabled = true`
+- ZMQ (northbound + southbound): `SYSTEM_DEFAULTS|swss_zmq:status = enabled`
 - FIB suppression: `suppress-fib-pending = enabled`
-- Async swss.rec logging: `async_swss_rec = enabled`
-- ResponsePublisher async offload: `route_state_async_publish = enabled`
+- Async recording + APPL_STATE_DB offload: `SYSTEM_DEFAULTS|async_rec:status = enabled`
 - Batch/bulk tuning: `-b` and `-k` optimized for deployment profile
 
 **Operational fixes:**
