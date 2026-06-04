@@ -21,11 +21,12 @@ We expand the list of FRR Maintainers to include Cisco, Nexthop.AI and Marvell. 
 The proposed maintainer assignments for the next three SONiC releases are as follows:
 
 * 202511 release: Alibaba (primary), shadowed by Nexthop.AI
-* 202605 release: Microsoft
-* 202611 release: Dell
-* 202705 release: Nvidia
-* 202711 release: Broadcom
-* 202805 release: Cisco
+* 202605 release: Marvell
+* 202611 release: Microsoft
+* 202705 release: Dell
+* 202711 release: Nvidia
+* 202805 release: Broadcom
+* 202811 release: Cisco
 * ... (Defer this list to the routing WG to decide the next assignment based on rotation record.) ...
 
 If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth. This transition must be approved by Routing Workgroup and announce to community to avoid confusion.
