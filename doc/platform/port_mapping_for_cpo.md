@@ -12,12 +12,15 @@
   - [7.1 Configuration Data Model](#71-configuration-data-model)
   - [7.2 Future Proofing](#72-future-proofing)
   - [7.3 Platform API Changes](#73-platform-api-changes)
-    - [7.3.1 The Composite SFP Interface](#731-the-composite-sfp-interface)
-    - [7.3.2 Example: CPO Composite SFP](#732-example-cpo-composite-sfp)
-    - [7.3.3 Chassis and Composite SFP Creation](#733-chassis-and-composite-sfp-creation)
-    - [7.3.4 CPO Joint Mode](#734-cpo-joint-mode)
-    - [7.3.5 File Structure](#736-file-structure)
-    - [7.3.6 Interaction with Custom CMIS Vendor Extensions](#735-interaction-with-custom-cmis-vendor-extensions)
+    - [7.3.1 CPO API Classes](#731-cpo-api-classes)
+      - [7.3.1.1 CpoBase](#7311-cpobase)
+      - [7.3.1.2 ElsfpBase](#7312-elsfpbase)
+      - [7.3.1.3 OeBase](#7313-oebase)
+      - [7.3.1.4 ELSFP and OE API Factories](#7314-elsfp-and-oe-api-factories)
+    - [7.3.2 Chassis and CPO Object Creation](#732-chassis-and-cpo-object-creation)
+    - [7.3.3 CPO Joint Mode](#733-cpo-joint-mode)
+    - [7.3.4 File Structure](#734-file-structure)
+    - [7.3.5 Interaction with Custom CMIS Vendor Extensions](#735-interaction-with-custom-cmis-vendor-extensions)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
   - [9.1 sfputil Changes](#91-sfputil-changes)
@@ -202,164 +205,86 @@ This approach to modeling the topology of devices in CPO is flexible enough to a
 
 We will require some changes to the SONiC platform APIs in order to support multiple devices. Note: this section assumes the banking functionality outlined in [this HLD](https://github.com/sonic-net/SONiC/pull/2183/) is implemented.
 
-##### 7.3.1 The Composite SFP Interface
-
-We will define a `CompositeSfpBase` interface, so that it is possible to define composite "logical" SFPs that consist of multiple independent `SfpBase` derived objects. This allows us to present a single logical view/transceiver to application code despite there being multiple independent, and possibly shared, hardware devices backing the logical transceiver.
-
-An important consequence of the below `CompositeSfpBase` interface is that there is no concept in software that the underlying hardware is shared -- software treats each composite Sfp as an independent device, even if that is not true in reality. As a result, protection against issues like concurrent I2C operations is left up to downstream components (for instance, the optoe driver for reading/writing to transceiver EEPROMs over I2C acquires a lock for each I2C read/write).
-
-```python
-# sonic-platform-common/sonic_platform_base/sonic_xcvr/composite_sfp_base.py
-import abc
-import typing
-from sonic_platform_base.sfp_base import SfpBase
-from sonic_platform_base.sonic_xcvr.api.xcvr_api import XcvrApi
-
-class CompositeSfpBase(abc.ABC, SfpBase):
-    """
-    Interface for a class that composes multiple SfpBase derived objects
-    to present a single logical transceiver.
-    """
-
-    @abc.abstractmethod
-    def get_internal_devices(self) -> typing.List[SfpBase]:
-        """
-        Get a list of all internal Sfp objects that this composite class is
-        responsible for.
-        """
-        ...
-  
-    @abc.abstractmethod
-    def get_number_of_internal_devices(self) -> int:
-        """
-        Get the number of internal Sfp objects that this composite class is
-        responsible for.
-        """
-        ...
-
-    @abc.abstractmethod
-    def get_internal_device(self, name: str) -> SfpBase:
-        """
-        Get a specific internal Sfp object that this composite class is
-        responsible for.
-        """
-        ...
-
-    @abc.abstractmethod
-    def refresh_xcvr_api(self) -> XcvrApi:
-        """
-        Subclasses should implement this method so that a custom xcvr API can
-        be exposed for this composite Sfp. This xcvr API will provide a single
-        unified API for the underlying devices.
-        """
-        ...
-
-    def read_eeprom(self, offset, num_bytes):
-        raise NotImplementedError("CompositeSfp does not support direct eeprom access.")
-
-    def write_eeprom(self, offset, num_bytes, write_buffer):
-        raise NotImplementedError("CompositeSfp does not support direct eeprom access.")
-```
-
-##### 7.3.2 Example: CPO Composite SFP
+##### 7.3.1 CPO API Classes
 
 ![](./cpo-class-diagram.png)
-*<div align="center">Class diagram for CPO Composite SFP</div>*
-<br>
 
-We will need a composite sfp subclass and XcvrApi subclass to be implemented for each hardware platform that requires a unique API. For instance, below is an example for CPO hardware with optical engines and external laser sources.
-```python
-# sonic-platform-common/sonic_platform_base/sonic_xcvr/cpo_base.py
-import typing
-from sonic_platform_base.sonic_xcvr.composite_sfp_base import CompositeSfpBase
-from sonic_platform_base.sonic_xcvr.api.public.cpo import CpoApi
-from sonic_platform_base.sfp_base import SfpBase
+###### 7.3.1.1 CpoBase
 
-class CpoSfpBase(CompositeSfpBase, SfpBase):
-    def __init__(self, oe: SfpBase, els: SfpBase) -> None:
-        SfpBase.__init__(self)
-        self._oe = oe
-        self._els = els
+`CpoBase` is the object that SONiC application code like `xcvrd` will interact most with. It acts as a unified interface for interacting with the ELSFP and OE associated with a given port. For instance, `xcvrd` can call `get_presence` on CpoBase, and it will internally delegate that call to the ELSFP (since the OE has no concept of presence). It can also be used to aggregate results from both the OE and ELSFP and return a combined result to a caller -- if `xcvrd` wanted to collect DOM telemetry for both the OE and ELSFP in one call, `CpoBase` can perform that aggregation logic.
 
-    def get_internal_devices(self) -> typing.List[SfpBase]:
-        return [self._oe, self._els]
+It also offers direct access to the ELSFP and OE objects themselves, so application code can interact directly with the OE or ELSFP if it desires. The OE and ELSFP objects are described in the next section.
 
-    def get_number_of_internal_devices(self) -> int:
-        return 2
+###### 7.3.1.2 ElsfpBase
 
-    def get_internal_device(self, name: str) -> SfpBase:
-        if name == "OE":
-            return self._oe
-        elif name == "ELS":
-            return self._els
-        raise ValueError(f"No SFP found for {name}")
+The ELSFP object will have its own dedicated factory and API classes that are specific to an ELSFP. The `ElsfpApiFactory` will handle instantiation of the correct API and memory map for the `ElsfpBase` object. The `ElsfpBase` object will also have its own dedicated `XcvrApi` variant called `ElsfpApi` that will provide API methods for interacting with the module (including the new ELSFP-specific 1Ah and 1Bh pages).
 
-    def refresh_xcvr_api(self):
-        self._xcvr_api = CpoApi(
-            optical_engine_xcvr_api=self._oe.get_xcvr_api(),
-            external_laser_source_xcvr_api=self._els.get_xcvr_api()
-        )
+###### 7.3.1.3 OeBase
+The OE object will have its own dedicated factory for instantiating the appropriate API and memory map, but will reuse the existing CmisApi for interacting with the device since optical engines are CMIS compliant devices.
 
-    # CPO presence will be based on ELSFP presence.
-    def get_presence(self):
-        return self._els.get_presence()
+###### 7.3.1.4 ELSFP and OE API Factories
 
-    # CPO-specific methods can be defined in this class, like methods for fetching
-    # information related to the ELSFP or the optical engine. For example:
-    def get_elsfp_lane_output_power_alarm(self):
-      return self.get_xcvr_api().get_elsfp_lane_output_power_alarm()
+The ELSFP and OE API factories are responsible for instantiation of the correct API and memory map for a given device. Since CPO hardware has notable differences between various vendors, multiple different APIs and memory maps for each hardware platform are likely going to be required.
 
-# sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/cpo.py
-from sonic_platform_base.sonic_xcvr.api.public.cmis import CmisApi
-from sonic_platform_base.sonic_xcvr.api.public.elsfp import ElsfpApi
-
-class CpoApi(CmisApi):
-    """
-    An XcvrApi implementation for hardware with co-packaged optics (CPO) comprising of 
-    an optical engine and an external laser source.
-    """
-    def __init__(self, optical_engine_xcvr_api, external_laser_source_xcvr_api) -> None:
-        # We use the optical engine API as our "default" choice for existing CmisApi methods.
-        super().__init__(optical_engine_xcvr_api.xcvr_eeprom)
-        self.optical_engine_xcvr_api = optical_engine_xcvr_api
-        self.external_laser_source_xcvr_api = external_laser_source_xcvr_api
-
-    # Existing CmisApi methods that are relied on by SONiC daemons will be re-implemented here,
-    # returning composite results from both the optical engine and ELSFP APIs.
-    def get_transceiver_dom_real_value(self):
-        oe_result = self.optical_engine_xcvr_api.get_transceiver_dom_real_value()
-        els_result = self.external_laser_source_xcvr_api.get_transceiver_dom_real_value()
-        overall_result = {}
-        if oe_result:
-            overall_result[self.oe_device_id] = oe_result
-        if els_result:
-            overall_result[self.els_device_id] = els_result
-        return overall_result
-    # Same pattern for:
-    #   get_transceiver_dom_flags()
-    #   get_transceiver_threshold_info()
-    #   get_transceiver_status()
-    #   get_transceiver_status_flags()
-
-    # Implement ELSFP specific methods below here. For example:
-    def get_elsfp_lane_output_power_alarm(self):
-        return self.external_laser_source_xcvr_api.get_elsfp_lane_output_power_alarm()
-
-# sonic-platform-common/sonic_platform_base/sonic_xcvr/api/public/elsfp.py
-from .cmis import CmisApi
-
-class ElsfpApi(CmisApi):
-    """
-    XcvrApi for information specific to ELSFP devices.
-    """
+As a result, new API factories for both the OE and ELSFP have been introduced. They take a `CpoHardwareId` datatype containing information that identifies a given hardware platform. This `CpoHardwareId` will be passed in by vendor platform code when creating the `CpoBase` object for a given interface.
+```python3
+class OeId(Enum):
     ...
+
+class ElsfpId(Enum):
+    ...
+
+@dataclass
+class CpoHardwareId:
+    oe_id: OeId
+    elsfp_id: Optional[ElsfpId]
 ```
 
-`CpoSfpBase` inherits from `SfpBase` (not `SfpOptoeBase`) so the composite SFP abstraction is not tied to the optoe driver. The underlying optical-engine and ELSFP objects passed in can still be `SfpOptoeBase` instances in vendor implementations -- they just satisfy the more general `SfpBase` contract at this layer.
+The OE API factory picks the appropriate API and memory map to use based on the `OeId` passed in. This will be a simple 1:1 mapping from `OeId` to API.
+```python3
+class OeApiFactory(CpoApiFactory):
+    def create_api(self):
+        if self._device.hardware_id.oe_id == OeId.EXAMPLE:
+            self._create_api(...)
 
-Note that the above implementation in `CpoApi` delegates calls to the optical engine API by default. Most of the existing CmisApi methods will be re-implemented on the CpoApi to return a composite result containing both OE and ELSFP information. Direct access to each underlying SFP object (optical engine and ELSFP) is still possible through the `get_internal_devices()` and `get_internal_device()` methods. For instance, to access the ELSFP's `read_eeprom` method, you could just do `get_internal_device("ELS1").read_eeprom(...)`. Composite sfps do not use XcvrApiFactory for API creation because the device topology is known at chassis initialization time from optical_devices.json. The factory pattern remains used for the underlying sfp objects.
+        raise ValueError(f"Could not determine what OE API to use for OE ID: {self._device.hardware_id.oe_id}")
+```
 
-##### 7.3.3 Chassis and Composite SFP Creation
+The ELSFP API factory is a little more complex. An `ElsfpId` can be passed in if a hardware platform is using an internal laser that is not pluggable, statically mapping the `ElsfpId` to an API like we do for the OE. If a platform is using a pluggable laser source, then the `ElsfpId` can be omitted and an appropriate API will be dynamically selected by reading the vendor information from the module's EEPROM.
+
+```python3
+class ElsfpApiFactory(CpoApiFactory):
+    def _get_elsfp_lower_mem_offset(self) -> int:
+        offsets = {}
+        return offsets.get(self._device.hardware_id.oe_id, 0)
+
+    def _get_elsfp_info(self) -> ElsfpInfo:
+        eeprom_info = ModuleEepromLowerMemoryInfo(
+            self._device.read_eeprom,
+            offset=self._get_elsfp_lower_mem_offset()
+        )
+        return ElsfpInfo(
+            vendor_name=eeprom_info.get_vendor_name(),
+            vendor_part_number=eeprom_info.get_vendor_part_num(),
+        )
+
+    def create_api(self):
+        if self._device.hardware_id.elsfp_id is None:
+            # Read vendor name & part number from EEPROM
+            # and determine the correct memory map to use
+            # based on that information.
+            elsfp_info = self._get_elsfp_info()
+
+        if self._device.hardware_id.elsfp_id == ElsfpId.EXAMPLE:
+             self._create_api(...)
+
+        raise ValueError(
+            f"Could not determine what ELSFP API to use for CPO HW ID. "
+            f"OE ID: {self._device.hardware_id.oe_id}, ELSFP ID: {self._device.hardware_id.elsfp_id}"
+        )
+```
+
+##### 7.3.2 Chassis and CPO Object Creation
 
 Vendors can leverage data parsed from the `optical_devices.json` file to instantiate composite SFPs where appropriate. A shared utility function will be provided to easily parse the `optical_devices.json` file. For example, a vendor could implement logic like the below for a CPO hardware platform with optical engines and external laser sources.
 ```python
@@ -403,7 +328,7 @@ class VendorCpoChassis(ChassisBase):
         self._sfp_list.append(VendorCpoSfp(oe=oe, els=elsfp))
 ```
 
-##### 7.3.4 CPO Joint Mode
+##### 7.3.3 CPO Joint Mode
 There is a mode of operation for CPO hardware called "joint mode" where a single I2C device called an "MCU" handles all reads/writes, redirecting them to the optical engine EEPROM or the ELSFP EEPROM appropriately.
 
 <br>
@@ -523,7 +448,7 @@ class VendorCpoJointModeChassis(ChassisBase):
 
 The rest of the platform API design remains the same -- the same composite SFP abstraction is used by software for joint mode and separate mode.
 
-##### 7.3.5 File Structure
+##### 7.3.4 File Structure
 
 All of the above classes (memory maps, APIs and composite SFPs) will be available in the sonic-platform-common repository.
 
@@ -534,7 +459,7 @@ See the below diagram that explains how the various base platform classes can be
 
 ![](./cpo-file-structure.png)
 
-##### 7.3.6 Interaction with Custom CMIS Vendor Extensions
+##### 7.3.5 Interaction with Custom CMIS Vendor Extensions
 
 If a vendor requires the ability to register custom fields within a page or entirely new pages that are not described in any CMIS spec, then the approach described in the [CMIS Vendor Specific DOM Extension HLD](https://github.com/sonic-net/SONiC/pull/2291) should be followed.
 
@@ -752,7 +677,7 @@ Given the additional complexity of configuring the `optical_devices.json` file a
 
 A validation script will be implemented at `sonic-buildimage/src/sonic-device-data/tests/optical_devices_checker`, following the precedent of scripts already present in the `sonic-buildimage/src/sonic-device-data/tests/` directory.
 
-#### 13.1. Unit Test cases  
+#### 13.1 Unit Test cases  
 
 This validation script will verify:
 
@@ -778,7 +703,7 @@ This validation script will verify:
    - Consistency between port counts and device counts
    - Assigned lanes in each file are consistent across both files for each interface, and that interfaces don't have conflicting configuration for devices that are shared across multiple interfaces (overlapping lane assignment for instance)
 
-#### 13.2. System Test cases
+#### 13.2 System Test cases
 
 | Test Case |
 |------------------------------------------------|
