@@ -16,23 +16,23 @@ This document captures the new features added and enhancements done on existing 
 
 # Branch and Image Location  
 
-Branch : https://github.com/Azure/sonic-buildimage/tree/202511 <br> 
+Branch : https://github.com/Azure/sonic-buildimage/tree/202605 <br> 
 Image  : https://sonic-build.azurewebsites.net/ui/sonic/pipelines  (Example - Image for Broadcom based platforms is [here](https://sonic-build.azurewebsites.net/ui/sonic/pipelines/138/builds/51255/artifacts/98637?branchName=master&artifactName=sonic-buildimage.broadcom))
 
 # Dependency Version
 
 |Feature                    | Version  |
 | ------------------------- | --------------- |
-| Linux kernel version      | linux_6.12.41-1  |
-| SAI   version             | SAI v1.17.4    |
-| FRR                       | 10.3.0   |
+| Linux kernel version      | 6.12.41  |
+| SAI   version             | 1.7.3.0-1.RC1    |
+| FRR                       | 10.5.4   |
 | LLDPD                     | 1.0.16-1+deb12u1 |
 | TeamD                     | 1.31-1    |
-| SNMPD                     | 5.9.4+dfsg |
-| Python                    | 3.11.2-6    |
+| SNMPD                     | 5.9.3+dfsg |
+| Python                    | 3.13.5-2    |
 | syncd                     | 1.0.0    |
 | swss                      | 1.0.0    |
-| radvd                     | 2.19-1+b1 |
+| radvd                     | 2.20-1+b1 |
 | isc-dhcp                  | 4.4.3-P1  |
 | sonic-telemetry           | 1.1    |
 | redis-server/ redis-tools | 7.0.15-1~deb12u1   |
