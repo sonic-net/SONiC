@@ -367,11 +367,7 @@ Then the `ElsfpApiFactory` can be extended to create an API using this memory ma
 All of the above classes (memory maps, APIs and composite SFPs) will be available in the sonic-platform-common repository.
 
 - Base classes providing CMIS spec-compliant behaviour will be available for extension in the sonic-platform-common repository.
-- Vendor and product specific classes should also be made present in the sonic-platform-common repository, so that vendors can re-use classes for various CPO hardware products.
-
-See the below diagram that explains how the various base platform classes can be extended by vendors, and where that code should live.
-
-![](./cpo-file-structure.png)
+- Vendor and product specific classes should also be made present in the sonic-platform-common repository, so that vendors can re-use classes for various CPO hardware products and so that the factory pattern, where all OE and ELSFP API creation logic is centralized and made public in `OeApiFactory` and `ElsfpApiFactory`, can be maintained.
 
 ##### 7.3.5 Adding Support for Custom Vendor Registers
 
