@@ -33,7 +33,7 @@
 |-----|------------|------------------------------------------------|------------------|
 | 0.1 | 2026-04-10 | Venkit Kasiviswanathan                         | Initial version  |
 | 0.2 | 2026-05-12 | Venkit Kasiviswanathan                         | Replace the "stash `backup_idx[]` on the first primary" convention with an explicit, self-describing wire flag: `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` on the ZAPI side, mirrored by a parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` and a `dplane_route_info::backup_all_primaries_down` boolean (with accessor) on the zebra/dplane side. Updates §7.2, §8.1 JSON examples, §12, §13, §14 accordingly. |
-| 0.3 | 2026-06-04 | Venkit Kasiviswanathan                         | Sync §7.1 with the final upstream FRR PR ([FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814)): fix the per-path flag bit assignments (`BGP_PATH_BACKUP = 1 << 21`, `BGP_PATH_BACKUP_CHG = 1 << 22`); rework §7.1.4 so the backup-change check is folded into `bgp_zebra_has_route_changed()` (instead of a separate call-site `||`), document the same-best-path `BGP_PATH_BACKUP_CHG` clear in `bgp_process_main_one()` and the update-group UPDATE suppression; update the §9.2 flow diagram accordingly. |
+| 0.3 | 2026-06-04 | Venkit Kasiviswanathan                         | Sync §7.1 with the final upstream FRR PR ([FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814)): fix the per-path flag bit assignments (`BGP_PATH_BACKUP = 1 << 21`, `BGP_PATH_BACKUP_CHG = 1 << 22`); rework §7.1.4 so the backup-change check is folded into `bgp_zebra_has_route_changed()` (instead of a separate call-site `||`), document the same-best-path `BGP_PATH_BACKUP_CHG` clear in `bgp_process_main_one()` and the update-group UPDATE suppression; update the §9.2 flow diagram accordingly. Also clarify in §7.4.1 that the APP_DB nexthop ordering is contractual — primaries first, then backups, split at `primary_nh_count` (review feedback). |
 
 ---
 
@@ -682,6 +682,23 @@ Fields:
                                         N..end are backup)
                        e.g. "2"  (first 2 are primary, rest are backup)
 ```
+
+**Nexthop ordering is part of the contract.** The order of entries in the
+`nexthop` list is significant: **primaries always come first, immediately
+followed by backups**, with no interleaving. `primary_nh_count` is the index
+boundary between the two groups — entries `0 .. (primary_nh_count - 1)` are the
+primary set and entries `primary_nh_count .. end` are the backup set. The
+parallel arrays (`ifname`, `weight`, `mpls_nh`, and any per-nexthop attribute)
+are positionally aligned to `nexthop`, so the same boundary applies to all of
+them. A consumer therefore never needs a separate "is this a backup?" flag per
+nexthop — it splits the single ordered list at `primary_nh_count`.
+
+This ordering is established once, on the producer side: fpmsyncd appends the
+backup nexthops (parked in `m_pendingBackupNexthops`) onto the **end** of the
+primary lists it builds from libnl (see §7.4.3). It is never re-sorted
+downstream, so orchagent (and any other APP_DB reader) can rely on it. When a
+route has no backups, `primary_nh_count` equals the total nexthop count and the
+list is all-primary, exactly as today.
 
 #### 7.4.2 Example APP_DB Entries
 
