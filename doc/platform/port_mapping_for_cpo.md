@@ -203,6 +203,7 @@ This approach to modeling the topology of devices in CPO is flexible enough to a
 #### 7.3 Platform API Changes
 
 We will require some changes to the SONiC platform APIs in order to support multiple devices. Note: this section assumes the banking functionality outlined in [this HLD](https://github.com/sonic-net/SONiC/pull/2183/) is implemented.
+The initial code for the ideas proposed in this section has been implemented in [this PR](https://github.com/sonic-net/sonic-platform-common/pull/682).
 
 ##### 7.3.1 CPO API Classes
 
