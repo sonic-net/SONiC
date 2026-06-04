@@ -20,11 +20,10 @@
     - [7.3.2 Chassis and CPO Object Creation](#732-chassis-and-cpo-object-creation)
     - [7.3.3 CPO Joint Mode](#733-cpo-joint-mode)
     - [7.3.4 File Structure](#734-file-structure)
-    - [7.3.5 Interaction with Custom CMIS Vendor Extensions](#735-interaction-with-custom-cmis-vendor-extensions)
+    - [7.3.5 Adding Support for Custom Vendor Registers](#735-adding-support-for-custom-vendor-registers)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
-  - [9.1 sfputil Changes](#91-sfputil-changes)
-  - [9.2 Config DB Enhancements](#92-config-db-enhancements)
+  - [9.1 Config DB Enhancements](#91-config-db-enhancements)
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Memory Consumption](#11-memory-consumption)
 - [12. Restrictions/Limitations](#12-restrictionslimitations)
@@ -227,7 +226,7 @@ The OE object will have its own dedicated factory for instantiating the appropri
 The ELSFP and OE API factories are responsible for instantiation of the correct API and memory map for a given device. Since CPO hardware has notable differences between various vendors, multiple different APIs and memory maps for each hardware platform are likely going to be required.
 
 As a result, new API factories for both the OE and ELSFP have been introduced. They take a `CpoHardwareId` datatype containing information that identifies a given hardware platform. This `CpoHardwareId` will be passed in by vendor platform code when creating the `CpoBase` object for a given interface.
-```python3
+```python
 class OeId(Enum):
     ...
 
@@ -241,7 +240,7 @@ class CpoHardwareId:
 ```
 
 The OE API factory picks the appropriate API and memory map to use based on the `OeId` passed in. This will be a simple 1:1 mapping from `OeId` to API.
-```python3
+```python
 class OeApiFactory(CpoApiFactory):
     def create_api(self):
         if self._device.hardware_id.oe_id == OeId.EXAMPLE:
@@ -252,7 +251,7 @@ class OeApiFactory(CpoApiFactory):
 
 The ELSFP API factory is a little more complex. An `ElsfpId` can be passed in if a hardware platform is using an internal laser that is not pluggable, statically mapping the `ElsfpId` to an API like we do for the OE. If a platform is using a pluggable laser source, then the `ElsfpId` can be omitted and an appropriate API will be dynamically selected by reading the vendor information from the module's EEPROM.
 
-```python3
+```python
 class ElsfpApiFactory(CpoApiFactory):
     def _get_elsfp_lower_mem_offset(self) -> int:
         offsets = {}
@@ -286,7 +285,7 @@ class ElsfpApiFactory(CpoApiFactory):
 
 ##### 7.3.2 Chassis and CPO Object Creation
 
-Vendors can leverage data parsed from the `optical_devices.json` file to instantiate composite SFPs where appropriate. A shared utility function will be provided to easily parse the `optical_devices.json` file. For example, a vendor could implement logic like the below for a CPO hardware platform with optical engines and external laser sources.
+Vendors can leverage data parsed from the `optical_devices.json` file to instantiate CPO API objects where appropriate. A shared utility function will be provided to easily parse the `optical_devices.json` file. For example, a vendor could implement logic like the below for a CPO hardware platform with optical engines and external laser sources.
 ```python
 from sonic_py_common import device_info
 
@@ -311,21 +310,21 @@ class VendorCpoChassis(ChassisBase):
       for interface in optical_device_data.interfaces:
         assert len(interface.associated_devices) == 2, "We expect 2 devices per interface on this CPO hardware platform"
 
-        # Construct individual SFP objects for the optical engine and external laser source.
+        # Construct OE/ELSFP objects
         oe = None
         elsfp = None
         for dvc_info in interface.associated_devices:
           device = optical_device_data.devices[dvc_info.device_id]
           if device.device_type == "optical_engine":
-            oe = VendorSfp(..., bank=dvc_info.bank)
+            oe = VendorOe(hardware_id=self.hw_id, bank=dvc_info.bank)
           elif device.device_type == "external_laser_source":
-            elsfp = VendorSfp(..., bank=dvc_info.bank)
+            elsfp = VendorElsfp(hardware_id=self.hw_id, bank=dvc_info.bank)
 
-        # Create a composite SFP to represent this interface
+        # Create a CpoBase-derived object to represent this interface
         assert oe, "No optical engine found for this interface"
         assert elsfp, "No ELSFP found for this interface"
         # VendorCpoSfp would be a subclass of CpoSfpBase here.
-        self._sfp_list.append(VendorCpoSfp(oe=oe, els=elsfp))
+        self._sfp_list.append(VendorCpo(hardware_id=self.hw_id, oe=oe, els=elsfp))
 ```
 
 ##### 7.3.3 CPO Joint Mode
@@ -340,113 +339,27 @@ The only differences in the above platform API design required to support joint 
   - Both the optical engine Sfp and ELSFP Sfp objects' I2C sysfs EEPROM paths should be set to the same sysfs path (the MCU's I2C sysfs EEPROM path).
   - The ELSFP should be initialized with a memory map that is aware of the memory layout that the MCU exposes (in joint mode, the ELSFP EEPROM will likely be mapped into some part of the MCU's address space).
 
-So, in order to instantiate a composite SFP for a port of a hardware platform using CPO joint mode, the vendor defines a memory map that describes where the ELSFP memory has been remapped to using the approach outlined in [the companion HLD for ELSFP memory map layout here](https://github.com/sonic-net/SONiC/pull/2207). Each existing page class (both common CMIS pages and ELSFP-specific pages) accepts an optional `page` parameter that defaults to its spec-defined location, so vendors can remap a page simply by passing a different page number at construction time -- no page subclassing is required:
+So, in order to instantiate a CpoBase-derived object for a port of a hardware platform using CPO joint mode, the vendor defines a memory map that describes where the ELSFP memory has been remapped to using the approach outlined in [the companion HLD for ELSFP memory map layout here](https://github.com/sonic-net/SONiC/pull/2207). Each existing page class (both common CMIS pages and ELSFP-specific pages) accepts an optional `page` parameter that defaults to its spec-defined location, so vendors can remap a page simply by passing a different page number at construction time -- no page subclassing is required:
 
 ```python
-# The vendor only needs to override _init_pages() to construct the relevant page instances at their
-# remapped locations. The RegGroupField wiring is inherited from ElsfpMemMap.
-class CustomVendorElsfpMemMap(ElsfpMemMap):
-    def _init_pages(self, codes, bank):
-        # Remapped CMIS pages
-        self.administrative_lower_page = CmisAdministrativeLowerPage(codes, page=0xB0)
-        self.administrative_upper_page = CmisAdministrativeUpperPage(codes, page=0XB1)
-        self.advertising_page = CmisAdvertisingPage(codes, page=0xB2)
-        self.thresholds_page = CmisThresholdsPage(codes, page=0xB3)
-        self.cdb_message_page = CmisCdbMessagePage(codes, bank=bank, page=0xB6)
-
-        # Remapped ELSFP-specific pages
-        self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank, page=0xB4)
-        self.elsfp_setpoints_mon_page = ElsfpSetpointsMonitorsPage(codes, bank=bank, page=0xB5)
-```
-
-To make this possible, `ElsfpMemMap` will split its `__init__` into two hooks:
-
-```python
-class ElsfpMemMap(CmisFlatMemMap):
+class CustomVendorElsfpMemMap(CmisFlatMemMap):
     def __init__(self, codes, bank=0):
-        super().__init__(codes, bank=bank)
-        self._init_pages(codes, bank)
-        self._register_field_groups()
+        self._bank = bank
+        super(CmisFlatMemMap, self).__init__(codes)
+        self.pages = []
 
-    def _init_pages(self, codes, bank):
-        # Default page instances at their spec locations. Vendors override this
-        # method to swap in remapped page subclasses, keeping the same attribute
-        # names so the inherited _register_field_groups() still works.
-        self.elsfp_advert_flags_ctrl_page = ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank)
-        ...
-
-    def _register_field_groups(self):
-        # Vendors do not typically override this: the field-group wiring is the same
-        # regardless of where the pages live in memory. Changing the page
-        # number in _init_pages() is all that is needed to remap a page and
-        # all of its contents to a new location.
-        # This function would only be overriden if a vendor wants to avoid registering fields,
-        # or would like to register new fields, for a given page
-        self.ADVERTISING = RegGroupField(
-            consts.ADVERTISING_FIELD,
-            *get_field_from_pages(consts.ADVERTISING_FIELD, self.advertising_page)
+        # Remap ELSFP pages to B0 - B5 page range
+        self.add_pages(
+            CmisAdministrativeLowerPage(codes, page=0xB0),
+            CmisAdministrativeUpperPage(codes, page=0xB1),
+            CmisAdvertisingPage(codes, page=0xB2),
+            CmisThresholdsPage(codes, page=0xB3),
+            ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank, page=0xB4),
+            ElsfpSetpointsMonitorsPage(codes, bank=bank, page=0xB5),
         )
-        self.MODULE_CHAR_ADVT = RegGroupField(
-            consts.MODULE_CHAR_ADVT_FIELD,
-            *get_field_from_pages(consts.MODULE_CHAR_ADVT_FIELD, self.advertising_page)
-        )
-        ...
-        self.ELSFP_MODULE_ADVERTISEMENTS = RegGroupField(
-            elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD,
-            *get_field_from_pages(
-                elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD,
-                self.elsfp_advert_flags_ctrl_page
-            )
-        )
-        ...
 ```
 
-We could then initialize our composite SFP using this `CustomVendorElsfpMemMap`. The composite SFP overrides `refresh_xcvr_api()` to assign an `XcvrApiConfig` on each underlying Sfp object via `set_xcvr_api_config()`, and then constructs the unified `CpoApi` from the per-device `get_xcvr_api()` results. Because the config is a mutable attribute on the Sfp rather than something set at construction time, `refresh_xcvr_api()` can apply additional logic on each refresh -- for example, swapping in a different MemMap or API class based on which ELSFP is currently inserted.
-
-```python
-class VendorCpoJointModeSfp(CpoSfpBase):
-    def refresh_xcvr_api(self):
-        # Pick the appropriate code/MemMap/API combination for each underlying device.
-        # Additional logic can be applied here at refresh time -- e.g. selecting a different
-        # MemMap or API class based on what ELSFP module is currently inserted.
-        cmis_mcu_config = XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=VendorCmisMcuMemMap, api_cls=CmisApi)
-        elsfp_config = XcvrApiConfig(codes_cls=CmisCodes, mem_map_cls=CustomVendorElsfpMemMap, api_cls=ElsfpApi)
-
-        self._oe.set_xcvr_api_config(cmis_mcu_config)
-        self._els.set_xcvr_api_config(elsfp_config)
-
-        # Each underlying Sfp builds its XcvrApi from the most recently assigned config.
-        self._xcvr_api = CpoApi(
-            optical_engine_xcvr_api=self._oe.get_xcvr_api(),
-            external_laser_source_xcvr_api=self._els.get_xcvr_api(),
-        )
-
-
-class VendorCpoJointModeChassis(ChassisBase):
-  ...
-  def construct_sfp(self, bank):
-        # Construct individual SFP objects for the optical engine and external laser source.
-        # No XcvrApiConfig is passed at construction -- the composite SFP applies them in refresh_xcvr_api().
-        oe = VendorSfp(..., bank=bank)
-        elsfp = VendorSfp(..., bank=bank)
-
-        # Create a composite SFP to represent this interface
-        composite_sfp = VendorCpoJointModeSfp(oe=oe, els=elsfp)
-
-        # Now the same composite SFP abstraction can be used for joint mode. Even though all i2c access physically goes through the same device,
-        # software is presented with the same view as if the ELSFP and OE are separate devices. Both joint and separate mode use the same
-        # software abstraction
-        xcvr_info = composite_sfp.get_transceiver_info()
-        elsfp = composite_sfp.get_internal_device("ELS")
-        elsfp_control_mode = elsfp.get_control_mode()
-        elsfp_optical_power = elsfp.get_per_lane_opt_power_monitor()
-        oe = composite_sfp.get_internal_device("OE")
-        oe_voltage = oe.get_voltage()
-```
-
-*Note: `XcvrApiConfig` is a new mechanism introduced to allow clients to bypass the XcvrApiFactory and force a specific code, memory map and API combination to be used for an Sfp object. It is exposed as a mutable attribute on the Sfp via `set_xcvr_api_config()`, so the chosen config can be updated at any time and picked up on the next `get_xcvr_api()`/`refresh_xcvr_api()` call. See [this PR](https://github.com/nexthop-ai/sonic-platform-common/pull/3) for the implementation details.*
-
-The rest of the platform API design remains the same -- the same composite SFP abstraction is used by software for joint mode and separate mode.
+Then the `ElsfpApiFactory` can be extended to create an API using this memory map for the hardware ID associated with this memory map's hardware platform.
 
 ##### 7.3.4 File Structure
 
@@ -459,50 +372,49 @@ See the below diagram that explains how the various base platform classes can be
 
 ![](./cpo-file-structure.png)
 
-##### 7.3.5 Interaction with Custom CMIS Vendor Extensions
+##### 7.3.5 Adding Support for Custom Vendor Registers
 
-If a vendor requires the ability to register custom fields within a page or entirely new pages that are not described in any CMIS spec, then the approach described in the [CMIS Vendor Specific DOM Extension HLD](https://github.com/sonic-net/SONiC/pull/2291) should be followed.
+If a vendor requires the ability to register custom fields within a page or entirely new pages that are not described in any CMIS spec, then a new API and/or memory map subclass can be authored for that vendor's hardware.
 
-If that referenced HLD is accepted and implemented in community SONiC code, the following changes would be made:
-  - Both CpoApi and ElsfpApi would be changed to inherit from CmisExtendedApi
-  - ElsfpMemMap would be changed to inherit from CmisExtendedMemMap
+For instance, if a vendor wanted to expose some new ELSFP register in the memory map and make it accessible in the API, they could simply add the following code:
+```python
+# Memory Map
+class VendorElsfpCustomPage(CmisPage):
+    def __init__(self, codes, page=0xB6):
+        super().__init__(codes, page=page)
 
-Vendors could then define custom API methods and memory map fields for CPO hardware via the extension class mechanism described in that HLD.
+        self.fields["CUSTOM_FIELD"] = [
+            NumberRegField(
+                "CUSTOM_FIELD",
+                self.getaddr(142),
+                RegBitField("Custom", 0),
+                size=1,
+                format="B",
+            ),
+        ]
 
-### 8. SAI API 
+class CustomVendorElsfpMemMap(ElsfpMemMap):
+    def __init__(self, codes, bank=0):
+        super().__init__(codes, bank=bank)
+        self.add_pages(VendorElsfpCustomPage(codes))
+
+# API
+class CustomVendorElsfpApi(ElsfpApi):
+    def get_custom_field(self):
+        # Read/write new field defined in above memory map
+        pass
+```
+
+Again, the `ElsfpApiFactory` can then be extended to create this API and memory map for the relevant hardware ID so this API is instantiated for the vendor's hardware platform.
+
+### 8. SAI API
 
 There are no changes to SAI API in this HLD.
 
-### 9. Configuration and management 
-The introduction of a composite SFP abstraction will require changes to `sfputil`, because composite SFPs do not implement `read_eeprom()` and `write_eeprom()` methods and `sfputil` does not yet know how to reason about composite SFPs in general. `sfputil` will need to be modified to access the underlying SFPs inside a composite SFP directly.
+### 9. Configuration and management
+This HLD does not propose any changes to CLI commands, though there will be later HLDs that address how CLI commands must change to support CPO hardware.
 
-#### 9.1 sfputil Changes
-
-A new command will be added to `sfputil` to allow users to list all the names of the underlying Sfps in a composite Sfp.
-
-```
-$> sfputil show devices -p Ethernet4
-Device Name    Type                   Bank  Part Number  Vendor
------------    ---------------------  ----  -----------  ----------------
-OE1            Optical Engine         0     012345678    ExampleVendor
-ELS1           External Laser Source  0     123456789    ExampleVendorTwo
-```
-
-In addition, all existing commands to query/manipulate transceivers will be modified to accept a new optional parameter `-d <device>` to specify the name of the underlying Sfp to query/manipulate. This parameter is not required for non-composite Sfps, but if not specified for a composite Sfp an error will be returned asking the user to specify a device.
-
-```
-$> sfputil show eeprom-hexdump -p Ethernet4
-Error: Ethernet4 is a composite SFP. Please specify a device using the -d option.
-To see the devices Ethernet4 is using, run `sfputil show devices -p Ethernet4`.
-$> sfputil show eeprom-hexdump -p Ethernet4 -d OE1
-...expected output...
-```
-
-`sfputil` will be easily able to access the underlying Sfp objects in a composite Sfp via the `get_internal_devices()` and `get_internal_device()` methods provided by the `CompositeSfpBase` interface.
-
-`sfputil` will require changes across most, if not all, commands to support the composite SFP abstraction. A separate HLD in the future will cover those changes in greater detail.
-
-#### 9.2 Config DB Enhancements
+#### 9.1 Config DB Enhancements
 
 Schema changes will be required in CONFIG_DB to store the information encoded in optical_devices.json.
 
