@@ -33,6 +33,7 @@
 |-----|------------|------------------------------------------------|------------------|
 | 0.1 | 2026-04-10 | Venkit Kasiviswanathan                         | Initial version  |
 | 0.2 | 2026-05-12 | Venkit Kasiviswanathan                         | Replace the "stash `backup_idx[]` on the first primary" convention with an explicit, self-describing wire flag: `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` on the ZAPI side, mirrored by a parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` and a `dplane_route_info::backup_all_primaries_down` boolean (with accessor) on the zebra/dplane side. Updates §7.2, §8.1 JSON examples, §12, §13, §14 accordingly. |
+| 0.3 | 2026-06-04 | Venkit Kasiviswanathan                         | Sync §7.1 with the final upstream FRR PR ([FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814)): fix the per-path flag bit assignments (`BGP_PATH_BACKUP = 1 << 21`, `BGP_PATH_BACKUP_CHG = 1 << 22`); rework §7.1.4 so the backup-change check is folded into `bgp_zebra_has_route_changed()` (instead of a separate call-site `||`), document the same-best-path `BGP_PATH_BACKUP_CHG` clear in `bgp_process_main_one()` and the update-group UPDATE suppression; update the §9.2 flow diagram accordingly. |
 
 ---
 
@@ -226,11 +227,11 @@ uint16_t af_flags[AFI_MAX][SAFI_MAX];
 #define BGP_CONFIG_BACKUP_PATH_FLUSH    (1 << 14)   // flush backup paths (transient)
 ```
 
-And two new per-path flags (`BGP_PATH_BACKUP`, `BGP_PATH_BACKUP_CHG`) are added to `bgp_path_info`:
+And two new per-path flags (`BGP_PATH_BACKUP`, `BGP_PATH_BACKUP_CHG`) are added to `bgp_path_info` (`bgpd/bgp_route.h`):
 
 ```c
-#define BGP_PATH_BACKUP       (1 << N)   // path is selected as backup
-#define BGP_PATH_BACKUP_CHG   (1 << M)   // backup selection has changed (notify Zebra)
+#define BGP_PATH_BACKUP       (1 << 21)  // path is selected as backup
+#define BGP_PATH_BACKUP_CHG   (1 << 22)  // backup selection has changed (notify Zebra)
 ```
 
 #### 7.1.2 Backup Path Selection Algorithm
@@ -305,18 +306,22 @@ void bgp_best_selection(...) {
 
 #### 7.1.4 Triggering Zebra Updates
 
-In `bgp_process_main_one()`, the condition to send an update to Zebra is extended to include backup path changes:
+When the primary best path is unchanged but the backup set is, the route still needs re-announcing to Zebra so the FIB picks up the new backup pool. Rather than adding a separate `|| CHECK_FLAG(...)` test at each call site, the backup-change check is folded directly into `bgp_zebra_has_route_changed()` so all of its existing callers see backup-set changes uniformly:
 
 ```c
-// Before this change:
-if (bgp_zebra_has_route_changed(old_select)) { ... }
-
-// After this change:
-if (bgp_zebra_has_route_changed(old_select) ||
-    CHECK_FLAG(old_select->flags, BGP_PATH_BACKUP_CHG)) { ... }
+/* bgpd/bgp_route.c — bgp_zebra_has_route_changed() */
+if (CHECK_FLAG(selected->flags, BGP_PATH_IGP_CHANGED) ||
+    CHECK_FLAG(selected->flags, BGP_PATH_MULTIPATH_CHG) ||
+    CHECK_FLAG(selected->flags, BGP_PATH_LINK_BW_CHG) ||
+    CHECK_FLAG(selected->flags, BGP_PATH_BACKUP_CHG))
+    return true;
 ```
 
-This ensures Zebra (and ultimately fpmsyncd) is notified whenever the backup path set changes, even if the primary route is unchanged. After the update is sent, `BGP_PATH_BACKUP_CHG` is cleared.
+This ensures Zebra (and ultimately fpmsyncd) is notified whenever the backup path set changes, even if the primary route is otherwise unchanged.
+
+The same-best-path branch in `bgp_process_main_one()` clears `BGP_PATH_BACKUP_CHG` alongside `BGP_PATH_MULTIPATH_CHG` and `BGP_PATH_LINK_BW_CHG` after the FIB update, so a subsequent process cycle does not re-fire on stale state.
+
+A spurious peer announce from this path is harmless: the BGP route attributes do not change for a backup-only update, so the per-peer "is this an actual change?" filter in the update-group code (`bgpd/bgp_updgrp_adv.c`) suppresses the wire-side UPDATE.
 
 #### 7.1.5 Flush Behavior on Disable
 
@@ -1121,7 +1126,7 @@ bgp_best_selection()
        │  Set BGP_PATH_BACKUP_CHG on new_best if set changed
        ▼
 bgp_process_main_one()
-   │  Check bgp_zebra_has_route_changed() OR BGP_PATH_BACKUP_CHG
+   │  Check bgp_zebra_has_route_changed()  (now also returns true on BGP_PATH_BACKUP_CHG)
    ▼
 bgp_zebra_announce()
    │  Build zapi_route:
