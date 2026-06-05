@@ -10,10 +10,10 @@
 - [High-Level Design](#high-level-design)
   - [CONFIG_DB schema for BGP Unnumbered](#config_db-schema-for-bgp-unnumbered)
   - [Rendered FRR config](#rendered-frr-config)
+  - [Implementation Approaches](#implementation-approaches)
+    - [Approach 1 — Template dispatcher with `numbered/` and `unnumbered/` subdirs](#approach-1--template-dispatcher-with-numbered-and-unnumbered-subdirs)
+    - [Approach 2 — Inlined templates](#approach-2--inlined-templates)
   - [VNET / non-default VRF support (orchagent)](#vnet--non-default-vrf-support-orchagent)
-- [Implementation Approaches](#implementation-approaches)
-  - [Approach 1 — Template dispatcher with `numbered/` and `unnumbered/` subdirs](#approach-1--template-dispatcher-with-numbered-and-unnumbered-subdirs)
-  - [Approach 2 — Inlined templates](#approach-2--inlined-templates)
   - [CONFIG_DB schema for Multi ASN Support](#config_db-schema-for-multi-asn-support)
   - [bgpcfgd support for Multi ASN support](#bgpcfgd-support-for-multi-asn-support)
 - [Configuration and Management](#configuration-and-management)
@@ -144,7 +144,7 @@ BGP_NEIGHBOR|PortChannel102
     name = ARISTA02T1
 ```
 
-#### Rendered FRR config
+### Rendered FRR config
 
 For an unnumbered neighbor:
 
@@ -171,26 +171,11 @@ route-map TO_BGP_PEER_UNNUMBERED   permit 100
 ```
 
 *Key callouts in the above config:*
--The session-level peer-group is `PEER_UNNUMBERED` instead of a v4 specific peer group and another v6 specific peer group as it is defined for the numbered BGP sessions. This is because FRR allows exactly one session-level peer-group binding per neighbor, regardless of which AF block it appears in
-- ```neighbor <intf> activate``` in the v4 and v6 block is driven by the `af` data member in `BGP_NEIGHBOR` table
-- ```neighbor PEER_UNNUMBERED capability extended-nexthop```: If you are peering over a v6 Global Address then turning on this command will allow BGP to install v4 routes with v6 nexthops if you do not have v4 configured on interfaces.
+- The session-level peer-group is `PEER_UNNUMBERED` instead of a v4 specific peer group and another v6 specific peer group as it is defined for the numbered BGP sessions. This is because FRR allows exactly one session-level peer-group binding per neighbor, regardless of which AF block it appears in
+- `neighbor <intf> activate` in the v4 and v6 block is driven by the `af` data member in `BGP_NEIGHBOR` table
+- `neighbor PEER_UNNUMBERED capability extended-nexthop`: If you are peering over a v6 Global Address then turning on this command will allow BGP to install v4 routes with v6 nexthops if you do not have v4 configured on interfaces.
 
-### VNET / non-default VRF support (orchagent)
-
-Unnumbered BGP inside a VNET requires two orchagent changes, both in `orchagent/vnetorch.cpp`. These mirror the already-merged `vrforch.cpp` change in PR #3973 (which only covered bare VRFs created via `VRFOrch`).
-
-#### 1. LLv6 IP2Me route in every VNET VR
-
-`RouteOrch`'s constructor installs `fe80::/10` IP2Me only in the **default** virtual router. Without an equivalent install in VNET VRs, BGP TCP/179 and NDP packets sourced/destined to an LLv6 address inside a VNET are silently dropped at the chip.
-
-#### 2. RFC 5549 duplicate-IP ECMP in `doRouteTask<VNetVrfObject>`
-
-For unnumbered ECMP, FRR/Zebra installs every path via the same well-known LLv6 placeholder (e.g. `169.254.0.1`) — only the egress interface differs across paths. Today's `doRouteTask<VNetVrfObject>` builds the next-hop-group string from `nh.ips.getIpAddresses()`, which is a `set<IpAddress>` that **de-duplicates** equal IPs. Result: every ECMP member beyond the first is silently dropped, and the route is programmed as a single next-hop instead of an NHG.
-
-Fix: Preserve the original IP addresses in a vector/string instead of a set.
-
-
-## Implementation Approaches
+### Implementation Approaches
 
 Two implementations were prototyped end-to-end . Both produce identically rendered FRR config. They differ only in code organisation.
 
@@ -243,6 +228,27 @@ dockers/docker-fpm-frr/frr/bgpd/templates/general/
 
 
 **Recommendation:** **Approach 2 (inlined).** For now choose Approach 2, and then take up an effort to split the templates logically across v4, v6, unnumbered or other possible metadata differences for different neighbor types
+
+### VNET / non-default VRF support (orchagent)
+
+Unnumbered BGP inside a VNET requires two orchagent changes, both in `orchagent/vnetorch.cpp`. These mirror the already-merged `vrforch.cpp` change in PR #3973 (which only covered bare VRFs created via `VRFOrch`).
+
+#### 1. LLv6 IP2Me route in every VNET VR
+
+`RouteOrch`'s constructor installs `fe80::/10` IP2Me only in the **default** virtual router. Without an equivalent install in VNET VRs, BGP TCP/179 and NDP packets sourced/destined to an LLv6 address inside a VNET are silently dropped at the chip.
+
+#### 2. RFC 5549 duplicate-IP ECMP in `doRouteTask<VNetVrfObject>`
+
+For unnumbered ECMP, FRR/Zebra installs every path via the same well-known LLv6 placeholder (e.g. `169.254.0.1`) — only the egress interface differs across paths. Today's `doRouteTask<VNetVrfObject>` builds the next-hop-group string from `nh.ips.getIpAddresses()`, which is a `set<IpAddress>` that **de-duplicates** equal IPs. Result: every ECMP member beyond the first is silently dropped, and the route is programmed as a single next-hop instead of an NHG.
+
+Fix: Preserve the original IP addresses in a vector/string instead of a set. This matches most closely the way the configuration is stored in APP_DB:
+```
+"VNET_ROUTE_TABLE:Vnet5099:10.99.0.0/24"
+ 1) "ifname"
+ 2) "Ethernet20,Ethernet16"
+ 3) "nexthop"
+ 4) "169.254.0.1,169.254.0.1" 
+ ```
 
 ### CONFIG_DB schema for Multi ASN Support
 #### VNET schema:
