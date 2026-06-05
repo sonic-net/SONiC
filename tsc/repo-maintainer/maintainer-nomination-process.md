@@ -17,6 +17,10 @@ Maintainership is earned through sustained, high-quality contribution to the **s
 
 These map to the contribution categories used by the **SONiC Influence Index (SII)** in [TSC_Election.md](../TSC_Election.md). The SII categories are offered here as *guidance* for what "merit" looks like — there is no fixed SII score required to become a repo maintainer.
 
+## Responsibilities & Expectations
+- Code review - ensuring PRs align with components architecture and don't introduce breaking changes
+- Actively Triaging bugs
+
 ## How to Nominate
 
 A nominee may be put forward by **themselves, an existing maintainer of the repo, or a TSC member** (the roster records entries such as "Nominated by …").
@@ -31,8 +35,8 @@ A nominee may be put forward by **themselves, an existing maintainer of the repo
 
 ## Review & Approval
 
-1. The repo's existing maintainers and the TSC review the PR against the eligibility guidance above.
-2. Must be approved by all existing repo maintainers and majority of TSC members
+1. Approval required by at least one existing maintainer approval and one TSC voting member.
+2. There will be a two week window beginning upon opening of the PR, if there are no objections then the maintainership shall be approved.
 3. Approved entries are recorded in [SONiC_Repo_Maintainer.md](./SONiC_Repo_Maintainer.md).
 
 ## Onboarding
