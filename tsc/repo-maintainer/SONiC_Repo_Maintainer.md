@@ -18,14 +18,13 @@
 |  | Ying Xie (Microsoft) | yxieca | enabled |
 | sonic-linux-kernel | Saikrishna Arcot (Microsoft) | saiarcot895 | enabled |
 | sonic-mgmt-common | Kim, Kwan (DELL) | kwangsuk | enabled |
-|  | Shashank Neelam (Google) | sneelam20 | Replace Tomek on 3/5/2024 |
-|  | Anand Subramanian (BRCM) | anand-kumar-subramanian | approved on 5/3/2023 and enabled |
+|  | Shashank Neelam (Google) | sneelam20 | enabled |
+|  | Anand Subramanian (BRCM) | anand-kumar-subramanian | enabled |
 | sonic-mgmt-framework | Joseph, Joyas (DELL) | joyas-joseph | enabled |
 |  | Shashank Neelam | sneelam20 | Replace Tomek on 3/5/2024 |
 |  | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
 | sonic-pins | Bhagatram Janarthanan (Google) | bhagatgit | enabled |
-|  | Shitanshu Shah (Intel) | svshah-intel | removed on 11/14/2023 |
-|  | Brian O'Connor (Intel) | bocon13 | invitation sent |
+|  | Brian O'Connor (Google) | bocon13 | invitation sent |
 |  | Ravi Vantipalli (Intel) | ravi861 | enabled |
 |  | Kishan (Google) | kishanps | enabled |
 | sonic-platform-common | Prince George (Microsoft) | prgeor | enabled |
@@ -42,7 +41,7 @@
 |  | Andriy Kokhan (Intel) | akokhan | enabled |
 |  | Volodymyr Boiko (Intel) | vboykox | enabled |
 |  | Kishore Gummadidala(Google) | erohsik | invitation sent |
-|  | Vishnu Shetty | vishnushetty | Approved on 5/3/2023 and enabled |
+|  | Vishnu Shetty | vishnushetty | enabled |
 | sonic-snmpagent | Suvarna Meenakshi (Microsoft) | SuvarnaMeenakshi | enabled |
 | sonic-swss | Guohan Lu (Microsoft) | lguohan | added |
 |  | Prince Sunny (Microsoft) | prsunny | added |
@@ -78,14 +77,13 @@
 |  | Sasthri Kristipati (BRCM) | ramakristipati | Approved on 5/3/2023 and enabled |
 | sonic-fips | Xuhui Miao (Microsoft) | xumia | enabled |
 | sonic-genl-packet | Don Newton (Intel) | donNewtonIntel | enabled |
-| sonic-platform-vpp | Abdel Baig; Yue Gao (yuega2) | yue-fred-gao / abdbaig | enabled on 8/12/2024 per Cisco ask |
+| sonic-platform-vpp | Abdel Baig; Yue Gao (yuega2) | yue-fred-gaoabdbaig | enabled |
 |  | Bendrapu Balareddy (Cisco) | bendrapubalareddy | invitation sent |
 |  | Venkatesan Mahalingam (Dell) | venkatmahalingam | enabled |
 | sonic-dash-api | Ze Gan (Microsoft) | Pterosaur | enabled |
-| SONiC |  |  | enabled |
 | sonic-dash-ha | Riff Jiang (Microsoft) | r12f |  |
 | sonic-bmp | Feng Pan (Microsoft) | FengPan-Frank |  |
-|  | Qi Luo(Microsoft) | qiluo-msft | repo creation was approved by TSC on 3/28/2024 |
+|  | Qi Luo(Microsoft) | qiluo-msft | enabled |
 | sonic-host-services | Qi Luo(Microsoft) | qiluo-msft |  |
-| sonic-formal-infra | Mengqi Liu (Alibaba) | mengqiliu20 | repo creation was approved by TSC on 5/15/2026 |
-|  | Ali Kheradmand (Google) | kheradmandG |  |
+| sonic-formal-infra | Mengqi Liu (Alibaba) | mengqiliu20 | enabled |
+|  | Ali Kheradmand (Google) | kheradmandG |enabled  |
