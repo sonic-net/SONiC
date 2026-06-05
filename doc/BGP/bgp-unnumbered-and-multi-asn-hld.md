@@ -46,7 +46,6 @@ In scope:
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Unnumbered BGP    | A BGP session that runs over an IPv6 link-local address discovered via Router Advertisements, with no globally routable IP on either end. |
 | RFC 5549 / 8950   | "Advertising IPv4 NLRI with an IPv6 Next Hop." Announced as the `extended-next-hop` BGP capability.                                       |
-| FRR `v6only`      | FRR keyword on `neighbor X interface v6only` meaning the peer is unnumbered.                                                              |
 | LLv6              | IPv6 link-local address (`fe80::/10`).                                                                                                    |
 | `BGP_NEIGHBOR`    | Existing CONFIG_DB table; today keyed on IPv4/IPv6 address only.                                                                          |
 | `bgpcfgd`         | SONiC daemon that reflects CONFIG_DB state into FRR config via Jinja templates.                                                           |
@@ -58,17 +57,17 @@ In scope:
 Today, SONiC bgpcfgd configures BGP exclusively through IP-keyed entries in `CONFIG_DB.BGP_NEIGHBOR`. There is no way to express:
 
 ```text
-neighbor PortChannel101 interface v6only remote-as 64001
+neighbor PortChannel101 interface remote-as 64001
 ```
 
 While FRR supports this and most modern DC fabrics rely on it, operators currently have to use either manual vtysh or `frrcfgd` to configure this, this HLD describes support for `bgpcfgd`, and additional support in orachagent/sonic-swss to enable LLv6 networking, specifically:
 
-1. Extend `BGP_NEIGHBOR` so the key can be an **interface name** (`PortChannel*`, `Ethernet*`, `<vrf>|<intf>`). No new table; numbered-row schema unchanged.
-2. Extend the FRR Jinja templates in `dockers/docker-fpm-frr/frr/bgpd/templates/general/` so an interface-keyed row renders the unnumbered FRR construct, while IP-keyed rows render the existing config byte-for-byte unchanged.
-3. Add a `PEER_UNNUMBERED` peer-group at the FRR side, carrying the AF-agnostic policy infrastructure.
-4. Extend orchagent (`vnetorch.cpp`, parallel to the merged `vrforch.cpp` change in PR #3973) so that LLv6 traffic destined to the device in a VNET is trapped to CPU
-5. Extend orchagent(`vnetorch.cpp`) so that RFC 5549 duplicate-IP ECMP routes are programmed correctly in ASIC_DB
-6. The rendered FRR session MUST come up over IPv6 link-local with `extended-next-hop` negotiated, so both IPv4 and IPv6 NLRI can be exchanged on the single session by default, if the user chooses to opt out of IPv4 prefixes announcements, then a `v6only: true` should be provided in the `BGP_NEIGHBOR` table
+1. Extend `BGP_NEIGHBOR` so the key can be an **interface name** (`<vrf>|<intf>`, `PortChannel*`, `Ethernet*`, `Po.<subtintf>*`). No new table; numbered-row schema unchanged.
+2. Extend the FRR Jinja templates in `dockers/docker-fpm-frr/frr/bgpd/templates/general/` so an interface-keyed row renders the unnumbered FRR BGP config, while IP-keyed rows render the existing config
+3. Add a `PEER_UNNUMBERED` peer-group at the FRR side, carrying multi Address Family config
+4. Extend orchagent (`vnetorch.cpp`, parallel to the merged `vrforch.cpp` change in PR #3973) so that LLv6 traffic destined to the device in a VNET is trapped to CPU and addionally extend it so that RFC 5549 duplicate-IP ECMP routes are programmed correctly in ASIC_DB
+5. The rendered BGP session will come up over IPv4 if an IPv4 /30 or /31 IP is configured on the interface. If an IPv4 address is not configured, it will discover the peer's IPv6 link local address using Router Advertisements received from the peer. Upon discovering the v6 link local address of the peer it will establish the session over v6 link local(https://docs.frrouting.org/en/latest/bgp.html#clicmd-neighbor-PEER-interface-v6only-peer-group-NAME). 
+6. For these sessions we configure the BGP attribute `extended-next-hop`, so both IPv4 and IPv6 NLRI can be exchanged on the single session, and we enable both v4 and v6 address families by default, an optional new field `af: v4/v6/both` is introduced, such that if just v4 neighbor/bgp activation is desired then af should be specified as v4, just v6 then v6, and both if v4 and v6 both are desired over this session, with the default being both for BGP unnumbered. This is an attribute in the `BGP_NEIGHBOR` table
 7. Unnumbered BGP MUST work for neighbors that live in the **default** VRF **and** in a **non-default VRF / VNET**. This implies:
    - **LLv6 IP2Me** routes (`fe80::/10` catch-all) MUST be installed in every non-default VR at create time so that BGP TCP/179 and NDP packets in that VRF are trapped to CPU instead of silently dropped.
    - **RFC 5549 ECMP** routes (multiple egress interfaces sharing the same well-known link-local nexthop placeholder, e.g. `169.254.0.1`) MUST be programmed as multi-member next-hop groups in `ASIC_DB`, not collapsed to a single next-hop.
@@ -127,13 +126,13 @@ BGP_NEIGHBOR|{{VRF/VNET-name}}|{{Peer-name}}:
             "name": {{Peer name}},
             "nhopself": {{nhopself}}, (Optional)
             "rrclient": {{rrclient}}, (Optional)
-            "v6only": {{true/false}} (Optional and only applicable to BGP unnumbered, if absent defaulted to false) >>> New
+            "af": {{v4/v6/both}} (Optional and only applicable to BGP unnumbered for now, if absent defaulted to both) >>> New
 ```
 Additions:
 - Peer-name: will be accepted as a Interface, PortChannel, Vlan and Ethernet/Portchannel subinterface
-- "v6only": Newly added optional field which is only applicable to BGP unnumbered, if set to true NO IPv4 announcements will occur over the LLv6 BGP unnumbered session, if absent, defaulted to false
+- "af": Newly added optional field which is only applicable to BGP unnumbered, if set to v4, only the v4 advertisements will be activated, if set to v6, only the v6 advertisements will be activated, and if set to both OR absent this data member both v4 and v6 are activated  
 
-Example configuration displaying the use of a Link Local Ipv6 interface with BGp Unnumbered(existing schema included for completeness):
+Example configuration displaying the use of a Link Local Ipv6 interface with BGP Unnumbered(existing schema included for completeness):
 ```
 PORTCHANNEL_INTERFACE|PortChannel102
     ipv6_use_link_local_only = enable
@@ -153,6 +152,7 @@ For an unnumbered neighbor:
 router bgp 65100
   neighbor PEER_UNNUMBERED peer-group
   neighbor PortChannel102 interface peer-group PEER_UNNUMBERED
+  neighbor PEER_UNNUMBERED capability extended-nexthop
   neighbor PortChannel102 remote-as 64600
   neighbor PortChannel102 description ARISTA02T1
   address-family ipv4 unicast
@@ -170,7 +170,10 @@ route-map FROM_BGP_PEER_UNNUMBERED permit 100
 route-map TO_BGP_PEER_UNNUMBERED   permit 100
 ```
 
-The session-level peer-group is `PEER_UNNUMBERED` (FRR allows exactly one session-level peer-group binding per neighbor, regardless of which AF block it appears in). RFC 5549 capability negotiation happens automatically.
+*Key callouts in the above config:*
+-The session-level peer-group is `PEER_UNNUMBERED` instead of a v4 specific peer group and another v6 specific peer group as it is defined for the numbered BGP sessions. This is because FRR allows exactly one session-level peer-group binding per neighbor, regardless of which AF block it appears in
+- ```neighbor <intf> activate``` in the v4 and v6 block is driven by the `af` data member in `BGP_NEIGHBOR` table
+- ```neighbor PEER_UNNUMBERED capability extended-nexthop```: If you are peering over a v6 Global Address then turning on this command will allow BGP to install v4 routes with v6 nexthops if you do not have v4 configured on interfaces.
 
 ### VNET / non-default VRF support (orchagent)
 
@@ -280,7 +283,7 @@ cmd = (
 #### Yang
 Yang models will be enhanced to support:
 - Interfaces as Peer name in BGP_NEIGHBOR
-- v6only field in BGP_NEIGHBOR
+- af field in BGP_NEIGHBOR
 - VNET table asn field to modify the VRF BGP instance's ASN
 
 #### CLI
