@@ -274,6 +274,7 @@ class ElsfpApiFactory(CpoApiFactory):
             # and determine the correct memory map to use
             # based on that information.
             elsfp_info = self._get_elsfp_info()
+            # Create appropriate API based on elsfp_info
 
         if self._device.hardware_id.elsfp_id == ElsfpId.EXAMPLE:
              self._create_api(...)
