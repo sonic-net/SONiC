@@ -120,15 +120,15 @@ sequenceDiagram
   Q-->>P: FIFO batch available
   P->>P: Correlate signature and create candidate FaultRecord
   P->>M: MonitorControlCommand HOLD
-  P->>A: Run local actions; trigger Healthz artifacts if configured
-  A-->>P: Action result; artifact may continue async
+  P->>A: Run local actions and trigger Healthz artifacts if configured
+  A-->>P: Action result with artifact continuing async
   P->>P: Wait configured wait_period
   P->>M: MonitorControlCommand RECHECK_ONCE
   M->>Q: Enqueue post-action recheck result
   Q-->>P: Recheck evidence available
   P->>P: Determine ACTIVE or recovered INACTIVE status
   P->>T: Publish FAULT_INFO and DLDD_STATUS
-  T-->>C: Publish telemetry via Redis/UMF/gNMI; expose Healthz artifacts via gNOI
+  T-->>C: Publish telemetry via Redis/UMF/gNMI and expose Healthz artifacts via gNOI
   P->>M: MonitorControlCommand target_state
   M->>M: Apply command to state_by_key
 ```
