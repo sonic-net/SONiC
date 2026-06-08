@@ -102,7 +102,8 @@ Defines a logical structure for liquid cooling devices, with keys for various se
 key                       = LIQUID_COOLING_DEVICE|leakage_sensors{X}
  ; field                  = value
 name                      = STR     ; sensor name
-leaking                   = STR     ; Yes or No to indicate leakage status
+leaking                   = STR     ; 1 or 0 to indicate leakage status
+leak_status               = STR     ; Covert leaking 1/0 to yes/no, default as N/A to prevent sensor not readable
 ```
 
 ## 6. system health monitor
