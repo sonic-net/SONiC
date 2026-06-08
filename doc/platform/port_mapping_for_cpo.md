@@ -300,7 +300,7 @@ class ChassisBase:
     self._sfp_list = []
     optical_device_data = device_info.get_optical_devices_data()
     if optical_device_data:
-      self.construct_sfp_list(optical_device_data)
+      self.construct_sfp_list_for_topology(optical_device_data)
 
   def construct_sfp_list_for_topology(self, optical_device_data):
     """Subclasses should implement this method to create sfp objects based on topology data in optical_devices.json"""
@@ -603,7 +603,7 @@ This validation script will verify:
 
 3. **Semantic Validation**
    - All device IDs referenced in `interfaces` section exist in `devices` section
-   - Bank numbers are valid for CMIS devices (0-3)
+   - Bank numbers are valid for CMIS devices (0..max_banks-1)
    - No duplicate device IDs
    - Interface names are valid (match expected patterns)
    - Device-to-interface associations are consistent
@@ -618,3 +618,7 @@ This validation script will verify:
 | Test Case |
 |------------------------------------------------|
 | Load proposed configuration onto a real device with co-packaged optics. Ensure that links come up successfully. |
+
+ ### 14. Open/Action items - if any
+
+ None.
