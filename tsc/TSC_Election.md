@@ -96,4 +96,4 @@ The actual voting process will be conducted by Linux Foundation using OpaVote sy
 
 The top 9 candidates with the highest total SII will be elected as TSC members.
 
-The current TSC chair is Guohan Lu [gulv@microsoft.com] and the Program Manger is Tracey Li [tli@linuxfoundation.org]. Please reach out to Evan Harrison [eharrison@linuxfoundation.org] or [support@sonicfoundation.dev] for TSC related questions. They will be responsible for organizing the election process in a transparent manner.  
+The current TSC chair is Guohan Lu (gulv@microsoft.com) and the Program Manger is Tracey Li (tli@linuxfoundation.org). Please reach out to Evan Harrison (eharrison@linuxfoundation.org) or (support@sonicfoundation.dev) for TSC related questions. They will be responsible for organizing the election process in a transparent manner.  
