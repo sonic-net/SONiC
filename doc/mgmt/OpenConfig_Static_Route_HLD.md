@@ -44,7 +44,7 @@
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 | 12/02/2025  | GitHub Copilot | Initial version                              |
+| 0.1 | 12/02/2025  | Raja Kushwah | Initial version                              |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration of Static Routes in SONiC.
