@@ -123,7 +123,7 @@ The first delivery stage is proposed as an Alpha-stage SONiC feature. It should 
 - The implementation shall periodically probe the preferred server while failed over and return traffic to it when it recovers.
 - The implementation shall support a single connection model where one daemon-owned upstream connection can carry multiple TACACS+ sessions.
 - The implementation shall support a dedicated connection mode for deployments that require one upstream connection per request.
-- The implementation shall expose a local Unix domain socket IPC interface for host consumers to issue TACACS+ requests without each consumer owning upstream TLS and failover behavior.
+- The implementation shall expose a local Unix domain socket IPC interface for host consumers to issue TACACS+ authentication, authorization, and accounting requests without each consumer owning upstream TLS and failover behavior.
 - The implementation shall read existing SONiC TACACS+ configuration from CONFIG_DB.
 
 ### 5.2 Security Requirements
@@ -318,14 +318,28 @@ Local clients communicate with the central TACACS+ client agent through gRPC ove
 
 The IPC schema shall be defined with protobuf so clients can be written in the language most natural for each SONiC component. gRPC is used only as a host-local IPC mechanism in this design; the upstream TACACS+ server protocol remains TACACS+ over TCP or TACACS+ over TLS on TCP.
 
-The first IPC service exposes unary request/response methods for TACACS+ accounting and authorization operations. Each request carries the local user/session context and operation-specific fields, such as command accounting arguments or authorization arg-value pairs. The agent selects an upstream server, opens or reuses the upstream TACACS+ connection, applies failover, and returns either the TACACS+ server response or a structured service error with retry guidance.
+The first IPC service exposes unary request/response methods for TACACS+ authentication, accounting, and authorization operations. Each request carries the local user/session context and operation-specific fields, such as password material for login authentication, command accounting arguments, or authorization arg-value pairs. The agent selects an upstream server, opens or reuses the upstream TACACS+ connection, applies failover, and returns either the TACACS+ server response or a structured service error with retry guidance.
+
+The first-phase IPC scope is limited as follows:
+
+- Authentication is a password-based unary request. The agent uses the configured SONiC TACACS+ authentication type, such as PAP or ASCII, and does not expose an arbitrary interactive challenge loop to local clients in the first phase. CHAP, MS-CHAP, password-change flows, and TACACS+ FOLLOW handling are out of scope.
+- Accounting is a unary request for command accounting. The local client supplies the user/session context, command, and command arguments, and the agent returns the upstream accounting result or a structured service error.
+- Authorization is a unary request for command or service authorization. The local client supplies the user/session context, privilege level, and arg-value pairs, and the agent returns the upstream authorization result, including any returned arg-value pairs, or a structured service error.
 
 The first IPC contract has the following shape:
 
 ```text
 service TacacsAgent
+  Authenticate(AuthenticationRequest) -> AuthenticationReply
   Accounting(AccountingRequest)       -> AccountingReply
   Authorization(AuthorizationRequest) -> AuthorizationReply
+
+AuthenticationRequest
+  user, port, remote_address, password, authen_service, privilege_level
+
+AuthenticationReply
+  result = AuthenticationResponse { server, status, server_message, data }
+         | ServiceError { message, server, retriable }
 
 AccountingRequest
   user, port, remote_address, command, command_arguments[]
