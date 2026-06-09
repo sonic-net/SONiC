@@ -524,7 +524,7 @@ do_patch_uninstall()   # Executes patch uninstallation, returns (status, output)
 - **Syslog logging:** All operations logged via `syslog` (LOG_INFO for progress, LOG_ERR for failures)
 - **Console output:** Interactive sessions receive console output alongside syslog
 - **Background progress prompts:** For long-running operations (configurable interval, default 30 seconds), a background thread prints progress indicators
-- **Patch status check:** `check_patch_inactive()` reports packages that require reboot to become active
+- **Patch status:** `sonic-installer patch-status` provides a unified view of patch runtime information, including operation history, live patch state, and packages pending reboot activation. Use `--section` to filter specific categories (e.g., `operation`, `live`)
 
 ### 8. SAI API
 
@@ -558,11 +558,14 @@ sonic-installer patch-list
 # Show patch details by name
 sonic-installer patch-list --name <patch_name>
 
-# Display patch operation history
-sonic-installer patch-display-operation
+# Display patch status (operation history, live patch info, etc.)
+sonic-installer patch-status
 
-# Display live (func_hotpatch) patch information
-sonic-installer patch-display-live
+# Display only operation history section
+sonic-installer patch-status --section operation
+
+# Display only live (func_hotpatch) patch information
+sonic-installer patch-status --section live
 ```
 
 The `patch-install` subcommand dynamically imports `install.py` from the extracted patch archive and invokes the mandatory plugin interface functions.
