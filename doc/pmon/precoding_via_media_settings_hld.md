@@ -6,8 +6,10 @@
   - [Table of Content](#table-of-content)
     - [1. Revision](#1-revision)
     - [2. Scope](#2-scope)
+      - [2.1 Out-of-Scope](#21-out-of-scope)
     - [3. Definitions](#3-definitions)
     - [4. Background](#4-background)
+      - [4.1 Why manual precoding is needed](#41-why-manual-precoding-is-needed)
     - [5. Requirements](#5-requirements)
     - [6. Architecture Design](#6-architecture-design)
     - [7. High-Level Design](#7-high-level-design)
@@ -38,6 +40,10 @@ In scope:
 2. Extending orchagent (PortsOrch) to map the new fields to `SAI_PORT_SERDES_ATTR_{TX,RX}_PRECODING`.
 3. Extending APP_DB database scheme with new `tx_precoding` / `rx_precoding` fields.
 
+#### 2.1 Out-of-Scope
+
+This HLD is NOT covering transceiver module precoding.
+
 ---
 
 ### 3. Definitions
@@ -53,11 +59,14 @@ In scope:
 
 ### 4. Background
 
-APSU stands for Autonomous Path Start-Up. It is part of IEEE 802.3dj and is used during link bring-up to coordinate link training and precoding across the link. 
+APSU stands for Autonomous Path Start-Up. It is part of IEEE 802.3dj and is used during link bring-up to coordinate link training and precoding across the link.
 
-When APSU is enabled, the link can negotiate the required behavior automatically; when it is disabled, software or firmware must configure precoding manually. 
+When APSU is enabled, the link can negotiate the required behavior automatically; when it is disabled, software or firmware must configure precoding manually.
 
-APSU is a capability defined in IEEE 802.3dj and is still being adopted across both ASICs and modules. Until APSU is supported end to end across the full link path, the system may need to rely on explicit manual precoding configuration instead of autonomous negotiation. 
+#### 4.1 Why manual precoding is needed
+
+APSU is a capability defined in IEEE 802.3dj and is still being adopted across both ASICs and modules.
+Until APSU is supported end to end across the full link path, the system may need to rely on explicit manual precoding configuration instead of autonomous negotiation.
 
 ---
 
