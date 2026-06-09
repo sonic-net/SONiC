@@ -6,13 +6,11 @@ SONiC on-demand show command execution via gNMI
 - [Problems to solve](#problems-to-solve)
 - [What we bring in](#what-we-bring-in)
 - [Use case](#use-case)
-- [gNMI client](#gnmi-client)
+- [CLI on gNMI client](#cli-on-gnmi-client)
 - [New design (HLD)](#new-design-hld)
-- [Details](#details)
-- [STATS update](#stats-update)
-- [Examples](#examples)
-- [Requirements](#requirements)
+- [Stop the Bleeding](#stop-the-bleeding-enforcing-gnmi-first-for-show-commands)
 - [Test](#test)
+- [Rollout plan](#rollout-plan)
 - [Future plan](#future-plan)
 
 # Goals
@@ -53,7 +51,7 @@ With this design, automation/agents can fetch equivalent output through gNMI API
 
 For `show reboot-cause`:
 
-## Current CLI output
+### Current CLI output
 $ show reboot-cause history
 
 | Name                | Cause  | Time                              | User  | Comment |
@@ -61,7 +59,7 @@ $ show reboot-cause history
 | 2026_03_06_23_22_55 | reboot | Fri Mar 6 11:20:41 PM UTC 2026    | admin | N/A     |
 | 2026_03_06_23_12_54 | reboot | Fri Mar 6 11:10:42 PM UTC 2026    | admin | N/A     |
 
-## gNMI output
+### gNMI output
 ```json
 {
   "reboot_cause": {
@@ -87,20 +85,20 @@ $ show reboot-cause history
 }
 ```
 
-# CLI OR gNMI client
-CLI OR any gNMI Client can be used to query the metadata OR diagnostic data from SONiC Device.
+# CLI on gNMI client
+CLI with thin gNMI Client can be used to query the metadata OR diagnostic data from SONiC Device.
 
 On device, Telemetry container runs the gNMI server using server certificate and trusted CA roots. A client certificate can be:
 - Issued by a CA already present in SONiC trusted root, or
 - Issued by a new CA that is explicitly added to SONiC trusted root.
 
-Once certificates are configured, the CLI or gNMI client communicates with the gNMI server in Telemetry container.
+Once certificates are configured, the CLI(with gNMI client) communicates with the gNMI server in Telemetry container.
 
 ## CLI Command to gNMI Path Conversion
 The gNMI path structure cab be directly drived from the existing SONiC CLI commands to preserve consistency and simplify adoption. Instead of introducing a new schema, a deterministic transformation model can be used to convert CLI commands into hierarchical gNMI paths.
 The mapping is 1:1 with CLI behavior to ensure predictable conversion, easy debugging, and CLI to gNMI parity.
 
-Key Design Points
+**Key Design Points**
 - CLI as source of truth: The existing show CLI structure cab be used as-is to define the gNMI path hierarchy.
 - Hierarchical mapping: Each CLI token (command/sub-command) maps to a corresponding segment in the gNMI path.
 ```
@@ -110,73 +108,15 @@ show <cmd1> <cmd2> <cmd3> → <cmd1>/<cmd2>/<cmd3>
 Options with value → [key=value]
 Boolean flags → [key=True]
 
+**SONiC CLI to gNMI Path Conversion Utility**
+* A CLI utility tool has been developed to translate legacy `show` commands into their corresponding gNMI paths using long-form options. 
+* Options accepting values must use an explicit `=` separator (e.g., `--interface=Ethernet0`), which the utility maps directly into gNMI path keys (e.g., `[interface=Ethernet0]`). 
+* Valueless long-form options are treated as booleans and explicitly mapped as true (e.g., `--verbose` becomes `[verbose=True]`).
 
-## Example get command
-```bash
-cli -client_types=gnmi \
-  -a <DEVICE-IP>:<PORT> \
-  -ca <path_to_CA_crt> \
-  -client_crt <path_to_client_crt> \
-  -client_key <path_to_client_key> \
-  -t OTHERS -logtostderr \
-  -qt p -pi 10s -q show/interface/status/Ethernet0
+    **Example:** `show interfaces counters --period=5 detailed --verbose` translates to `interfaces/counters[period=5]/detailed[verbose=True]`
 
-cli -client_types=gnmi \
-  -a <DEVICE-IP>:<PORT> \
-  -ca <path_to_CA_crt> \
-  -client_crt <path_to_client_crt> \
-  -client_key <path_to_client_key> \
-  -t OTHERS -logtostderr \
-  -qt p -pi 10s -q show/interface[interface=Ethernet0]/status
-```
-
-# New design (HLD)
-**TODO:** Replace with final HLD diagram image/link.
-
-![HLD](HLD-Image.jpg)
-
-# Details
-Show commands retrieve data from multiple backends:
-- Redis
-- System files
-- Shell commands
-- vtysh
-- Hardware sysfs
-- Streaming/system command sources
-
-A Go-based library is implemented to collect data from these sources and is linked with gNMI server in Telemetry container.
-
-Query path analysis resulted in two virtual path types for gNMI Get APIs.
-
-## 1. Non-parameterized query
-No parameter is required.
-
-```bash
-./gnmi_cli -client_types=gnmi \
-  -a <DEVICE-IP>:<PORT> \
-  -ca <path_to_CA_crt> \
-  -client_crt <path_to_client_crt> \
-  -client_key <path_to_client_key> \
-  -t OTHERS -logtostderr \
-  -qt p -pi 10s -q show/reboot_cause/history
-```
-
-## 2. Parameterized query
-A parameter is required.
-
-```bash
-./gnmi_cli -client_types=gnmi \
-  -a <DEVICE-IP>:<PORT> \
-  -ca <path_to_CA_crt> \
-  -client_crt <path_to_client_crt> \
-  -client_key <path_to_client_key> \
-  -t OTHERS -logtostderr \
-  -qt p -pi 10s -q show/interface[interface=Ethernet0]/status
-```
-
-
-# Examples with output
-## Example 1: reboot cause history
+### Examples with output
+### Example 1: reboot cause history [Without parameter command]
 ```bash
 ./gnmi_cli -client_types=gnmi \
   -a <DEVICE-IP>:<PORT> \
@@ -212,7 +152,7 @@ A parameter is required.
 }
 ```
 
-## Example 2: interface status
+### Example 2: interface status [With parameter command]
 ```bash
 ./gnmi_cli -client_types=gnmi \
   -a <DEVICE-IP>:<PORT> \
@@ -234,6 +174,25 @@ A parameter is required.
   }
 }
 ```
+
+# New design (HLD)
+**TODO:** Replace with final HLD diagram image/link.
+
+![HLD](HLD-Image.jpg)
+
+# Details
+Show commands retrieve data from multiple backends:
+- Redis
+- System files
+- Shell commands
+- vtysh
+- Hardware sysfs
+- Streaming/system command sources
+
+A Go-based library is implemented to collect data from these sources and is linked with gNMI server in Telemetry container.
+
+Query path analysis resulted in two virtual path types for gNMI Get APIs. As captured in CLI section with example of parameter based query and without parameter.
+
 
 # Stop the Bleeding: Enforcing gNMI-first for Show Commands
 
@@ -287,7 +246,7 @@ The CLI acts as a thin client layer over gNMI.
 1. CLI parses user input  
    show interfaces counters --period=5  
 
-2. Convert CLI → gNMI path  
+2. Convert CLI → gNMI path. For this we will provide the utility. 
    interfaces/counters[period=5]  
 
 3. Connect to local gNMI server on device  
@@ -298,7 +257,8 @@ The CLI acts as a thin client layer over gNMI.
 5. Receive JSON response  
 
 6. Convert JSON → human-readable CLI output  
-   - Use existing Python tabular formatting utilities  
+   - Use existing Python tabular formatting utilities 
+   - For this also we will provide utility but this will require enchancements for new commands. 
 
 ## Migration of Existing CLI Commands
 
@@ -312,6 +272,9 @@ The CLI acts as a thin client layer over gNMI.
 - This migration is expected to be phased over ~1 year:
   - No disruption to existing workflows  
   - Incremental validation and rollout  
+
+- Tracking the CLI command migration:
+  - We will be using a document to track the commands migration and ETA.
 
 ## Responsibilities Split
 
@@ -336,13 +299,18 @@ The CLI acts as a thin client layer over gNMI.
   2. Functional tests
     - Run representative commands (`show reboot-cause`, `show interface status`) and compare against expected output.
     - Validate certificate-based client authentication and authorization behavior.
-  3. Scale and throttling tests
-    - Validate 32 parallel command execution target per device.
-    - Validate 100 concurrent client connection target.
-    - Validate throttling counters and rejection behavior under overload.
-  4. Resiliency tests
-    - Validate behavior during telemetry container restart.
-    - Validate timeout handling for slow backend data sources.
+  3. CLI test
+    - Existing CLI tests will be utilized to validate the functionality and correctness of the output.
+    - With the formatter in place, the gNMI API JSON payload combined with the formatter output must satisfy these existing test cases.
+
+# Rollout plan
+We can roll out in 2 ways:
+  (1) Full Cut Rollout
+      - Once commands are developed and tested, we switch the execution path for all to get data using gNMI APIs.
+  (2) Compare and Move
+      - Show commands are categorized into 3 phases. Dev completion and rollout happen in these same phases.
+      - Fallback Option: For existing commands, a fallback flag allows switching from the gNMI path back to the python/existing CLI path.
+      - Flag Behavior: Set to false by default to execute the gNMI API path. This flag support will be removed later.
 
 # Future plan
 1. We will have versioning in gNMI Response which is default concept for gNMI to track response changes.
