@@ -15,6 +15,7 @@
   - [7.4. Collapsing the tam\_report object](#74-collapsing-the-tam_report-object)
   - [7.5. State machine](#75-state-machine)
   - [7.6. Config-ready notification and templates](#76-config-ready-notification-and-templates)
+    - [7.6.1. CounterSyncd label resolution in MIXED](#761-countersyncd-label-resolution-in-mixed)
   - [7.7. STATE\_DB](#77-state_db)
   - [7.8. Work flow](#78-work-flow)
 - [8. SAI API](#8-sai-api)
@@ -38,7 +39,7 @@
 
 ## 2. Scope
 
-This document extends the existing [High frequency telemetry high level design](high-frequency-telemetry-hld.md) to add support for the `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` mode of `sai_tam_tel_type`. It covers only orchagent-internal changes. The CONFIG_DB schema, YANG model, CLI, STATE_DB schema, IPFIX wire format, CounterSyncd, and OpenTelemetry exporter are unchanged.
+This document extends the existing [High frequency telemetry high level design](high-frequency-telemetry-hld.md) to add support for the `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` mode of `sai_tam_tel_type`. It covers only orchagent-internal changes plus one contained internal extension to CounterSyncd's label-resolution path (§7.6.1). The CONFIG_DB schema, YANG model, CLI, STATE_DB schema, IPFIX wire format, the CounterSyncd public interface, and the OpenTelemetry exporter are unchanged.
 
 ## 3. Definitions/Abbreviations
 
@@ -69,12 +70,12 @@ Requirements specific to MIXED_TYPE support, in addition to those listed in the 
 Non-requirements:
 
 - No CONFIG_DB, YANG, CLI, or STATE_DB schema changes.
-- No CounterSyncd changes.
+- No CounterSyncd schema or public-interface changes. One internal extension to the label-resolution path is required so that the per-group sessions sharing a template_id in MIXED resolve correctly (see §7.6.1).
 - No runtime mode switching - the chosen mode is fixed for the lifetime of the orchagent process.
 
 ## 6. Architecture Design
 
-The architecture diagram from the [base HLD §6](high-frequency-telemetry-hld.md#6-architecture-design) is unchanged. The change is internal to `Orchagent → High frequency telemetry Orch`; the SAI/syncd boundary, CounterSyncd, OpenTelemetry container, and Redis databases are unaffected.
+The architecture diagram from the [base HLD §6](high-frequency-telemetry-hld.md#6-architecture-design) is unchanged. The bulk of the change is internal to `Orchagent → High frequency telemetry Orch`; the SAI/syncd boundary, the CounterSyncd public interface, the OpenTelemetry container, and the Redis databases are unaffected. CounterSyncd's internal label-resolution path is extended to handle the MIXED-mode case where multiple per-group sessions share a template_id (§7.6.1).
 
 ## 7. High-Level Design
 
@@ -145,7 +146,19 @@ The `SAI_TAM_TEL_TYPE_ATTR_STATE` state machine (`STOP_STREAM` ↔ `CREATE_CONFI
 
 `HFTelProfile::getObjectType(tam_tel_type_obj)` returns the singleton in MIXED mode. `updateTemplates(tam_tel_type_obj)` queries `SAI_TAM_TEL_TYPE_ATTR_IPFIX_TEMPLATES` and stores the resulting buffer under the singleton key. `getTemplates(object_type)` returns that same buffer for every `object_type` requested by `HFTelOrch` when populating per-group STATE_DB session entries.
 
-This means the combined IPFIX template returned by the single tel_type is **replicated** into each `HIGH_FREQUENCY_TELEMETRY_SESSION|profile|group_name` entry. CounterSyncd's existing template-set parser handles both single-template and multi-template-set buffers, so no CounterSyncd change is needed.
+This means the combined IPFIX template returned by the single tel_type is **replicated** into each `HIGH_FREQUENCY_TELEMETRY_SESSION|profile|group_name` entry. CounterSyncd's existing template-set parser handles both single-template and multi-template-set buffers, so no parser change is needed. The replication does require an extension to CounterSyncd's label-resolution path, since multiple per-group sessions now share a template_id; see §7.6.1.
+
+### 7.6.1. CounterSyncd label resolution in MIXED
+
+CounterSyncd resolves IPFIX data-record fields to SAI counter identities by looking up each field's IPFIX element ID (the per-object label assigned by `HFTelProfile`) against the `object_names` list of the STATE_DB session that owns the template. In SINGLE mode each `sai_tam_tel_type` carries its own template_id, so there is exactly one session per template_id and the lookup is unambiguous.
+
+In MIXED mode the orchagent replicates the combined IPFIX template into every per-group `HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE` entry (§7.6), so all per-group sessions of a profile share a template_id. A resolution that consults only one session per template_id would correctly resolve labels owned by that session, but labels owned by sibling sessions (for example a PORT label seen when the QUEUE session won CounterSyncd's internal `template_id → session` race) would fall back to `unknown_<label>`.
+
+CounterSyncd handles this with a per-session `session_template_ids` set that records every template_id a session registered. At per-record lookup time it unions the `object_id_name_map` entries of all sessions sharing the record's template_id and resolves the label against that union.
+
+The aggregation is unambiguous because in MIXED mode the orchagent allocates labels from a per-profile monotonic counter (`HFTelProfile::m_next_label`, see §12), so two sessions within the same profile never share a label. In SINGLE mode each template_id has exactly one registering session, the aggregation collapses to that session's lookup, and behavior is identical to the pre-MIXED resolution path.
+
+The CounterSyncd public interface — `HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE` schema, IPFIX wire format, OpenTelemetry export — is unchanged. The extension is internal to CounterSyncd's IPFIX data-record processing path.
 
 ### 7.7. STATE_DB
 
@@ -329,7 +342,7 @@ Limitations introduced by this design:
 - The TAM tel_type mode is chosen at orchagent init from SAI capability and cannot be changed at runtime.
 - In MIXED mode all three `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` flags supported by SONiC HFT (PORT, MMU, OUTPUT_QUEUE) are enabled on the single tel_type even if a given profile only references a subset of object types. The streamed counters remain constrained by `sai_tam_counter_subscription` objects.
 - If the vendor SAI advertises neither `SINGLE_TYPE` nor `MIXED_TYPE` for `SAI_TAM_TEL_TYPE_ATTR_MODE`, HFT is disabled at orchagent init and a notice is logged.
-- In MIXED mode the per-profile IPFIX label allocator (`HFTelProfile::m_next_label`) is monotonic and never reuses values. Because the label field is 16-bit (`sai_uint16_t`), at most 65 535 distinct objects may be subscribed to a single profile over its lifetime; profiles approaching this limit must be deleted and recreated to reset the counter. The limit is per profile and per orchagent lifetime, so warm-restart or orchagent restart implicitly resets it.
+- In MIXED mode the per-profile IPFIX label allocator (`HFTelProfile::m_next_label`) is monotonic and never reuses values. Because the label field is 16-bit (`sai_uint16_t`), at most 65 535 distinct objects may be subscribed to a single profile over its lifetime; profiles approaching this limit must be deleted and recreated to reset the counter. The limit is per profile and per orchagent lifetime, so warm-restart or orchagent restart implicitly resets it. This monotonic allocation is what guarantees label uniqueness across all per-group sessions of a profile, on which CounterSyncd's label-resolution path in §7.6.1 depends.
 
 Vendor-specific limitations inherited from the underlying SAI implementation. These are not introduced by this design but are surfaced by it on platforms that only support MIXED_TYPE:
 
