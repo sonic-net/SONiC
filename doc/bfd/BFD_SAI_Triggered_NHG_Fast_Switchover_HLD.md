@@ -37,7 +37,7 @@
   * [8 Fast Switchover Flow Examples](#8-fast-switchover-flow-examples)
     * [8.1 Basic ECMP Member Removal](#81-basic-ecmp-member-removal)
     * [8.2 Primary to Standby Switchover](#82-primary-to-standby-switchover)
-    * [8.3 Recovery and Revertive Switchover](#83-recovery-and-revertive-switchover)
+    * [8.3 Recovery via Control Plane](#83-recovery-via-control-plane)
   * [9 Configuration and Management](#9-configuration-and-management)
     * [9.1 SR-TE Policy Configuration](#91-sr-te-policy-configuration)
     * [9.2 Show Commands](#92-show-commands)
@@ -54,7 +54,7 @@
 
 # About this Manual
 
-This document describes the design of **SAI-level BFD-coupled Next Hop Group (NHG) fast switchover**, a convergence acceleration mechanism that enables ASIC hardware to autonomously remove or add ECMP group members based on BFD session state changes — without any control plane involvement in the data-plane switchover path.
+This document describes the design of **SAI-level BFD-coupled Next Hop Group (NHG) fast switchover**, a convergence acceleration mechanism that enables ASIC hardware to autonomously remove ECMP group members when BFD sessions go DOWN — without any control plane involvement in the data-plane switchover path. BFD UP recovery is driven by the control plane to respect routing protocol stability policies.
 
 This feature extends the existing BFD hardware offload infrastructure ([BFD HW Offload HLD](https://github.com/sonic-net/SONiC/blob/master/doc/bfd/BFD%20HW%20Offload%20HLD.md)) and is designed to work with both classic BFD and Seamless BFD (SBFD) sessions.
 
@@ -138,7 +138,7 @@ The key insight is that the ASIC already knows the BFD session state (it runs th
 |------|---------------------------------------------------------------------------------------------------------------|
 | FR-1 | Define a new SAI attribute `SAI_NEXT_HOP_ATTR_BFD_DISCRIMINATOR` to associate a next hop with a BFD session via the BFD local discriminator |
 | FR-2 | When a BFD session transitions to DOWN, the ASIC must autonomously remove the associated NHG members from ECMP forwarding without control plane involvement |
-| FR-3 | When a BFD session transitions to UP, the ASIC must autonomously restore the associated NHG members to ECMP forwarding |
+| FR-3 | When a BFD session transitions to UP, the control plane (pathd → zebra → fpmsyncd → NhgOrch) drives NHG member restoration; the ASIC does not autonomously restore members |
 | FR-4 | Support primary/standby role-based NHG member switchover using make-before-break semantics |
 | FR-5 | The control plane must carry the BFD discriminator from pathd through fpmsyncd → NhgOrch → Srv6Orch → SAI |
 | FR-6 | The control plane must carry the NHG member role (primary/standby) from pathd through fpmsyncd → NhgOrch → SAI |
@@ -174,7 +174,6 @@ The key insight is that the ASIC already knows the BFD session state (it runs th
                             │  ┌─────────────────────────────────────┐    │
                             │  │  Hardware Fast Switchover Logic     │    │
                             │  │  - Remove member on BFD DOWN       │    │
-                            │  │  - Add member on BFD UP            │    │
                             │  │  - Primary/Standby make-before-    │    │
                             │  │    break switchover                │    │
                             │  └─────────────────────────────────────┘    │
@@ -344,15 +343,18 @@ switch_to(target_role):
 
 ### 4.3.4 BFD UP — Restore Forwarding
 
-When a monitored BFD session transitions to UP, the ASIC must execute:
+When a BFD session transitions to UP, the ASIC does **not** autonomously restore the associated NHG members. Restoration is driven entirely by the control plane:
 
 ```
-For each NHG containing a member whose next-hop references this BFD session:
-    If member.configured_role == PRIMARY AND the NHG is currently using STANDBY:
-        Execute switch_to(PRIMARY)   // make-before-break back to primary
-    Else if member.configured_role == PRIMARY AND the NHG is currently using PRIMARY:
-        Re-add the member to ECMP forwarding (rejoin the active primary set)
+BFD session UP
+  → SAI notification → BfdOrch → STATE_DB
+  → bfdsyncd → bfdd → pathd (re-evaluates candidate paths)
+  → zebra (route update with restored next hops)
+  → fpmsyncd → APPL_DB
+  → NhgOrch re-adds the NHG members via SAI
 ```
+
+This design deliberately leaves BFD UP recovery to the control plane so that routing protocol stability policies (e.g., route flap damping, hold-off timers) are respected. The ASIC does not re-add members on BFD UP to avoid blackholing traffic on a flapping link.
 
 ### 4.3.5 No Association
 
@@ -384,14 +386,17 @@ Event 2: BFD-200 DOWN
   → ECMP forwarding: {NH-C}
 
 Event 3: BFD-100 UP
-  → NH-A is PRIMARY, currently using STANDBY → switch_to(PRIMARY)
-    Step 1 (Make): Add NH-A (BFD-100=UP → allowed)
-    Step 2 (Break): Remove NH-C (STANDBY)
+  → ASIC does NOT auto-restore (no BFD UP handler in SAI SDK)
+  → Control plane path: pathd re-evaluates → zebra → fpmsyncd → NhgOrch
+  → NhgOrch re-adds NH-A as PRIMARY member via SAI
+  → SAI SDK add_member() detects PRIMARY added while using_standby
+    → Triggers switch_to(PRIMARY) with make-before-break
   → NHG = { NH-A(active), NH-B(inactive), NH-C(inactive) }
   → ECMP forwarding: {NH-A}
 
 Event 4: BFD-200 UP
-  → NH-B is PRIMARY, currently using PRIMARY → re-add directly
+  → Control plane path: pathd → zebra → fpmsyncd → NhgOrch
+  → NhgOrch re-adds NH-B as PRIMARY member via SAI
   → NHG = { NH-A(active), NH-B(active), NH-C(inactive) }
   → ECMP forwarding: {NH-A, NH-B}   // Restored to initial state
 ```
@@ -867,27 +872,35 @@ sequenceDiagram
     Note over NHG: ECMP: {NH-C}<br/>Traffic protected via standby path
 ```
 
-## 8.3 Recovery and Revertive Switchover
+## 8.3 Recovery via Control Plane
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant ASIC as ASIC BFD Engine
+    participant SAI as SAI SDK
+    participant NhgOrch as NhgOrch
+    participant CP as pathd / zebra / fpmsyncd
     participant NHG as ECMP Group (Hardware)
 
     Note over ASIC,NHG: NHG = {NH-A(PRI,inactive), NH-B(PRI,inactive), NH-C(STBY,active)}<br/>ECMP: {NH-C}, using_standby=true
 
     ASIC->>ASIC: BFD-100 UP (NH-A recovers)
-    ASIC->>ASIC: NH-A is PRIMARY, using STANDBY → switch_to(PRIMARY)
-    ASIC->>ASIC: Step 1 (Make): Add NH-A (BFD-100=UP)
-    ASIC->>NHG: Add NH-A to ECMP
-    ASIC->>ASIC: Step 2 (Break): Remove NH-C (STANDBY)
-    ASIC->>NHG: Remove NH-C
+    Note over ASIC: No BFD UP handler in SAI SDK<br/>ASIC does NOT auto-restore
+
+    ASIC->>CP: BFD state change notification
+    CP->>CP: pathd re-evaluates candidate paths
+    CP->>NhgOrch: Route update with NH-A restored
+    NhgOrch->>SAI: add_member(NH-A, role=PRIMARY)
+    SAI->>SAI: PRIMARY added while using_standby<br/>→ switch_to(PRIMARY)
+    SAI->>NHG: Make: Add NH-A, Break: Remove NH-C
     Note over NHG: ECMP: {NH-A}
 
     ASIC->>ASIC: BFD-200 UP (NH-B recovers)
-    ASIC->>ASIC: NH-B is PRIMARY, using PRIMARY → re-add
-    ASIC->>NHG: Add NH-B to ECMP
+    ASIC->>CP: BFD state change notification
+    CP->>NhgOrch: Route update with NH-B restored
+    NhgOrch->>SAI: add_member(NH-B, role=PRIMARY)
+    SAI->>NHG: Add NH-B to ECMP
     Note over NHG: ECMP: {NH-A, NH-B}<br/>Fully restored
 ```
 
@@ -976,8 +989,8 @@ During warm restart:
 | TC-6 | Bring BFD session DOWN; verify corresponding NHG member is removed from ECMP within 10ms |
 | TC-7 | Bring all PRIMARY BFD sessions DOWN; verify automatic switchover to STANDBY members |
 | TC-8 | Verify make-before-break: during switchover, standby is added before primary is removed (no traffic loss) |
-| TC-9 | Bring BFD session UP after DOWN; verify NHG member is restored to ECMP |
-| TC-10 | Bring PRIMARY BFD session UP while using STANDBY; verify revertive switchover back to PRIMARY |
+| TC-9 | Bring BFD session UP after DOWN; verify ASIC does NOT auto-restore; verify control plane (pathd → NhgOrch) restores the NHG member |
+| TC-10 | Bring PRIMARY BFD session UP while using STANDBY; verify control plane triggers revertive switchover via SAI add_member with switch_to(PRIMARY) |
 
 ## 12.3 Software Backup Path
 
