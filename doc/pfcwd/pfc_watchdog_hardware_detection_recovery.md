@@ -18,7 +18,7 @@
       - [Current Architecture](#current-architecture)
       - [Proposed Architecture](#proposed-architecture)
       - [Implementation Details](#implementation-details)
-      - [SKU-Based Override Mechanism](#sku-based-override-mechanism)
+      - [PfcWdHwOrch vs PfcWdSwOrch Selection](#pfcwdhworch-vs-pfcwdsworch-selection)
   - [5. CLI Changes](#5-cli-changes)
     - [5.1 Configuration Validation](#51-configuration-validation)
     - [5.2 New CLI command](#52-new-cli-command)
@@ -46,6 +46,7 @@
 |-----|------------|---------------|--------------------|
 | 0.1 | 12/13/2025 | Pinky Agrawal | Initial version    |
 | 0.2 | 02/05/2026 | Pinky Agrawal | Addressed review comments: Added configuration validation using SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL_RANGE, clarified counter polling mechanism, updated show pfcwd status for software mode, added telemetry test cases |
+| 0.3 | 06/09/2026 | Pinky Agrawal | HW-vs-SW recovery path is now determined solely by the SAI capability query; removed the SKU-based determination and the operator override for path selection (addresses review feedback from @eddyk-nvidia, @kperumalbfn, @yunang-c) |
 
 ## Scope
 
@@ -85,7 +86,7 @@ The hardware-based PFC watchdog recovery feature shall provide:
 1. **Hardware Detection**: Automatic PFC deadlock detection in hardware without software polling
 2. **Hardware Recovery**: Automatic recovery actions (drop/forward) performed by hardware
 3. **Backward Compatibility**: Existing software-based PFC watchdog functionality remains unchanged
-4. **Runtime Selection**: Automatic selection between hardware and software implementations based on platform capabilities
+4. **Runtime Selection**: Automatic selection between hardware and software implementations based solely on the SAI capability query
 5. **Enhanced CLI**: New `show pfcwd status` command to display recovery type, programming status, actual hardware timer values
 6. **Error Handling**: Proper validation and error reporting for programming based on SAI errors
 
@@ -245,84 +246,9 @@ Orch (base class)
 
 `PfcWdHwOrch` is the new class that will handle hardware recovery mechanisms. There will be no handlers defined in hardware-based recovery unlike software recovery which defines drop and forward handlers. To update the counters periodically, `PfcWdHwOrch` will use the same counter polling mechanism as software-based recovery. The counter querying remains the same as the software-based approach, using SAI queue statistics APIs (`SAI_QUEUE_STAT_PACKETS`, `SAI_QUEUE_STAT_DROPPED_PACKETS`, etc.) to read hardware counters and update COUNTERS_DB.
 
-#### SKU-Based Override Mechanism
+#### PfcWdHwOrch vs PfcWdSwOrch Selection
 
-In some cases, certain SKUs may need to use software-based PFCWD even when hardware capability is available. This can be due to:
-- Hardware recovery in development mode
-- Hardware limitations or bugs specific to certain SKU models
-- Platform-specific requirements
-- Testing or validation purposes
-
-For such cases, the orchagent can maintain a list of such SKUs and skip creating `PfcWdHwOrch` for those SKUs as given in the code below.
-
-Runtime selection in `orchdaemon.cpp`:
-
-```c
-// Check hardware capability
-bool pfcHwRecoverySupported = gSwitchOrch->checkPfcHwRecoverySupport();
-
-// Check if SKU is in the override list to force software-based PFCWD
-std::vector<std::string> swPfcwdSkuList = getSwPfcwdSkuOverrideList();
-std::string currentSku = gSwitchOrch->querySwitchSku();
-bool skuForcesSwPfcwd = std::find(swPfcwdSkuList.begin(), swPfcwdSkuList.end(), currentSku) != swPfcwdSkuList.end();
-
-// Check hardware capability
-bool pfcHwRecoverySupported = gSwitchOrch->checkPfcHwRecoverySupport();
-
-if (pfcHwRecoverySupported && !skuForcesSwPfcwd)
-{
-    SWSS_LOG_NOTICE("Starting hardware-based PFC watchdog (no handlers)");
-
-    // Query hardware timer range capabilities during initialization
-    sai_attribute_t attr_dld, attr_dlr;
-    attr_dld.id = SAI_SWITCH_ATTR_PFC_TC_DLD_INTERVAL_RANGE;
-    attr_dlr.id = SAI_SWITCH_ATTR_PFC_TC_DLR_INTERVAL_RANGE;
-
-    sai_status_t status_dld = sai_switch_api->get_switch_attribute(gSwitchId, 1, &attr_dld);
-    sai_status_t status_dlr = sai_switch_api->get_switch_attribute(gSwitchId, 1, &attr_dlr);
-
-    if (status_dld == SAI_STATUS_SUCCESS && status_dlr == SAI_STATUS_SUCCESS)
-    {
-        uint32_t detection_min = attr_dld.value.u32range.min;
-        uint32_t detection_max = attr_dld.value.u32range.max;
-        uint32_t restoration_min = attr_dlr.value.u32range.min;
-        uint32_t restoration_max = attr_dlr.value.u32range.max;
-
-        SWSS_LOG_NOTICE("PFC watchdog hardware detection timer range: %u - %u ms",
-                       detection_min, detection_max);
-        SWSS_LOG_NOTICE("PFC watchdog hardware restoration timer range: %u - %u ms",
-                       restoration_min, restoration_max);
-
-        // Store hardware capabilities in STATE_DB for CLI validation
-        DBConnector stateDb("STATE_DB", 0);
-        Table capabilitiesTable(&stateDb, "PFC_WD_HW_CAPABILITIES");
-
-        vector<FieldValueTuple> fvVector;
-        fvVector.emplace_back("detection_timer_min", to_string(detection_min));
-        fvVector.emplace_back("detection_timer_max", to_string(detection_max));
-        fvVector.emplace_back("restoration_timer_min", to_string(restoration_min));
-        fvVector.emplace_back("restoration_timer_max", to_string(restoration_max));
-        fvVector.emplace_back("recovery_type", "hardware");
-
-        capabilitiesTable.set("GLOBAL", fvVector);
-        SWSS_LOG_NOTICE("Stored PFC watchdog hardware capabilities in STATE_DB");
-    }
-    else
-    {
-        SWSS_LOG_WARN("Failed to query PFC watchdog hardware timer ranges");
-    }
-
-    m_orchList.push_back(new PfcWdHwOrch(
-                    m_configDb,
-                    pfc_wd_tables,
-                    portStatIds,
-                    queueStatIds,
-                    queueAttrIds));
-}
-```
-
-
-
+`checkPfcHwRecoverySupport()` is called at init to decide whether to instantiate `PfcWdHwOrch` or fall back to `PfcWdSwOrch`. It returns true when the platform's SAI implementation advertises support for hardware-based PFC deadlock detection and recovery through a SAI capability query.
 
 ## 5. CLI Changes
 
