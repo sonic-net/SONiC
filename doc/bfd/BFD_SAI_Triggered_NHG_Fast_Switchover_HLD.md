@@ -121,7 +121,7 @@ This path involves multiple Redis operations, container boundary crossings (BGP 
 | BFD detection | 3 × interval (e.g., 300ms @ 100ms interval) | Configurable, not the focus here |
 | SAI notification → BFDOrch | < 1ms | Fast (in-process callback) |
 | BFDOrch → STATE_DB → bfdsyncd | 1–5ms | Redis publish + subscribe |
-| bfdsyncd → bfdd (Unix socket) | < 1ms | Fast |
+| bfdsyncd → bfdd (TCP socket) | < 1ms | Fast |
 | bfdd → pathd (ZAPI) | < 1ms | Fast |
 | pathd re-evaluation + route update | 1–10ms | Path selection algorithm |
 | zebra → fpmsyncd → APPL_DB | 1–5ms | Netlink + Redis |
@@ -376,10 +376,9 @@ Event 1: BFD-100 DOWN
   → ECMP forwarding: {NH-B}
 
 Event 2: BFD-200 DOWN
-  → ASIC removes NH-B from ECMP
-  → All PRIMARY removed → switch_to(STANDBY)
+  → NH-B is last active PRIMARY → switch_to(STANDBY)
     Step 1 (Make): Add NH-C (BFD-300=UP → allowed)
-    Step 2 (Break): No non-STANDBY active members to remove
+    Step 2 (Break): Remove NH-B (PRIMARY) from ECMP
   → NHG = { NH-A(inactive), NH-B(inactive), NH-C(active) }
   → ECMP forwarding: {NH-C}
 
