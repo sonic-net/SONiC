@@ -26,7 +26,7 @@
     * [5.2 fpmsyncd Changes](#52-fpmsyncd-changes)
     * [5.3 NhgOrch Changes](#53-nhgorch-changes)
     * [5.4 Srv6Orch Changes](#54-srv6orch-changes)
-    * [5.5 BfdOrch Changes](#55-bfdorch-changes)
+    * [5.5 BfdOrch Interaction](#55-bfdorch-interaction)
   * [6 Database Schema](#6-database-schema)
     * [6.1 APPL_DB](#61-appl_db)
   * [7 SAI SDK Implementation Reference](#7-sai-sdk-implementation-reference)
@@ -185,13 +185,13 @@ The key insight is that the ASIC already knows the BFD session state (it runs th
                             ┌─────────────┴───────────────┴───────────────┐
                             │              SWSS (Orchagent)                │
                             │                                             │
-                            │  BfdOrch ──► NhgOrch ──► Srv6Orch          │
-                            │     │                       │               │
-                            │     │  BFD DOWN callback    │ create NH     │
-                            │     │  processBfdDown()     │ with disc     │
-                            │     ▼                       ▼               │
-                            │  [Remove NHG members    [Set BFD_DISC       │
-                            │   via SAI as backup]     on next hop]       │
+                            │  BfdOrch        NhgOrch ──► Srv6Orch       │
+                            │     │              │           │            │
+                            │     │ BFD state    │ route     │ create NH  │
+                            │     │ notify       │ update    │ with disc  │
+                            │     ▼              ▼           ▼            │
+                            │  [STATE_DB      [Add/remove  [Set BFD_DISC  │
+                            │   update]        members]     on next hop]  │
                             └─────────────────────────────────────────────┘
                                           ▲
                                           │  APPL_DB
@@ -245,8 +245,6 @@ flowchart TD
 ```
 
 Both paths eventually converge: once the control plane route update completes, the SAI-level fast switchover state is overwritten by the formal routing table state. The fast path provides immediate traffic protection; the complete path ensures RIB/FIB consistency.
-
-Additionally, the SONiC control plane provides a **software backup fast path** via BfdOrch. When BfdOrch receives a BFD DOWN notification from the SAI callback, it immediately calls `NhgOrch::processBfdDown()` to remove the affected NHG members via SAI — before the full control plane convergence loop completes. This provides a second layer of protection in case the ASIC-internal fast path is not supported.
 
 # 4 SAI Attribute Specification
 
@@ -500,39 +498,7 @@ NextHopGroupKey(const string &nexthops, bool overlay_nh, bool srv6_nh,
 }
 ```
 
-### 5.3.3 BFD DOWN Processing (Software Backup)
-
-When BfdOrch receives a BFD DOWN notification, it calls `NhgOrch::processBfdDown()` to remove the affected NHG members as a software-level fast path:
-
-```cpp
-// nhgorch.cpp
-void NhgOrch::processBfdDown(uint32_t disc)
-{
-    for (auto& it : m_syncdNextHopGroups) {
-        auto& nhg = it.second.nhg;
-        if (nhg->getSize() > 0) {
-            nhg->onBfdDown(disc);
-        }
-    }
-}
-
-void NextHopGroup::onBfdDown(uint32_t disc)
-{
-    std::set<NextHopKey> members;
-    for (auto& mbr_it : m_members) {
-        if (mbr_it.first.srv6_bfd_disc == disc && mbr_it.second.isSynced()) {
-            members.insert(mbr_it.first);
-        }
-    }
-    if (!members.empty()) {
-        removeMembers(members);
-    }
-}
-```
-
-This is triggered directly from BfdOrch's SAI notification callback, providing faster convergence than waiting for the full control plane loop.
-
-### 5.3.4 NHG Member Role Setting
+### 5.3.3 NHG Member Role Setting
 
 When creating NHG members, NhgOrch sets the `CONFIGURED_ROLE` attribute:
 
@@ -549,7 +515,7 @@ if (nhgm.isPrimary()) {
 }
 ```
 
-### 5.3.5 Dynamic Discriminator Update
+### 5.3.4 Dynamic Discriminator Update
 
 When a route update changes the discriminator but the next hop itself remains unchanged (singleton NHG), NhgOrch dynamically updates the SAI attribute:
 
@@ -567,7 +533,7 @@ void NextHopGroup::updateSrv6BfdDisc(const NextHopGroupKey& nhg_key)
 }
 ```
 
-### 5.3.6 Dynamic Role Update
+### 5.3.5 Dynamic Role Update
 
 When a route update changes a member's role, NhgOrch dynamically updates via `set_next_hop_group_member_attribute`:
 
@@ -604,28 +570,23 @@ sai_next_hop_api->create_next_hop(&nexthop_id, gSwitchId,
     nh_attrs.size(), nh_attrs.data());
 ```
 
-## 5.5 BfdOrch Changes
+## 5.5 BfdOrch Interaction
 
-BfdOrch is modified to call `NhgOrch::processBfdDown()` immediately upon receiving a BFD DOWN notification from the SAI callback — before proceeding with the existing BFD session teardown logic:
+BfdOrch does not directly interact with NhgOrch for BFD-coupled fast switchover. On BFD DOWN, BfdOrch handles BFD session teardown and state notification via the existing path:
 
 ```cpp
-// bfdorch.cpp — doTask(NotificationConsumer& consumer)
+// bfdorch.cpp — BFD DOWN notification handler
 if (SAI_BFD_SESSION_STATE_DOWN == status) {
-    // Software backup fast path: remove NHG members immediately
-    auto keys = tokenize(DBkey, KEY_SEPARATOR);
-    if (keys.size() > 2) {
-        uint32_t disc = to_uint<uint32_t>(keys[1]);
-        gNhgOrch->processBfdDown(disc);
-    }
-
-    // Existing BFD session teardown
     if (!removeBfdPeer(DBkey)) {
-        SWSS_LOG_ERROR("removeBfdPeer key:%s failed", DBkey.c_str());
+        SWSS_LOG_ERROR("removeBfdPeer key:%s failed in down notify", DBkey.c_str());
     }
 }
+updateBfdSessionStatus(DBkey, status);
 ```
 
-This ensures that even if the ASIC does not support hardware-level BFD-coupled NHG fast switchover, the software path provides rapid convergence by removing the affected NHG members as soon as the BFD DOWN is detected — without waiting for the full pathd → zebra → fpmsyncd → NhgOrch round trip.
+The BFD state change propagates through the existing control plane path (STATE_DB → bfdsyncd → bfdd → pathd) to trigger route re-evaluation. NHG member updates are handled by NhgOrch when the updated route arrives via fpmsyncd.
+
+The fast switchover (ECMP member removal on BFD DOWN) is handled entirely within the SAI SDK layer (see §7.2), not by NhgOrch or BfdOrch.
 
 # 6 Database Schema
 
@@ -831,23 +792,19 @@ else
 sequenceDiagram
     autonumber
     participant ASIC as ASIC BFD Engine
+    participant SDK as SAI SDK
     participant NHG as ECMP Group (Hardware)
-    participant SAI as SAI Notification
-    participant BfdOrch as BfdOrch
-    participant NhgOrch as NhgOrch
+    participant CP as Control Plane (pathd/zebra/fpmsyncd/NhgOrch)
 
     Note over ASIC,NHG: Initial: NHG = {NH-A(disc=100), NH-B(disc=200)}<br/>BFD-100=UP, BFD-200=UP
 
     ASIC->>ASIC: BFD-100 session DOWN detected
-    ASIC->>NHG: Remove NH-A from ECMP (hardware internal)
-    Note over NHG: ECMP forwarding: {NH-B}<br/>Traffic protected in ~μs
+    ASIC->>SDK: bfd_notification_handler(DOWN, disc=100)
+    SDK->>SDK: remove_ecmp_group_member_by_discriminator(100)
+    SDK->>NHG: reduce_member_weight(NH-A) + m_active=false
+    Note over NHG: ECMP forwarding: {NH-B}<br/>Traffic protected in ~μs<br/>NH-A SAI object preserved
 
-    ASIC->>SAI: bfd_session_state_change(DOWN)
-    SAI->>BfdOrch: Notification callback
-    BfdOrch->>NhgOrch: processBfdDown(disc=100)
-    Note over NhgOrch: Software backup: remove NH-A<br/>(may be no-op if ASIC already did it)
-
-    Note over BfdOrch: Continue: STATE_DB → bfdsyncd → bfdd<br/>→ pathd → route update (complete path)
+    Note over CP: Meanwhile: STATE_DB → bfdsyncd → bfdd<br/>→ pathd → zebra → fpmsyncd → NhgOrch<br/>(complete path, ~10-30ms)
 ```
 
 ## 8.2 Primary to Standby Switchover
@@ -962,7 +919,7 @@ During warm restart:
 
 | Limitation | Description |
 |-----------|-------------|
-| ASIC support required | The ASIC must support `SAI_NEXT_HOP_ATTR_BFD_DISCRIMINATOR` and the associated behavioral specification (§4.3). Without ASIC support, the software backup path (§5.5) provides the fast switchover. |
+| ASIC support required | The ASIC must support `SAI_NEXT_HOP_ATTR_BFD_DISCRIMINATOR` and the associated behavioral specification (§4.3). The current SAI SDK layer (§7) provides the fast switchover logic in software; the goal is to sink this logic into ASIC hardware/firmware for native implementation. |
 | SRv6 primary use case | While `BFD_DISCRIMINATOR` is defined generically, the current SONiC implementation only carries it for SRv6 next hops. Extension to other next hop types requires additional fpmsyncd/NhgOrch changes. |
 | Discriminator uniqueness | The BFD discriminator must be unique per device. If two different BFD sessions on the same device have the same discriminator, the behavior is undefined. |
 | BFD session ordering | If the next hop is created before the BFD session, the ASIC must cache the discriminator association and activate it when the BFD session is created. Not all ASIC implementations may support this lazy binding. |
@@ -992,13 +949,13 @@ During warm restart:
 | TC-9 | Bring BFD session UP after DOWN; verify ASIC does NOT auto-restore; verify control plane (pathd → NhgOrch) restores the NHG member |
 | TC-10 | Bring PRIMARY BFD session UP while using STANDBY; verify control plane triggers revertive switchover via SAI add_member with switch_to(PRIMARY) |
 
-## 12.3 Software Backup Path
+## 12.3 SAI SDK Fast Path
 
 | Test | Description |
 |------|-------------|
-| TC-11 | Verify BfdOrch calls `processBfdDown()` on BFD DOWN notification |
-| TC-12 | Verify NHG members are removed via SAI in the software backup path |
-| TC-13 | Verify software backup path completes before the full control plane convergence loop |
+| TC-11 | Verify SAI SDK `bfd_notification_handler` calls `remove_ecmp_group_member_by_discriminator()` on BFD DOWN |
+| TC-12 | Verify SAI SDK uses `reduce_member_weight()` + `m_active=false` (preserves SAI member objects, does not delete them) |
+| TC-13 | Verify SAI SDK fast path completes before the full control plane convergence loop |
 
 ## 12.4 Edge Cases
 
