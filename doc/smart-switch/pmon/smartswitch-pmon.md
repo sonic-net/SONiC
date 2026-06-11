@@ -8,6 +8,7 @@
 | 0.4 | 06/06/2024 | Ramesh Raghupathy | Added schema for DPU health-info and called out phase:1 and phase:2 activities for DPU health-info. Added key suffix to module reboot-cause to avoid key conflicts |
 | 0.5 | 04/30/2025 | Gagan Punathil Ellath | Added Post Startup and Pre shutdown sections for DPU |
 | 0.6 | 06/12/2025 | Gagan Punathil Ellath | DPU State Management Implementation |
+| 0.7 | 06/11/2026 | Charles Tsai | Updated DPU reboot-cause and midplane-down reason |
 
 ## Definitions / Abbreviations
 
@@ -614,9 +615,10 @@ The smartswitch needs to know the reboot cause for the NPU and the DPUs.
 ```
 #### DPU Reboot Cause
 * The smartswitch needs to know the reboot cause for all the DPUs.
-* The NPU hardware should be capable of providing the DPU reboot-cause even when the DPUs are dead.
+* The reboot-cause is captured and recorded only when the midplane of DPU is online.
+* Each DPU SONiC publishes a `boot_id` (a fresh UUID generated per boot from `/proc/sys/kernel/random/boot_id`) into its `DPU_STATE` entry in CHASSIS_STATE_DB. The NPU chassisd compares the reported `boot_id` against the last `boot_id` it persisted, when they differ a real DPU boot occurred, so chassisd calls `get_reboot_cause()` when midplane down transitions to up, records the cause to DB and json, and updates the persisted `boot_id`.
 * The get_reboot_cause will return the current reboot-cause of the module.
-* For persistent storage of the DPU reboot-cause and reboot-cause-history files use the existing mechanism and host storage path under "/host/reboot-cause/module/dpux".
+* For persistent storage of the DPU reboot-cause and reboot-cause-history files use the existing mechanism and host storage path under "/host/reboot-cause/module/dpux". The boot_id is also stored in this file.
 * The storage and retrieval of the reboot-cause of the Switch and PDUs are shown in the sequence diagram
 
 <p align="center"><img src="./images/dpu-reboot-seq.svg"></p>
@@ -628,9 +630,6 @@ The smartswitch needs to know the reboot cause for the NPU and the DPUs.
 * Updates the NPU reboot-cause into the StateDB and the DPU reboot-cause into the ChassisStateDB.
 * The above process is a one-shot event on boot up.
 * The module_db_update function in the NPU-PMON chassisd is an existing function constantly updating the operational status of the DPUs.
-* This function looks for DPU operational status change events and when the DPUs come out of "offline" state, issues "get_reboot_cause" API to the platform.
-* The dpu operational state transition from 'offline' to 'online' guarantees the reboot of a DPU.
-* The platform code will extract the DPU reboot cause from the NPU hardware itself even when the DPU is not reachable.
 * The DPU reboot cause will be mapped to one of the following existing reboot causes and returned back.
     * REBOOT_CAUSE_POWER_LOSS = "Power Loss"
     * REBOOT_CAUSE_THERMAL_OVERLOAD_CPU = "Thermal Overload: CPU"
@@ -651,12 +650,21 @@ return REBOOT_CAUSE_NON_HARDWARE + ', ' + 'kernel panic'
 * The switch reboot use case will follow the same sequence.
 * The pmon container restart should not affect this sequence as the states are persisted either in the DB or in the file system.
 
+#### Runtime DPU reboot-cause capture in chassisd (`boot_id` trigger)
+
+* A DPU reboot is detected when the NPU chassisd is notified of a change to the DPU's `boot_id` in CHASSIS_STATE_DB (via a DPU_STATE subscription). The reboot cause is fetched only when midplane up and a new `boot_id` is present. While the DPU is down or unreachable, there is no need to fetch a cause.
+
+**DPU side (publisher).** The DPU `chassisd` reads the Linux per-boot UUID (`/proc/sys/kernel/random/boot_id`) and publishes it into its own `DPU_STATE|DPUx` entry in the NPU's CHASSIS_STATE_DB (the same cross-DB write path DPUs already use for DPU_STATE) when the boot_id is not in CHASSIS_STATE_DB.
+
+**NPU side (consumer / capture).** The NPU chassisd subscribes to `DPU_STATE|DPUx` in CHASSIS_STATE_DB and reacts when `boot_id` changes. It keeps the last-captured boot_id per DPU in /host/reboot-cause/module/dpux/previous-reboot-cause.json. When the subscribed boot_id differs from the persisted value and midplane is up, the DPU has rebooted: chassisd calls `get_reboot_cause()`, writes boot_id and reboot cause to the file and CHASSIS_STATE_DB.
+
 #### Schema for REBOOT_CAUSE of DPUs on switch ChassisStateDB
 ```
   Key: "REBOOT_CAUSE|DPU0|2024_06_06_09_31_18"
 
   "REBOOT_CAUSE|DPU0|2024_06_06_09_31_18": {
     "value": {
+      "boot_id": <boot-id>,
       "cause": "Software causes (Reboot)",
       "comment": "User issued 'reboot' command [User: admin, Time: Thu Jun  6 09:46:43 AM UTC 2024]",
       "device": "DPU0",
@@ -692,6 +700,7 @@ dpu_data_plane_state: up  refers to configuration downloaded, the pipeline stage
     key:  DPU_STATE|DPU0
 
         "id": "1",
+        "boot_id": <boot-id>,
         ”dpu_midplane_link_state”: "up"
         “dpu_midplane_link_time": "timestamp",
         "dpu_midplane_link_reason": "up_down_related string",
@@ -710,6 +719,8 @@ The DPU state management is implemented through a combination of classes that ha
    * The switch updates the midplane state after querying the `is_midplane_reachable` platform API for the corresponding DPU. This is an universal implementation for all platforms
    * The midplane state is updated at a specific frequency by the chassisd running on the switch (The frequency is once every 10 seconds - as per `CHASSIS_INFO_UPDATE_PERIOD_SECS` in chassisd)
    * If the midplane state is down (which means that the DPU is no longer accessible through the midplane) This means that the state information which is present is no longer valid at the current instant, so the state information for control plane and data plane is set to 'down' but the data plane and the control plane reasons and the timestamps are retained as is for further debugging.
+   * On an `up -> down` midplane transition chassisd records **why** into `dpu_midplane_link_reason`:
+    If the transition flag (`transition_type`) is set, it is **Planned** down and we record the transition flag. If the flag is not set, it's **Unplanned** shutdown and we record the result from `get_midplane_down_reason()` platform-dependent API and save in CHASSIS_STATE_DB.
 
 2. **DpuStateManagerTask Class - present in Chassisd on DPU - Dependent on chassisd being enabled on DPU**
    * If there is a platform specific implementation of `get_dataplane_state` and `get_controlplane_state` implementation, Then these functions are called in polling mode by the chassisd running on DPU to update the relevant state information
@@ -788,6 +799,15 @@ def get_reboot_cause(self):
 
         Returns:
             A tuple (string, string) where the first element is a string containing the cause of the previous reboot. This string must be one of the predefined strings in this class. If the first string is "REBOOT_CAUSE_HARDWARE_OTHER", the second string can be used to pass a description of the reboot cause.
+```
+
+#### Get midplane down reason
+def get_midplane_down_reason(self):
+```
+        Retrieves the cause of the midplane down reason
+
+        Returns:
+            A tuple (string, string) where the first element is a string containing the cause of midplane down reason. This string must be one of the predefined strings in this class. If the first string is "MIDPLANE_DOWN_REASON_HARDWARE_OTHER", the second string can be used to pass a description of the midplane down reason.
 ```
 
 #### DPU_STATE Use Case
@@ -1045,7 +1065,7 @@ System status summary
 * The "show system-health ..." is extended to include the DPU_STATE detail.
 show system-health DPU \<dpu-index\>  <font>**`Executed on the switch. This CLI is not available on the DPU.`**</font>
 ```
-When the idex is "all" shows the detailed state of all DPUs
+When the index is "all" shows the detailed state of all DPUs
 
 Oper-Status definition: 
 Online : All states are up
@@ -1065,12 +1085,19 @@ DPU1       Online               dpu_midplane_link_state        up              W
                                 dpu_control_plane_state        up              Wed 20 Oct 2023 06:52:28 PM UTC
                                 dpu_data_plane_state           up              Wed 20 Oct 2023 06:52:28 PM UTC
 
-root@sonic:~#show system-health DPU 0
+root@sonic:~#show system-health DPU DPU0
 
 Name       Oper-Status          State-Detail                   State-Value     Time                               Reason
-DPU0       Offline              dpu_midplane_link_state        down            Wed 20 Oct 2023 06:52:28 PM UTC    PCIe link is down
+DPU0       Offline              dpu_midplane_link_state        down            Wed 20 Oct 2023 06:52:28 PM UTC    Planned: 'shutdown'
                                 dpu_control_plane_state        down            Wed 20 Oct 2023 06:52:28 PM UTC
                                 dpu_data_plane_state           down            Wed 20 Oct 2023 06:52:28 PM UTC
+
+root@sonic:~#show system-health DPU DPU0
+
+Name        Oper-Status         State-Detail                    State-Value      Time                               Reason
+DPU0        Online              dpu_midplane_link_state         down             Wed Jun 10 06:39:57 PM UTC 2026    Unplanned: 'Thermal - Overload'
+                                dpu_control_plane_state         down             Thu Jun 11 05:25:49 PM UTC 2026
+                                dpu_data_plane_state            down             Thu Jun 11 05:25:49 PM UTC 2026
 ```
 #### System health cli extended further as shown
  * Detailed output from the switch can be obtained with the following CLI
