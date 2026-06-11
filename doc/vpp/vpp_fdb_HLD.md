@@ -2,24 +2,29 @@
 
 ## Table of Contents
 
-- [Background](#background)
-- [Requirement](#requirement)
-- [Feature Description](#feature-description)
-  - [SONiC Control Plane Flow](#sonic-control-plane-flow)
-  - [SONiC Database Schema](#sonic-database-schema)
-  - [VPP Dataplane Counterpart](#vpp-dataplane-counterpart)
-- [Design](#design)
-  - [Push-Based Event Flow](#push-based-event-flow)
-  - [Port Resolution](#port-resolution)
-  - [FDB Event Generation](#fdb-event-generation)
-  - [FDB Flush](#fdb-flush)
-- [Proposed Changes](#proposed-changes)
-  - [VPP API Extensions](#vpp-api-extensions)
-  - [SwitchStateBase.h Changes](#switchstatebaseh-changes)
-  - [SaiFdbAging.cpp Changes](#saifdbagingcpp-changes)
-  - [Files Changed](#files-changed)
-- [Testing](#testing)
-- [References](#references)
+- [SONiC VPP FDB Event Generation — HLD](#sonic-vpp-fdb-event-generation--hld)
+  - [Table of Contents](#table-of-contents)
+  - [Revisions](#revisions)
+  - [Background](#background)
+  - [Requirement](#requirement)
+  - [Feature Description](#feature-description)
+    - [SONiC Control Plane Flow](#sonic-control-plane-flow)
+    - [SONiC Database Schema](#sonic-database-schema)
+      - [ASIC\_DB](#asic_db)
+      - [STATE\_DB](#state_db)
+    - [VPP Dataplane Counterpart](#vpp-dataplane-counterpart)
+  - [Design](#design)
+    - [Push-Based Event Flow](#push-based-event-flow)
+    - [Port Resolution](#port-resolution)
+    - [FDB Event Generation](#fdb-event-generation)
+    - [FDB Flush](#fdb-flush)
+  - [Proposed Changes](#proposed-changes)
+    - [VPP API Extensions](#vpp-api-extensions)
+    - [`SwitchStateBase.h` Changes](#switchstatebaseh-changes)
+    - [`SaiFdbAging.cpp` Changes](#saifdbagingcpp-changes)
+    - [Files Changed](#files-changed)
+  - [Testing](#testing)
+  - [References](#references)
 
 ---
 
@@ -138,7 +143,7 @@ saivpp uses a **push-based approach**: it registers with VPP to receive batched 
 
 ### Push-Based Event Flow
 
-saivpp uses VPP's push MAC event API to receive notifications within ~10 ms of the dataplane event. The design uses a two-thread handoff to avoid blocking the VPP API receive thread:
+saivpp uses VPP's push MAC event API to receive notifications within ~10 ms of the dataplane event. The design uses a two-thread handoff to avoid blocking the VPP API receive thread.
 
 ```mermaid
 sequenceDiagram
@@ -150,11 +155,10 @@ sequenceDiagram
     participant Aging as FDB Aging Thread
     participant Orch as FdbOrch (SAI notify)
 
+    Note over Sai,Switch: Called after switch init — bridge domains and<br/>bridge port members are already configured by orchagent
     Sai->>Switch: initialize FDB event handling
     Switch->>VPP: register for push MAC events (scan delay = 10ms)
-    Switch->>VPP: dump bridge topology (seed interface→VLAN map)
-    Switch->>VPP: dump existing MAC entries (seed pre-existing entries)
-    Switch->>Aging: wake to process seeded entries
+    Switch->>Aging: ready to process events
 
     loop VPP scans L2FIB every 10ms
         Note over VPP,Recv: VPP pushes batch only when MACs change
@@ -227,8 +231,6 @@ The following new VPP API wrappers are added:
 |----------|---------|
 | Register for push MAC events | Receive batched MAC learn/age/move notifications from VPP. Each batch carries up to 100 MAC entries. |
 | Set L2FIB scan delay | Configure VPP to scan its L2FIB every 10 ms, minimising notification latency. |
-| Dump bridge topology | Enumerate all bridge domain members to build the interface→VLAN mapping on startup. |
-| Dump existing MAC entries | Retrieve pre-existing dynamic MAC entries after registration to avoid missed events. |
 
 The existing bridge domain details handler is updated to support the new dump context while preserving backward compatibility.
 
