@@ -226,7 +226,7 @@ In general, the FIB is responsible for handling both NHG and route events. Howev
 | :-- | :------- | :------------------------ |
 | SONiC zebra NHG table | Map zebra NHG id to received zebra_dplane_ctx + SONIC Context (a.k.a SONIC ZEBRA NHG) | Rely on “dependency” information in zebra_dplane_ctx to build walking chain.|
 | NEXTHOP KEY to Zebra NHG ID mapping |  Map nexthops in zebra_dplane_ctx to zebra NHG ID | It is used in warm reboot |
-| SONiC NHG table | Map SONiC NHG id to SONiC created NHG | Store Gateway NHG, a.k.a PIC NHG|
+| SONiC NHG table | Map SONiC NHG id to SONiC created NHG | Store Gateway NHG|
 | NEXTHOP->SONIC NHG ID  table | NEXTHOP Address to SONiC NHG ID list mapping | Used to trigger back walk for PIC edge. |
 
 ### SONiC zebra NHG table
@@ -252,7 +252,79 @@ This mapping table is used during warm reboot to mapping new zebra NHG ID to exi
 ### SONiC NHG table
 In certain scenarios, it is necessary to create a new SONIC Next Hop Group (NHG) upon receiving a zebra NHG event. In such cases, the corresponding SONiC NHG will be maintained in the SONiC NHG table.
 
-For the SRv6 VPN use case, NHG messages from Zebra carry not only forwarding information but also additional context, such as the VPN SID or a policy SID list. To handle this, SONiC will create a gateway NHG that contains the forwarding information only. This gateway NHG is also referred to as the PIC NHG. The accompanying context information will be used to construct a PIC Context object in SONiC.
+For the SRv6 VPN use case, NHG messages from Zebra carry not only forwarding information but also additional context, such as the VPN SID or a policy SID list. To handle this, SONiC will create a gateway NHG that contains the forwarding information only which would be sharable. The accompanying context information will be used to construct a PIC Context object in SONiC.
+
+Example:
+For the following Zebra NHG 244, it contains nexthop information and vpn context information.
+```
+PE3# show ip route vrf Vrf1 192.100.0.1 next
+Routing entry for 192.100.0.1/32
+  Known via "bgp", distance 20, metric 0, vrf Vrf1, best
+  Last update 00:16:37 ago
+  Nexthop Group ID: 246
+  Received Nexthop Group ID: 244
+   2064:100::1d(vrf default) (recursive), label 16, weight 1
+     fc06::2, via Ethernet12(vrf default), label 16, weight 1
+     fc08::2, via Ethernet4(vrf default), label 16, weight 1
+   2064:200::1e(vrf default) (recursive), label 32, weight 1
+     fc06::2, via Ethernet12(vrf default), label 32, weight 1
+     fc08::2, via Ethernet4(vrf default), label 32, weight 1
+
+PE3# show nexthop rib 244
+ID: 244 (zebra)
+     RefCnt: 10     Flags: 0x403
+     Uptime: 00:16:46
+     VRF: default(No AFI)
+     Nexthop Count: 2
+     Valid, Installed
+     Depends: (238) (245)
+           via 2064:100::1d (vrf default) inactive, label 16, seg6 fd00:201:201:1::, weight 1
+           via 2064:200::1e (vrf default) inactive, label 32, seg6 fd00:202:202:2::, weight 1
+```
+SONiC would create two objects in hardware, one is gateway NHG which contains nexthop information only. This one is sharable.
+```
+127.0.0.1:6378> hgetall "NEXTHOP_GROUP_TABLE:4"
+1) "nexthop"
+2) "2064:100::1d,2064:200::1e"
+3) "ifname"
+4) "unknown,unknown"
+5) "weight"
+6) "1,1"
+7) "seg_src"
+8) "2064:300::1f,2064:300::1f"
+```
+
+one is PIC Context object which is specific for this Zebra NHG.
+```
+127.0.0.1:6378> hgetall "PIC_CONTEXT_TABLE:3"
+ 1) "nexthop"
+ 2) "2064:200::1e,2064:100::1d"
+ 3) "ifname"
+ 4) "unknown,unknown"
+ 5) "weight"
+ 6) "1,1"
+ 7) "vpn_sid"
+ 8) "fd00:202:202:2::,fd00:201:201:1::"
+ 9) "seg_src"
+10) "2064:300::1f,2064:300::1f"
+```
+For each VPN route in SONiC, it contains both nexthop group id and pic context id.
+```
+127.0.0.1:6378> hgetall "ROUTE_TABLE:Vrf1:192.100.0.1"
+ 1) "pic_context_id"
+ 2) "3"
+ 3) "nexthop_group"
+ 4) "4"
+ 5) "nexthop"
+ 6) ""
+ 7) "vpn_sid"
+ 8) ""
+ 9) "seg_src"
+10) ""
+11) "ifname"
+12) ""
+```
+
 
 #### NEXTHOP->SONIC NHG ID table
 It serves as a helper table for quickly referencing SONiC NHG entries within the SONiC NHG Table.
@@ -335,7 +407,7 @@ FRR team plans to use original NHG to provide information coming from protocol c
     * Zebra resolved NHG (flatting one) : not in use
     * Zebra original NHG (original one, terminating at tunnel interface):
         * SONiC PIC CONTEXT OBJ
-        * Create gateway NHG in SONiC as PIC NHG for forwarding.
+        * Create gateway NHG in SONiC for forwarding.
 
 The following diagram shows how the original NHG is mapped to SONiC gateway NHG for SRv6 VPN case.
 ![image](images/original_nhg.png)
@@ -364,7 +436,7 @@ Similar to the above example, except we use v6 address as next hop. Assume vrf f
 
 ![image](images/Srv6_vpn.png)
 
-Similar to the previous example, the green section represents the logical configuration, while the grey section shows the RIB chain. In the SRv6 VPN case, the original NHG 200 is used to create a PIC NHG 400 with 1::1 as the nexthop. A PIC CONTEXT object is also created for VPN SID A. The original NHG 400 then references PIC NHG 400 and creates an additional PIC CONTEXT object for VPN SID B.
+Similar to the previous example, the green section represents the logical configuration, while the grey section shows the RIB chain. In the SRv6 VPN case, the original NHG 200 is used to create a gateway NHG 400 with 1::1 as the nexthop. A PIC CONTEXT object is also created for VPN SID A. The original NHG 400 then references gateway NHG 400 and creates an additional PIC CONTEXT object for VPN SID B.
 
 # Route Convergence Handling
 A key objective of introducing the RIB/FIB model is to enhance route convergence. The design principle is to perform rapid updates on affected NHGs by removing failed paths based on existing NHG information. This mechanism mitigates traffic loss and provides sufficient time for routing protocols to complete reconvergence.
