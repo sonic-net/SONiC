@@ -87,3 +87,4 @@
 | sonic-host-services | Qi Luo(Microsoft) | qiluo-msft |  |
 | sonic-formal-infra | Mengqi Liu (Alibaba) | mengqiliu20 | enabled |
 |  | Ali Kheradmand (Google) | kheradmandG |enabled  |
+| sonic-redfish |  |  |  |
