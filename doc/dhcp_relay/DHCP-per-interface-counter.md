@@ -286,16 +286,16 @@ This command is used to show dhcp_relay counter.
     Packet type Abbr: Un - Unknown, Dis - Discover, Off - Offer, Req - Request,
                       Ack - Acknowledge, Rel - Release, Inf - Inform,
                       Dec - Decline
-    +---------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
-    | Vlan1000 (RX) | Intf Type | Un  | Dis | Off | Req | Ack | Rel | Inf | Dec | Nak |
-    ----------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
-    | Ethernet1     | Downlink  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
-    | Ethernet2     | Downlink  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |
-    | Ethernet46    | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
-    | Ethernet47    | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
-    | PortChannel1  | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
-    | PortChannel2  | Uplink    | 0   | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |
-    +---------------+-----------+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+    +---------------+-----------+----+-----+-----+----+------+-----+-----+-----+-----+-------+
+    | Vlan1000 (RX) | Intf Type | Un | Dis | Off | Req | Dec | Ack | Nak | Rel | Inf | Bootp |
+    ----------------+-----------+----+-----+-----+-----+-----+-----+-----+-----+-----+-------+
+    | Ethernet1     | Downlink  | 0  | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |  0    |  
+    | Ethernet2     | Downlink  | 0  | 2   | 0   | 2   | 0   | 0   | 0   | 0   | 0   |  0    | 
+    | Ethernet46    | Uplink    | 0  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |  0    | 
+    | Ethernet47    | Uplink    | 0  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |  0    | 
+    | PortChannel1  | Uplink    | 0  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |  0    |  
+    | PortChannel2  | Uplink    | 0  | 0   | 2   | 0   | 2   | 0   | 0   | 0   | 0   |  0    |  
+    +---------------+-----------+----+-----+-----+-----+-----+-----+-----+-----+-----+-------+
 
     show dhcp_relay ipv4 counter Vlan1000 --type Discover
     +--------------------+-----------+----+----+

@@ -41,8 +41,7 @@ sai_remove_lag_member
 DUT configuration is done via minigraph. See more information below
 
 # Setup configuration
-![LACP_fallback_testbed.png](https://github.com/sonic-net/SONiC/blob/gh-pages/images/LACP_fallback_testbed.png)
-https://github.com/sonic-net/SONiC/blob/gh-pages/images/LACP_fallback_testbed.png
+![LACP_fallback_testbed.png](LACP_fallback_testbed.png)
 
 * 8 LAGs per switch from the DUT to 8 vEOS devices.
 * Each of the LAG contains 2 members.

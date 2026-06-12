@@ -40,6 +40,7 @@
 		 * [lm-sensors](#lm-sensors-tools)
 	     * [FPGAPCIe Component](#pddf-fpgapcie-component)
 		 * [Multi-FPGAPCIe Component](#3413-multi-fpgapcie-component)
+		 * [Multi-Protocol Support Design](#3414-multi-protocol-support-design)
 	 * [PDDF BMC Component Design](#pddf-bmc-component-design)
 		 * [PSU JSON](#psu-json)
 		 * [FAN JSON](#fan-json)
@@ -79,6 +80,7 @@
 | 0.7 | 01/05/2023  |  Fuzail Khan, Precy Lee     | FPGAPCIe component support        |
 | 0.8 | 03/17/2023  |  Fuzail Khan, Precy Lee     | S3IP SysFS support        |
 | 0.9 | 05/31/2025  |  Nexthop AI                 | Multi-FPGAPCIe component support  |
+| 1.0 | 10/26/2025  |  Nexthop AI                 | Multi-FPGAPCIe Multi-Protocol support |
 
 # About this Manual
 Platform Driver Development Framework (PDDF) is part of SONiC Platform Development Kit (PDK), which enables rapid development of platform drivers and APIs for SONiC platforms. PDK consists of
@@ -603,7 +605,20 @@ psu_i_out
 psu_p_out
 psu_fan1_speed_rpm
 psu_temp1_input
+psu_temp1_high_threshold
 ```
+The following fields are optional and can be added via `pddf-device.json` to support up to 3 temperature sensors in the PSU.
+
+```
+psu_temp2_input
+psu_temp2_high_threshold
+psu_temp3_input
+psu_temp3_high_threshold
+```
+Checks are added in the PSU driver to:
+  * Skip creating `psu_temp*_input` and `psu_temp*_high_threshold` SysFS paths if index exceeds the `num_psu_thermals` specified in the JSON file
+  * Only create `psu_temp*_high_threshold` SysFS paths if the attribute is explicitly specified in JSON file
+
 ##### 3.4.3.2 PSU JSON Design
 PSU JSON is structured to include the access-data for all the supported SysFS attributes.
 *attr_list* is an array object which stores the array of access-data for multiple  attributes. If some of the field in the attribute object is not applicable to some particular attribute, it can be left and not filled.
@@ -622,6 +637,14 @@ Description of the fields inside *attr_list*
 > **attr_cmpval**: Expected reg value after applying the mask.  This is used to provide a Boolean value to the attribute. e.g `attr_val = ((reg_val & attr_mask) == attr_cmpval)` .
 
 > **attr_len**: Length of the SysFS attribute in bytes.
+
+> **attr_data_format**: The PMBus numerical data encoding format. Can be `linear11`, `linear16`, or `direct` (refer to [PMBus 1.3.1 section 7](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Optional field, defaults to `linear11` if not provided.
+
+> **attr_m**: The PMBus `m` coefficient value (refer to [PMBus 1.3.1 section 7.4.1](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Set `m` if and only if `attr_data_format` is `direct`.
+
+> **attr_b**: The PMBus `b` coefficient value (refer to [PMBus 1.3.1 section 7.4.1](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Set `b` if and only if `attr_data_format` is `direct`.
+
+> **attr_r**: The PMBus `r` coefficient value (refer to [PMBus 1.3.1 section 7.4.1](https://pmbusprod.wpenginepowered.com/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf)). Set `r` if and only if `attr_data_format` is `direct`.
 
 
 
@@ -649,6 +672,45 @@ Description of the fields inside *attr_list*
 		...
         ]
     }
+},
+"PSU1-PMBUS": {
+	"i2c": {
+		"attr_list": [
+			{
+				"attr_name": "psu_p_out",
+				"attr_devaddr": "0x58",
+				"attr_devtype": "pmbus",
+				"attr_offset": "0x96",
+				"attr_mask": "0x0",
+				"attr_cmpval": "0xff",
+				"attr_len": "2"
+			},
+			{
+				"attr_name": "psu_v_out",
+				"attr_devaddr": "0x58",
+				"attr_devtype": "pmbus",
+				"attr_offset": "0x8b",
+				"attr_mask": "0x0",
+				"attr_cmpval": "0xff",
+				"attr_data_format": "linear16",
+				"attr_len": "2"
+			},
+			{
+				"attr_name": "psu_i_out",
+				"attr_devaddr": "0x58",
+				"attr_devtype": "pmbus",
+				"attr_offset": "0x8c",
+				"attr_mask": "0x0",
+				"attr_cmpval": "0xff",
+				"attr_data_format": "direct",
+				"attr_data_m": "1",
+				"attr_data_b": "0",
+				"attr_data_r": "0",
+				"attr_len": "2"
+			},
+			...
+		]
+	}
 },
 ```
 
@@ -678,7 +740,7 @@ fan<idx>_fault
 where idx represents the Fan index [1..32]
 ```
 
-Since PDDF has been changed to support platform 2.0 APIs, general design considers all the FANs inside a fantray as seperate FANs. If a fantray consist of two fans, front and rear, JSON object for FAN not only provides the access details for the front fan but also for the rear fan.
+Since PDDF has been changed to support platform 2.0 APIs, general design considers all the FANs inside a fantray as separate FANs. If a fantray consist of two fans, front and rear, JSON object for FAN not only provides the access details for the front fan but also for the rear fan.
 
 ##### 3.4.4.2 FAN JSON Design
 FAN JSON is structured to include the access-data for all the supported SysFS attributes.
@@ -1061,7 +1123,7 @@ The SysFS paths should be given as per the PDDF I2C topology description and the
 FPGA can be programmed as a I2C master controller. Some platforms use a FPGAPCIe card to control I2C devices and  the communication with the CPU is by PCIe interface. PDDF supports a FPGAPCIe card by providing the following modules:
 
 * FPGAPCIe Data Module:
-    - Mange access data defined in JSON via SysFS interface
+    - Manage access data defined in JSON via SysFS interface
     - Populate data and trigger FPGAPCIe instantiation
 * FPGAPCIe Driver Module:
     - PCIe device instantiation
@@ -1075,7 +1137,7 @@ connected FPGA, vendors need to provide the FPGA driver.
 
 ##### 3.4.12.1 FPGAPCIe JSON Design
 
-FPGAPCIe JSON object follows PDDF I2C topology JSON object design concept. FPGAPCIE object is under i2c keyword becuase it is programmed as I2c buses to control I2C client devices.
+FPGAPCIe JSON object follows PDDF I2C topology JSON object design concept. FPGAPCIE object is under i2c keyword because it is programmed as I2c buses to control I2C client devices.
 
 
 ```
@@ -1531,6 +1593,89 @@ Description of fields unique to Multi-FPGAPCIe, see [FPGAPCIe JSON Design](#3412
 
 > **attr_devname**: Must match the `device_name` of the FPGA which controls the fan.
 
+#### 3.4.14 Multi-Protocol Support Design
+
+The Multi-FPGAPCIe driver implements a modular architecture where different communication protocols (I2C, GPIO, SPI, MDIO) are handled by separate loadable kernel modules. This design provides flexibility and extensibility for FPGA-based platform implementations.
+
+##### Architecture Overview
+
+The core Multi-FPGAPCIe driver (`pddf_multifpgapci_driver`) acts as a protocol manager that:
+- Discovers and manages FPGA PCIe devices
+- Provides a registration framework for protocol modules
+- Handles device lifecycle management
+- Maintains protocol-to-device mappings
+
+##### Protocol Registration API
+
+Protocol modules register themselves with the core driver using the following external API:
+
+```c
+int multifpgapci_register_protocol(const char *name, struct protocol_ops *ops);
+void multifpgapci_unregister_protocol(const char *name);
+```
+
+**Protocol Operations Interface**
+
+Each protocol module must implement the `protocol_ops` structure:
+
+```c
+struct protocol_ops {
+    attach_fn attach;
+    detach_fn detach;
+    map_bar_fn map_bar;
+    unmap_bar_fn unmap_bar;
+    const char *name;
+};
+```
+
+**Callback Function Signatures**
+
+Protocol modules must implement these callback functions:
+
+```c
+typedef int (*attach_fn)(struct pci_dev *pci_dev, struct kobject *kobj);
+typedef void (*detach_fn)(struct pci_dev *pci_dev, struct kobject *kobj);
+typedef void (*map_bar_fn)(struct pci_dev *pci_dev, void __iomem *bar_base,
+                          unsigned long bar_start, unsigned long bar_len);
+typedef void (*unmap_bar_fn)(struct pci_dev *pci_dev, void __iomem *bar_base,
+                            unsigned long bar_start, unsigned long bar_len);
+```
+
+##### Load Order Independence
+
+The framework supports flexible module loading:
+- **Late Registration**: Protocol modules loaded after FPGA discovery are automatically attached to existing devices
+- **Early Registration**: Protocol modules loaded before FPGA discovery are saved and attached when devices are found
+- **Dynamic Loading**: Protocols can be loaded/unloaded at runtime
+
+##### Supported Protocol Modules
+
+**I2C Protocol Module** (`pddf_multifpgapci_i2c_module.c`):
+- Registers with the core driver using the protocol registration system
+- Implements attach/detach callbacks for FPGA device management
+
+**GPIO Protocol Module** (`pddf_multifpgapci_gpio_module.c`):
+- Registers with the core driver using the protocol registration system
+- Implements attach/detach callbacks for FPGA device management
+
+**MDIO Protocol Module** (`pddf_multifpgapci_mdio_module.c`):
+- Registers with the core driver using the protocol registration system
+- Implements attach/detach callbacks for FPGA device management
+
+**Additional Protocol Support**:
+- **SPI Protocol**: Future support for SPI controller operations
+
+##### Protocol Module Requirements
+
+Each protocol module must:
+1. Implement the `protocol_ops` callback structure with all required function pointers
+2. Handle device-specific BAR mapping and resource allocation via map_bar/unmap_bar callbacks
+3. Register with the core driver during module initialization using `multifpgapci_register_protocol()`
+4. Unregister during module cleanup using `multifpgapci_unregister_protocol()`
+5. Support graceful cleanup during device removal
+
+This modular approach decouples the core driver from protocol-specific implementations, reducing complexity and improving maintainability by allowing protocols to be developed and maintained independently.
+
 ### 3.6 PDDF BMC Component Design
 
 This section covers the JSON design for BMC based hardware components. PDDF utilizes ipmitool to monitor components.
@@ -1569,7 +1714,7 @@ If this field exists, the device name is displayed using this field. Otherwise, 
 ipmitool and ipmiapi are two methods of getting ipmi data. ipmitool uses ipmitool command to get data from BMC while ipmiapi will use kernel ipmi interfaces to retrieve the data. ipmiapi will be implemented in the future.
 
 > **attr_name**:
-The PDDF BMC JSON design has the pre-defined list of the attribute names which is platform independent. IPMI is an standardized interface specification, but the naming convention of ipmitool output is vendor specific. The pre-defined attribue name list provides the ability to use generic PDDF generic platform APIs to retrieve information for all platforms.
+The PDDF BMC JSON design has the pre-defined list of the attribute names which is platform independent. IPMI is an standardized interface specification, but the naming convention of ipmitool output is vendor specific. The pre-defined attribute name list provides the ability to use generic PDDF generic platform APIs to retrieve information for all platforms.
 
 > **bmc_cmd**:
 There are two types of cmds: raw ipmi request and non raw ipmi request. The list of available ipmitool commands can be found by
@@ -1810,7 +1955,7 @@ Example,
 
 
 #### 3.7.3 LED Class
-There is no generic LED API class defined in PDDF. LED APIs related to a component has been made part of thats component's platform API class. System LED APIs are made part of PddfChassis class.
+There is no generic LED API class defined in PDDF. LED APIs related to a component has been made part of that component's platform API class. System LED APIs are made part of PddfChassis class.
 ```
 class PddfChassis(ChassisBase):
     def set_system_led(self, device_name, color):
@@ -2087,7 +2232,7 @@ root@sonic:/home/admin#
 
 
 
-> NOTE: Above output differs from the ouput in PDDF v1.0. This is because of the fact that FAN numbering scheme changed due to introduction of 2.0 platform APIs. Rear fans are now considered separate fans. In above output,
+> NOTE: Above output differs from the output in PDDF v1.0. This is because of the fact that FAN numbering scheme changed due to introduction of 2.0 platform APIs. Rear fans are now considered separate fans. In above output,
 > Fantray1_1: Front fan of frantray1
 > Fantray1_2: Rear fan of fantray1
 
@@ -2274,19 +2419,19 @@ S3IP sysfs specification defines a unified interface to access peripheral hardwa
 
 - S3IP sysfs should be generated and could be removed on requirement
 - Though S3IP can be clubbed with PDDF, PDDF should be independent of the S3IP
-- If any attribute which cannot be read should have a value of 'NA' i.e. tools should not fail due to non existance of the attribute
+- If any attribute which cannot be read should have a value of 'NA' i.e. tools should not fail due to non existence of the attribute
 - S3IP sysfs should be able to work with the existing PDDF common driver sysfs
 - PDDF common driver attributes should be expanded, if required, to cover the left out attributes from S3IP specifications
 
 ### 7.2 Implementation Details
 
-The S3IP specifications and framework are defined [here](https://github.com/sonic-net/SONiC/pull/1068). Both vendors and users are required to follow the S3IP spec. The platform vendors need to provide the implementation of the set/get attribute functions for the platforms which use S3IP sysfs framework. The attributes for each component are defined in the specificaitons. This effort is to combine the S3IP spec and PDDF framework. In other words, the platform which are using PDDF would be S3IP compliant too after this support is added.
+The S3IP specifications and framework are defined [here](https://github.com/sonic-net/SONiC/pull/1068). Both vendors and users are required to follow the S3IP spec. The platform vendors need to provide the implementation of the set/get attribute functions for the platforms which use S3IP sysfs framework. The attributes for each component are defined in the specifications. This effort is to combine the S3IP spec and PDDF framework. In other words, the platform which are using PDDF would be S3IP compliant too after this support is added.
 
 #### 7.2.1 PDDF and S3IP SysFS
 
 PDDF implements common kernel drivers for various components. These common drivers exposes a fixed set of sysfs attributes as per the HW support and current SONiC API requirements. Complying to S3IP spec requires the mapping of S3IP component attributes to PDDF exposed sysfs attributes and might even require adding new attributes to PDDF common driver code. Hence, S3IP spec sysfs attributes are divided into the following categories.
 
- - Platform Info Attributes: This includes the fixed information pertaining to the platform in entirity or any component. There is no need of reading this information from the component in run time. Further, these values will not change in the course of System running the SONiC image. Below are few examples of static info attributes.
+ - Platform Info Attributes: This includes the fixed information pertaining to the platform in entirety or any component. There is no need of reading this information from the component in run time. Further, these values will not change in the course of System running the SONiC image. Below are few examples of static info attributes.
 
      - /sys_switch/temp_sensor/number, /sys_switch/vol_sensor/number, /sys_switch/curr_sensor/number etc.
 
@@ -2308,7 +2453,7 @@ PDDF implements common kernel drivers for various components. These common drive
      |-|-|-|-|
      |/sys_switch/fan/fan[n]/status |RO| enum| Fan states are defined as follows:<br>0: not present<br>1: present and normal<br>2: present and abnormal
 
-     - This is a combination of 'presence' and 'running_status' informations of a fan unit. In SONiC we can handle this in the platform APIs but S3IP compels to performs this processing inside the kernel modules. Hence if ODM extends the PDDF driver and provide the kernel implementation of such sysfs, we can create the mapping. Otherwise we will map it to 'NA'.
+     - This is a combination of 'presence' and 'running_status' information of a fan unit. In SONiC we can handle this in the platform APIs but S3IP compels to performs this processing inside the kernel modules. Hence if ODM extends the PDDF driver and provide the kernel implementation of such sysfs, we can create the mapping. Otherwise we will map it to 'NA'.
 
 #### 7.2.2 S3IP SysFS Creation and Mapping
 
@@ -2347,11 +2492,11 @@ If the S3IP sysfs is required on a PDDF platform, it can be represented using th
 ...
 ```
 
-This pddf-s3ip service would create the sysfs as per the standards. It will also take care of linking the appropriate PDDF sysfs with the corrosponding S3IP sysfs.
+This pddf-s3ip service would create the sysfs as per the standards. It will also take care of linking the appropriate PDDF sysfs with the corresponding S3IP sysfs.
 
 In case the platform does not support some attributes present in the S3IP spec, 'NA' will be written to the attribute file so that the application does not fail.
 
-Once this is done, users can run their S3IP compliant applicaitons and test scripts on the platform.
+Once this is done, users can run their S3IP compliant applications and test scripts on the platform.
 
 #### 7.2.3 Adding S3IP Support for a Platform
 
