@@ -187,7 +187,7 @@ flowchart LR
 ### 3.1.2 Data Format
 
 The mirrored packet goes through the following processing in the ASIC hardware pipeline:
-1. Sampling: For each ingress packet on the monitored port, a hardware counter is incremented. When the counter reaches N (the configured sample rate), the packet is selected for mirroring.
+1. Sampling: For each packet on the monitored port in the configured direction (RX, TX or BOTH), a hardware counter is incremented. When the counter reaches N (the configured sample rate), the packet is selected for mirroring.
 2. Truncation: The selected packet is truncated to the configured truncate size (e.g., 128 bytes). Only the packet headers are retained.
 3. GRE encapsulation: The truncated packet is encapsulated with outer headers for tunneling to the collector.
 4. Forwarding: The encapsulated mirror packet is forwarded to the monitor port and routed to the collector. The original packet continues normal forwarding unaffected.
@@ -296,12 +296,19 @@ Mirror Orchestration agent is modified to support this feature:
 
 #### Sampled Port Mirroring Extension
 
-MirrorOrch is extended to manage the lifecycle of SamplePacket SAI objects alongside the existing mirror session objects. When `sample_rate` is configured, MirrorOrch creates a SamplePacket and binds it to the port using `INGRESS_SAMPLEPACKET_ENABLE` + `INGRESS_SAMPLE_MIRROR_SESSION`, instead of the existing `INGRESS_MIRROR_SESSION` used for full-packet mirroring. See Section 3.1.1 for the architecture overview and Section 4 for the detailed workflow.
+MirrorOrch is extended to manage the lifecycle of SamplePacket SAI objects alongside the existing mirror session objects. When `sample_rate` is configured, MirrorOrch creates a SamplePacket and binds it to the source port(s) according to the configured `direction`:
 
-MirrorOrch also supports updating an existing ERSPAN mirror session. When a SET operation is received for a session that already exists, MirrorOrch distinguishes between mutable and immutable fields:
+- **RX**: bind with `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION`.
+- **TX**: bind with `SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION`.
+- **BOTH**: bind both the ingress and the egress attribute pairs to the same SamplePacket and mirror session.
 
-- **Mutable fields** (`sample_rate`, `truncate_size`): Updated in-place by calling `sai_samplepacket_api->set_samplepacket_attribute()` on the existing SamplePacket object, without tearing down the mirror session. This avoids traffic disruption during sampling rate adjustments.
-- **Immutable fields** (`src_ip`, `dst_ip`, `gre_type`, `dscp`, `ttl`, `queue`, `src_port`, `direction`, `policer`): Require a full delete-and-recreate — MirrorOrch deactivates the existing session, removes the SAI objects, and creates a new session with the updated parameters. This is necessary because these mirror session SAI attributes are CREATE_ONLY and cannot be modified in-place.
+See Section 3.1.1 for the architecture overview and Section 4 for the detailed workflow.
+
+**Configuration semantics:**
+
+- **Duplicate session names are rejected; no in-place update.** When a SET arrives for a session name that already exists, `createEntry()` returns `task_duplicated` and the existing session is left unchanged — the new attributes are not applied. Reconfiguring any field of a sampled mirror session, including `sample_rate` or `truncate_size`, therefore requires deleting the session and re-adding it with the new values.
+- **Unsupported platforms are rejected, not silently downgraded.** If the required per-direction sampled mirroring capability (or samplepacket truncation) is not supported by the ASIC, MirrorOrch rejects the session (`task_invalid_entry`).
+- **Sampled mirroring requires an explicit direction.** A session that configures `sample_rate` must also specify a `direction` (RX, TX or BOTH); a sampled session without a direction is rejected.
 
 ## 3.4 Mirror Capability Discovery
 
@@ -425,7 +432,7 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
     SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
 ```
 ### 3.5.2 Sampled Port Mirroring SAI APIs
-Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation. The key change is that MirrorOrch creates an additional `SamplePacket` SAI object and binds it to the port using `INGRESS_SAMPLEPACKET_ENABLE` + `INGRESS_SAMPLE_MIRROR_SESSION`, instead of the existing `INGRESS_MIRROR_SESSION` used for full-packet mirroring.
+Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation. The ingress pair (INGRESS_SAMPLEPACKET_ENABLE + INGRESS_SAMPLE_MIRROR_SESSION) carries RX sampling, the egress pair (EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION) carries TX, and a BOTH session populates both pairs.
 
 #### SamplePacket Attributes
 
@@ -502,6 +509,33 @@ More details about the [Port SAI API](https://github.com/opencomputeproject/SAI/
       * @default empty
       */
      SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION,
+
+    /**
+      * @brief Enable/Disable SamplePacket session on port for egress.
+      *
+      * Enable egress sampling by assigning samplepacket object id.
+      * Disable egress sampling by assigning SAI_NULL_OBJECT_ID.
+      *
+      * @type sai_object_id_t
+      * @flags CREATE_AND_SET
+      * @objects SAI_OBJECT_TYPE_SAMPLEPACKET
+      * @allownull true
+      * @default SAI_NULL_OBJECT_ID
+      */
+     SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE,
+
+    /**
+      * @brief Enable/Disable sample egress mirroring.
+      *
+      * Enable sample egress mirroring by assigning list of mirror object ids.
+      * Disable sample egress mirroring by assigning object_count as 0.
+      *
+      * @type sai_object_list_t
+      * @flags CREATE_AND_SET
+      * @objects SAI_OBJECT_TYPE_MIRROR_SESSION
+      * @default empty
+      */
+     SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION,
 ```
 
 #### SAI API Call Sequence
@@ -510,13 +544,13 @@ More details about the [Port SAI API](https://github.com/opencomputeproject/SAI/
  
  1. `sai_mirror_api->create_mirror_session()` — Create ERSPAN mirror session with encapsulation attributes (src_ip, dst_ip, gre_type, dscp, ttl, etc.)
  2. `sai_samplepacket_api->create_samplepacket()` — Create SamplePacket object with `SAMPLE_RATE`, `TYPE=SAI_SAMPLEPACKET_TYPE_MIRROR_SESSION`, and optionally `TRUNCATE_ENABLE` + `TRUNCATE_SIZE`
- 3. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE)` — Bind SamplePacket to port for ingress sampling
- 4. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION)` — Bind mirror session to port for sampled packet destination
+ 3. `sai_port_api->set_port_attribute(...)` — Bind the SamplePacket to the source port(s): `INGRESS_SAMPLEPACKET_ENABLE` for RX, `EGRESS_SAMPLEPACKET_ENABLE` for TX, both for BOTH
+ 4. `sai_port_api->set_port_attribute(...)` — Bind the mirror session to the source port(s): `INGRESS_SAMPLE_MIRROR_SESSION` for RX, `EGRESS_SAMPLE_MIRROR_SESSION` for TX, both for BOTH
  
 **Delete sampled mirror session (reverse order):**
  
- 1. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION)` — Clear mirror session binding (objlist count = 0)
- 2. `sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE)` — Clear SamplePacket binding (SAI_NULL_OBJECT_ID)
+ 1. `sai_port_api->set_port_attribute(...)` — Clear the mirror session binding (`INGRESS_SAMPLE_MIRROR_SESSION` and/or `EGRESS_SAMPLE_MIRROR_SESSION`)
+ 2. `sai_port_api->set_port_attribute(...)` — Clear the SamplePacket binding (`INGRESS_SAMPLEPACKET_ENABLE` and/or `EGRESS_SAMPLEPACKET_ENABLE`)
  3. `sai_samplepacket_api->remove_samplepacket()` — Remove SamplePacket object
  4. `sai_mirror_api->remove_mirror_session()` — Remove mirror session
 
@@ -611,8 +645,8 @@ The following leaves are added to `MIRROR_SESSION_LIST` in `sonic-mirror-session
 leaf sample_rate {
     when "current()/../type = 'ERSPAN'";
     type uint32 {
-        range "256..8388608" {
-            error-message "Sample rate must be 256..8388608";
+        range "2..max" {
+            error-message "Sample rate must be in range 2..max";
             error-app-tag sample-rate-invalid;
         }
     }
@@ -676,8 +710,6 @@ Extend the existing config mirror_session erspan add command with two new option
         [--policer <policer_name>] \
         [--sample_rate <value>] [--truncate_size <value>]
 ```
-
-If a session with the same name already exists, the `add` command updates the session. Mutable fields (`sample_rate`, `truncate_size`) are updated in-place without disrupting the mirror session. Changes to immutable fields (e.g., `src_ip`, `dst_ip`, `dscp`) trigger a delete and recreate internally.
 
 ### 3.6.3 Show Commands
 
@@ -757,7 +789,7 @@ The following show command display all the mirror sessions that are configured.
 
 # 4 Flow Diagrams
 
-The following diagram shows the create, update, and delete workflow for sampled mirror sessions, including fallback paths for unsupported platforms:
+The following diagram shows the create and delete workflow for sampled mirror sessions, including the rejection path for unsupported platforms:
 ```mermaid
 sequenceDiagram
      autonumber
@@ -773,40 +805,27 @@ sequenceDiagram
      end
      participant asic as ASIC
      Note over config_db,asic: === Create Sampled Mirror Session ===
-     config_db ->> mirror_orch: SET MIRROR_SESSION|session1<br/>{sample_rate: 50000, truncate_size: 128, ...}
+     config_db ->> mirror_orch: SET MIRROR_SESSION|session1<br/>{sample_rate: 50000, truncate_size: 128, direction, ...}
      mirror_orch ->> state_db: Query SWITCH_CAPABILITY
      state_db -->> mirror_orch: capabilities
-     mirror_orch ->> syncd: create_mirror_session(ERSPAN encap attrs)
      alt Sampled mirroring supported and no sFlowOrch conflict
+         mirror_orch ->> syncd: create_mirror_session(ERSPAN encap attrs)
          mirror_orch ->> syncd: create_samplepacket<br/>(SAMPLE_RATE, TYPE=MIRROR_SESSION,<br/>optional: TRUNCATE_ENABLE, TRUNCATE_SIZE)
-         mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLEPACKET_ENABLE)
-         mirror_orch ->> syncd: set_port_attr(INGRESS_SAMPLE_MIRROR_SESSION)
-     else Sampled mirroring not supported
-         mirror_orch ->> mirror_orch: Log warning, fall back to full mirror
-         mirror_orch ->> syncd: set_port_attr(INGRESS_MIRROR_SESSION)
-     else Samplepacket conflict detected on port
+         Note over mirror_orch,syncd: Bind per direction:<br/>RX → INGRESS_SAMPLEPACKET_ENABLE + INGRESS_SAMPLE_MIRROR_SESSION<br/>TX → EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION<br/>BOTH → both pairs
+         mirror_orch ->> syncd: Bind samplepacket to source port(s) per direction
+         syncd ->> asic: Program mirror session + samplepacket
+     else Sampled mirroring or truncation not supported
+         mirror_orch ->> mirror_orch: Log error, reject session (task_invalid_entry)
+     else Samplepacket conflict with sFlow on port
          mirror_orch ->> mirror_orch: Log error, session remains inactive
-     end
-     syncd ->> asic: Program mirror session + samplepacket
-     Note over config_db,asic: === Update Mirror Session (mutable fields: in-place) ===
-     config_db ->> mirror_orch: SET MIRROR_SESSION|session1<br/>{sample_rate: 10000, ...}
-     mirror_orch ->> mirror_orch: Session exists, route to updateEntry
-     alt Only mutable fields changed (sample_rate, truncate_size)
-         mirror_orch ->> syncd: set_samplepacket_attribute(SAMPLE_RATE)
-         mirror_orch ->> syncd: set_samplepacket_attribute(TRUNCATE_SIZE)
-         mirror_orch ->> state_db: Update MIRROR_SESSION_TABLE
-     else Immutable fields changed (src_ip, dst_ip, dscp, ttl, etc.)
-         mirror_orch ->> mirror_orch: deleteEntry then createEntry
-         Note over mirror_orch,asic: (Executes Delete flow followed by Create flow)
      end
      Note over config_db,asic: === Delete Mirror Session ===
      config_db ->> mirror_orch: DEL MIRROR_SESSION|session1
      alt Sampled path (samplepacketId != NULL)
-         mirror_orch ->> syncd: clear INGRESS_SAMPLE_MIRROR_SESSION
-         mirror_orch ->> syncd: clear INGRESS_SAMPLEPACKET_ENABLE
+         mirror_orch ->> syncd: Unbind samplepacket from source port(s) (per direction)
          mirror_orch ->> syncd: remove_samplepacket
      else Full mirror path
-         mirror_orch ->> syncd: clear INGRESS_MIRROR_SESSION
+         mirror_orch ->> syncd: clear INGRESS_MIRROR_SESSION / EGRESS_MIRROR_SESSION
      end
      mirror_orch ->> syncd: remove_mirror_session
      syncd ->> asic: Remove mirror session + samplepacket
@@ -868,7 +887,7 @@ The error handling follows a two-stage validation process:
 
 ### 5.2.4 SamplePacket Conflict Detection
 
-Sampled port mirroring and sFlow both use `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE`, which accepts only one SamplePacket OID per port. Both MirrorOrch and sFlowOrch check the current binding before setting it — if the port is already bound by another feature, the operation is rejected.
+Sampled port mirroring and sFlow share the port's per-direction SamplePacket resource, which only one of them can own per direction. Conflict detection is symmetric: if one tries to bind a direction the other already owns, the later request is rejected instead of overwriting the existing binding, and the session is activated only if all of its directions are free.
 
 ### 5.2.5 Backward Compatibility
 
@@ -993,23 +1012,33 @@ The following test cases validate the mirror capability discovery and validation
 
 | S.No | Test Case Synopsis |
 |------|-------------------|
-| 27 | Verify that SAMPLEPACKET object is created in ASIC_DB when sample_rate > 0 |
-| 28 | Verify that SAMPLEPACKET has correct TYPE=MIRROR_SESSION and SAMPLE_RATE attributes |
-| 29 | Verify that port attributes INGRESS_SAMPLEPACKET_ENABLE and INGRESS_SAMPLE_MIRROR_SESSION are set correctly |
-| 30 | Verify that no SAMPLEPACKET is created when sample_rate = 0 (backward compatibility) |
-| 31 | Verify that SAMPLEPACKET and port attributes are removed in correct order on session deletion |
-| 32 | Verify that truncation attributes (TRUNCATE_ENABLE, TRUNCATE_SIZE) are set when truncate_size > 0 |
+| 27 | Verify that a sampled session can be created and removed (SAMPLEPACKET created in ASIC_DB when sample_rate > 0, and removed on delete) |
+| 28 | Verify that truncation attributes (TRUNCATE_ENABLE, TRUNCATE_SIZE) are set on the SamplePacket when truncate_size > 0 |
+| 29 | Verify that no SAMPLEPACKET is created when sample_rate is absent (backward compatibility — full mirroring) |
+| 30 | Verify that sample_rate and truncate_size are reflected in MIRROR_SESSION_TABLE in STATE_DB |
+| 31 | Verify that the sampled-mirror capabilities are published to STATE_DB (SWITCH_CAPABILITY) |
+| 32 | Verify TX direction: SamplePacket bound via EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION, with no active ingress binding |
+| 33 | Verify that truncate_size without an explicit sample_rate defaults the sample rate to 1 so a SamplePacket is still created |
+| 34 | Verify that source-port sampled-mirror attributes are cleaned up after the session is removed |
+| 35 | Verify multiple source ports: each configured port is programmed with the sampled-mirror attributes |
+| 36 | Verify BOTH direction: a single SamplePacket is bound to both the ingress and the egress port attribute pairs |
+| 37 | Verify delete-and-recreate: a session can be removed and a new one created on the same port |
+| 38 | Verify that a duplicate SET on an existing session is ignored |
+| 39 | Verify that a sampled mirror session is rejected when the source port is already bound by sFlow (samplepacket conflict) |
+| 40 | Verify sampled mirroring on a LAG: the SamplePacket is bound to the LAG member ports |
+| 41 | Verify that while the session is inactive (no route to the ERSPAN dst) nothing is programmed into the ASIC |
+| 42 | Verify route withdraw/reactivate: the session deactivates when the route is withdrawn and reactivates when it returns |
 
 ### 9.3.2 System Tests
 
 | S.No | Test Case Synopsis |
 |------|-------------------|
-| 33 | Verify that sampled mirror session can be created via CLI with --sample_rate and --truncate_size |
-| 34 | Verify that show mirror_session displays Sample Rate and Truncate Size columns |
-| 35 | Verify that mirrored traffic rate matches expected sampling ratio (1:N) |
-| 36 | Verify that mirrored packets are truncated to configured size |
-| 37 | Verify backward compatibility: mirror session without sample_rate works as full mirror |
-| 38 | Verify fallback to full mirror when platform does not support sampled mirroring |
+| 43 | Verify that sampled mirror session can be created via CLI with --sample_rate and --truncate_size |
+| 44 | Verify that show mirror_session displays Sample Rate and Truncate Size columns |
+| 45 | Verify that mirrored traffic rate matches expected sampling ratio (1:N) |
+| 46 | Verify that mirrored packets are truncated to configured size |
+| 47 | Verify backward compatibility: mirror session without sample_rate works as full mirror |
+| 48 | Verify that a sampled mirror session is rejected when the platform does not support sampled mirroring or truncation |
 
 # Appendix A: Problem Statement
 
