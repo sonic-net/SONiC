@@ -85,11 +85,13 @@ In the context of AI scenarios, we are encountering challenges with switches tha
 - The vendor SDK should support querying the minimal polling interval for each counter.
 - When reconfiguring any high frequency telemetry settings, whether it is the polling interval or the stats list, the existing high frequency telemetry will be interrupted and regenerated.
 - If any of monitored objects is deleted, the existing high frequency telemetry will be interrupted and regenerated.
+- The collector is designed to handle single-cycle counter rollovers; however, vendors must ensure that the data does not roll over twice between two collection intervals.
 
 ### 5.2. Phase 2
 
 - Replace the existing solution by integrating the new high-frequency telemetry architecture into the Counter DB, ensuring compatibility with the current system and ecosystem.
 - Supports updating configuration without interrupting the stream of high frequency telemetry
+- Support stats of tam telemetry for debugging purpose
 
 ## 6. Architecture Design
 
@@ -167,6 +169,7 @@ flowchart LR
     swss_act((Swss actor: Handle swss message))
     netlink_act((Netlink actor: Receive netlink message from kernel))
     ipfix_act((Ipfix actor: Handle IPFix message))
+    harmonize_act((Harmonize actor: Unifies sampling and handles data rollover))
     cdb_act((Counter DB actor: Store counters to counter DB))
     otel_act((OpenTelemetry actor: Send counters to OpenTelemetry collector))
     cdb[(Counter DB)]
@@ -174,8 +177,9 @@ flowchart LR
 
     swss_act -- IPFix Template --> ipfix_act
     netlink_act -- IPFix Record --> ipfix_act
-    ipfix_act -- Counters --> cdb_act
-    ipfix_act -- Counters --> otel_act
+    ipfix_act -- Counters --> harmonize_act
+    harmonize_act -- Counters --> cdb_act
+    harmonize_act -- Counters --> otel_act
     cdb_act -- ObjectID-Counters Pair --> cdb
     cdb -. Lazy load: COUNTERS_*_MAP(ObjectID-Name Map) .-> cdb_act
     otel_act -- OpenTelemetry Message --> otel
