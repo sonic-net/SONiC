@@ -111,38 +111,44 @@ The design extends the existing console monitor DCE architecture. The per-line p
 
 ```mermaid
 flowchart LR
-    userA["User A<br/>consutil connect 1"]
-    pts["PTS<br/>/dev/ttyUSB1-PTS"]
-    ptm["PTM<br/>/dev/ttyUSB1-PTM"]
-    proxy["Per-line proxy<br/>console-monitor-proxy@1"]
-    tty["Physical TTY<br/>/dev/ttyUSB1"]
     target["Managed device<br/>serial console"]
+    tty["Physical TTY<br/>/dev/ttyUSB1"]
 
-    userA <-- "interactive console" --> pts
-    pts <-- "PTY bridge" --> ptm
-    ptm <-- "normal TX/RX stream" --> proxy
-    proxy <-- "serial stream" --> tty
-    tty <-- "physical serial" --> target
-
-    subgraph MirrorPath["Mirror side path inside DCE"]
+    subgraph proxyBox["Per-line proxy process (console-monitor-proxy@1)"]
+        core["Existing proxy forwarding logic"]
         mirror["MirrorManager"]
         writer["RecordingWriter"]
-        log["Secure text logs<br/>/var/log/sonic/console-mirror/..."]
         state["STATE_DB<br/>CONSOLE_MIRROR|1"]
+        control["MirrorControlServer<br/>/run/console-monitor/mirror/line1.sock"]
+        display["DisplaySink"]
+        log["Text logs<br/>/var/log/sonic/console-mirror/..."]
     end
 
-    proxy -. "best-effort RX/TX copy" .-> mirror
+    ptm["PTM<br/>/dev/ttyUSB1-PTM"]
+    pts["PTS<br/>/dev/ttyUSB1-PTS"]
+    userA["User A<br/>consutil connect 1"]
+
+    
+
+    target <-- "physical serial" --> tty
+    tty <-- "serial stream" --> core
+
+    core <-- "normal TX/RX stream" --> ptm
+    ptm <-- "PTY bridge" --> pts
+    pts <-- "interactive console" --> userA
+
+    core -->|best-effort RX/TX copy| mirror
+
     mirror --> writer
     writer --> log
     mirror --> state
+    mirror --> display
 
-    userB["User B<br/>sudo consutil mirror start 1"]
-    uds["MirrorControlServer<br/>/run/console-monitor/mirror/line1.sock"]
+    control -->|start / stop / status / attach-display| mirror
 
-    userB <-- "start / stop / status" --> uds
-    uds --> mirror
-    mirror -. "optional escaped live display" .-> uds
-    uds -. "display stream" .-> userB
+    userB["User B<br/>sudo consutil mirror start 1 --display"]
+    userB -. "UDS control messages" .-> control
+    display -. "UDS display stream" .-> userB
 ```
 
 ### 2.2 Design Principles
@@ -222,7 +228,7 @@ For accepted records, `MirrorManager` creates a mirror record containing timesta
 * `RecordingWriter`, if recording is active.
 * `DisplaySink`, if live display is attached.
 
-Writer submission is best effort. If the writer queue is full, `MirrorManager` increments `pending_writer_drop_count`, writes a syslog warning, and does not block the forwarding loop. When the writer queue later accepts records again, `MirrorManager` emits one `EVENT` record with `reason=writer_queue_full` and the accumulated `dropped_records` value before recording subsequent data records.
+Writer submission is best effort. If the writer queue is full, `MirrorManager` increments `pending_writer_drop_count`, writes a syslog warning, and does not block the forwarding loop. When the writer queue later accepts records again, `MirrorManager` emits one `EVENT` record with `reason=writer_queue_full` and the accumulated `pending_writer_drop_count` value before recording subsequent data records.
 
 Display submission is also best effort. If the display queue is full, the display record is dropped and a syslog warning is written.
 
@@ -280,7 +286,7 @@ Only one `DisplaySink` is allowed per line. If a display sink is already attache
 
 | Resource | Description |
 |----------|-------------|
-| UDS connection | Connection back to the `consutil mirror start --display` process |
+| UDS connection | Accepted client connection from the `MirrorControlServer` back to the `consutil mirror start --display` process |
 | Display queue | Bounded queue receiving display records from `MirrorManager` |
 | Display task/thread | Background execution context that sends records to the CLI |
 
