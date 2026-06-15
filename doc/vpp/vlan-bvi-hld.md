@@ -526,7 +526,7 @@ The plugin contains four feature nodes plus a CLI/init module:
 |------|-----|----------|---------|
 | `sonic-ext-capture` | `device-input` | wire phys only (skipped on BVIs and host taps via `sonic_ext_phy_is_aggregate()`) | Stamp `sonic_ext_buffer_opaque_t` cookie (`magic='SNCX'`, `orig_rx`, `orig_vlan_tag`) on `vnet_buffer2(b)->unused` before `ethernet-input` overwrites RX. |
 | `sonic-ext-host-xc` | `device-input` | LCP host taps | Steer Linux replies straight to the paired phy's `interface-output`. |
-| `sonic-ext-bcast-redirect` | `ip4-unicast` | every BVI that has an LCP pair (gated on `sonic_ext_phy_is_bvi()` inside the LCP pair add/del callback).  VXLAN tunnel-termination BVIs without an LCP pair are not enabled. | Match cookie + `dst==255.255.255.255` and dispatch limited broadcasts (DHCP and any other UDP/L4) to `linux-cp-punt`. |
+| `sonic-ext-bcast-redirect` | `ip4-unicast` | every BVI that has an LCP pair (gated on `sonic_ext_phy_is_bvi()` inside the LCP pair add/del callback).  VXLAN tunnel-termination BVIs without an LCP pair are not enabled. | Match cookie + `dst==255.255.255.255` + UDP + `sport==68 && dport==67` (DHCPv4 client→server) and dispatch the frame to `linux-cp-punt`; everything else falls through to `ip4-lookup`. |
 | `sonic-ext-aggr-tap-redirect` | `interface-output` | BVI host tap | Read cookie; rewrite `VLIB_TX = LCP host tap of orig_rx`; if `orig_vlan_tag != 0`, re-insert `[0x8100][orig_vlan_tag]` into the L2 header. |
 
 **Per-buffer cookie.**  See §3.7.1.  The cookie lives on
@@ -664,7 +664,64 @@ Wire (no tag, LLDP 0x88CC)
 ```
 
 
-### 5.4 DHCP Broadcast from a BD Member
+### 5.4 LACP from a BD Member
+
+LACP (Slow Protocols, ethertype `0x8809`, dst MAC `01:80:c2:00:00:02`)
+is the link-bundling control protocol used by `teamd` on the SONiC
+control plane.  Like LLDP it is a link-layer protocol — frames are
+**always untagged on the wire**, even on tagged-trunk members — so the
+graph for tagged and untagged members is identical from the LACP
+perspective.
+
+LACP punt does **not** rely on the L2 classifier.  When the
+`linux-cp` plugin's `lcp-ethertype` shortcut is registered for
+`0x8809` (see `vpp_lcp_ethertype_enable()` in `SaiVppXlate.c`), the
+`linux-cp-punt-xc` node is wired as a direct ethernet-input next for
+that ethertype.  `ethernet-input` therefore short-circuits the entire
+L2 pipeline (`l2-input` / `l2-flood` / classifier / FDB are all
+bypassed) and delivers the frame straight to the parent phy's host
+tap.
+
+Because the punt happens at `ethernet-input` on the **parent** phy
+(not the dot1q sub-interface), there is no need for the `sonic_ext`
+cookie / `aggr-tap-redirect` machinery: the frame is already on the
+correct member's host tap with its original wire L2 header intact.
+The `sonic-ext-capture` node still runs at `device-input` and stamps
+the cookie, but the cookie is never consumed for LACP — it is
+harmless metadata that gets freed with the buffer.
+
+```
+Wire (LACP 0x8809, no 802.1Q — LACP is always untagged, both tagged- and
+                                untagged-member ports)
+  → bobm0 (dpdk-input)
+    → sonic-ext-capture: stamp cookie (ignored downstream for LACP)
+      → bond-input  (LAG bundle resolution; no-op for non-bond ports)
+        → ethernet-input: etype=0x8809, hw-if 1, sw-if 1 (parent phy)
+          → linux-cp-punt-xc: lip-punt 1 → 17  (parent → tap4101)
+            → tap4101-output / tap4101-tx
+              → kernel teamd processes the frame on Ethernet0
+```
+
+Key observations:
+
+- **Same graph for tagged and untagged members.**  LACP carries no
+  802.1Q header on the wire, so `ethernet-input` always hands it to
+  the parent phy regardless of whether the member is configured as a
+  tagged trunk or an untagged access port.  The dot1q sub-interface
+  (`bobm0.10`) never sees an LACP frame.
+- **No L2 classifier session for LACP.**  The classifier installed
+  on BD members today only matches LLDP (`0x88CC`); LACP is handled
+  earlier by the linux-cp ethertype shortcut, so adding a classifier
+  session for `0x8809` would be redundant (and never hit).
+- **No BVI involvement.**  LACP never reaches `l2-input` on the
+  member sub-interface, so `l2-flood` does not produce a BVI copy and
+  `sonic-ext-bcast-redirect` is not triggered.
+- **`sonic_ext` cookie is stamped but unused.**  `sonic-ext-capture`
+  runs unconditionally on every wire phy at `device-input`, ahead of
+  the ethertype shortcut.  For LACP the cookie is simply discarded
+  along with the buffer once the kernel consumes the frame.
+
+### 5.5 DHCP Broadcast from a BD Member
 
 DHCP broadcasts (`dst = 255.255.255.255`) follow the same graph regardless
 of whether the originating member is tagged or untagged.  `sonic-ext-capture`
@@ -706,9 +763,15 @@ Key observations:
   the other BD members.  The BVI is the only flood-copy that reaches
   `ip4-input`, so `sonic-ext-bcast-redirect` runs at most once per
   ingress frame.
-- **No protocol/port match.**  The redirect node only checks the cookie
-  and `dst==255.255.255.255`; the same path serves any IPv4 limited
-  broadcast (DHCP, NetBIOS, custom UDP/L4).
+- **DHCPv4 client→server match only.**  The redirect node checks the
+  cookie, `dst==255.255.255.255`, IP `proto==UDP`, and UDP
+  `sport==68 && dport==67`.  Other limited-broadcast traffic
+  (subnet-directed broadcasts, non-UDP, NetBIOS, RIPv1, vendor
+  discovery, WoL, etc.) falls through to `ip4-lookup` and is dropped
+  against the default 255/32 drop route.  The narrow gate keeps the
+  per-member punt limited to the protocol that requires it; widening
+  the match (e.g. for additional UDP services) is a localized change
+  in the plugin node.
 - **VLAN re-insertion is conditional** on `orig_vlan_tag != 0`.  An
   untagged ingress would print `no-vlan REDIRECTED` at
   `sonic-ext-aggr-tap-redirect` and deliver the frame to the member
@@ -815,7 +878,7 @@ Consequences:
    scope), reusing the same cookie and `aggr-tap-redirect` egress
    path.
 
-### 5.5 IPv4 Unicast to the SVI (L3 Punt)
+### 5.6 IPv4 Unicast to the SVI (L3 Punt)
 
 A unicast IPv4 frame addressed to the BVI's MAC is L2-forwarded by the
 BD (`l2-fwd` resolves the dst MAC to the BVI), enters `ip4-input` on the
@@ -858,7 +921,7 @@ Wire (ICMP echo, 802.1q vlan 10 — tagged member bobm0.10)
 
 Notes:
 
-### 5.6 L2 Unicast Forwarding Between Members
+### 5.7 L2 Unicast Forwarding Between Members
 
 Normal L2 forwarding is unaffected by the classifier (miss path):
 
