@@ -10,7 +10,8 @@ This document describes the **Centralized SONiC VOQ Chassis** architecture and s
 
 | Rev | Date       | Author  | Change Description   |
 |:---:|:----------:|:-------:|---------------------|
-| 1.0 | 2026-03-31 | Huan Le | Initial HLD version |
+| 1.0 | 2026-03-31 | Sunesh Rustagi, Amit Grover, Jihong Li, Anand Mehra, Huan Le | Initial HLD version |
+| 1.1 | 2026-06-13 | Huan Le | Update authors and fix rich text format |
 
 ---
 
@@ -163,7 +164,7 @@ flowchart LR
   end
   subgraph lc0 [Line_card_namespace]
     orch0[orchagent]
-    asic0[ASIC_DB_database@]
+    asic0["ASIC_DB_database@"]
     s0[syncd_SAI]
     dist -->|"APPL state"| orch0
     orch0 --> asic0
@@ -528,7 +529,7 @@ sequenceDiagram
   participant APPL as APPL_DB_central
   participant Dist as distributor
   participant Orch as orchagent_LC_namespace
-  participant ASIC as ASIC_DB_database@
+  participant ASIC as "ASIC_DB_database@"
   participant S as syncd_SAI
   Op->>CC: config_change
   CC->>SC: subscribe_notify
