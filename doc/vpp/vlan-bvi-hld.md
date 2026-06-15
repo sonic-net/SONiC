@@ -5,8 +5,7 @@
 | Rev | Date | Author | Summary |
 |-----|------|--------|---------|
 | 1.0 | 2026-04 | yuega2 | Initial design.  ARP/DHCP punted via the `l2-input-classify` clone-on-hit VPP patch (0010); IP unicast and ARP redirected via sonic_ext plugin features on the `ip4-punt`/`ip6-punt`/`arp` arcs; per-buffer state held in a global `orig_rx_by_bi[]` sidecar keyed by buffer index. |
-| 1.1 | 2026-06 | yuega2 | Re-architected control-plane punt around the `sonic_ext` out-of-tree VPP plugin. Removed all dependence on classifier clone-on-hit for ARP/DHCP. Per-buffer state moved into the `vnet_buffer2(b)->unused` overlay (`sonic_ext_buffer_opaque_t`) so it survives `vlib_buffer_clone()` automatically with no atomic ops or worker handoff concerns. ARP and DHCP now reach the kernel via the `l2-flood -> linux-cp-punt-xc` path with a BVI-side feature node, then through `linux-cp-punt -> aggr-tap-redirect` on the BVI host tap, which restores the original member tap and re-pushes the wire VLAN tag from the cookie. The classifier now handles only LLDP / LACP (always redirect-punt). |
-| 1.2 | TBD | — | Update §5 packet-flow walkthroughs to match v1.1 architecture. |
+| 1.1 | 2026-06 | yuega2 | Re-architected control-plane punt around the `sonic_ext` out-of-tree VPP plugin. Removed all dependence on classifier clone-on-hit for ARP/DHCP. Per-buffer state moved into the `vnet_buffer2(b)->unused` overlay (`sonic_ext_buffer_opaque_t`) so it survives `vlib_buffer_clone()` automatically with no atomic ops or worker handoff concerns. ARP and DHCP now reach the kernel via the `l2-flood -> linux-cp-punt-xc` path with a BVI-side feature node, then through `linux-cp-punt -> aggr-tap-redirect` on the BVI host tap, which restores the original member tap and re-pushes the wire VLAN tag from the cookie. The classifier now handles only LLDP (always redirect-punt). Updated §5 packet-flow walkthroughs to match v1.1 architecture.|
 
 ---
 
@@ -121,7 +120,7 @@ reach the right member tap:
 | ARP | `arp` arc on the BVI | `sonic-ext-aggr-tap-redirect` (on BVI host tap interface-output) | original member iface |
 | DHCP (broadcast → BVI) | `ip4-unicast` arc on the BVI | `sonic-ext-bcast-redirect` → `linux-cp-punt` → `sonic-ext-aggr-tap-redirect` | original member iface |
 | LLDP | `l2-input-classify` (consume) | none — direct redirect-punt to `linux-cp-punt` on the member's own LCP host tap | member iface only |
-| LACP | `l2-input-classify` (consume) | none — direct redirect-punt | member iface only |
+| LACP | `ethernet-input` on bond | none — direct redirect-punt | original member iface only |
 | IP unicast to SVI | `ip4-punt` / `ip6-punt` arc | `sonic-ext-aggr-tap-redirect` on BVI host tap interface-output | original member iface |
 | Linux → wire reply | `device-input` on host tap | `sonic-ext-host-xc` → phy `interface-output` | (sent on the wire) |
 
@@ -138,40 +137,58 @@ Three principles unify the table:
   memcpys opaque2 wholesale into every clone) and `vlib_buffer_advance()`
   (it lives in metadata, not packet bytes). The redirect node reads it back
   to recover the original RX sw_if_index and outermost wire VLAN tag.
-- **LLDP/LACP are still classifier punts** because they are strictly per-port
-  link-local protocols (must not be flooded to other members) and have no
+- **LLDP is still classifier punt** because it is strictly per-port
+  link-local protocols (must not be flooded to other members) and has no
   natural BVI/L3 path.
 
-### 3.2 L2 Classifier-Based Punt (LLDP / LACP only)
+### 3.2 L2 Classifier-Based Punt (untagged-member LLDP only)
 
-Link-local protocols LLDP and LACP are punted **directly from BD member
-interfaces** using VPP's `l2-input-classify` feature with the
-`linux-cp-punt` node as the target. Action is always `CLASSIFY_ACTION_NONE`
-(redirect-punt — the original is consumed; nothing else is done with it).
+LLDP arriving on an **untagged BD member** is punted directly from the
+member interface using VPP's `l2-input-classify` feature with the
+`linux-cp-punt` node as the target. Action is always
+`CLASSIFY_ACTION_NONE` (redirect-punt — the original is consumed;
+nothing else is done with it).
 
-ARP and DHCP are **not** classifier-punted — see §3.7.
+**Why this is needed — BD floods link-local multicast.** When a frame
+with a multicast destination MAC enters the BD via `l2-input`, VPP
+unconditionally strips `L2INPUT_FEAT_FWD` (and `UU_FLOOD` / `UU_FWD`)
+from the per-buffer feature bitmap (see
+`src/vnet/l2/l2_input_node.c`), so the FDB is never consulted and a
+static `l2fib` entry pointing the LLDP DA at the BVI cannot suppress
+the flood.  Without the classifier, the LLDP frame would be replicated
+by `l2-flood` to every BD member — including the BVI flood-copy,
+which `linux-cp-punt-xc` then delivers to the BVI host tap.  The
+result is that `lldpd` would observe the **same neighbour on multiple
+netdevs** (the originating member, every other VLAN member, and the
+Vlan SVI tap), corrupting neighbour discovery whenever the switch and
+any peer reachable through another VLAN member both advertise on the
+same BD.  `l2-input-classify` runs **before** the multicast feat-mask
+strip, so a redirect-punt session here consumes the frame and
+delivers it only to the originating member's LCP host tap.
 
-Key design decisions:
+**Why LACP and tagged-member LLDP are NOT in the classifier.**
+`SaiVppXlate.c` calls `vpp_lcp_ethertype_enable(0x88cc / 0x8809 /
+0x0806)` at startup, which registers `linux-cp-punt-xc` as the
+`ethernet-input` next for those ethertypes.  `ethernet-input`
+dispatches by **outer** ethertype, before any sub-interface or BD
+lookup, so:
 
-- **No new VPP graph nodes for the classifier path** — uses the existing
-  `l2-input-classify` (built-in L2 feature, bit 18) with `linux-cp-punt`
-  as hit-next target.
-- **No clone-on-hit needed** — LLDP/LACP are consumed, so the standard
-  classifier action=NONE (redirect) is sufficient.  The previously-required
-  `0010-l2-input-classify-clone-on-hit.patch` is **no longer needed by this
-  design**.  It is retained in the patches directory for the alternative
-  punt scheme described in §3.7.4 but does not need to be applied for the
-  current design to function.
-- **LLDP/LACP on tagged members follow the regular LCP path** —
-  `ethernet-input` dispatches frames by outer ethertype. LLDP (0x88CC) and
-  LACP (0x8809) are **not** 0x8100, so they are **not** dispatched to the
-  dot1q sub-interface. Instead, they stay on the parent physical interface
-  (which is not in the BD) and follow the normal LCP punt path:
-  `dpdk-input → ethernet-input → linux-cp-punt-xc → tap`. The classifier
-  on the sub-interface never sees these frames. The tagged classifier
-  table only needs sessions for LLDP/LACP as a defensive safety net.
+- **LACP (0x8809)** on any phy goes straight to `linux-cp-punt-xc` (or
+  to `bond-input` first if the phy is a bond slave) and never reaches
+  `l2-input`.
+- **Tagged-member LLDP (0x88CC)** also bypasses the BD: LLDP is never
+  802.1Q-tagged on the wire, so it arrives on the **parent** phy
+  (which is not in the BD) with outer ethertype 0x88CC and is
+  consumed by the same `linux-cp-punt-xc` shortcut.
+- **Untagged-member LLDP (0x88CC)** is the only case that reaches
+  `l2-input`, because here the parent phy is itself the BD member.
+  `ethernet-input` does dispatch the frame to `linux-cp-punt-xc`
+  by ethertype — but only when the rx interface is **not** an L2
+  bridged port.  When the rx interface is a BD member, the BD path
+  takes precedence and the frame falls into `l2-input`, where the
+  classifier catches it.
 
-### 3.3 Classifier Table Design (LLDP / LACP only)
+### 3.3 Classifier Table Design (LLDP only)
 
 Two shared classify tables are created lazily on the first BD member add and
 persist for the lifetime of the process. A single `linux-cp-punt` next-index
@@ -196,48 +213,19 @@ Sessions:
 | Protocol | Ethertype | action | Action |
 |----------|-----------|--------|--------|
 | LLDP | `0x88CC` | 0 (NONE) | punt (consume) |
-| LACP | `0x8809` | 0 (NONE) | punt (consume) |
 
 Miss: continue L2 feature chain (to VTR, learn, fwd, flood).
 
 #### 3.3.2 Tagged Member Tables
 
-Tagged frames have the outer ethertype `0x8100` at byte 12, so VPP's
-`l2-input-classify` dispatches all tagged frames to the **other** table slot.
-The inner (payload) ethertype is at byte offset 16.
-
-**Table: tag_other** — matches inner ethertype (skip=1, match=1)
-
-No chained next table.
-
-| Byte Offset | Field | Mask |
-|-------------|-------|------|
-| 16–17 | Inner Ethertype | `0xFFFF` |
-
-Sessions:
-
-| Protocol | Inner Etype | action | Action |
-|----------|-------------|--------|--------|
-| LLDP | `0x88CC` | 0 (NONE) | punt (consume) — defensive |
-| LACP | `0x8809` | 0 (NONE) | punt (consume) — defensive |
-
-Note: these tagged LLDP/LACP sessions are **defensive entries** — in
-practice, `ethernet-input` does not dispatch LLDP / LACP to the dot1q
-sub-interface (their ethertypes are not 0x8100). They stay on the parent
-phy and follow the regular LCP punt path. The entries are installed as a
-safety net in case tagged LLDP/LACP frames ever reach the sub-interface
-unexpectedly.
-
-VPP session match data for skip=1 tables includes 16 bytes of skip padding
-at the start: `match_len = (skip + match) × 16 = 32 bytes`.
-
-Miss: continue L2 feature chain.
+No classifier is needed for tagged members. LLDP packets are received on
+main interface without vlan tags. They are not processed in the bridge.
+The regular forwarding path (ethernet-input -> linux-cp-punt-xc) punts
+the packets directly to the member interface.
 
 #### 3.3.3 Table Attachment
 
 When a BD member is added:
-- **Tagged member** (sub-interface, e.g., `bobm0.10`):
-  `classify_set_interface_l2_tables(bobm0.10, ip4=~0, ip6=~0, other=tag_other)`
 - **Untagged member** (parent phy, e.g., `bobm0`):
   `classify_set_interface_l2_tables(bobm0, ip4=~0, ip6=~0, other=untag_other)`
 
@@ -321,7 +309,7 @@ race that the v1.0 design needed atomic swap-clear to defend against.
 |------|-----|-----------|-----|
 | `sonic-ext-capture` | `device-input` | runs before `ethernet-input`, enabled **only on wire phys** (not BVIs / aggregate ifaces, not host taps) | Stamp the cookie: `magic='SNCX'`, `orig_rx = b->sw_if_index[VLIB_RX]`, `orig_vlan_tag = outer 802.1Q TCI` if the frame is dot1q (peeked from the L2 header before sub-if dispatch). |
 | `sonic-ext-host-xc` | `device-input` | runs before `ethernet-input`, enabled on host taps | When a Linux reply re-enters VPP on a host tap, jump straight to the paired phy's `interface-output` (skip `ethernet-input` re-parse / sub-if dispatch). |
-| `sonic-ext-bcast-redirect` | `ip4-unicast` | runs before `ip4-lookup`, enabled on every BVI that has an LCP pair (i.e. every L3 SVI BVI).  BVIs created purely as the L2 endpoint of a VXLAN tunnel termination have no LCP pair and are therefore **not** instrumented by this node — limited broadcasts on those BVIs continue down the regular L2/VXLAN forwarding path and can be encapsulated to the remote VTEP. | Gate on cookie-magic + `dst==255.255.255.255`.  No protocol or port match: any limited-broadcast IPv4 frame carrying a valid cookie is dispatched to `linux-cp-punt` instead of `ip4-lookup`.  Today this is the entry point for DHCP broadcasts that have been L2-flooded into the BVI; the same node will serve future non-BVI broadcast redirect use cases without code changes. |
+| `sonic-ext-bcast-redirect` | `ip4-unicast` | runs before `ip4-lookup`, enabled on every BVI that has an LCP pair (i.e. every L3 SVI BVI).  BVIs created purely as the L2 endpoint of a VXLAN tunnel termination have no LCP pair and are therefore **not** instrumented by this node — limited broadcasts on those BVIs continue down the regular L2/VXLAN forwarding path and can be encapsulated to the remote VTEP. | Match all of: `dst==255.255.255.255`, IP `proto==UDP`, UDP `sport==68 && dport==67` (DHCPv4 client→server), and a valid sonic_ext cookie.  Matching frames are dispatched to `linux-cp-punt` instead of `ip4-lookup`; everything else (subnet-directed broadcasts, non-UDP broadcasts, other UDP broadcasts such as NetBIOS / RIPv1 / vendor discovery / WoL, and host-originated traffic with no cookie) falls through to `ip4-lookup` so it is dropped against the default 255/32 route. The narrow port match keeps the per-member punt limited to the protocol that actually requires it; widening the gate (e.g. to additional UDP services) is a localized change in the plugin node only. |
 | `sonic-ext-aggr-tap-redirect` | `interface-output` | runs on the BVI's host-tap interface (and any future bond/lag aggregate tap) | Read the cookie. Look up the LCP pair of `orig_rx_sw_if_index` and rewrite `b->sw_if_index[VLIB_TX]` to that LCP's host tap.  If `orig_vlan_tag != 0`, mac-shift the L2 header back 4 bytes and write `[TPID 0x8100][TCI orig_vlan_tag]` at offsets 12 and 14, restoring the original wire VLAN.  Update `vnet_buffer(b)->l2_hdr_offset` so any later rewind lands on the tagged header. |
 
 The `sonic-ext-arp-redirect` and `sonic-ext-ip{4,6}-punt-redirect` features
@@ -330,7 +318,7 @@ because all three control-plane classes funnel through the BVI's host-tap
 egress path:
 
 - **ARP** flooded onto a BD member → `l2-input` → `l2-input-classify`
-  (LLDP/LACP-only classifier in v1.1 misses on ARP) → `l2-learn` →
+  (LLDP classifier in v1.1 misses on ARP) → `l2-learn` →
   `l2-flood` → `linux-cp-punt-xc` → BVI host tap
   `interface-output` → `aggr-tap-redirect` → member host tap.
 - **DHCP** (limited broadcast) flooded onto a BD member → `l2-input` →
@@ -346,7 +334,7 @@ Concrete ARP trace (tagged member, vlan 10):
 ```
 ethernet-input        ARP ff:ff:ff:ff:ff:ff 802.1q vlan 10
 l2-input              sw_if_index 23 (member sub-if)
-l2-input-classify     table 1 -> next 13      (LLDP/LACP miss = continue)
+l2-input-classify     table 1 -> next 13      (LLDP miss = continue)
 l2-input-vtr          pop outer tag
 l2-learn / l2-flood   bd_index 1
 linux-cp-punt-xc      lip-punt: 24 -> 25      (BVI sw_if 24 -> bvi-tap 25)
@@ -515,8 +503,8 @@ No sub-interface or VTR needed — wire frames are already untagged.
 
 **File**: `SwitchVppFdb.cpp` — `l2_punt_classify_init()`
 
-Lazily creates the two shared classify tables (`untag_other`, `tag_other`)
-and the LLDP/LACP redirect-punt sessions described in Section 3.3. Called
+Lazily creates the one shared classify table (`untag_other`)
+and the LLDP redirect-punt sessions described in Section 3.3. Called
 automatically on the first BD member add.  ARP and DHCP table slots that
 existed in v1.0 (`untag_ip4`, `tag_dhcp`) are no longer created — those
 protocols are handled by the `sonic_ext` plugin (§3.7).
@@ -630,7 +618,7 @@ Wire (ARP, 802.1q vlan 10 — tagged member)
     → sonic-ext-capture: stamp cookie {orig_rx=1, orig_vlan_tag=10}
       → ethernet-input: etype=0x8100/0x0806, dispatched to bobm0.10
         → l2-input (sw_if_index 23, BD 1)
-          → l2-input-classify (LLDP/LACP miss → continue)
+          → l2-input-classify (LLDP miss → continue)
           → l2-input-vtr: pop outer 802.1Q
           → l2-learn / l2-flood (bd_index 1)
             → linux-cp-punt-xc: lip-punt 24 → 25  (BVI sw_if 24 → bvi-tap 25)
@@ -643,9 +631,9 @@ Wire (ARP, 802.1q vlan 10 — tagged member)
                       → kernel sees ARP on Ethernet0.10
 ```
 
-### 5.2 LLDP/LACP from Tagged Member
+### 5.2 LLDP from Tagged Member
 
-LLDP and LACP use link-local ethertypes (0x88CC, 0x8809) — **not** 0x8100.
+LLDP uses link-local ethertypes (0x8809) — **not** 0x8100.
 When a tagged member port receives an LLDP frame, `ethernet-input` sees
 ethertype 0x88CC and does **not** dispatch it to the dot1q sub-interface.
 The frame stays on the parent physical interface, which has an LCP pair
@@ -659,11 +647,11 @@ Wire (LLDP 0x88CC, no 802.1Q encapsulation — LLDP is always untagged)
         → kernel lldpd/teamd processes the frame on Ethernet0
 ```
 
-The classifier on the sub-interface (`bobm0.10`) never sees LLDP/LACP.
+The classifier on the sub-interface (`bobm0.10`) never sees LLDP.
 This is the standard behavior — LLDP is a link-layer protocol that is
 not VLAN-tagged on the wire.
 
-### 5.3 LLDP/LACP from Untagged Member
+### 5.3 LLDP from Untagged Member
 
 ```
 Wire (no tag, LLDP 0x88CC)
@@ -694,7 +682,7 @@ Wire (DHCP DISCOVER, 802.1q vlan 10 — tagged member bobm0.10)
   → bobm0 (dpdk-input)
     → sonic-ext-capture: stamp cookie {orig_rx=3, orig_vlan_tag=10}
       → ethernet-input → l2-input (sw_if 26, BD 1)
-        → l2-input-classify (LLDP/LACP miss → continue)
+        → l2-input-classify (LLDP miss → continue)
         → l2-input-vtr: pop outer 802.1Q
         → l2-learn / l2-flood (bd_index 1)
             ├─→ l2-output → bobm1-output → bobm1-tx              (untagged member, flooded out wire)
@@ -731,6 +719,102 @@ Key observations:
   `Ethernet0.10` for `bobm0.10`), which is what the SONiC DHCP relay
   expects.
 
+#### Servicing model: relay and/or in-VLAN DHCP server
+
+This design supports **both** DHCP servicing models on the switch, and
+they are not mutually exclusive:
+
+- **DHCP relay (`dhcrelay`)** — the switch runs `dhcrelay` listening on
+  the member-tap netdev (`Ethernet0.10` in the example above).  The
+  punted DISCOVER/REQUEST that `aggr-tap-redirect` delivers to that tap
+  is consumed by `dhcrelay`, which unicasts it to an L3-reachable
+  server (typically reached via a different VRF/VLAN/uplink) and
+  relays the OFFER/ACK back to the client.
+
+- **In-VLAN DHCP server (`dhcp-server` / `kea-dhcp4` / etc.)** — the
+  switch (or any other BD member) runs a DHCP server bound to the
+  Vlan SVI / member netdev.  The server sees the DISCOVER through the
+  same member-tap that `dhcrelay` would have used, because the punted
+  copy is delivered to the *ingress member's* host tap (where Linux
+  exposes it as `Ethernet0.10`, which is enslaved to `Vlan10`).  The
+  server replies through the kernel; the reply path is the standard
+  Linux → host-tap → BVI → `l2-output` flow back out the wire.
+
+SONiC ensures either DHCP relay or server is enable but not both.
+
+We deliberately **do not block** intra-VLAN L2 flooding of DHCP
+broadcasts.  A foreign DHCP server that happens to live on another
+member of the same BD will also see the DISCOVER as part of the
+normal `l2-flood` fan-out (the per-member copies in the trace above)
+and may answer it directly at L2 without involving the switch CPU.
+The redirect-to-tap copy that drives the on-switch daemon is an
+**additional** copy taken off the BVI flood-set, not a replacement
+for the L2 flood.
+
+Consequences:
+
+1. **Foreign in-VLAN DHCP server is not an expected SONiC topology.**
+   SONiC's DHCP model assumes the DHCP client and DHCP server are
+   *not* both behind member ports of the same VLAN: either the server
+   is L3-remote (reached via `dhcrelay`) or it runs on the switch
+   itself (`dhcp-server` bound to the SVI).  This design does **not**
+   explicitly block a foreign in-VLAN server — pure-L2 flood-and-
+   answer will work as a side-effect of normal bridging — but the
+   topology is not a tested target.
+
+2. **DHCP snooping is out of scope.**  This HLD does not implement
+   DHCP snooping, the snooping binding table, trusted/untrusted
+   port classification, or Option-82 insertion/strip.  Operators who
+   need to mix client-facing and server-facing member ports in the
+   same VLAN — and therefore need the snooping security guarantees
+   that prevent a rogue host from impersonating a DHCP server — are
+   not covered by the current design.  Snooping support will be
+   addressed in a separate HLD when the requirement is formalised; at
+   that point the snooping enforcement node is expected to sit on
+   the BD member's `l2-input` arc (before `l2-flood`) so that
+   server-sourced frames arriving on untrusted member ports are
+   dropped before they reach either the L2 flood-set or the
+   punt-to-tap path.
+
+3. **Double-servicing is theoretically possible** if (a) a foreign
+   DHCP server sits on another BD member *and* (b) the switch is
+   also running `dhcrelay` or an on-switch `dhcp-server` for the same
+   VLAN.  In that case the client may receive two OFFERs — one from
+   the foreign in-VLAN server (via the L2 flood path) and one from
+   the on-switch daemon (via the punt → tap path).  This is benign
+   by DHCP protocol design (the client picks one OFFER and the other
+   lease falls through `DHCPRELEASE` / lease-timeout) and matches
+   the behaviour of a hardware switch with both an in-VLAN server
+   and a relay helper-address configured but no snooping enabled.
+   Per consequence #1 this configuration is outside the supported
+   topology; it is mentioned only to describe what the data plane
+   will do if it occurs.
+
+4. **Which member sees the punt** is unambiguous: the cookie carries
+   the *original* `orig_rx` (the ingress wire port), so
+   `aggr-tap-redirect` always delivers the punted copy to the
+   ingress member's tap — never to a sibling member's tap.  There is
+   exactly one punted copy per ingress frame regardless of BD
+   membership count (see "Key observations" above).
+
+5. **DHCPv6 is out of scope.**  Everything above describes DHCPv4
+   only.  DHCPv6 client traffic is **link-scoped IPv6 multicast** to
+   `ff02::1:2` (`All_DHCP_Relay_Agents_and_Servers`) — it is *not* a
+   limited IPv4 broadcast, so the `dst == 255.255.255.255` gate in
+   `sonic-ext-bcast-redirect` does not match it and there is no
+   equivalent IPv6 redirect node in the current `sonic_ext` plugin.
+   On the BVI, `ip6-input` / `ip6-mfib` will handle the multicast
+   per the BVI's IPv6 multicast routing / MLD state (typically
+   l2-flood only, no punt to Linux), so DHCPv6 will *not* be
+   delivered to a member host tap by this design.  DHCPv6 relay /
+   server support is deferred to a future HLD together with IPv6 ND
+   (§7); when that work lands, an IPv6 sibling of
+   `bcast-redirect` will be added on the BVI's `ip6-unicast` /
+   `ip6-multicast` arc gating on the DHCPv6 link-local multicast
+   destinations (`ff02::1:2`, and `ff05::1:3` for the relay-agent
+   scope), reusing the same cookie and `aggr-tap-redirect` egress
+   path.
+
 ### 5.5 IPv4 Unicast to the SVI (L3 Punt)
 
 A unicast IPv4 frame addressed to the BVI's MAC is L2-forwarded by the
@@ -753,7 +837,7 @@ Wire (ICMP echo, 802.1q vlan 10 — tagged member bobm0.10)
   → bobm0 (dpdk-input)
     → sonic-ext-capture: stamp cookie {orig_rx=1, orig_vlan_tag=10}
       → ethernet-input → l2-input (sw_if 23, BD 1)
-        → l2-input-classify (LLDP/LACP miss → continue)
+        → l2-input-classify (LLDP miss → continue)
         → l2-input-vtr: pop outer 802.1Q
         → l2-learn / l2-fwd  (dst MAC resolved to BVI, sw_if 24)
           → ip4-input on BVI
@@ -806,17 +890,14 @@ vppctl show bridge-domain 10 detail
 vppctl show lcp
   bvi10     → tap_Vlan10
   bobm0     → Ethernet0      (physical)
-  bobm0.10  → Ethernet0.10   (auto-subint)
   bobm1     → Ethernet4      (physical)
 
 # Classifier tables
 vppctl show classify tables
-  Table 0 (untag_other): skip=0 match=1 sessions=2  # LLDP, LACP
-  Table 1 (tag_other):   skip=1 match=1 sessions=2  # LLDP, LACP (defensive)
+  Table 0 (untag_other): skip=0 match=1 sessions=2  # LLDP
 
 # Classifier attachment
 vppctl show classify interface
-  bobm0.10: ip4=~0 ip6=~0 other=1 (tag_other)
   bobm1:    ip4=~0 ip6=~0 other=0 (untag_other)
 
 # sonic_ext plugin state
@@ -846,6 +927,18 @@ addressed in a separate document. Two options are under consideration:
    them to the Linux control plane, similar to the ARP approach. This would
    require additional ip6 table slots.
 
+**DHCPv6** is also explicitly out of scope for v1.1 (see §5.4
+consequence #5).  Unlike DHCPv4 it is link-scoped IPv6 multicast
+(`ff02::1:2` for client → relay/server, `ff05::1:3` for relay → server),
+so the IPv4-only `dst == 255.255.255.255` gate in
+`sonic-ext-bcast-redirect` does not catch it and the design currently
+has no IPv6 punt path for it.  When DHCPv6 support is required, an
+IPv6 sibling of `bcast-redirect` will be added on the BVI's IPv6 arc,
+gated on the DHCPv6 multicast destinations and reusing the existing
+cookie + `aggr-tap-redirect` egress to deliver the frame to the
+originating member's host tap (where `dhcp6relay` / `kea-dhcp6` /
+etc. observe it).  This work is expected to land alongside the IPv6
+ND solution above.
 ---
 
 ## 8. Files Modified
@@ -858,7 +951,7 @@ addressed in a separate document. Two options are under consideration:
 | `platform/vpp/vppbld/plugins/sonic_ext/` | Out-of-tree VPP plugin: `sonic-ext-capture`, `sonic-ext-host-xc`, `sonic-ext-bcast-redirect`, `sonic-ext-aggr-tap-redirect` + CLI/init.  Per-buffer cookie on `vnet_buffer2(b)->unused`.  Defaults `punt-via-member` and `host-xc` to **on** at init.  Hooks into LCP pair add/del to manage per-pair feature enablement.  Supersedes patches 0008 and 0012. |
 | `src/sonic-sairedis/vslib/vpp/vppxlate/SaiVppXlate.c` | Classify API wrappers, `interface_set_promiscuous()` |
 | `src/sonic-sairedis/vslib/vpp/vppxlate/SaiVppXlate.h` | Extern declarations |
-| `src/sonic-sairedis/vslib/vpp/SwitchVppFdb.cpp` | BVI in BD (with internal LCP pair for redirect anchor), classifier init/apply/remove for **LLDP/LACP only** in v1.1 (ARP and DHCP are handled by the sonic_ext plugin instead), tagged/untagged member handling |
+| `src/sonic-sairedis/vslib/vpp/SwitchVppFdb.cpp` | BVI in BD (with internal LCP pair for redirect anchor), classifier init/apply/remove for **LLDP only** in v1.1 (ARP and DHCP are handled by the sonic_ext plugin instead), tagged/untagged member handling |
 | `src/sonic-sairedis/vslib/vpp/SwitchVppRif.cpp` | SUB_PORT RIF |
 | `src/sonic-sairedis/vslib/vpp/SwitchVppHostif.cpp` | Promisc on every phy at LCP creation; no vppctl invocation needed (sonic_ext defaults are on) |
 | `src/sonic-sairedis/vslib/vpp/SwitchVpp.h` | `m_bvi_vlan_lcp_map` member |
