@@ -18,6 +18,7 @@
     - [4. Overview](#4-overview)
       - [4.1 DHCPv4 relay](#41-dhcpv4-relay)
       - [4.2 DHCPv4 Packet Forwarding with relay](#42-dhcpv4-packet-forwarding-with-relay)
+      - [4.3 ZTP with DHCP relay](#43-ztp-with-dhcp-relay)
     - [5. Requirements](#5-requirements)
       - [5.1 Design Considerations](#51-design-considerations)
         - [5.1.1 Co-existence with ISC-DHCP Code](#511-co-existence-with-isc-dhcp-code)
@@ -25,7 +26,7 @@
         - [5.1.3 Interop with Port-Based DHCP Server](#513-interop-with-port-based-dhcp-server)
         - [5.1.4 DHCP Monitor](#514-dhcp-monitor)
         - [5.1.5 Dual-Tor Support](#515-dual-tor-support)
-        - [5.1.6 Routed Port Support](#516-physical-port-support)
+        - [5.1.6 Routed Port Support](#516-routed-port-support)
     - [6. Detailed Design](#6-detailed-design)
       - [6.1 DHCPv4 Config Manager](#61-dhcpv4-config-manager)
       - [6.2 Relay Main](#62-relay-main)
@@ -100,6 +101,22 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
 <div align="center"> <img src=images/DHCPv4_Relay_Basic_Flow.png width=600 /> </div>
 
+#### 4.3 ZTP with DHCP relay
+
+Zero Touch Provisioning (ZTP) allows an unconfigured switch to automatically obtain its IP address and download its provisioning artifacts (configuration, provisioning script, or NOS image) without any manual intervention. ZTP relies on DHCP to deliver both the IP lease and the location of these provisioning artifacts. In most deployments the DHCP server and the file server hosting the provisioning artifacts reside on a different subnet than the unconfigured device, so a DHCP relay agent is required to bridge the client and the server across subnet boundaries. The DHCP relay agent carries the ZTP-specific DHCP options (for example, Option 66/Option 67 identifying the provisioning/boot file server, or the SONiC ZTP option carrying the provisioning script URL) transparently between the client and the server, in addition to its normal relay duties. The following describes how the relay agent participates in the ZTP workflow:
+
+- **DHCP Discover:** The unconfigured switch (DUT) boots into ZTP mode and broadcasts a DHCP Discover message on its local subnet. The DHCP relay agent, configured on its client-facing interface, intercepts this broadcast, sets the `giaddr` to its client-facing interface IP, and unicasts the relayed Discover to the DHCP server through its upstream interface.
+
+- **DHCP Offer:** The DHCP server allocates an IP lease and includes the ZTP provisioning options (pointing to the provisioning script, configuration, or NOS image on the file server). It sends a unicast Offer back to the relay agent's `giaddr`. The relay agent forwards the Offer, along with the ZTP options, back to the client on the originating subnet.
+
+- **DHCP Request:** The client broadcasts a DHCP Request to formally request the offered lease. The relay agent intercepts it, updates the fields as in the Discover step, and unicasts the relayed Request to the DHCP server.
+
+- **DHCP Acknowledgment (ACK):** The DHCP server confirms the lease with a DHCP Ack, again carrying the ZTP provisioning options, addressed to the relay agent's `giaddr`. The relay agent forwards the Ack to the client, completing the DHCP transaction and delivering the provisioning information.
+
+- **Fetch provisioning artifacts:** With a valid IP address and the provisioning information learned from the DHCP options, the client contacts the HTTP/File server directly to download the provisioning script, configuration, and/or NOS image, and completes its zero-touch provisioning.
+
+<div align="center"> <img src=images/ztp_dhcp_relay_diagram.png width=600 /> </div>
+
 ### 5. Requirements
 
 - **R0:** Support basic DHCP Relay Functionality described in the previous section.
@@ -122,13 +139,13 @@ A DHCP relay agent is an essential component in networks where clients and DHCP 
 
 - **R8:** Support the DHCP Relay Information option (Option 82), which allows network administrators to include additional information in relayed DHCP messages. Following relay sub-options will be supported.
 
-      - **Circuit ID and Remote ID sub-option**: Allows the relay agent to insert specific information related to the location of the client in the relay requests. These sub-options will be inserted by default into every relay packet.
+    - **Circuit ID and Remote ID sub-option**: Allows the relay agent to insert specific information related to the location of the client in the relay requests. These sub-options will be inserted by default into every relay packet.
 
     * **Link Selection sub-option** [RFC 3527](https://datatracker.ietf.org/doc/html/rfc3527): Specifies the subnet on which the DHCP client resides, allowing servers to allocate addresses from the correct pool.
 
     * **Server ID Override sub-option** [RFC 5107](https://datatracker.ietf.org/doc/html/rfc5107): Allows the relay agent to specify a new value for the server ID option. This sub-option allows the relay agent to act as the DHCP server, ensuring that renewal requests are sent to the relay agent rather than directly to the DHCP server.
 
-      - **Virtual Subnet Selection option** [RFC 6607](https://datatracker.ietf.org/doc/html/rfc6607): Specifies the VRF/VPN from which the DHCP request came from.
+    - **Virtual Subnet Selection option** [RFC 6607](https://datatracker.ietf.org/doc/html/rfc6607): Specifies the VRF/VPN from which the DHCP request came from.
 
 - **R9:** Support configuration of the source interface (giaddr) for the relayed packets.
 
@@ -176,12 +193,15 @@ In a dual-TOR (Top-of-Rack) architecture, it's possible for DHCP request packets
 By enabling the link-selection option, the DHCP relay will use the interface specified by the source-interface option to populate the giaddr field in the packet. When the loopback interface is set as the source-interface, the DHCP request packet sent from the client will have the loopback IP of the originating TOR in the giaddr field. If the DHCP response arrives at the peer TOR, which is in standby mode, it will simply route the packet to the originating ToR. Once the originating TOR receives the response, it can forward the packet to the client through its active interface, as it normally would.
 
 ##### 5.1.6 Routed Port Support
-The DHCPv4 relay agent now supports routed ports in addition to VLAN interfaces. This enhancement allows DHCP relay functionality on L3 interfaces configured in the INTERFACE table without requiring VLAN encapsulation. Key aspects of routed port support include:
+The DHCPv4 relay agent now supports routed (physical L3) ports in addition to VLAN interfaces. This enhancement allows DHCP relay functionality on physical Ethernet ports configured as L3 interfaces (entries in the INTERFACE table) without requiring VLAN encapsulation. Key aspects of routed port support include:
 
 - **Socket Management**: L3 sockets with SO_BINDTODEVICE are used for routed ports, bound to specific interfaces
 - **Interface Mapping**: For VLANs, member ports map to the VLAN (e.g., Ethernet0 → Vlan100). For routed ports, the port maps to itself (e.g., Ethernet4 → Ethernet4)
 - **Circuit ID Formats**: Multiple configurable formats support both VLAN and routed port scenarios
 - **Configuration Tables**: Both VLAN_INTERFACE and INTERFACE tables are monitored for relay configuration
+- **Configuration Validation**: A routed-port relay entry references the INTERFACE table, whose entry is created only when the port is placed in L3 mode (an IP address is assigned). As a result, a plain L2 port without an IP address cannot be configured as a DHCP relay interface — such configuration is rejected at config/YANG validation time.
+
+**Scope and Limitations**: Routed-port support in this phase is limited to physical L3 Ethernet ports. PortChannel (LAG) L3 interfaces and VLAN sub-interfaces are not supported, because they reside in separate tables (PORTCHANNEL_INTERFACE and VLAN_SUB_INTERFACE) and require additional member-port/encapsulation handling. Support for these interface types can be added in a follow-up by extending the `name` leaf union with the corresponding leafrefs (as already done for `source_interface`).
 
 ### 6. Detailed Design
 
@@ -352,6 +372,14 @@ module sonic-dhcpv4-relay {
         prefix loopback;
     }
 
+    import sonic-interface {
+        prefix intf;
+    }
+
+    import sonic-vlan {
+        prefix vlan;
+    }
+
     organization "SONiC";
     contact "SONiC";
     description "DHCPv4 Relay yang Module for SONiC OS";
@@ -372,15 +400,17 @@ module sonic-dhcpv4-relay {
                 key "name";
 
                 leaf name {
-                    description "Interface name - VLAN or routed port";
+                    description "Interface name - VLAN interface or routed (physical L3) port";
                     type union {
                         // VLAN interface
-                        type string {
-                            pattern 'Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4])';
-                        }
-                        // Routed port
                         type leafref {
-                            path "/port:sonic-port/port:PORT/port:PORT_LIST/port:name";
+                            path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
+                        }
+                        // Routed physical port. The INTERFACE_LIST entry exists only
+                        // when the port is in L3 mode (IP assigned), so a plain L2 port
+                        // is rejected by YANG validation.
+                        type leafref {
+                            path "/intf:sonic-interface/intf:INTERFACE/intf:INTERFACE_LIST/intf:name";
                         }
                     }
                }
@@ -471,6 +501,7 @@ module sonic-dhcpv4-relay {
                 leaf circuit_id {
                     description "Custom Circuit ID value (used when circuit_id_format is 'custom')";
                     type string;
+                    when "../circuit_id_format = 'custom'";
                 }
             }
             /* end of DHCPV4_RELAY_LIST */

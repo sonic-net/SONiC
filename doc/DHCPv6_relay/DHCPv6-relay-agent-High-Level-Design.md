@@ -175,19 +175,37 @@ Note: intf-i can be a VLAN interface (e.g., Vlan1000) or a routed port (e.g., Et
 
 sonic-dhcpv6-relay.yang
 <pre>
-module DHCP  
-    container DHCP {  	
-        list INTERFACE_LIST {
-    		key name;
-   		    leaf name {
-    			type string;  // VLAN interface or routed port
-  		    }
-   		    leaf dhcpv6_servers {
-     		    	type inet6:ip-address;
-  		    }
-		    leaf dhcpv6_option|rfc6939_support {
-			    type bool;
-		    }
+module sonic-dhcpv6-relay
+    container sonic-dhcpv6-relay {
+        container DHCP_RELAY {
+            list DHCP_RELAY_LIST {
+                key "name";
+                leaf name {
+                    // VLAN interface or routed (physical L3) port
+                    type union {
+                        type leafref {
+                            path "/vlan:sonic-vlan/vlan:VLAN/vlan:VLAN_LIST/vlan:name";
+                        }
+                        type leafref {
+                            path "/intf:sonic-interface/intf:INTERFACE/intf:INTERFACE_LIST/intf:name";
+                        }
+                    }
+                }
+                leaf-list dhcpv6_servers {
+                    type inet:ipv6-address;
+                    ordered-by user;
+                }
+                leaf rfc6939_support {
+                    type string {
+                        pattern "false|true";
+                    }
+                }
+                leaf interface_id {
+                    type string {
+                        pattern "false|true";
+                    }
+                }
+            }
         }
     }
 }
