@@ -1,4 +1,4 @@
-# Memory and CPU Monitoring Enhancement
+# Memory Trends and High CPU Detection & Monitoring
 
 ## Table of Contents
 - [Scope](#scope)
@@ -17,7 +17,7 @@
 ## Scope
 
 This document describes the high-level design of memory and CPU monitoring enhancements in SONiC.
-
+s
 ## Terminology
 
 **OOM (Out of Memory):** A critical system state where available memory is exhausted. OOM can be caused by (a) memory leak, (b) misconfigured limits, or (c) insufficient resources.
