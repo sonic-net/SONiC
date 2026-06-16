@@ -447,7 +447,7 @@ module sonic-dhcpv4-relay {
                 leaf agent_relay_mode {
                     description "How to forward packets that already have a relay option";
                     type stypes:relay-agent-mode;
-                    default forward_untouched;
+                    default discard;
                 }
 
                 leaf max_hop_count {
@@ -500,7 +500,7 @@ A new table, named DHCPV4_RELAY, will be introduced in the config-db to define D
             "link_selection": "enable",
             "vrf_selection": "enable",
             "server_id_override": "enable",
-            "agent_relay_mode": "forward_untouched",
+            "agent_relay_mode": "discard",
             "circuit_id_format": "default",
             "chassis_id": "my-chassis-01"
         }
@@ -597,9 +597,9 @@ sudo config dhcp_relay ipv4 helper del Ethernet4 10.0.0.1
           --link-selection <enable|disable>          Enable link selection
           --vrf-selection  <enable|disable>          Enable VRF selection
           --server-id-override <enable|disable>      Enable server id override
-          --agent-relay-mode <forward_and_append|
-                              forward_and_replace|
-                              forward_untouched|
+          --agent-relay-mode <append|
+                              replace|
+                              forward|
                               discard>              How to forward packets that already have a relay
                                                     option
           --max-hop-count <1..16>                   Maximum hop count for relayed packets
@@ -665,7 +665,7 @@ sudo config dhcp_relay ipv4 helper del Ethernet4 10.0.0.1
     - Update dhcpv4 relay configuration to replace relay-options if it receives a packet that already contains relay-options
 
         ```
-        sudo config dhcp_relay ipv4 helper update Vlan12 --agent-relay-mode forward_and_replace
+        sudo config dhcp_relay ipv4 helper update Vlan12 --agent-relay-mode replace
         ```
 
 #### 9.2 Show CLI
@@ -807,7 +807,7 @@ The table below lists the various isc-dhcp command-line options currently used i
 
 | Existing isc cmd line arg | New Configuration | Comments |
 |-|-|-|
-| -m discard | --agent-relay-mode with the same default value| |
+| -m discard | --agent-relay-mode discard | Direct mapping. The SONiC ISC template always passed `-m discard` explicitly, so `discard` is also the YANG default to preserve this behavior. |
 | -a %%h:%%p | --circuit-id-format default | Circuit ID format is now configurable (default, interface_ip, vlan_name, custom) |
 | %%P | Not Required | Always insert remote-id in the agent-relay-options |
 | --name-alias-map-file | Not Required | Interface Alias is dynamically retrieved from ConfigDB |
