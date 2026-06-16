@@ -47,10 +47,13 @@ This enhancement adds:
 
 This enhancement uses **linear regression** to detect memory trends and predict time-to-OOM across three time scales. Each time scale operates independently:
 
-**Time scales:**
-- Short: 2 hours (24 samples, check every 5 min) - Catches rapid growth (hours to OOM)
-- Medium: 24 hours (24 samples, check every 60 min) - Catches moderate growth (days to OOM)
-- Long: 7 days (21 samples, check every 8 hours) - Catches gradual growth (weeks to OOM)
+**Time scale:**
+
+| Scale | Check Interval | Window Size | Samples | Target Growth Pattern |
+|-------|---------------|-------------|---------|----------------------|
+| Short | 5 min | 2 hours | 24 | Rapid growth (hours to OOM) |
+| Medium | 60 min | 24 hours | 24 | Moderate growth (days to OOM) |
+| Long | 480 min (8h) | 7 days | 21 | Gradual growth (weeks to OOM) |
 
 **Cycle:** Monit runs checks every cycle (1 cycle = 1 minute).
 
@@ -264,7 +267,7 @@ Per-process collection is done at every sample (not deferred to handler) because
 
 **File:** `/var/run/memory_gradual_{short,medium,long}.json`
 
-**Storage location:** `/var/run` (tmpfs, RAM-backed). No flash wear from frequent writes. Typical total ~25 KB across all three files (negligible relative to system RAM).
+**Storage location:** `/var/run` (tmpfs, RAM-backed). Typical total ~25 KB across all three files.
 
 **Purpose:** State file stores sliding windows of memory samples, bridging the checker and handler components:
 - **Checker (writer)**: Collects and appends system memory + per-process/per-container samples at each check interval
@@ -333,41 +336,6 @@ Per-process collection is done at every sample (not deferred to handler) because
 - File is reset when window fills and detection fires
 
 **Lifecycle:** Created on first run, updated at each check interval, reset when window fills and detection fires.
-
-### Monit Configuration
-
-Monit configuration in `/etc/monit/conf.d/sonic-host`:
-
-```
-check program memory_gradual_short with path "/usr/local/bin/memory_gradual_check.py --scale short"
-    every 5 cycles
-    if status == 2 for 1 cycles then exec "/usr/local/bin/memory_gradual_handler.py --scale short" repeat every 30 cycles
-
-check program memory_gradual_medium with path "/usr/local/bin/memory_gradual_check.py --scale medium"
-    every 60 cycles
-    if status == 2 for 1 cycles then exec "/usr/local/bin/memory_gradual_handler.py --scale medium" repeat every 1 cycles
-
-check program memory_gradual_long with path "/usr/local/bin/memory_gradual_check.py --scale long"
-    every 480 cycles
-    if status == 2 for 1 cycles then exec "/usr/local/bin/memory_gradual_handler.py --scale long" repeat every 1 cycles
-```
-
-**Explanation:**
-- `every N cycles`: Check interval per-check (1 cycle = 1 minute from `set daemon 60` in monitrc). The checker script (Python + psutil) only launches at the configured interval—not every cycle. No wasted overhead between samples.
-  - Short: Every 5 minutes (24 samples = 2 hour window)
-  - Medium: Every 60 minutes (24 samples = 24 hour window)
-  - Long: Every 480 minutes (8 hours; 21 samples = 7 day window)
-- `if status == 2`: Triggers when checker returns exit code 2 (detection). Exit code 0 = normal.
-- `then exec`: Runs handler script to log details
-- Three independent checks for three time scales
-
-**Time scale summary:**
-
-| Scale | Check Interval | Window Size | Samples | Target Growth Pattern |
-|-------|---------------|-------------|---------|----------------------|
-| Short | 5 min | 2 hours | 24 | Rapid growth (hours to OOM) |
-| Medium | 60 min | 24 hours | 24 | Moderate growth (days to OOM) |
-| Long | 480 min (8h) | 7 days | 21 | Gradual growth (weeks to OOM) |
 
 #### Enabling and Disabling
 
@@ -833,47 +801,27 @@ The testing approach follows a phased methodology to ensure comprehensive valida
 Bring up spytest testbed environment to provide a controlled testing infrastructure that mirrors production topology and configuration.
 
 **Phase 2: Unit, Functional, and Integration Testing**
+All tests run under --test-mode with the short scale for rapid validation. A memory controller process deployed on the DUT allocates bytearrays on demand to produce real, measurable memory growth.
 
-All tests run under `--test-mode` with the short scale for rapid validation. A memory controller process deployed on the DUT allocates bytearrays on demand to produce real, measurable memory growth.
+Test acceleration: The --test-mode flag activates SCALE_CONFIG_TEST_MODE with accelerated sampling intervals (1/2/5 min) and reduced window sizes (10 samples each). Test-mode windows complete in 10/20/50 minutes respectively instead of 2h/24h/7d. DUT injection tests use a 15-second injection interval with monit running every 15-second daemon cycles. To avoid duplicate detections during testing, enable only one window check at a time in monit configuration by commenting out the other two.
 
-**Unit Tests (UT-01 through UT-13):**
+**Phase 3: System-Level Validation** Execute Jenkins ring 3 run, followed by syslog validation to verify:
 
-| Test Function | What it verifies |
-|---------------|------------------|
-| `test_ut_01_regression_slope_accuracy` | Injects 30 MB steps on DUT, runs the checker after each sample, reads slope from the state file and confirms it matches the expected MB/min within tolerance |
-| `test_ut_02_r_squared_validation` | Sub-case A: linear DUT injection → R² ≥ 0.85. Sub-case B: alternating alloc/free cycles on DUT → R² < 0.7 (low confidence, no false trigger) |
-| `test_ut_03_time_to_90_calculation` | Deterministic profiles with known slopes; validates minutes-to-hours conversion and time-to-90% accuracy against feature thresholds |
-| `test_ut_04_growth_percent` | High-free vs low-free scenarios verify that growth-as-percent-of-free scales correctly with available memory |
-| `test_ut_05_trigger_truth_table` | Exhaustive truth table of (R², time-to-90, growth%) combinations against thresholds read from the DUT's checker script |
-| `test_ut_06_scale_specific_threshold_mapping` | Boundary tests (just-below, just-above) for per-scale time-to-90 and growth% thresholds |
-| `test_ut_07_zero_negative_slope_handling` | Flat and decreasing memory profiles produce zero or negative slopes, infinite time-to-90, and never trigger |
-| `test_ut_08_sliding_window_eviction` | Feeds cap + overflow samples into the window and verifies oldest samples are evicted while the window stays at cap size |
-| `test_ut_09_baseline_lifecycle` | Validates that post-reset growth uses the new baseline, not a stale pre-reset value |
-| `test_ut_10_process_tracking_filter` | 130 synthetic processes filtered by PROCESS_MIN_RAM_PCT; verifies cap enforcement, threshold exclusion, and descending sort |
-| `test_ut_11_contributor_filter` | Four candidates with varying growth and R²; confirms only those meeting both contribution% and R² minimums are retained |
-| `test_ut_12_restart_artifact_suppression` | Stable-growth process is retained while a process with a restart-induced drop (low R²) is excluded from contributors |
-| `test_ut_13_memory_handler_output_contract` | Validates monit `sonic-host` wiring (checker → handler linkage), handler source markers, and output regex against the header/summary/process/container schema |
+- Detection events are logged with correct format and detail level
+- No unexpected errors or warnings in system logs
 
-**Functional Tests:**
+**Phase 4: Soak Testing Build image with all changes integrated and deploy to soak test environment for extended validation:**
 
-| Test Function | What it verifies |
-|---------------|------------------|
-| `test_func_tc_01_slow_leak_sensitivity` | Monotonically increasing profile triggers detection with positive slope and R² gate pass |
-| `test_func_tc_02_burst_recovery` | Spike followed by recovery returns near baseline; no false detection, growth gate not triggered |
-| `test_func_tc_03_oscillation_immunity` | Alternating up/down pattern produces R² < 0.7; no false detection |
+- Monitor system behavior over multiple days to verify stability
+- Validate detection across actual operational time scales (2 hours, 24 hours, 7 days)
+- Confirm no resource leaks or performance degradation from monitoring itself
+- Verify detection accuracy and false positive rate in real-world conditions
 
-**DUT Syslog Integration Tests:**
+## Future Enhancements
 
-| Test Function | What it verifies |
-|---------------|------------------|
-| `test_dut_syslog_handler_missing_state` | Handler returns exit 1 and logs error when state file is absent |
-| `test_dut_syslog_handler_happy_path` | Handler returns exit 0, logs all required syslog markers, and deletes the state file |
-| `test_dut_syslog_checker_cold_run_no_detection` | First checker run on empty state does not falsely return exit 2 |
-
-**End-to-End Integration Test:**
-
-| Test Function | What it verifies |
-|---------------|------------------|
-| `test_e2e_monit_triggered_detection` | Monit daemon runs checker on schedule while the memory controller injects 30 MB steps. Validates: (1) state file is created and grows, (2) handler syslog output contains all required fields, (3) state file is deleted after handler runs, (4) monit logs status change |
-
-**Test acceleration:** The `--test-mode` flag activates `SCALE_CONFIG_TEST_MODE` with accelerated sampling intervals (1/2/5 min) and reduced window sizes (10 samples each). Test-mode windows complete in 10/20/50 minutes respectively instead of 2h/24h/7d. DUT injection tests use a 15-second injection interval with monit running every 15-second daemon cycles. To avoid duplicate detections during testing, enable only one window check at a time in monit configuration by commenting out the other two.
+- Store detection events and historical data in Redis STATE_DB for telemetry
+- Integrate with SONiC system health framework for early warnings
+- Use cgroups to limit monit resource usage and prevent memory pressure from monitoring
+- Extend `procdockerstatsd` to collect richer per-container metrics (memory high-watermarks, RSS/VSZ breakdowns, restart counts) in the existing `DOCKER_STATS` and `PROCESS_STATS` STATE_DB tables, giving operators more complete real-time snapshots for telemetry dashboards without adding a new daemon (note: `procdockerstatsd` captures point-in-time snapshots every 2 minutes and wipes previous entries in STATE_DB, so it is complementary to — not a substitute for — the regression-based detection which requires multi-hour/multi-day sliding windows with history)
+- Write structured detection events (alerts, threshold breaches, growth attribution) into STATE_DB so that the telemetry agent can stream them over gNMI/gRPC and internal applications can query them directly from Redis without parsing log files; requires scoping which fields to persist, retention depth (latest event vs. rolling history), and table schema
+- Extend handlers to take action on memory grown critical
