@@ -68,8 +68,6 @@ This enhancement uses **linear regression** to detect memory trends and predict 
    - Memory grew significantly as % of free memory (e.g., > 1% of free mem for short window)
    - Trend is statistically significant (R² > 0.7)
 
-This approach is **self-calibrating** (adapts to any RAM size) and **contextual** (considers available headroom when calculating urgency).
-
 ### Architecture
 
 **Components:**
@@ -250,7 +248,7 @@ sequenceDiagram
 
 **Process restart handling:** If a process restarts during the window, the old PID's entry gets `None` appended (process gone) and the new PID starts a fresh entry padded with `None`. Neither entry mixes data from the other. The R² > 0.5 filter requires at least 3 valid samples, so short-lived entries are naturally excluded from attribution.
 
-**Resource overhead:** Measured on Cisco 8000 (30.6 GB RAM, ~865 processes):
+**Resource overhead:** Measured on Cisco 8000:
 
 | Operation | Time | Frequency |
 |-----------|------|-----------|
