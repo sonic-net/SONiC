@@ -75,7 +75,7 @@ Non-requirements:
 
 ## 6. Architecture Design
 
-The architecture diagram from the [base HLD §6](high-frequency-telemetry-hld.md#6-architecture-design) is unchanged. The bulk of the change is internal to `Orchagent → High frequency telemetry Orch`; the SAI/syncd boundary, the CounterSyncd public interface, the OpenTelemetry container, and the Redis databases are unaffected. CounterSyncd's internal label-resolution path is extended to handle the MIXED-mode case where multiple per-group sessions share a template_id (§7.6.1).
+The architecture diagram from the [base HLD §6](high-frequency-telemetry-hld.md#6-architecture-design) is unchanged. The bulk of the change is internal to `Orchagent → High frequency telemetry Orch`; the SAI/syncd boundary, the CounterSyncd public interface, the OpenTelemetry container, and the Redis databases are unaffected. CounterSyncd's label-resolution path is extended for the MIXED case where one template is shared across per-group sessions (see §7.6.1).
 
 ## 7. High-Level Design
 
@@ -156,7 +156,11 @@ In MIXED mode the orchagent replicates the combined IPFIX template into every pe
 
 CounterSyncd handles this with a per-session `session_template_ids` set that records every template_id a session registered. At per-record lookup time it unions the `object_id_name_map` entries of all sessions sharing the record's template_id and resolves the label against that union.
 
-The aggregation is unambiguous because in MIXED mode the orchagent allocates labels from a per-profile monotonic counter (`HFTelProfile::m_next_label`, see §12), so two sessions within the same profile never share a label. In SINGLE mode each template_id has exactly one registering session, the aggregation collapses to that session's lookup, and behavior is identical to the pre-MIXED resolution path.
+**Label allocation.** A *label* is the 16-bit identifier the orchagent assigns to each monitored object when populating a `HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE` entry. The vendor SAI carries the label as the IPFIX Information Element ID in the template returned for the tel_type, and CounterSyncd uses it on every data record to look up the original object name from the session's `object_id_name_map`.
+
+`HFTelProfile::m_next_label` is a per-profile 16-bit monotonic counter that starts at 1. Each newly added object — across any group within the profile — receives the next free value, and labels are never reused within a profile's lifetime (see also §12). This monotonic allocation is what makes the aggregating lookup well-defined: two sessions sharing a template_id are guaranteed not to share a label, so the union of their `object_id_name_map` entries has no key collisions.
+
+In SINGLE mode `m_next_label` is unused — each per-group session has its own template_id, the aggregation collapses to a single session's lookup, and behavior is identical to the pre-MIXED resolution path.
 
 The CounterSyncd public interface — `HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE` schema, IPFIX wire format, OpenTelemetry export — is unchanged. The extension is internal to CounterSyncd's IPFIX data-record processing path.
 
