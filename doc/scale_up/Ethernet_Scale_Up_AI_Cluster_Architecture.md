@@ -194,7 +194,7 @@ _Intra-rack links (<3m) primarily use copper; optical is reserved for 
 
 ### XPU and Station Architecture
 
-We use XPU as a generic term for GPU or any ML accelerator, and define a station as a device conforming to IEEE 802.11 protocol. Each station has a unique address for identification and provides network connectivity with other devices. Stations can be configured with single or multiple ports to differentiate traffic arriving at the same address. These stations are also referred to as IO dies, which are interconnected with XPU dies.
+We use XPU as a generic term for GPU or any ML accelerator, and define a station as a device conforming to IEEE 802.3  protocol. Each station has a unique address for identification and provides network connectivity with other devices. Stations can be configured with single or multiple ports to differentiate traffic arriving at the same address. These stations are also referred to as IO dies, which are interconnected with XPU dies.
 
 ![XPU Station Architecture](images/xpu.png)
 
