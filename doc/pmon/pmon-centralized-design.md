@@ -56,18 +56,15 @@ In the first phase of design, this document covers high-level platform managemen
 * CLI - Command Line Interface
 
 ## 1. Overall Architecture / Design
-Centralized SONiC VOQ Chassis targets chassis deployments where line-card resources are limited and operators want a simplified procedure: manageability and many control-plane protocols run only on the Route Processor (RP) / Supervisor, while line cards focus on data-plane functions. Overall centralized architecture is a prerequisite for this design.
-
+Overall centralized architecture is a prerequisite for this design.
 Refer to the [Centralized Architecture HLD](https://github.com/huanlev/SONiC/blob/f4c462700e6b89532f39e7e199b95745320366bc/doc/centralized-chassis/voq_chassis_hld.md) for the overall centralized chassis architecture.
-
 
 ### 1.1 Problem Statement
 
-SONiC's current modular chassis support uses a distributed architecture, where each line card runs an independent SONiC instance with its own management, routing, and control-plane stack. Consequently, the management controller must treat each line card as a separate router for configuration and chassis management.
-
-While functional, this model can increase operational complexity in some deployments. To simplify management, external connectivity can be restricted to the supervisor cards, which then provide centralized management of the chassis, modules, and control plane.
-
-As part of this enhancement, SONiC modular chassis support is being extended to enable centralized platform, routing, and configuration management for VOQ-based systems. In this architecture, both supervisor and line cards contain CPU complexes that run SONiC. Supervisor cards host the full SONiC control and management stack, while line cards run a lightweight SONiC instance. This design assumes fabric cards are CPU-less or, if CPUs are present, do not run SONiC.
+The existing SONiC modular chassis model is distributed: each line card runs a full SONiC instance with its own management, routing, control-plane, platform-management, and data-plane orchestration services. This makes each line card look like an independently managed router, which increases duplicated services, configuration surfaces, and operational complexity.
+Centralized VOQ chassis changes the service ownership model. The Supervisor / Route Processor (RP) is the chassis-wide owner of control and management operations, including external management access, configuration, routing/control-plane services, chassis inventory, module lifecycle management, firmware orchestration, and operator-facing platform commands.
+Line cards remain SONiC-capable modules, but their role is focused on the data plane. A line card runs the local multi-ASIC data-plane stack needed to program and monitor its ASICs, including `orchagent`, `syncd`, SAI, ASIC-local databases, and local platform daemons required for sensors, transceivers, LEDs, thermals, and health reporting. Line-card services publish local state to the supervisor and execute supervisor-directed actions, but they do not expose an independent external management or control-plane surface.
+This PMON centralized design defines how platform-management services are divided across that architecture: RP-hosted services provide chassis-wide control, policy, aggregation, and operator interfaces, while line-card services provide local data-plane orchestration and hardware telemetry for their own slot / ASIC namespaces. Fabric cards are assumed to be CPU-less, or to not run SONiC in this phase. 
 
 ### 1.2 Functional Requirements
 The requirements below capture the key areas required to operate a centralized VOQ chassis.
@@ -718,6 +715,8 @@ Scripts in sonic-utilities shall be modified to filter on a per-location basis a
 | `show platform firmware updates` | Upgrade image paths, version compare, and status; optional `-l` |
 | `show system-health summary` | Per-module system status LED, service summary, and hardware status; optional `-l` filter |
 | `show system-health detail` | Per-module system health summary plus per-service / per-device monitor list; optional `-l` filter |
+| `show reboot-cause` | Per-module last reboot cause, timestamp, and user; optional `-l` filter |
+| `show reboot-cause history` | Per-module reboot-cause history with cause, time, user, and comment; optional `-l` filter |
 
 ### `show chassis modules state-transitions`
 
@@ -891,6 +890,30 @@ Name                    Status    Type
 container_checker       Not OK    Program
 dhcp_relay              Not OK    Service
 mgmtOperStatus          Not OK    Program
+.
+.
+```
+### `show reboot-cause`
+
+Per-module last reboot cause: module name, reboot timestamp, cause, time, and user who initiated the reboot. With `-l <module>` the output is filtered to a single module.
+
+```text
+show reboot-cause -l LC0
+Device      Name                 Cause                   Time                             User
+----------  -------------------  ----------------------  -------------------------------  ------
+LINE-CARD0  2026_06_15_23_21_07  reboot from Supervisor  N/A                              N/A
+```
+
+### `show reboot-cause history`
+
+Per-module reboot-cause history: each row reports the module, reboot timestamp, cause, time, user, and comment. With `-l <module>` the output is filtered to a single module.
+
+```text
+admin@siVoq8808:~$ show reboot-cause history -l SUPERVISOR0
+Device       Name                 Cause                   Time                             User    Comment
+-----------  -------------------  ----------------------  -------------------------------  ------  ---------
+SUPERVISOR0  2026_06_15_23_33_09  Kernel Panic            Mon Jun 15 11:26:39 PM UTC 2026  N/A     N/A
+SUPERVISOR0  2026_06_15_23_21_07  reboot                  Mon Jun 15 11:06:31 PM UTC 2026  cisco
 .
 .
 ```
