@@ -14,15 +14,13 @@
   - [5. Requirements](#5-requirements)
   - [6. Architecture Design](#6-architecture-design)
   - [7. High-Level Design](#7-high-level-design)
-    - [7.1 Per-Bank Transceiver Object](#71-per-bank-transceiver-object)
-    - [7.2 CMIS State Machine Thread for CPO Modules](#72-cmis-state-machine-thread-for-cpo-modules)
-    - [7.3 DOM: CPO API Wiring](#73-dom-cpo-api-wiring)
-      - [7.3.1 Vendor Extensions](#731-vendor-extensions)
-      - [7.3.2 New Files](#732-new-files)
-    - [7.4 DOM: CPO EEPROM Layout and STATE\_DB Mapping](#74-dom-cpo-eeprom-layout-and-state_db-mapping)
-      - [7.4.1 Adding a Vendor CDB Command](#741-adding-a-vendor-cdb-command)
-      - [7.4.2 STATE\_DB Integration via Aggregator Overrides](#742-state_db-integration-via-aggregator-overrides)
-    - [Platform Implementation Alignment](#platform-implementation-alignment)
+    - [7.1 CMIS State Machine Thread for CPO Modules](#71-cmis-state-machine-thread-for-cpo-modules)
+    - [7.2 DOM: CPO API Wiring](#72-dom-cpo-api-wiring)
+      - [7.2.1 Vendor Extensions](#721-vendor-extensions)
+      - [7.2.2 New Files](#722-new-files)
+    - [7.3 DOM: CPO EEPROM Layout and STATE\_DB Mapping](#73-dom-cpo-eeprom-layout-and-state_db-mapping)
+      - [7.3.1 Adding a Vendor CDB Command](#731-adding-a-vendor-cdb-command)
+      - [7.3.2 STATE\_DB Integration via Aggregator Overrides](#732-state_db-integration-via-aggregator-overrides)
   - [8. SAI API](#8-sai-api)
   - [9. Configuration and management](#9-configuration-and-management)
     - [9.1. Manifest (if the feature is an Application Extension)](#91-manifest-if-the-feature-is-an-application-extension)
@@ -43,7 +41,7 @@
 |-----|------------|--------------|--------------------|
 | 0.1 | 2026-03-31 | Tomer Shalvi | Initial version.   |
 | 0.2 | 2026-05-04 | Natanel Gerbi | DOM: CPO data plane -- vendor CPO subclasses (one OE component, one or more ELS components) using B0..B3 vendor mirror pages and CDB commands, exposed to STATE_DB via aggregator-method overrides. No daemon changes. |
-| 0.3 | 2026-06-14 | Natanel Gerbi | Align §7.3 with the upstream `CpoBase` / `OeBase` / `ElsfpBase` + `CpoApiFactory` hierarchy under `sonic_xcvr/cpo/`. Add §7.1: per-bank transceiver object becomes a `CpoBase`, sibling of `SfpBase` under a new `XcvrBase` parent. |
+| 0.3 | 2026-06-14 | Natanel Gerbi | Align §7.2 with the upstream `CpoBase` / `OeBase` / `ElsfpBase` + `CpoApiFactory` hierarchy under `sonic_xcvr/cpo/`. |
 <br>
 
 ## 2. Overview
@@ -117,8 +115,7 @@ The following aspects are **not covered in this revision**, are currently **unde
 * DOM: CPO telemetry statistics design, extending the existing DOM flow to include OE telemetry and ELS monitoring statistics via the CPO abstraction EEPROM. The design uses **vendor CPO subclasses of `CmisApi`** (one for the Optical Engine, one for the External Laser Source), composed under a thin wrapper. ELS exposes its CMIS-shaped surface through **vendor mirror pages B0..B3** (re-using the standard CMIS page classes at non-standard page numbers). The data is published to STATE_DB by overriding the existing `CmisApi` aggregator methods, so **no changes are required in `xcvrd`, the STATE_DB schema, or the polling loop**. See Section 7.3.
 
 ### Added in Rev 0.3:
-* Per-bank transceiver object (§7.1): the per-bank object exposed to chassis / `xcvrd` for a CPO module is a `CpoBase` instead of an `Sfp(SfpBase)` -- both now sit under a new common `XcvrBase` parent.
-* DOM: re-aligned the CPO API wiring (§7.3) on top of the upstream `CpoBase` / `OeBase` / `ElsfpBase` / `CpoDeviceBase` / `CpoApiFactory` / `CpoHardwareInfo` surface and the `EepromReadWriteMixin` / `OptoeEepromReadWriteMixin` split, instead of dispatching CPO from `xcvr_api_factory.create_xcvr_api()`. The `CmisApi`-based DOM aggregation (§7.4) is unchanged in shape -- it just sits on the upstream OE / ELSFP `CpoDeviceBase` APIs.
+* DOM: re-aligned the CPO API wiring (§7.2) on top of the upstream `CpoBase` / `OeBase` / `ElsfpBase` / `CpoDeviceBase` / `CpoApiFactory` / `CpoHardwareInfo` surface and the `EepromReadWriteMixin` / `OptoeEepromReadWriteMixin` split, instead of dispatching CPO from `xcvr_api_factory.create_xcvr_api()`. The `CmisApi`-based DOM aggregation (§7.3) is unchanged in shape -- it just sits on the upstream OE / ELSFP `CpoDeviceBase` APIs.
 <br>
 
 
@@ -147,26 +144,7 @@ In Joint Mode, SONiC continues to operate using the existing CMIS host managemen
 
 As a result, the following extensions are needed:
 
-### 7.1 Per-Bank Transceiver Object
-
-Chassis and `xcvrd` reach a transceiver through a single per-bank transceiver object whose API (`get_transceiver_info()`, `get_presence()`, ...) is currently defined on `SfpBase`. CPO modules need the same API but should not inherit from `SfpBase`, since they are not SFPs.
-
-The fix is to lift that shared API into a new **`XcvrBase`** parent and make `SfpBase` and `CpoBase` siblings under it:
-
-```text
-                       DeviceBase
-                          │
-                       XcvrBase
-              ┌───────────┴────────────┐
-          SfpBase                   CpoBase
-              │                  (composes OeBase
-        SfpOptoeBase              + ElsfpBase, §7.3.1)
-```
-
-Concretely, the platform's per-bank transceiver object for a CPO module is a `CpoBase` instead of an `Sfp(SfpBase)`. Callers up the stack are unaffected -- they only depend on the `XcvrBase` API surface, so the CMIS state machine (§7.2) and DOM polling loop (§7.3, §7.4) are unchanged (see *Platform Implementation Alignment* below).
-
-
-### 7.2 CMIS State Machine Thread for CPO Modules
+### 7.1 CMIS State Machine Thread for CPO Modules
 
 The CMIS state machine thread is responsible for module configuration. It orchestrates the bring-up of a CMIS transceiver, transitioning it from the inserted state to a ready-for-traffic state.  
 To support CPO modules, the existing `CmisManagerTask` thread in `xcvrd` will be extended to handle the `CPO` module type. No new dedicated CPO configuration thread will be introduced.
@@ -179,13 +157,11 @@ CMIS_MODULE_TYPES = ['QSFP-DD', 'QSFP_DD', 'OSFP', 'OSFP-8X', 'QSFP+C', 'CPO']
 With this change, CPO modules will be processed by the existing CMIS state machine flow.
 
 
-### 7.3 DOM: CPO API Wiring
+### 7.2 DOM: CPO API Wiring
 
-#### 7.3.1 Vendor Extensions
+#### 7.2.1 Vendor Extensions
 
-Onboarding a vendor adds two parallel stacks, one for the OE and one for the ELSFP:
-
-**1. Per-component CMIS stack** -- for each of OE and ELSFP, add the following classes (the CDB rows are only needed if the vendor uses CDB for telemetry / control):
+Onboarding a vendor adds, for each of OE and ELSFP, a per-component CMIS stack (the CDB rows are only needed if the vendor uses CDB for telemetry / control):
 
 | Layer            | OE                                       | ELSFP                                                 | Lives under                          |
 |------------------|------------------------------------------|-------------------------------------------------------|--------------------------------------|
@@ -195,21 +171,13 @@ Onboarding a vendor adds two parallel stacks, one for the OE and one for the ELS
 | CDB Codes *(optional)*  | `Vendor1CpoOeCdbCodes`            | `Vendor1CpoElsCdbCodes`                               | `sonic_xcvr/cdb/<vendor>/`           |
 | CDB MemMap *(optional)* | `Vendor1CpoOeCdbMemMap(CdbMemMap)` | `Vendor1CpoElsCdbMemMap(CdbMemMap)`                  | `sonic_xcvr/cdb/<vendor>/`           |
 
-The DOM aggregator merge that ends up in STATE_DB is implemented inside the API row, via `super().<aggregator>()` + `dict.update()` -- see §7.4.2. For the CDB rows, see §7.4.1 for the per-command extension pattern (reply page + `CDBCommand` + API getter).
+The DOM aggregator merge that ends up in STATE_DB is implemented inside the API row, via `super().<aggregator>()` + `dict.update()` -- see §7.3.2. For the CDB rows, see §7.3.1 for the per-command extension pattern (reply page + `CDBCommand` + API getter).
 
-**2. Device wiring** -- per component, add:
-
-| Role          | OE                                  | ELSFP                                     | What it does                                                                 |
-|---------------|-------------------------------------|-------------------------------------------|------------------------------------------------------------------------------|
-| Product enum entry  | `OeId.Vendor1<Product>`       | `ElsfpId.Vendor1<Product>`                | A new member added directly to the upstream `OeId` / `ElsfpId` enum for each vendor product variant.  |
-| API factory branch | `OeApiFactory.create_api()` branch for `OeId.Vendor1<Product>` | `ElsfpApiFactory.create_api()` branch for `ElsfpId.Vendor1<Product>` | Added in-place to the existing upstream factory: `if hardware_id.<id> == OeId.Vendor1<Product>: return self._create_api(<Vendor>CpoOe{Codes,MemMap,CmisApi})`. A vendor `*ApiFactory` subclass is only needed if the vendor wants its own helpers (e.g. NVIDIA's `_get_elsfp_lower_mem_offset` lookup). |
-| Device class  | `Vendor1OeBase(OeBase / OptoeOeBase / ...)` | `Vendor1ElsfpBase(ElsfpBase / OptoeElsfpBase / ...)` | The class the platform instantiates -- typically only needed to plumb in the right EEPROM transport via an `EepromReadWriteMixin`. |
-
-#### 7.3.2 New Files
+#### 7.2.2 New Files
 
 The files added by this HLD on top of the existing `sonic_xcvr/cpo/` infrastructure are:
 
-Per `sonic_xcvr/` convention, per-vendor extensions live under a `<vendor>/` sub-directory of each subtree (`codes/`, `mem_maps/`, `api/`, `cdb/`). The `cpo/` package holds the shared public base classes (`CpoBase`, `OeBase`, `ElsfpBase`, `CpoApiFactory`, `OeId` / `ElsfpId`), so vendor entries are added directly to `cpo/oe.py` and `cpo/elsfp.py`.
+Per `sonic_xcvr/` convention, per-vendor extensions live under a `<vendor>/` sub-directory of each subtree (`codes/`, `mem_maps/`, `api/`, `cdb/`). The `cpo/` package holds the shared public base classes (`CpoBase`, `OeBase`, `ElsfpBase`, `CpoApiFactory`, `OeId` / `ElsfpId`), so vendor product enums, device classes, and factory branches are added in-place to `cpo/oe.py` and `cpo/elsfp.py` (same pattern as the existing in-tree branches).
 
 ```text
 sonic-platform-common/sonic_platform_base/sonic_xcvr/
@@ -236,11 +204,11 @@ sonic-platform-common/sonic_platform_base/sonic_xcvr/
     └── cpo_els_memmap.py              Vendor1CpoElsCdbMemMap
 ```
 
-### 7.4 DOM: CPO EEPROM Layout and STATE_DB Mapping
+### 7.3 DOM: CPO EEPROM Layout and STATE_DB Mapping
 
-OE and ELS data are contributed by the vendor `CmisApi` / `MemMap` subclasses from §7.3.1's CMIS-stack: each vendor `CmisApi` overrides the relevant `CmisApi.get_transceiver_*()` aggregator and chains `super()` + `dict.update()` to add its CPO-specific fields (§7.4.2). ELS-side keys stay `els_*`-prefixed so OE and ELS dicts merge cleanly. The result rides the existing aggregator path, so **no changes are required in `xcvrd`, in the STATE_DB schema, or in the polling loop**.
+OE and ELS data are contributed by the vendor `CmisApi` / `MemMap` subclasses from §7.2.1's CMIS-stack: each vendor `CmisApi` overrides the relevant `CmisApi.get_transceiver_*()` aggregator and chains `super()` + `dict.update()` to add its CPO-specific fields (§7.3.2). ELS-side keys stay `els_*`-prefixed so OE and ELS dicts merge cleanly. The result rides the existing aggregator path, so **no changes are required in `xcvrd`, in the STATE_DB schema, or in the polling loop**.
 
-#### 7.4.1 Adding a Vendor CDB Command
+#### 7.3.1 Adding a Vendor CDB Command
 
 A vendor CDB-driven getter is built from three small pieces. The vendor `CdbMemMap` just **extends** the upstream one -- it inherits all standard CDB commands and pages, and adds new attributes for its own. Each new command needs:
 
@@ -262,9 +230,9 @@ class Vendor1CpoOeCdbMemMap(CdbMemMap):
 
 `add_pages()` merges the vendor page's typed fields onto the memmap; `_get_all_cdb_cmds()` discovers any `CDBCommand` attribute on `self` by `cmd_id`. So upstream command-id dispatch and field lookup pick the new vendor entries up transparently, with no other layer changes.
 
-#### 7.4.2 STATE_DB Integration via Aggregator Overrides
+#### 7.3.2 STATE_DB Integration via Aggregator Overrides
 
-The vendor `CmisApi` subclasses from §7.3.1 contribute their CPO-specific fields by overriding the relevant `CmisApi` aggregators (`get_transceiver_info`, `get_transceiver_dom_real_value`, `get_transceiver_status_flags`, ...) and chaining `super()` + `dict.update()` to inherit the upstream contributions:
+The vendor `CmisApi` subclasses from §7.2.1 contribute their CPO-specific fields by overriding the relevant `CmisApi` aggregators (`get_transceiver_info`, `get_transceiver_dom_real_value`, `get_transceiver_status_flags`, ...) and chaining `super()` + `dict.update()` to inherit the upstream contributions:
 
 * **Vendor OE component (e.g. `Vendor1CpoOeCmisApi`)** -- inherits the standard CMIS dict via `super()` and overlays its OE-specific extension (e.g. OE CDB telemetry).
 * **Vendor ELS component (e.g. `Vendor1CpoElsCmisApi`)** -- inherits the generic ELSFP dict via `super()` and overlays its ELS-specific extension (vendor mirror pages, ELS CDB readouts). All extension keys stay `els_*`-prefixed, so an OE-dict + ELS-dict merge by a consumer is collision-free.
@@ -288,27 +256,6 @@ class Vendor1CpoElsCmisApi(ElsfpCmisApi):
         result.update(self.get_els_laser_monitoring())  # vendor ELS CDB
         return result
 ```
-
-<br>
-
-### Platform Implementation Alignment
-From the platform implementation perspective, the design aligns completely with the approaches described in the community HLDs. With the `XcvrBase` split from §7.1, the per-bank transceiver object for a CPO module is a `CpoBase` (a sibling of `SfpBase` under `XcvrBase`) instead of an `Sfp(SfpBase)` -- chassis and `xcvrd` see the same `XcvrBase`-shaped interface either way, so the alignment points below are unchanged in spirit, only the per-bank object's class hierarchy changes:
-
-* As described in the *cmis_banking_support.md* (section 7.8.2), the platform will expose one per-bank transceiver object per CPO bank. This structure in Joint mode is illustrated below:
-
-    ![sfp_object_structure_2.png](sfp_object_structure_2.png)
-
-    * Lane-to-port-object mapping is not handled in generic SONiC logic and is instead implemented in the platform layer.
-    * Platform code also handles plug-in/plug-out events: The CPO abstraction in Joint mode allows SONiC to interact with the module as if it were a traditional pluggable device, including handling plug-in and plug-out events of the ELS. The chassis continues to listen for change events from the lower layers and notifies *xcvrd* accordingly. The key difference is that, instead of monitoring physical pluggable modules, the system now monitors CPO modules. This approach enables maximal reuse of the existing codebase and results in minimal changes required to support SW-controlled operation in Joint mode.
-    * This structure explains why no changes are required in the CMIS state machine logic: The CMIS state machine operates at the **logical port level**, where the list of logical ports is derived from the *CONFIG_DB.PORT table*. This model remains unchanged in Joint Mode. With the per-bank approach:
-        * Each per-bank transceiver object continues to represent up to 8 lanes.
-        * Multiple logical ports may share the same module index, as in existing pluggable module implementations.
-        * As a result, from the CMIS state machine perspective, the system behavior remains unchanged, regardless of whether the underlying 8-lane unit is a traditional pluggable transceiver (an `Sfp(SfpBase)`) or a CPO bank (a `CpoBase`).
-
-* As described in the *port_mapping_for_cpo.md* section 7.3.2, the per-bank `CpoBase` objects will follow the same structure, including references to the underlying OE and ELS components, together with the associated bank index (*cmis_banking_support.md* section 7.8.3). The instantiation of these objects will be done in platform chassis (*port_mapping_for_cpo.md* section 7.3.3) and rely on platform configuration files (e.g., a JSON file similar to `optical_devices.json`, as proposed in *port_mapping_for_cpo.md* section 7.1).
-
-<br>
-
 
 ## 8. SAI API
 
