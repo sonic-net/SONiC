@@ -348,12 +348,12 @@ show pon protection-group members <name>
 
 | New/Existing Key | Table | Key | Field | Description |
 | --- | --- | --- | --- | --- |
-| New | PON_OLT_INTF_PROTECTION_GROUP | <protection_intf_group_name> |  | Protection group per OLT interface |
+| New | PON_OLT_INTF_PROTECTION_GROUP | &lt;protection_intf_group_name&gt; |  | Protection group per OLT interface |
 |  |  |  | port | port; port name |
 |  |  |  | mode | "auto": Automatic detection of OLT Interface failures and recovery to initiate the dynamic reroute of traffic |
-| Existing | PEER_SWITCH | <switchname> |  |  |
+| Existing | PEER_SWITCH | &lt;switchname&gt; |  |  |
 |  |  |  | address_ipv4 | IPv4 address; // peer Gateway ip address |
-| Existing | TUNNEL | <pon_tunnel> |  |  |
+| Existing | TUNNEL | &lt;pon_tunnel&gt; |  |  |
 |  |  |  | tunnel_type | "IPinIP" |
 |  |  |  | src_ip | IPv4 address; // self-loopback address |
 |  |  |  | dst_ip | IPv4 address; // Peer loopback address |
@@ -361,44 +361,44 @@ show pon protection-group members <name>
 |  |  |  | encap_ecn_mode | "standard" |
 |  |  |  | ecn_mode | "copy_from_outer" |
 |  |  |  | ttl_mode | "pipe" |
-| Existing | DEVICE_METADATA | <localhost> |  |  |
+| Existing | DEVICE_METADATA | &lt;localhost&gt; |  |  |
 |  |  |  | type | "ToRRouter" |
 |  |  |  | peer_switch | hostname of peer switch |
-| Existing | BGP_DEVICE_GLOBAL | <State> |  |  |
-|  |  | <tsa_enabled> |  | "true \| false" |
+| Existing | BGP_DEVICE_GLOBAL | &lt;state&gt; |  |  |
+|  |  | &lt;tsa_enabled&gt; |  | "true \| false" |
 
 ### 7.5 APPL_DB
 
 | New/Existing Key | Table | Key | Field | Description |
 | --- | --- | --- | --- | --- |
-| New | PON_OLT_INTF_PROTECTION_TABLE | <portname> |  | ponprotd notifies PonOrch to update route next hop targets (direct/tunnel) |
+| New | PON_OLT_INTF_PROTECTION_TABLE | &lt;portname&gt; |  | ponprotd notifies PonOrch to update route next hop targets (direct/tunnel) |
 |  |  |  | state | "active \| standby \| unknown" |
 |  |  |  | direction | "direct \| tunnel" |
 |  |  |  | reason | "olt_intf_state \| tsa \| link_down \| commanded" |
 |  |  |  | state_change_time | timestamp; |
-| New | PON_OLT_INTF_PROTECTION_SWITCH_CMD | <State> |  | ponprotd notifies ponOrch to perform a switchover on active OLT interfaces for TSA events |
+| New | PON_OLT_INTF_PROTECTION_SWITCH_CMD | &lt;state&gt; |  | ponprotd notifies ponOrch to perform a switchover on active OLT interfaces for TSA events |
 |  |  |  | role_switch_cmd | "enable \| disable" |
 
 ### 7.6 STATE_DB
 
 | New/Existing Key | Table | Key | Field | Description |
 | --- | --- | --- | --- | --- |
-| New | HW_PON_OLT_INTF_PROTECTION_TABLE | <portname> |  | After successful route programming in ASIC, Orchagent uses this table to maintain health status |
+| New | HW_PON_OLT_INTF_PROTECTION_TABLE | &lt;portname&gt; |  | After successful route programming in ASIC, Orchagent uses this table to maintain health status |
 |  |  |  | state | "active \| standby \| unknown" |
 |  |  |  | state_change_time | timestamp; |
-| New | PON_OLT_INTF_PROTECTION_RT_TABLE | <portname> |  | Control plane view of composite state and health |
+| New | PON_OLT_INTF_PROTECTION_RT_TABLE | &lt;portname&gt; |  | Control plane view of composite state and health |
 |  |  |  | olt_intf_state | "active \| standby \| unknown" |
 |  |  |  | link_state | "up \| down" |
 |  |  |  | tsa_active | "true \| false" |
 |  |  |  | composite_state | "active \| standby \| unknown"; |
 |  |  |  | health | "healthy \| unhealthy" |
-| New | PON_OLT_INTF_PROTECTION_STATE | <portname> |  | OLT interface state written by ponOrch |
+| New | PON_OLT_INTF_PROTECTION_STATE | &lt;portname&gt; |  | OLT interface state written by ponOrch |
 |  |  |  | olt_intf_state | "active \| standby \| unknown" |
-| New | PON_OLT_INTF_PROTECTION_METRICS_TABLE | <portname> |  | Per-switchover metrics updated by ponprotd. |
+| New | PON_OLT_INTF_PROTECTION_METRICS_TABLE | &lt;portname&gt; |  | Per-switchover metrics updated by ponprotd. |
 |  |  |  | switchover_start | timestamp; |
 |  |  |  | switchover_end | timestamp; |
 |  |  |  | switchover_count | Counter to track the switchover events |
-| Existing | PORT_TABLE | <portname> |  | Ethernet interface state from portSyncd |
+| Existing | PORT_TABLE | &lt;portname&gt; |  | Ethernet interface state from portSyncd |
 |  |  |  | netdev_oper_status | "up \| down" |
 
 ## 8. High-Level Design
@@ -455,10 +455,10 @@ Health definition:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | ACTIVE | UP | ACTIVE | Steady state - Normal Operation | healthy | state=active, direction=direct | composite state=ACTIVE, health=healthy |
 | 2 | STANDBY | UP | STANDBY | Steady state - Normal Operation | healthy | state=standby, direction=tunnel | composite state=STANDBY, health=healthy |
-| 3 | UNKNOWN | UP | UNKNOWN | Switch protection to Standby | unhealthy | state=standby, direction=tunnel, reason=olt_intf_state | composite state=UNKNOWN, health=unhealthy |
-| 4 | ACTIVE | DOWN | STANDBY | Switch protection to Standby | unhealthy | state=standby, direction=tunnel, reason=link_state | composite state=STANDBY, health=unhealthy |
-| 5 | STANDBY | DOWN | STANDBY | Switch protection to Standby | unhealthy | state=standby, direction=tunnel, reason=link_state | composite state=STANDBY, health=unhealthy |
-| 6 | UNKNOWN | DOWN | UNKNOWN | Switch protection to Standby | unhealthy | state=standby, direction=tunnel, reason=olt_intf_state\|link_state | composite state=UNKNOWN, health=unhealthy |
+| 3 | UNKNOWN | UP | UNKNOWN | Switch to protection | unhealthy | state=unknown, direction=tunnel, reason=olt_intf_state | composite state=UNKNOWN, health=unhealthy |
+| 4 | ACTIVE | DOWN | UNKNOWN | Switch to protection | unhealthy | state=unknown, direction=tunnel, reason=link_state | composite state=UNKNOWN, health=unhealthy |
+| 5 | STANDBY | DOWN | UNKNOWN | Switch to protection | unhealthy | state=unknown, direction=tunnel, reason=link_state | composite state=UNKNOWN, health=unhealthy |
+| 6 | UNKNOWN | DOWN | UNKNOWN | Switch to protection | unhealthy | state=unknown, direction=tunnel, reason=olt_intf_state\|link_state | composite state=UNKNOWN, health=unhealthy |
 
 ##### 8.1.1.4 Boot and Initialization Sequence
 
@@ -627,7 +627,7 @@ The diagrams below illustrate some failover scenarios. Events that produce the s
 
 ![Active OLT Interface Failure](images/Active%20OLT%20Interface%20Failure.png)
 
-![OLT Interface Recovery (Standby)](images/OLT%20Interface%20Recovery%20%28Standby%29.png)
+![OLT Interface Recovery (Standby)](images/OLT%20Interface%20Recovery%20(Standby).png)
 
 ### 8.5 Traffic Shift Away (TSA) Handling
 
