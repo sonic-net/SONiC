@@ -35,7 +35,7 @@ A nominee may be put forward by **themselves, an existing maintainer of the repo
 
 ## Review & Approval
 
-1. Approval required by at least one existing maintainer approval and one TSC voting member.
+1. Approval required by at least one existing maintainer approval and two TSC voting members.
 2. There will be a two week window beginning upon opening of the PR, if there are no objections then the maintainership shall be approved.
 3. Approved entries are recorded in [SONiC_Repo_Maintainer.md](./SONiC_Repo_Maintainer.md).
 
