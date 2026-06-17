@@ -232,9 +232,9 @@ sequenceDiagram
     end
     box OpenTelemetry container
         participant otel as OpenTelemetry Collector
-        participant counter as counter syncd
     end
     box SWSS container
+        participant counter as counter syncd
         participant port_orch as Port Orch
         participant hft_orch as High Frequency Telemetry Orch
     end
