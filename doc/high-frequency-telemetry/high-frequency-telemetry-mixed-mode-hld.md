@@ -340,7 +340,7 @@ In MIXED mode the orchagent holds one `sai_tam_tel_type` and one `sai_tam_report
 Limitations introduced by this design:
 
 - The TAM tel_type mode is chosen at orchagent init from SAI capability and cannot be changed at runtime.
-- In MIXED mode all three `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` flags supported by SONiC HFT (PORT, MMU, OUTPUT_QUEUE) are enabled on the single tel_type even if a given profile only references a subset of object types. The streamed counters remain constrained by `sai_tam_counter_subscription` objects.
+- In MIXED mode all three `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` flags (PORT, MMU, OUTPUT_QUEUE) are set on the single tel_type, even if the profile only uses a subset. Only counters with a matching `sai_tam_counter_subscription` are actually streamed.
 - If the vendor SAI advertises neither `SINGLE_TYPE` nor `MIXED_TYPE` for `SAI_TAM_TEL_TYPE_ATTR_MODE`, HFT is disabled at orchagent init and a notice is logged.
 - In MIXED mode the per-profile IPFIX label allocator (`HFTelProfile::m_next_label`) is monotonic and never reuses values. Because the label field is 16-bit (`sai_uint16_t`), at most 65 535 distinct objects may be subscribed to a single profile over its lifetime; profiles approaching this limit must be deleted and recreated to reset the counter. The limit is per profile and per orchagent lifetime, so warm-restart or orchagent restart implicitly resets it. This monotonic allocation is what guarantees label uniqueness across all per-group sessions of a profile, on which CounterSyncd's label-resolution path in §7.6.1 depends.
 
