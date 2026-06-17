@@ -53,7 +53,7 @@ The base HLD's abbreviations apply. Additional terms used in this document:
 
 ## 4. Overview
 
-The current SONiC HFT implementation hardcodes `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE` when creating `sai_tam_tel_type` objects. Because a SINGLE_TYPE tel_type can bind only one counter category, the orchagent creates one tel_type per SAI object type (`SAI_OBJECT_TYPE_PORT`, `SAI_OBJECT_TYPE_BUFFER_POOL`, `SAI_OBJECT_TYPE_QUEUE`, `SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP`) per profile.
+The current SONiC HFT implementation hardcodes `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE` on every `sai_tam_tel_type` it creates. A SINGLE_TYPE tel_type binds counters of exactly one SAI object type, so the orchagent fans out to one tel_type per active object type (`SAI_OBJECT_TYPE_PORT`, `SAI_OBJECT_TYPE_BUFFER_POOL`, `SAI_OBJECT_TYPE_QUEUE`, `SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP`) within a profile. MIXED_TYPE removes that per-tel_type restriction — a single tel_type can carry counters across all categories — collapsing the fan-out to one tel_type per profile.
 
 Some vendor SAI implementations support only `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE`, in which a single tel_type carries counters across all categories. On those platforms HFT cannot be enabled today.
 
