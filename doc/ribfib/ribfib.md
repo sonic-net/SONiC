@@ -27,7 +27,7 @@
       - [NEXTHOP-\>SONIC NHG ID table](#nexthop-sonic-nhg-idtable)
     - [SONIC NHG ID Manager](#sonic-nhg-id-manager)
   - [NHG forwarding chain graph](#nhg-forwarding-chain-graph)
-  - [Resolved NHG and Original NHG](#resolved-nhg-and-original-nhg)
+  - [Resolved NHG and Received NHG](#resolved-nhg-and-received-nhg)
   - [Route handling](#route-handling)
 - [FIB work flows](#fib-work-flows)
   - [Handle Global table routing information](#handle-global-table-routing-information)
@@ -62,7 +62,7 @@
 | RIB | Routing Information Base  |
 | FIB | Forwarding Information Base  |
 | Resolved NHG | NHG resolved by Zebra, a.k.a containing nexthops with final outgoing interfaces and nexthop addresses  |
-| Original NHG | NHG information received by Zebra from protocol clients  |
+| Received NHG | NHG information received by Zebra from protocol clients  |
 | Resolve through | |
 | Resolve via | |
 
@@ -394,23 +394,23 @@ Once the resolve-through and resolve-via information is available, the SONiC for
 
 Note that we use dotted lines to represent dependencies because we plan to use ID lookups to identify dependent NHGs rather than pointers. This approach makes the code more robust.
 
-## Resolved NHG and Original NHG
-FRR team plans to use original NHG to provide information coming from protocol clients. In most cases, we use resolved NHG in SONiC. But in SRv6 VPN case, we use original NHG due to SONiC expects tunnel NH to be provided, a.k.a original NHG here.
+## Resolved NHG and Received NHG
+FRR team plans to use received NHG to provide information coming from protocol clients. In most cases, we use resolved NHG in SONiC. But in SRv6 VPN case, we use received NHG due to SONiC expects tunnel NH to be provided, a.k.a received NHG here.
 
 * Global Table case:
     * zebra resolved NHG (flatting one) : SONiC NHG
-    * Zebra original NHG  (original one): not in use
+    * Zebra received NHG  (received one): not in use
 * VXLAN case
     * zebra resolved NHG (flatting one) :  SONiC NHG, (terminating at tunnel interfaces)
-    * Zebra original NHG  (original one): not in use
+    * Zebra received NHG  (received one): not in use
 * SRv6 VPN case
     * Zebra resolved NHG (flatting one) : not in use
-    * Zebra original NHG (original one, terminating at tunnel interface):
+    * Zebra received NHG (received one, terminating at tunnel interface):
         * SONiC PIC CONTEXT OBJ
         * Create gateway NHG in SONiC for forwarding.
 
-The following diagram shows how the original NHG is mapped to SONiC gateway NHG for SRv6 VPN case.
-![image](images/original_nhg.png)
+The following diagram shows how the received NHG is mapped to SONiC gateway NHG for SRv6 VPN case.
+![image](images/received_nhg.png)
 
 ## Route handling
 For each route event, we need to use SONiC zebra NHG table to convert zebra NHG ID to SONiC NHG ID.
@@ -423,9 +423,9 @@ Assume  100.0.0.0/24 via 1.1.1.1 and 200.0.0.0/24 via 1.1.1.1. 1.1.1.1/32 via fi
 ![image](images/global_table.png)
 The green section represents the configurations described above.
 
-The grey section shows the Zebra forwarding chain within the RIB. Each prefix points to the original NHG 200, which contains 1.1.1.1 learned from a protocol client. It also points to a resolved NHG, where 1.1.1.1 is marked as a recursive nexthop resolved via 2.2.2.2, 3.3.3.3, and 4.4.4.4.
+The grey section shows the Zebra forwarding chain within the RIB. Each prefix points to the received NHG 200, which contains 1.1.1.1 learned from a protocol client. It also points to a resolved NHG, where 1.1.1.1 is marked as a recursive nexthop resolved via 2.2.2.2, 3.3.3.3, and 4.4.4.4.
 
-The blue section illustrates the SONiC chain created by the FIB (fpmsyncd) based on information received from the RIB. When NHG 100 is received from Zebra, fpmsyncd creates SONiC NHG 400, which contains the three final nexthops 2.2.2.2, 3.3.3.3, and 4.4.4.4. The NHG 200 event is ignored because original NHGs are not used in the global table.
+The blue section illustrates the SONiC chain created by the FIB (fpmsyncd) based on information received from the RIB. When NHG 100 is received from Zebra, fpmsyncd creates SONiC NHG 400, which contains the three final nexthops 2.2.2.2, 3.3.3.3, and 4.4.4.4. The NHG 200 event is ignored because received NHGs are not used in the global table.
 
 When handling the routes 100.0.0.0/24 and 200.0.0.0/24, fpmsyncd maps the Zebra NHG ID 100 to SONiC NHG ID 400 using the SONiC Zebra NHG table. As a result, orchagent only sees SONiC NHG ID 400.
 
@@ -436,7 +436,7 @@ Similar to the above example, except we use v6 address as next hop. Assume vrf f
 
 ![image](images/Srv6_vpn.png)
 
-Similar to the previous example, the green section represents the logical configuration, while the grey section shows the RIB chain. In the SRv6 VPN case, the original NHG 200 is used to create a gateway NHG 400 with 1::1 as the nexthop. A PIC CONTEXT object is also created for VPN SID A. The original NHG 400 then references gateway NHG 400 and creates an additional PIC CONTEXT object for VPN SID B.
+Similar to the previous example, the green section represents the logical configuration, while the grey section shows the RIB chain. In the SRv6 VPN case, the received NHG 200 is used to create a gateway NHG 400 with 1::1 as the nexthop. A PIC CONTEXT object is also created for VPN SID A. The received NHG 400 then references gateway NHG 400 and creates an additional PIC CONTEXT object for VPN SID B.
 
 # Route Convergence Handling
 A key objective of introducing the RIB/FIB model is to enhance route convergence. The design principle is to perform rapid updates on affected NHGs by removing failed paths based on existing NHG information. This mechanism mitigates traffic loss and provides sufficient time for routing protocols to complete reconvergence.
@@ -528,7 +528,7 @@ TODO: what is the better approach here? Extend vtysh? or create a new one?
 # Developing Tasks and Milestones
 ## Tasks in FRR
 Phase 1: The goal is to enable FIB basic functionalities
-* Add original NHG in zebra_dplane_ctx (For requirement 2)
+* Add received NHG in zebra_dplane_ctx (For requirement 2)
 * Add “resolve through and resolve via” in zebra_dplane_ctx (For requirement 3)
 * Add NHT trigger to dplane ctx (For requirement 3)
 
