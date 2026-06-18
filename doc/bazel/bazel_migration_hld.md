@@ -89,8 +89,11 @@ For each component, we will introduce the Bazel build for its container, while r
 Users can control whether they want to build with Bazel or GNU make with a command line flag:
 
 ```
-$ make build // TODO BL: Current command
-$ BUILD_WITH_BAZEL_WHEN_AVAILABLE=true make build  // TODO BL: Current command
+$ make target/docker-sysmgr.gz
+# Builds make-based target as usual
+
+$ BUILD_WITH_BAZEL_WHEN_AVAILABLE=true make target/docker-sysmgr.gz
+# make runs Bazel to build the target
 ```
 
 This flag will start off by default. The implementation of this flag's semantics is defined in [section 7.h](#7h-bazelmake-interoperability).
