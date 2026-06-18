@@ -8,6 +8,8 @@
 
 This document covers the migration of the SONiC build system into a modern, Bazel-based system. It proposes an end state of the build system, as well as a migration path to get us there.
 
+Please note that this design covers only the migration of individual components. Migrating the full image assembly process is out of the scope of this document.
+
 ### 3. Definitions/Abbreviations 
 
 - Bazel: A build system open-sourced by Google. It specializes in polyglot builds, and promises fast, reproducible builds through hermeticity. [Documentation](https://bazel.build/docs)
@@ -43,12 +45,60 @@ Early results demonstrate that we can produce cold builds similar to those in th
 
 // TODO BL: Should we include a table here?
 
-#### 4.b Migration Overview
+#### 4.b Migration
 
-Bazel migrations are expensive, and famously disruptive. To alleviate this issue as much as possible, we propose a gradual rollout. We will migrate each component in turn, in a manner such that we:
+Bazel migrations are expensive, and famously disruptive. To alleviate this issue as much as possible, we propose a gradual, non-mandatory rollout.
 
-- Keep compatibility with the old build system. A component built with Bazel can be depended on from a component built with Make.
-- Can roll back if needed. The old build system will remain in place, even for migrated components, to ensure users can roll back quickly if there are issues.
+We will migrate each component in turn, starting from the components that are depended on the least.
+For each component, we will introduce the Bazel build for its container, while retaining the ability to build the container with the current system.
+Users can control whether they want to build with Bazel or GNU make with a command line flag:
+
+```
+$ make build // TODO BL: Current command
+$ BUILD_WITH_BAZEL_WHEN_AVAILABLE=true make build  // TODO BL: Current command
+```
+
+This flag will start off by default. The implementation of this flag's semantics is defined in [TODO BL:](section 7.h).
+
+To minimize disruption, we propose the following phases to the migration:
+
+##### Phase 1: Opt-in trial period
+
+Phase 1 will introduce Bazel as an optional build system for some components. For this phase, `BUILD_WITH_BAZEL_WHEN_AVAILABLE` will be turned off by default.
+We will start with small components such as `sflow`, `teamd`, and `database`, and continue onto progressively larger leaf components until we have sufficient coverage to be representative of the Bazel build.
+We expect this phase to last until the November release.
+
+The community can use this period to experiment with Bazel, adopt it into their own builds, and generally gather information on whether this is a net benefit.
+
+After the November release, the community will face a decision point: Should we adopt Bazel fully?
+
+If we decide to move forward, we will continue onto Phase 2.
+
+##### Phase 2: Opt-out migration period
+
+At the start of this phase, we will flip `BUILD_WITH_BAZEL_WHEN_AVAILABLE` to be on by default.
+This will signal to the community that we do intend to adopt Bazel, and that they should start adopting it into their internal forks if they haven't already.
+
+We expect to massively increase coverage of targets that build with Bazel, specifically extending to building the base layers (`docker-base-*`, `docker-config-engine-*`, and `docker-swss-layer-*`) with Bazel by default.
+
+By the end of this phase, we expect most users to be able to build their components entirely in Bazel, without the need of a slave container.
+
+##### Phase 3: Bazel-only
+
+When every component can be built with Bazel, and most users have had a reasonable opportunity to migratie, we expect to be able to remove the current build system, and transition to using exclusively Bazel.
+
+We cannot give estimations of when this will be, as it will depend on community support and involvement.
+
+##### CI considerations
+
+One open question is when we will establish a blocking CI pipeline for Bazel builds.
+We propose doing this early, as part of Phase 1.
+
+After the first container build merges, we will stand up a non-blocking CI pipeline that will test the Bazel build.
+That pipeline will run on every build, but failures in it won't block contributors from merging code.
+
+When that pipeline has been proven to be stable for a reasonable period, we propose to make it blocking, so that contributions that would break the Bazel build cannot be merged.
+This will avoid code drift between the two builds, helping tremendously with migration speed.
 
 ### 5. Requirements
 
@@ -56,10 +106,7 @@ TODO BL: I need to read more what they expect here.
 
 ### 6. Architecture Design 
 
-This section covers the changes that are required in the SONiC architecture. In general, it is expected that the current architecture is not changed.
-This section should explain how the new feature/enhancement (module/sub-module) fits in the existing architecture. 
-
-If this feature is a SONiC Application Extension mention which changes (if any) needed in the Application Extension infrastructure to support new feature.
+There are no expected changes to the SONiC architecture.
 
 ### 7. High-Level Design 
 
@@ -226,6 +273,16 @@ Every component repository will need to be migrated to Bazel. `sonic-buildimage`
 We expect the resulting containers to be comparable (if not equal) to those produced by the old build system, both in terms of size and runtime performance and memory footprint.
 
 We aim for build times to be reduced dramatically, especially for incremental builds. We expect noticeable second-order effects on developer ergonomics, as a more reliable build means fewer cold builds overall. We expect on-disk build caches to be significantly larger than those of the old build system.
+
+#### 7.h Bazel/make interoperability
+
+During the migration, Bazel and make will have to interoperate. We propose a model where we introduce top-level make targets for Bazel-compatible containers.
+
+// TODO BL: Fill out with code examples
+
+Some other considerations:
+- Bazel should consume layers built by make.
+- Bazel would execute inside the slave container for now. There are still hermeticity issues in the Bazel build, so it does end up depending on the host system. Therefore, to ensure interoperability with the make-built layers, we'll build in the slave container. These hermeticity issues should be treated as bugs, but in the interest of getting the build in the hands of users we choose to solve them later in the migration.
 
 ### 8. SAI API 
 
