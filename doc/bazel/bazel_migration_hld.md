@@ -2,6 +2,41 @@
 
 ## Table of Content 
 
+1. [Revision](#1-revision)
+2. [Scope](#2-scope)
+3. [Definitions/Abbreviations](#3-definitionsabbreviations)
+   - [3.a Prior Art](#3a-prior-art)
+4. [Overview](#4-overview)
+   - [4.a Motivation](#4a-motivation)
+   - [4.b Migration](#4b-migration)
+     - [Phase 1: Opt-in trial period](#phase-1-opt-in-trial-period)
+     - [Phase 2: Opt-out migration period](#phase-2-opt-out-migration-period)
+     - [Phase 3: Bazel-only](#phase-3-bazel-only)
+     - [CI considerations](#ci-considerations)
+5. [Requirements](#5-requirements)
+6. [Architecture Design](#6-architecture-design)
+7. [High-Level Design](#7-high-level-design)
+   - [7.a Groundwork](#7a-groundwork)
+   - [7.b Managing Patched External Dependencies](#7b-managing-patched-external-dependencies)
+   - [7.c Building Component Containers](#7c-building-component-containers)
+   - [7.d Platform & Device Support](#7d-platform--device-support)
+   - [7.e Debuggability](#7e-debuggability)
+   - [7.f Affected Systems](#7f-affected-systems)
+     - [Dependency Changes](#dependency-changes)
+     - [Changed Repositories](#changed-repositories)
+   - [7.g Performance Summary](#7g-performance-summary)
+   - [7.h Bazel/make interoperability](#7h-bazelmake-interoperability)
+8. [SAI API](#8-sai-api)
+9. [Configuration and management](#9-configuration-and-management)
+10. [Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
+    - [Warmboot and Fastboot Performance Impact](#warmboot-and-fastboot-performance-impact)
+11. [Memory Consumption](#11-memory-consumption)
+12. [Restrictions/Limitations](#12-restrictionslimitations)
+13. [Testing Requirements/Design](#13-testing-requirementsdesign)
+    - [13.1. Unit Test cases](#131-unit-test-cases)
+    - [13.2. System Test cases](#132-system-test-cases)
+14. [Open/Action items - if any](#14-openaction-items---if-any)
+
 ### 1. Revision  
 
 ### 2. Scope  
@@ -14,7 +49,7 @@ Please note that this design covers only the migration of individual components.
 
 - Bazel: A build system open-sourced by Google. It specializes in polyglot builds, and promises fast, reproducible builds through hermeticity. [Documentation](https://bazel.build/docs)
 - Bazel rules, also called rulesets: Extensions to Bazel to provide additional capabilities, usually to integrate Bazel with a new programming language. Usually named `rules_<lang>`. For instance, `rules_go` extends Bazel to be able to build and test Go sources. [Documentation](https://bazel-docs-staging.netlify.app/versions/master/skylark/rules.html)
-- BUILD files: Files where the Bazel build is defined. Usually named `BUILD.bazel`, and written by hand in [Starlark](TODO BL: link to docs). [Documentation](https://bazel.build/concepts/build-files)
+- BUILD files: Files where the Bazel build is defined. Usually named `BUILD.bazel`, and written by hand in [Starlark](https://bazel.build/rules/language). [Documentation](https://bazel.build/concepts/build-files)
 - Bazel registry: A specially-shaped directory that hosts bazel rules and their versions. [Documentation](https://bazel.build/external/registry)
 - Bazel Central Registry, or BCR: The canonical, Google-maintained Bazel registry. Most rulesets live here, and most Bazel projects pull their rulesets from here. [Documentation](https://registry.bazel.build/)
 - bzlmod: Bazel's dependency resolution tool, which takes care of resolving ruleset dependencies. Automatically works with the BCR by default, but can be configured to resolve dependencies from other Bazel registries. [Documentation](https://bazel.build/external/overview)
@@ -58,7 +93,7 @@ $ make build // TODO BL: Current command
 $ BUILD_WITH_BAZEL_WHEN_AVAILABLE=true make build  // TODO BL: Current command
 ```
 
-This flag will start off by default. The implementation of this flag's semantics is defined in [TODO BL:](section 7.h).
+This flag will start off by default. The implementation of this flag's semantics is defined in [section 7.h](#7h-bazelmake-interoperability).
 
 To minimize disruption, we propose the following phases to the migration:
 
@@ -102,7 +137,27 @@ This will avoid code drift between the two builds, helping tremendously with mig
 
 ### 5. Requirements
 
-TODO BL: I need to read more what they expect here.
+The migration must satisfy the following requirements:
+
+1. Faster builds
+    * Cold builds comparable to those of the current system
+    * Sub-minute incremental builds for common classes of changes
+    * Aggressive caching, so that unchanged components are never rebuilt
+2. Hermetic and reproducible builds
+    * No dependency on the host system (e.g. host-installed `gcc`, `python`, or `docker`)
+    * The same build on the same commit produces the same artifacts
+3. Equivalent build output
+    * Resulting containers are comparable to those of the current system in size, runtime performance, and memory footprint
+    * No regression in functionality of the produced images
+4. Gradual migration
+    * Bazel and GNU make coexist, with per-component opt-in and opt-out controlled by a single flag
+    * Components are migrated one at a time, starting from the least depended-on
+    * A CI pipeline that validates the Bazel build to prevent drift between the two systems
+5. Platform and device coverage
+    * Present patterns to migrate the existing matrix of vendors, platforms, devices, and ASIC manufacturers
+    * Allow users to select the target platform and SAI implementation at build time from the command line
+6. Maintained developer experience
+    * Automatic generation of debug containers, mirroring the current system
 
 ### 6. Architecture Design 
 
@@ -116,13 +171,13 @@ This section specifies how different parts of the build will work under Bazel. E
 
 The Bazel ethos is that **every input to a build must be known, down to the checksum, before the build starts**. The current build system has a few instances where we cannot deterministically predict these inputs.
 
-- Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](TODO LINK to sonic-build-infra/toolchain).
-- Fetch Debian packages deterministically, instead of relying in `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](TODO BL: Source to code in sonic-buildimage that pulls this stuff).
-- For components that have Python dependencies, we created `pyproject.toml` files to be able to generate deterministic `uv` lockfiles. [Example](TODO BL: Example for sonic-utilities).
+- Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/thesayyn/sonic-build-infra/tree/master/toolchains/gcc).
+- Fetch Debian packages deterministically, instead of relying in `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](https://github.com/thesayyn/sonic-buildimage/blob/master/dockers/docker-base-bookworm/base_bookworm.MODULE.bazel).
+- For components that have Python dependencies, we created `pyproject.toml` files to be able to generate deterministic `uv` lockfiles. [Example](https://github.com/thesayyn/sonic-utilities/blob/master/pyproject.toml).
 
 #### 7.b Managing Patched External Dependencies
 
-The SONiC build relies on patching several third party dependencies (e.g. [libnl3](TODO BL: link to buildimage/src/libnl3)). Furthermore, it relies on the Debian suite of tools ([debhelper](https://man7.org/linux/man-pages/man1/dh.1.html) and associated tools), which is not compatible with Bazel. Hence, another solution is required.
+The SONiC build relies on patching several third party dependencies (e.g. [libnl3](https://github.com/thesayyn/sonic-buildimage/tree/master/src/libnl3)). Furthermore, it relies on the Debian suite of tools ([debhelper](https://man7.org/linux/man-pages/man1/dh.1.html) and associated tools), which is not compatible with Bazel. Hence, another solution is required.
 
 We propose four approaches to tackle this problem. They are detailed in [this PR to `thesayyn/sonic-buidimage`](https://github.com/thesayyn/sonic-buildimage/pull/15), but we will list their summaries here for ease of reference.
 
@@ -235,7 +290,7 @@ We will implmement automatic debug container generation, mirroring the current s
 
 We will write a Bazel rule that will crawl the dependency tree of an image, capture the debug symbols of its binaries, and bundle them with well-known debugging tools such as `gdb` to create debug containers.
 
-For instance, following the example in [7.d](TODO BL: LINK):
+For instance, following the example in [7.d](#7d-platform--device-support):
 
 ```starlark
 oci_image(
