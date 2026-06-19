@@ -1,42 +1,78 @@
-# BGP Prefix List Implementation - High Level Design (HLD)
-
+# BGP Prefix List Implementation — High Level Design (HLD)
 
 # Revision
-| Rev |     Date    |       Author          | Change Description                |
-|:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 | 11/25/2025  | Soumya Gargari | Initial version                   |
+| Rev | Date       | Author         | Change Description                                                                                                                                                          |
+|:---:|:----------:|:--------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0.1 | 11/25/2025 | Soumya Gargari | Initial version                                                                                                                                                              |
+| 0.2 | 06/19/2026 | Soumya Gargari | Added constraint catalog, prefix normalization, host-bits rejection, payload-side sequence-number validation, sequence-number leaf protection, post-xfmr auto-cleanup behavior |
 
 ## Table of Contents
-1. [Overview](#overview)
-2. [Background and Problem Statement](#background-and-problem-statement)
-3. [Architecture](#architecture)
-4. [Implementation Details](#implementation-details)
-5. [Validation Approach and Solution](#validation-approach-and-solution)
-6. [YANG Model Constraints](#yang-model-constraints)
-7. [Transformer Functions](#transformer-functions)
-8. [Database Schema](#database-schema)
-9. [Test Scenarios](#test-scenarios)
-10. [API Examples](#api-examples)
-11. [Future Enhancements](#future-enhancements)
+1. Overview
+2. User-Facing Constraints
+3. Implementation Details
+4. Validation Layers
+5. Validation Rule Catalog
+6. Prefix Normalization
+7. Sequence-Number Uniqueness — Three Collision Modes
+8. Self-Skip Semantics
+9. Sequence-Number Leaf Protection
+10. Post-Transformer Auto-Cleanup
+11. YANG Model
+12. Database Schema
+13. Test Scenarios
+14. API Examples
+15. Error Catalog
+
+---
 
 ## Overview
 
-This document describes the implementation of BGP Prefix Lists in SONiC using OpenConfig YANG models. The implementation provides support for creating, updating, and deleting IPv4 and IPv6 prefix lists through gNMI/REST APIs, with proper validation and database management.
+This document describes the implementation of BGP Prefix Lists in SONiC using OpenConfig YANG. The implementation supports CRUD operations on IPv4 and IPv6 prefix lists through gNMI / REST, with strict validation of prefix format, sequence-number uniqueness, mode / family alignment, and mask-length-range integrity.
 
 ### Key Features
-- Support for IPv4 and IPv6 prefix lists
-- Sequence number-based ordering
-- PERMIT/DENY actions for route filtering
-- OpenConfig YANG model compliance
-- gNMI and REST API support
-- CREATE/UPDATE/DELETE operations
+- IPv4 and IPv6 prefix list support
+- Strict IP-prefix normalization with host-bits rejection
+- Sequence-number-based ordering with three-mode collision detection across both committed DB and in-flight payload
+- PERMIT / DENY actions
+- Sequence-number-leaf delete protection
+- Auto-cleanup of empty `PREFIX_SET` container on last-prefix deletion
+- Symmetric GET / DELETE by either raw or canonical URI form
+- OpenConfig compliance, with `openconfig-routing-policy-ext` augments for `sequence-number` and `action`
 
 ### Component Responsibilities
+1. **API Layer** — gNMI / REST request handling and OpenConfig schema validation
+2. **Transformer Layer** — OpenConfig ↔ SONiC translation, DB key construction, cross-entry validation
+3. **Validation Layer** — Format, host-bits, mode-family, mask-range, sequence-number uniqueness (DB + payload)
+4. **Post-Transformer Layer** — Auto-cleanup of orphaned `PREFIX_SET` containers
+5. **Redis CONFIG_DB** — Persistent storage in SONiC schema
 
-1. **API Layer**: Handles gNMI/REST requests and OpenConfig YANG validation
-2. **Transformer Layer**: Converts OpenConfig YANG to SONiC YANG and manages database operations
-3. **Validation Layer**: Validates configuration constraints for CREATE/UPDATE operations
-4. **Redis DB**: Stores configuration in SONiC format
+---
+
+## User-Facing Constraints
+
+A client may attempt any of the following payloads. Each is **rejected by design**, with the validation hook that enforces it noted in the right column.
+
+| # | What the user may try                                                                                            | Why it's not allowed                                                                                              | Enforced by                                  |
+|:-:|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
+| 1 | IP prefix with host bits set (e.g. `192.168.1.1/24`, `2001:db8::1/64`)                                            | A prefix-list entry matches a *network*, not a host. Storing a host address as a prefix is meaningless and ambiguous. | `validatePrefixListFormat`                    |
+| 2 | Non-canonical IPv6 spellings (e.g. `0::/64`, `2001:db8:0:0::/32`, `2001:0db8::/32`)                                | Multiple spellings of the same network would otherwise produce duplicate DB rows and break GET / DELETE.            | `validatePrefixListFormat` (auto-normalizes)  |
+| 3 | `mask-length-range` syntax other than `MIN..MAX` or single value (e.g. `8-24`, `8:24`, `abc..def`)                  | Range is a typed contract; arbitrary separators would be silently misread.                                          | `validateMaskLengthRange`                     |
+| 4 | `mask-length-range` where `MIN > MAX` (e.g. `24..12`)                                                              | Inverted range matches nothing and is almost always a typo.                                                         | `validateMaskLengthRange`                     |
+| 5 | Single-value `mask-length-range` that does not equal the prefix length (e.g. `10.0.0.0/8` with `24..24`)            | Single value form means "exact length"; mismatch yields an entry that can never match.                              | `validateMaskLengthRange`                     |
+| 6 | Range whose `MIN`/`MAX` neither equals the prefix length (e.g. `10.0.0.0/8` with `12..24`)                          | OpenConfig convention requires the prefix length to be an endpoint of the range.                                    | `validateMaskLengthRange`                     |
+| 7 | `ip-prefix` family different from the enclosing `prefix-set` `mode` (e.g. IPv4 prefix inside an IPV6 set)            | Family must match; the DB key carries `mode` and routes use it for table selection.                                 | `getPrefixIpType` + family compare            |
+| 8 | A `/prefix` entry with no `sequence-number` (CREATE / UPDATE / REPLACE)                                            | `sequence-number` is part of the redis key — without it there is no key to write under.                              | `getSeqNumber`                                |
+| 9 | UPDATE / PATCH / REPLACE that changes only the `sequence-number` of an existing entry (same `ip-prefix`, new seq)   | seqNum is encoded in the key; in-place change would create a *second* row, leaving the original orphaned.            | `validateUniqueSeqNumber` (mode 1)            |
+| 10 | Two different prefixes in the same set sharing one `sequence-number` (across requests or in one payload)            | Evaluation order in routing policy is defined by seqNum; sharing makes ordering undefined.                          | `validateUniqueSeqNumber` (mode 2)            |
+| 11 | A single payload that contains the same prefix written two different ways (e.g. `0::/64` and `::/64`)               | Both YANG list entries collapse to one DB key; the second write would silently overwrite the first.                 | `validateUniqueSeqNumber` (mode 1b, payload walk) |
+| 12 | DELETE on the `sequence-number` leaf alone (e.g. `.../config/sequence-number`)                                     | The leaf lives inside the key; it cannot be removed without removing the whole row. Caller should DELETE the entry. | `YangToDb_rpol_prefix_list_prefix_seq_xfmr`   |
+| 13 | DELETE of an entry using a raw URI form when the DB row is stored under the canonical form (or vice versa)         | Lookup must be symmetric with write — otherwise the row appears "missing" to the client that created it.            | `validatePrefixListFormat` on read path       |
+| 14 | DELETE of the last `/prefix` in a set, expecting the `PREFIX_SET` container to remain                              | An empty `PREFIX_SET` is an orphan; we clean it up so the namespace stays consistent without a second request.       | `routing_policy_post_xfmr` (auto-cleanup)     |
+| 15 | Idempotent re-PATCH of an entry's `sequence-number` to its *current* value                                          | **Accepted.** Re-asserting the same value is a legal no-op; self-skip logic prevents false-positive collision.       | `validateUniqueSeqNumber` self-skip           |
+
+Constraints 9–11 (sequence-number collisions) are unified into one rule engine — see Sequence-Number Uniqueness — Three Collision Modes.
+
+---
 
 ## Implementation Details
 
@@ -44,148 +80,216 @@ This document describes the implementation of BGP Prefix Lists in SONiC using Op
 ```
 sonic-mgmt-common/
 ├── translib/transformer/
-│   ├── xfmr_prefix_list.go          # Main transformer implementation
-│   └── xfmr_prefix_list_test.go     # Unit tests
+│   ├── xfmr_prefix_list.go          # Transformer implementation
+│   └── xfmr_prefix_list_test.go     # Regression test suite (testapp build tag)
 ├── models/yang/
-│   └── sonic-routing-policy-sets.yang  # SONiC YANG model
+│   └── sonic-routing-policy-sets.yang
+└── models/yang/extensions/
+    └── openconfig-routing-policy-ext.yang   # sequence-number + action augments
 ```
 
 ### Key Constants
-
-**Database Table Names:**
 ```go
-BGP_PREFIX_TABLE     = "PREFIX"          // Individual prefix entries
-BGP_PREFIX_SET_TABLE = "PREFIX_SET"      // Prefix set containers
+BGP_PREFIX_TABLE              = "PREFIX"
+BGP_PREFIX_SET_TABLE          = "PREFIX_SET"
+
+SONIC_BGP_PREFIX_MODE_IPV4    = "IPv4"          // DB form
+SONIC_BGP_PREFIX_MODE_IPV6    = "IPv6"          // DB form
+OC_BGP_PREFIX_MODE_IPV4       = "IPV4"          // OpenConfig enum
+OC_BGP_PREFIX_MODE_IPV6       = "IPV6"          // OpenConfig enum
+
+SONIC_BGP_PREFIX_ACTION_PERMIT = "permit"       // DB form
+SONIC_BGP_PREFIX_ACTION_DENY   = "deny"         // DB form
+OC_BGP_PREFIX_ACTION_PERMIT    = "PERMIT"       // OpenConfig enum
+OC_BGP_PREFIX_ACTION_DENY      = "DENY"         // OpenConfig enum
 ```
 
-**Address Family Mode Values:**
+---
 
-| Leaf Node | Valid Values | Invalid Examples |
-|-----------|--------------|------------------|
-| `mode` (OpenConfig) | `IPV4`, `IPV6` | `ipv4`, `IPv4`, `ip4`, `v4`, `IP4` |
-| `mode` (SONiC DB) | `IPv4`, `IPv6` | `IPV4`, `ipv4`, `ip4`, `v4`, `IP4` |
+## Validation Layers
 
-**Action Values:**
+Validation runs in **layers**, each guarding a distinct invariant.
 
-| Leaf Node | Valid Values | Invalid Examples |
-|-----------|--------------|------------------|
-| `action` (OpenConfig) | `PERMIT`, `DENY` | `permit`, `deny`, `allow`, `block`, `accept`, `drop` |
-| `action` (SONiC DB) | `permit`, `deny` | `PERMIT`, `DENY`, `allow`, `block`, `accept`, `drop` |
+| Layer | Function                         | Invariant guarded                                                                            |
+|:-----:|----------------------------------|----------------------------------------------------------------------------------------------|
+| L1    | `validateMaskLengthRange`        | mask-range syntax; bounds; alignment with prefix length                                       |
+| L2    | `validatePrefixListFormat`       | CIDR syntax; family detection; host-bits rejection; normalization                             |
+| L3    | `getPrefixIpType` + family check | `ip-prefix` family matches enclosing `prefix-set` `mode`                                      |
+| L4    | `getSeqNumber`                   | `sequence-number` is present (mandatory for CRU)                                              |
+| L5    | `validateUniqueSeqNumber`        | Cross-entry uniqueness across both committed DB rows and in-flight payload siblings           |
+| L6    | post-xfmr                        | Auto-cleanup of empty `PREFIX_SET` container on last-prefix deletion                          |
 
-**Sequence Number Values:**
+L1 – L4 are per-entry (cheap, local). L5 walks two sources. L6 runs once per delete request.
 
-| Leaf Node | Valid Range | Invalid Examples |
-|-----------|-------------|------------------|
-| `sequence-number` | 1-4294967295 (uint32) | `0`, `-1`, `4294967296`, `abc`, `null`, empty string |
+### Operation-specific behavior
 
-**IP Prefix Values:**
+| Operation                              | L1 | L2 | L3 | L4 | L5 | L6 |
+|----------------------------------------|:--:|:--:|:--:|:--:|:--:|:--:|
+| CREATE / UPDATE / REPLACE              | ✓  | ✓  | ✓  | ✓  | ✓  |    |
+| DELETE (whole prefix entry)            | ✓  | ✓  |    |    |    | ✓  |
+| DELETE (sequence-number leaf only)     | —  | —  | —  | —  | —  | —  ← **rejected outright** |
+| GET                                    | ✓  | ✓  |    |    |    |    |
 
-| Leaf Node | Valid Examples | Invalid Examples |
-|-----------|----------------|------------------|
-| `ip-prefix` | `10.0.0.0/8`, `192.168.1.0/24`, `2001:db8::/32` | `10.0.0.0`, `192.168.1.0/33`, `256.0.0.1/8`, `invalid-ip` |
+---
 
-**Masklength Range Values:**
+## Validation Rule Catalog
 
-| Leaf Node | Valid Examples | Invalid Examples |
-|-----------|----------------|------------------|
-| `masklength-range` | `8..24`, `16..32`, `32..48` | `8-24`, `8:24`, `24..8`, `abc..def`, `8..33` (for IPv4) |
+### Mask-length-range rules (L1)
 
-## Validation Approach and Solution
-
-### Problem Analysis
-The sequence number uniqueness constraint was being applied during DELETE operations, which is incorrect because:
-1. DELETE operations should not validate uniqueness constraints
-2. The entry being deleted may temporarily violate uniqueness during the deletion process
-3. Uniqueness only matters for active entries in the database
-
-### Solution Approach
-The solution was implemented in the transformer layer to handle different operations appropriately:
-
-1. **For DELETE Operations**: Implement enhanced key generation and validation handling
-2. **For CREATE/UPDATE Operations**: Maintain normal validation flow
-3. **Post-Transformer Handling**: Implement direct database deletion for DELETE operations
-
-### Implementation Strategy
 ```
-Operation Type │ Validation Flow
-─────────────────────────────────────────
-CREATE        │ Transformer → Validation → DB
-UPDATE        │ Transformer → Validation → DB  
-DELETE        │ Transformer → Direct DB (post-transformer)
+ip-prefix has length P; mask-length-range may be:
+  • empty                  → accepted (no constraint)
+  • single value V         → V == P required
+  • range MIN..MAX         → MIN <= MAX required, AND P == MIN || P == MAX
 ```
 
-## YANG Model Constraints
+| Input                        | Verdict   | Reason                                       |
+|------------------------------|-----------|----------------------------------------------|
+| `10.0.0.0/8`, `8..24`        | accepted  | P=8 matches MIN                              |
+| `10.0.0.0/8`, `8..8`         | accepted  | P=8 matches both endpoints                   |
+| `10.0.0.0/8`, `24..24`       | rejected  | single-value form, P ≠ V                     |
+| `10.0.0.0/8`, `12..24`       | rejected  | P=8 is neither MIN(12) nor MAX(24)           |
+| `10.0.0.0/8`, `24..12`       | rejected  | MIN > MAX                                    |
+| `10.0.0.0/8`, `8-24`         | rejected  | wrong separator                              |
 
-### OpenConfig Model Structure
-```yang
-/openconfig-routing-policy:routing-policy/
-  defined-sets/
-    prefix-sets/
-      prefix-set[name]/
-        config/
-          name
-          mode (IPV4|IPV6)
-        prefixes/
-          prefix[ip-prefix masklength-range]/
-            config/
-              ip-prefix
-              masklength-range
-              sequence-number
-              action (PERMIT|DENY)
+### Prefix-format rules (L2)
+
+```
+For ip-prefix P/N:
+  • N must be in [0..32] (IPv4) or [0..128] (IPv6)
+  • net.ParseCIDR(P/N) must succeed
+  • Parsed IP must equal the network address (no host bits set)
+  • Canonical form (net.IPNet.String()) is the DB-side spelling
 ```
 
-### SONiC Model Constraints
-```yang
-PREFIX_LIST {
-    must "count(../../PREFIX_LIST[name=current()/../name and sequence_number=current()]) <= 1" {
-        error-message "sequence_number required to be unique for each prefix-list";
-    }
-}
+| Input                  | Family | Verdict   | Stored as                       |
+|------------------------|:------:|-----------|---------------------------------|
+| `10.0.0.0/8`           | IPv4   | accepted  | `10.0.0.0/8`                    |
+| `10.0.0.5/8`           | IPv4   | rejected  | host bits set                   |
+| `2001:db8::/32`        | IPv6   | accepted  | `2001:db8::/32`                 |
+| `2001:db8:0:0::/32`    | IPv6   | accepted  | `2001:db8::/32` (normalized)    |
+| `0::/64`               | IPv6   | accepted  | `::/64` (normalized)            |
+| `2001:db8::1/64`       | IPv6   | rejected  | host bits set                   |
+| `10.0.0.0/33`          | IPv4   | rejected  | bad mask length                 |
+| `2001:db8::/129`       | IPv6   | rejected  | bad mask length                 |
+
+**Unified wording:** both families return `"Prefix has host bits set: expected <canonical>, got <input>"`.
+
+### Mode / family alignment (L3)
+
+`prefix-set.mode` (IPV4 | IPV6) must match the family detected from `ip-prefix`. Mode is sourced from the payload first (current request's `PrefixSet.Config.Mode`), then CONFIG_DB (`PREFIX_SET|<name>.mode`), defaulting to IPV4 if neither carries it.
+
+---
+
+## Prefix Normalization
+
+All write paths (CRU) and read paths (GET, DELETE) call `validatePrefixListFormat` to normalize the prefix **before** building the DB key. Normalization is `net.IPNet.String()`-based and is the single source of truth for what the DB key looks like.
+
+```
+Raw input         →  Canonical (DB) form
+─────────────────    ─────────────────────
+0::/64            →  ::/64
+2001:db8:0:0::/32 →  2001:db8::/32
+2001:0db8::/32    →  2001:db8::/32
+10.0.0.0/8        →  10.0.0.0/8      (already canonical)
 ```
 
-This constraint ensures sequence number uniqueness within each prefix-set but was problematic during DELETE operations.
+**Why both write and read normalize:** without symmetry, a row created under the canonical key cannot be retrieved using the original raw URI. Both directions now resolve to the same key.
 
-## Transformer Functions
+**URI vs payload key spelling:** OpenConfig YANG list keys are strings, not semantic objects. A client may legally write:
+- URI: `[ip-prefix=::/64]`
+- Payload: `"ip-prefix": "0::/64"`
 
-### 1. Key Transformer for Prefix Entries
-```go
-YangToDb_rpol_prefix_list_prefix_key_xfmr(inParams XfmrParams) (string, error)
-```
+`getSeqNumber` tries **both** the URI spelling and the normalized spelling when looking up `sequence-number` in `ygRoot`, so either form succeeds.
 
-**Responsibilities:**
-- Generate database keys for prefix entries
-- Handle DELETE operations with enhanced validation logic
-- Maintain sequence number uniqueness validation for CREATE/UPDATE operations
-- Support both IPv4 and IPv6 prefixes
+---
 
-**Operation-Specific Behavior:**
-- **CREATE/UPDATE**: Generate key with sequence number validation
-- **DELETE**: Use existing sequence number from database for key generation
+## Sequence-Number Uniqueness — Three Collision Modes
 
-### 2. Post-Transformer for Container Management
+`validateUniqueSeqNumber` is the heart of cross-entry validation. It runs for every CRU on a `/prefix` entry and walks **two sources**:
+
+1. **Committed DB rows** — read via `GetKeysPattern("PREFIX|<set>|*|*|*")`
+2. **Sibling entries in the current request payload** — walked from `inParams.ygRoot`
+
+The payload walk is necessary because xfmr functions only build a write map; nothing is committed until the framework finalizes all xfmr calls. While the key xfmr is processing entry K, sibling entries in the same request are still in the in-memory write map and invisible to `GetKeysPattern`.
+
+### Rule table (applied identically to both sources)
+
+| Mode | Existing key vs Incoming key                | Verdict (CRU) | Verdict (other oper) | Source where reachable | Rationale                                                                                  |
+|:----:|---------------------------------------------|---------------|----------------------|------------------------|---------------------------------------------------------------------------------------------|
+| 1    | same `(ip, mask)`, **different** seq         | **reject**    | no-op                | DB + payload           | seqNum is in the redis key; in-place change is unsafe → caller must DELETE + re-CREATE     |
+| 1b   | same `(ip, mask)`, **same** seq              | **reject**    | n/a                  | payload only           | Two YANG list entries collapsing to same DB key → second write would silently overwrite first |
+| 2    | **different** `(ip, mask)`, **same** seq     | **reject**    | reject               | DB + payload           | Two distinct prefixes sharing a seqNum → evaluation order undefined                         |
+
+**Mode 1b is unreachable from the DB source** by redis-key uniqueness. A defensive nil return is kept in code for safety.
+
+### Error wordings
+
+| Mode | Wording                                                                              |
+|:----:|--------------------------------------------------------------------------------------|
+| 1    | `same prefix is configured with different sequence`                                   |
+| 1b   | `duplicate prefix entry in payload (multiple spellings of <ip>)`                      |
+| 2    | `Same sequence number is configured with different rule <seq>, delete it first`       |
+
+### Non-determinism note (for test authors)
+
+`GetKeysPattern` returns Redis KEYS results in unordered fashion. When a fixture deliberately triggers **multiple** collision modes simultaneously (e.g. PATCH A's seq to B's seq), either mode-1 or mode-2 may fire first depending on which row Redis returns first. Both are correct rejections; test assertions should accept either wording in such cases (helper: `expectSetRejectedWithOneOf`).
+
+---
+
+## Self-Skip Semantics
+
+An entry must not flag itself as a collision. Self-skip rules differ by source because the identity of "self" differs:
+
+| Source  | Self-skip predicate                                                                              | Why                                                                                                                            |
+|---------|--------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| DB row  | full normalized-key match: `(existingIp, existingMask, existingSeq) == (norm, mask, seq)`        | Idempotent re-assert of an already-committed row should be a no-op                                                              |
+| Payload | raw YANG list-key match: `(k.IpPrefix, k.MasklengthRange) == (originalPrefix, mask)`             | YANG list keys are unique strings; the entry the framework is currently calling us about is identified by its raw URI predicate |
+
+This is why idempotent re-PATCH of an entry's `sequence-number` to its current value is accepted — the DB self-skip kicks in.
+
+---
+
+## Sequence-Number Leaf Protection
+
+The `sequence-number` leaf is exposed under `openconfig-routing-policy-ext`. It is **encoded in the redis key**, not as a hash field.
+
+| Oper                      | Behavior                                                                                                                                                                            |
+|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CREATE / UPDATE / REPLACE | No-op return (`map[string]string{}`). The seqNum is built into the key by `YangToDb_rpol_prefix_list_prefix_key_xfmr`; no separate field to write.                                  |
+| DELETE                    | **Rejected** with `InvalidArgsError`: `sequence-number cannot be deleted in isolation; delete the whole prefix entry instead`.                                                       |
+
+The caller's correct path to change a seqNum is: DELETE the whole `/prefix` entry, then re-CREATE with the desired seqNum.
+
+`DbToYang_rpol_prefix_list_prefix_seq_xfmr` reads `sequence-number` back from component `[1]` of the DB key for GET responses.
+
+---
+
+## Post-Transformer Auto-Cleanup
+
 ```go
 routing_policy_post_xfmr(inParams XfmrParams) error
 ```
 
-**Responsibilities:**
-- Handle DELETE operations directly at database level
-- Clean up empty PREFIX_SET containers when all prefixes are deleted
-- Manage container-level deletions
-- **Enforce last prefix deletion restriction**: Prevent deletion of the last remaining prefix in a prefix-set
+**Behavior on DELETE of `/prefix-set/<N>/prefixes/prefix[...]`:**
 
-**XPath Handling:**
-- `/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set/prefixes/prefix` - Individual prefix deletion (with last prefix restriction)
-- `/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set` - Container deletion
+1. Read `PREFIX|<N>|*` keys from CONFIG_DB.
+2. If exactly **one** key remains (i.e. this delete will remove the last entry), inject a `subOpDataMap` DELETE for `PREFIX_SET|<N>`.
+3. The framework commits both deletes atomically.
 
-**Last Prefix Deletion Logic:**
-- Before deleting an individual prefix, check if it's the only remaining prefix in the prefix-set
-- If only one prefix remains, block the operation and return error: "This is last prefix under {prefix-set-name}, should delete {prefix-set-name} at container level"
-- This ensures prefix-sets are not left in an empty/inconsistent state
-- Forces users to explicitly delete the entire container when removing the last prefix
+| Initial state              | Action            | Final DB state                                  |
+|----------------------------|-------------------|-------------------------------------------------|
+| 3 prefixes in set `S`      | DELETE 1 prefix   | 2 prefixes in `S`; `PREFIX_SET|S` intact         |
+| 2 prefixes in set `S`      | DELETE 1 prefix   | 1 prefix in `S`; `PREFIX_SET|S` intact           |
+| 1 prefix in set `S`        | DELETE the prefix | **No `PREFIX` rows; `PREFIX_SET|S` also gone**   |
 
-### 3. OpenConfig YANG Tree Structure
+This eliminates orphaned-set inconsistency without forcing the client to issue two DELETEs.
 
-The following shows the complete OpenConfig YANG tree structure for the routing policy prefix sets:
+---
+
+## YANG Model
+
+### YANG Tree
 
 ```
 module: openconfig-routing-policy
@@ -218,481 +322,203 @@ module: openconfig-routing-policy
      |  |              +--ro oc-rp-ext:action?            enumeration
 ```
 
-**Key Elements:**
-- **prefix-set**: Container for a named prefix list with mode (IPv4/IPv6)
-- **prefix**: Individual prefix entry with IP prefix and masklength range as list keys
-- **sequence-number**: Extension field for ordering prefixes within a set
-- **action**: Extension field for PERMIT/DENY actions
-- **mode**: Address family (IPV4/IPV6) at prefix-set level
-- **description**: Optional description for prefix sets
+### Notes on the augmentations
+
+- `oc-rp-ext:sequence-number` (uint32) — augmented into both `prefix/config` and `prefix/state`. Forms component `[1]` of the SONiC `PREFIX` redis key. Mandatory on CRU; cannot be deleted in isolation.
+- `oc-rp-ext:action` (enumeration: `PERMIT` | `DENY`) — augmented into both `prefix/config` and `prefix/state`. Maps to SONiC `action` field (`permit` | `deny`).
+- `oc-rp-ext:description` (string) — augmented into `prefix-set/config` and `prefix-set/state`. Reserved for future use.
+
+### SONiC schema
+The transformer-side validation supersedes the SONiC `must` constraint on `sequence_number` uniqueness; the cross-source walk in `validateUniqueSeqNumber` is authoritative.
+
+---
 
 ## Database Schema
 
-### PREFIX Table
-Stores individual prefix entries with their configurations in CONFIG_DB.
-
-**Key Format:**
+### `PREFIX` table
 ```
-PREFIX|{prefix-set-name}|{sequence-number}|{ip-prefix}|{masklength-range}
-```
-
-**Fields:**
-- `action`: permit/deny
-- `mode`: IPv4/IPv6
-
-**Example Entries:**
-```
-CONFIG_DB:PREFIX|test_ipv4|5|10.0.0.0/8|8..24
-{
-    "action": "permit",
-    "mode": "IPv4"
-}
-
-CONFIG_DB:PREFIX|test_ipv4|10|192.168.0.0/16|16..32
-{
-    "action": "deny", 
-    "mode": "IPv4"
-}
-
-CONFIG_DB:PREFIX|test_ipv6|15|2001:db8::/32|32..48
-{
-    "action": "deny",
-    "mode": "IPv6"
-}
+Key   : PREFIX|<set-name>|<seq>|<ip-prefix>|<masklength-range>
+Fields: action  (permit|deny)
+        mode    (IPv4|IPv6)
 ```
 
-**Important Notes for Multiple Prefixes:**
-- Each prefix entry under the same prefix-set **MUST** have a unique sequence number
-- Sequence numbers are used for ordering and must be between 1-4294967295
-- When adding multiple prefixes to the same prefix-set, ensure different sequence numbers are used
-- Example: For prefix-set "test_ipv4", use sequence numbers 5, 10, 15, etc. (not duplicate values)
-
-### PREFIX_SET Table
-Stores prefix set containers and their metadata in CONFIG_DB.
-
-**Key Format:**
+### `PREFIX_SET` table
 ```
-PREFIX_SET|{prefix-set-name}
-```
-
-**Fields:**
-- `mode`: IPv4/IPv6 (address family)
-
-**Example Entries:**
-```
-CONFIG_DB:PREFIX_SET|test_ipv4
-{
-    "mode": "IPv4"
-}
-
-CONFIG_DB:PREFIX_SET|test_ipv6  
-{
-    "mode": "IPv6"
-}
+Key   : PREFIX_SET|<set-name>
+Fields: mode    (IPv4|IPv6)
 ```
 
 ### Key Formation Rules
 
-1. **Prefix Entry Keys**: Formed as `prefix-set-name|sequence-number|ip-prefix|masklength-range`
-   - Sequence number is extracted from the OpenConfig payload and embedded in the key
-   - This ensures direct lookup and ordering capabilities
+| Rule | Description                                                                                      |
+|:----:|--------------------------------------------------------------------------------------------------|
+| K1   | `ip-prefix` portion of the key is **always** the canonical (normalized) form                      |
+| K2   | `sequence-number` is part of the key; in-place modification is forbidden (mode 1)                |
+| K3   | Two PREFIX rows sharing `(set, ip, mask)` cannot exist (mode 1 + redis key uniqueness)            |
+| K4   | Two PREFIX rows sharing `(set, seq)` cannot exist (mode 2)                                       |
+| K5   | Deletion of the last PREFIX in a set also deletes the `PREFIX_SET` container (post-xfmr)         |
 
-2. **Sequence Number Uniqueness**: Within each prefix-set, sequence numbers must be unique
-   - ❌ Invalid: Two entries with same sequence number in one prefix-set
-   - ✅ Valid: Different sequence numbers for each prefix in the same prefix-set
-
-3. **Database Cleanup**: When all PREFIX entries are deleted, the corresponding PREFIX_SET entry is automatically removed
+---
 
 ## Test Scenarios
 
-### 1. Basic IPv4 Prefix List Operations
+The regression suite in `xfmr_prefix_list_test.go` (built under the `testapp` tag) covers:
 
-#### Create IPv4 Prefix Set
-```bash
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_ipv4]/config" \
-  -update_val "{\"name\":\"test_ipv4\", \"mode\":\"IPV4\"}"
-```
+| Test                                         | Scenario                                                                                                  |
+|----------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `Test_ipv6_zero_short_form`                  | POST `0::/64` lands under canonical `::/64`                                                                |
+| `Test_ipv6_embedded_zeros`                   | POST `2001:db8:0:0::/32` lands under `2001:db8::/32`                                                       |
+| `Test_ipv6_host_bits_rejected`               | IPv6 host bits rejected with unified wording                                                                |
+| `Test_get_delete_both_uri_forms`             | GET / DELETE works with either raw or canonical URI form                                                   |
+| `Test_h2_update_duplicate_seq_rejected`      | PATCH / PUT reusing another prefix's seqNum is rejected (accepts mode-1 or mode-2 wording — non-determinism note above) |
+| `Test_payload_dup_after_normalization`       | Single payload with same-prefix two spellings / same-seq diff-prefix / etc.                                |
+| `Test_delete_sequence_number_leaf_rejected`  | DELETE on `/config/sequence-number` and `/state/sequence-number` rejected; row intact                      |
+| `Test_oc_bgp_invalid_operations`             | Same prefix with different seqs rejected; mode-mismatch rejected                                            |
 
-#### Add IPv4 Prefix Entry
-```bash
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_ipv4]/prefixes/prefix[ip-prefix=10.0.0.0/8][masklength-range=8..24]/config" \
-  -update_val "{\"ip-prefix\":\"10.0.0.0/8\", \"masklength-range\":\"8..24\", \"sequence-number\":5, \"action\":\"PERMIT\"}"
-```
-
-#### Delete IPv4 Prefix Entry
-```bash
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_ipv4]/prefixes/prefix[ip-prefix=10.0.0.0/8][masklength-range=8..24]"
-```
-
-### 2. IPv6 Prefix List Operations
-
-#### Create IPv6 Prefix Set with Entry
-```bash
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_ipv6]/prefixes/prefix[ip-prefix=2001:db8::/32][masklength-range=32..48]/config" \
-  -update_val "{\"ip-prefix\":\"2001:db8::/32\", \"masklength-range\":\"32..48\", \"sequence-number\":10, \"action\":\"DENY\"}"
-```
-
-### 3. Multiple Entries in Same Prefix Set
-
-#### Add Multiple IPv4 Prefixes with Different Sequence Numbers
-```bash
-# First prefix with sequence number 5
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=multi_ipv4]/prefixes/prefix[ip-prefix=10.0.0.0/8][masklength-range=8..24]/config" \
-  -update_val "{\"ip-prefix\":\"10.0.0.0/8\", \"masklength-range\":\"8..24\", \"sequence-number\":5, \"action\":\"PERMIT\"}"
-
-# Second prefix with sequence number 10 (MUST be different from first)
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=multi_ipv4]/prefixes/prefix[ip-prefix=192.168.0.0/16][masklength-range=16..32]/config" \
-  -update_val "{\"ip-prefix\":\"192.168.0.0/16\", \"masklength-range\":\"16..32\", \"sequence-number\":10, \"action\":\"DENY\"}"
-
-# Third prefix with sequence number 15 (MUST be different from previous)  
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=multi_ipv4]/prefixes/prefix[ip-prefix=172.16.0.0/12][masklength-range=12..28]/config" \
-  -update_val "{\"ip-prefix\":\"172.16.0.0/12\", \"masklength-range\":\"12..28\", \"sequence-number\":15, \"action\":\"PERMIT\"}"
-```
-
-**Expected Database State:**
-```bash
-CONFIG_DB:PREFIX|multi_ipv4|5|10.0.0.0/8|8..24
-    {"action": "permit", "mode": "IPv4"}
-
-CONFIG_DB:PREFIX|multi_ipv4|10|192.168.0.0/16|16..32
-    {"action": "deny", "mode": "IPv4"}
-
-CONFIG_DB:PREFIX|multi_ipv4|15|172.16.0.0/12|12..28
-    {"action": "permit", "mode": "IPv4"}
-
-CONFIG_DB:PREFIX_SET|multi_ipv4
-    {"mode": "IPv4"}
-```
-
-### 4. Sequence Number Uniqueness Testing
-
-#### Valid Case - Unique Sequence Numbers
-```bash
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=seq_test]/prefixes/prefix[ip-prefix=10.1.0.0/16][masklength-range=16..24]/config" \
-  -update_val "{\"ip-prefix\":\"10.1.0.0/16\", \"masklength-range\":\"16..24\", \"sequence-number\":15, \"action\":\"PERMIT\"}"
-```
-
-#### Invalid Case - Duplicate Sequence Numbers (Should Fail)
-```bash
-# This should fail due to duplicate sequence number
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=seq_test]/prefixes/prefix[ip-prefix=10.2.0.0/16][masklength-range=16..24]/config" \
-  -update_val "{\"ip-prefix\":\"10.2.0.0/16\", \"masklength-range\":\"16..24\", \"sequence-number\":15, \"action\":\"DENY\"}"
-```
-
-### 5. Container Deletion
-```bash
-# Delete entire prefix set
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_ipv4]"
-```
-
-### 6. Last Prefix Deletion Restriction Test
-
-#### Setup: Create prefix-set with multiple prefixes
-```bash
-# Create prefix-set with 3 prefixes
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=restricted_test]/prefixes/prefix[ip-prefix=10.0.0.0/8][masklength-range=8..24]/config" \
-  -update_val "{\"ip-prefix\":\"10.0.0.0/8\", \"masklength-range\":\"8..24\", \"sequence-number\":5, \"action\":\"PERMIT\"}"
-
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=restricted_test]/prefixes/prefix[ip-prefix=192.168.0.0/16][masklength-range=16..32]/config" \
-  -update_val "{\"ip-prefix\":\"192.168.0.0/16\", \"masklength-range\":\"16..32\", \"sequence-number\":10, \"action\":\"DENY\"}"
-
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=restricted_test]/prefixes/prefix[ip-prefix=172.16.0.0/12][masklength-range=12..28]/config" \
-  -update_val "{\"ip-prefix\":\"172.16.0.0/12\", \"masklength-range\":\"12..28\", \"sequence-number\":15, \"action\":\"PERMIT\"}"
-```
-
-#### Test: Progressive prefix deletion
-```bash
-# Delete first prefix - Should succeed
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=restricted_test]/prefixes/prefix[ip-prefix=10.0.0.0/8][masklength-range=8..24]"
-
-# Delete second prefix - Should succeed  
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=restricted_test]/prefixes/prefix[ip-prefix=192.168.0.0/16][masklength-range=16..32]"
-
-# Attempt to delete last prefix - Should FAIL with restriction error
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=restricted_test]/prefixes/prefix[ip-prefix=172.16.0.0/12][masklength-range=12..28]"
-# Expected Error: "This is last prefix under restricted_test, should delete restricted_test at container level"
-
-# Correct approach - Delete entire prefix-set
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=restricted_test]"
-# Expected: Success
-```
-
-**Expected Database States:**
-```bash
-# After creating 3 prefixes:
-CONFIG_DB:PREFIX|restricted_test|5|10.0.0.0/8|8..24
-CONFIG_DB:PREFIX|restricted_test|10|192.168.0.0/16|16..32
-CONFIG_DB:PREFIX|restricted_test|15|172.16.0.0/12|12..28
-CONFIG_DB:PREFIX_SET|restricted_test
-
-# After deleting first prefix:
-CONFIG_DB:PREFIX|restricted_test|10|192.168.0.0/16|16..32
-CONFIG_DB:PREFIX|restricted_test|15|172.16.0.0/12|12..28
-CONFIG_DB:PREFIX_SET|restricted_test
-
-# After deleting second prefix:
-CONFIG_DB:PREFIX|restricted_test|15|172.16.0.0/12|12..28
-CONFIG_DB:PREFIX_SET|restricted_test
-
-# After attempting individual deletion of last prefix: No change (operation fails)
-CONFIG_DB:PREFIX|restricted_test|15|172.16.0.0/12|12..28
-CONFIG_DB:PREFIX_SET|restricted_test
-
-# After container-level deletion: All entries removed
-# (No PREFIX or PREFIX_SET entries remain)
-```
+---
 
 ## API Examples
 
-### gNMI Get Operations
-
-#### Get All Prefix Sets
+### Create an IPv6 set with one entry (canonical input)
 ```bash
-gnmi_get -target_addr 192.168.1.100:8080 \
-  -path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets"
+gnmi_set -update_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=v6_set]" \
+  -update_val '{
+    "config": {"name":"v6_set", "mode":"IPV6"},
+    "prefixes": {"prefix": [{
+       "ip-prefix": "2001:db8::/32",
+       "masklength-range": "32..48",
+       "config": {
+         "ip-prefix": "2001:db8::/32",
+         "masklength-range": "32..48",
+         "sequence-number": 10,
+         "action": "PERMIT"
+       }
+    }]}
+  }'
 ```
 
-#### Get Specific Prefix Set
+### Create with non-canonical input (auto-normalized)
 ```bash
-gnmi_get -target_addr 192.168.1.100:8080 \
-  -path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_ipv4]"
+# Client sends "0::/64", DB row is keyed "::/64"
+gnmi_set -update_path ".../prefix-set[name=v6_set]/prefixes/prefix[ip-prefix=0::/64][masklength-range=64..64]/config" \
+  -update_val '{"ip-prefix":"0::/64", "masklength-range":"64..64", "sequence-number":20, "action":"PERMIT"}'
+
+# Retrieve using either form:
+gnmi_get -path ".../prefix-set[name=v6_set]/prefixes/prefix[ip-prefix=0::/64][masklength-range=64..64]"   # ✓
+gnmi_get -path ".../prefix-set[name=v6_set]/prefixes/prefix[ip-prefix=::/64][masklength-range=64..64]"     # ✓
 ```
 
-#### Get Specific Prefix Entry
+### Reject: same prefix, different seq (mode 1)
 ```bash
-gnmi_get -target_addr 192.168.1.100:8080 \
-  -path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_ipv4]/prefixes/prefix[ip-prefix=10.0.0.0/8][masklength-range=8..24]"
+# v6_set already has "2001:db8::/32" at seq=10
+gnmi_set -update_path ".../prefix-set[name=v6_set]/prefixes/prefix[ip-prefix=2001:db8::/32][masklength-range=32..48]/config/sequence-number" \
+  -update_val '{"openconfig-routing-policy-ext:sequence-number": 11}'
+# → "same prefix is configured with different sequence"
 ```
 
-### Expected Database State
-
-After successful operations, the Redis CONFIG_DB should contain entries with the correct key format:
-
+### Reject: different prefix, same seq (mode 2)
 ```bash
-# Prefix entries (Key format: PREFIX|prefix-set-name|sequence-number|ip-prefix|masklength-range)
-CONFIG_DB:PREFIX|test_ipv4|5|10.0.0.0/8|8..24
-{
-    "action": "permit",
-    "mode": "IPv4"
-}
-
-CONFIG_DB:PREFIX|test_ipv6|10|2001:db8::/32|32..48
-{
-    "action": "deny",
-    "mode": "IPv6"
-}
-
-# Prefix set containers (Key format: PREFIX_SET|prefix-set-name)
-CONFIG_DB:PREFIX_SET|test_ipv4
-{
-    "mode": "IPv4"
-}
-
-CONFIG_DB:PREFIX_SET|test_ipv6
-{
-    "mode": "IPv6"
-}
+# v6_set already has "2001:db8::/32" at seq=10
+gnmi_set -update_path ".../prefix-set[name=v6_set]/prefixes/prefix[ip-prefix=2001:dead::/32][masklength-range=32..48]/config" \
+  -update_val '{"ip-prefix":"2001:dead::/32","masklength-range":"32..48","sequence-number":10,"action":"PERMIT"}'
+# → "Same sequence number is configured with different rule 10, delete it first"
 ```
 
-**Key Points for Database Operations:**
-- Sequence numbers are embedded in the PREFIX table keys for direct ordering
-- Each prefix entry must have a unique sequence number within its prefix-set
-- Database keys are auto-generated by transformer functions during CREATE operations
-- For multiple prefixes in the same prefix-set, use different sequence numbers (e.g., 5, 10, 15)
-
-## Validation and Error Handling
-
-### Successful Operations
-1. **CREATE**: Returns success with proper database entries
-2. **UPDATE**: Modifies existing entries with validation
-3. **DELETE**: Removes entries with enhanced error handling
-4. **GET**: Retrieves current configuration
-
-### Error Cases and Handling
-
-#### 1. Duplicate Sequence Numbers (CREATE/UPDATE)
-```
-Error: "sequence_number required to be unique for each prefix-list"
-Resolution: Use different sequence numbers within the same prefix-set
-Example: For prefix-set "test", use sequence numbers 5, 10, 15 (not 5, 5, 10)
-```
-
-#### 2. Missing Sequence Number  
-```
-Error: "Sequence number is mandatory for prefix entry. Please provide sequence number."
-Resolution: Always include sequence-number in CREATE/UPDATE operations
-Example: {"sequence-number": 5, ...}
-```
-
-#### 3. Invalid Sequence Number Range
-```
-Error: "Invalid sequence number range"  
-Resolution: Use sequence numbers between 1-4294967295 (uint32 range)
-```
-
-#### 4. Invalid IP Prefix Format
-```
-Error: "Invalid IP prefix format"
-Resolution: Use valid CIDR notation (e.g., 10.0.0.0/8, 2001:db8::/32)
-```
-
-#### 5. Invalid Masklength Range
-```
-Error: "Invalid masklength range"
-Resolution: Use valid range format (e.g., 8..24, 32..48)
-```
-
-#### 6. DELETE Non-existent Entry
-```
-Error: "Entry not found"
-Resolution: Verify entry exists before deletion
-```
-
-#### 7. Last Prefix Deletion Restriction
-```
-Error: "This is last prefix under Prefix_Set1, should delete Prefix_Set1 at container level"
-Resolution: Delete the entire prefix-set container instead of the individual prefix entry
-```
-
-**Use Case Example:**
+### Reject: payload contains two spellings of same prefix
 ```bash
-# Scenario: prefix-set "test_set" has 3 prefixes initially
-CONFIG_DB:PREFIX|test_set|5|10.0.0.0/8|8..24
-CONFIG_DB:PREFIX|test_set|10|192.168.0.0/16|16..32  
-CONFIG_DB:PREFIX|test_set|15|172.16.0.0/12|12..28
-
-# User deletes first prefix - SUCCESS
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_set]/prefixes/prefix[ip-prefix=10.0.0.0/8][masklength-range=8..24]"
-
-# User deletes second prefix - SUCCESS  
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_set]/prefixes/prefix[ip-prefix=192.168.0.0/16][masklength-range=16..32]"
-
-# Now only one prefix remains: CONFIG_DB:PREFIX|test_set|15|172.16.0.0/12|12..28
-
-# User tries to delete last prefix - FAILURE
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_set]/prefixes/prefix[ip-prefix=172.16.0.0/12][masklength-range=12..28]"
-# Returns: "This is last prefix under test_set, should delete test_set at container level"
-
-# Correct approach - Delete entire prefix-set container
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=test_set]"
+# Single POST payload with both "0::/64" and "::/64"
+# → "duplicate prefix entry in payload (multiple spellings of ::/64)"
 ```
 
-**Restriction Logic:**
-- When a prefix-set contains only one remaining prefix entry, individual prefix deletion is blocked
-- This ensures prefix-set containers are not left empty in an inconsistent state
-- Users must explicitly delete the entire prefix-set container to remove the last prefix
-- This maintains data integrity and follows OpenConfig best practices
+### Reject: DELETE on sequence-number leaf
+```bash
+gnmi_set -delete_path ".../prefix-set[name=v6_set]/prefixes/prefix[ip-prefix=2001:db8::/32][masklength-range=32..48]/config/sequence-number"
+# → "sequence-number cannot be deleted in isolation; delete the whole prefix entry instead"
+```
 
-**Best Practices for Sequence Numbers:**
-- Use incremental sequence numbers (e.g., 5, 10, 15, 20) to allow easy insertion of new entries
-- Reserve gaps between sequence numbers for future additions
-- Within one prefix-set, each prefix MUST have a unique sequence number
-- Sequence numbers determine the order of evaluation in routing policy applications
+### Last-prefix delete → auto-cleanup
+```bash
+# v6_set has only "2001:db8::/32" left
+gnmi_set -delete_path ".../prefix-set[name=v6_set]/prefixes/prefix[ip-prefix=2001:db8::/32][masklength-range=32..48]"
+# Result: PREFIX row removed AND PREFIX_SET|v6_set row removed atomically.
+```
+
+---
+
+## Error Catalog
+
+| Error                                                                                              | Layer       | Trigger                                                                |
+|----------------------------------------------------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| `Invalid IP prefix format: <p>`                                                                     | L1          | malformed CIDR in mask-range validator                                  |
+| `Invalid prefix length in IP prefix: <p>`                                                           | L1          | non-numeric mask                                                        |
+| `Single mask-length-range value <V> must match the IP prefix length <P>`                            | L1          | single-value form, V ≠ P                                                |
+| `IP prefix length <P> must be at the start (<MIN>) or end (<MAX>) of mask-length-range <m>`         | L1          | P not endpoint                                                          |
+| `Invalid mask-length-range: min <MIN> greater than max <MAX>`                                       | L1          | MIN > MAX                                                               |
+| `Invalid mask-length-range format: <m>`                                                             | L1          | wrong separator                                                         |
+| `Invalid prefix format, expected CIDR notation`                                                     | L2          | no `/` in prefix                                                        |
+| `Invalid IP address in prefix`                                                                      | L2          | `net.ParseIP` fail                                                      |
+| `Invalid IPv4 prefix length` / `Invalid IPv6 prefix length`                                          | L2          | mask out of range                                                       |
+| `Prefix has host bits set: expected <canonical>, got <input>`                                        | L2          | non-network address (unified wording)                                   |
+| `Invalid ip_prefix format: <err>`                                                                   | L2          | wrapper around L2 internal errors                                       |
+| `ip_prefix <p> does not match prefix-set mode <m>`                                                  | L3          | family mismatch                                                         |
+| `Only IPv4 and IPv6 are supported for prefix-sets mode`                                              | L3          | unsupported enum                                                        |
+| `Sequence number is mandatory for prefix entry. Please provide sequence number.`                     | L4          | seqNum missing in payload and not in DB                                 |
+| `same prefix is configured with different sequence`                                                  | L5 mode 1   | `(ip, mask)` match, seq differs                                         |
+| `duplicate prefix entry in payload (multiple spellings of <ip>)`                                    | L5 mode 1b  | payload siblings collapse to same DB key                                |
+| `Same sequence number is configured with different rule <seq>, delete it first`                     | L5 mode 2   | seq match, `(ip, mask)` differs                                         |
+| `sequence-number cannot be deleted in isolation; delete the whole prefix entry instead`              | seq xfmr    | DELETE on `/config/sequence-number` or `/state/sequence-number`         |
+| `Prefix entry not found: <ip>|<mask>`                                                                | key xfmr    | GET/DELETE on a non-existent entry                                      |
+
+---
 
 ## Performance Considerations
 
-### Optimization Techniques
+| Aspect                          | Impact                                                                                       |
+|---------------------------------|----------------------------------------------------------------------------------------------|
+| Mask/format validation          | O(1) per entry — pure string + `net.ParseCIDR`                                                |
+| `validateUniqueSeqNumber`       | O(N + M) per CRU, where N = `PREFIX|<set>|*` row count, M = payload siblings in same set      |
+| `getSpecificSeqNumberFromDb`    | One `GetKeysPattern` per CRU for seqNum resolution path                                       |
+| Post-xfmr last-prefix detection | One `GetKeysPattern` per DELETE                                                              |
 
-1. **DELETE Operation Optimization**: Enhanced error handling and direct database access
-2. **Batch Operations**: Support multiple prefix operations in single transaction
-3. **Database Cleanup**: Automatic removal of empty containers
+Scaling: typical prefix sets hold tens to low hundreds of entries; validation overhead is negligible relative to per-request gNMI / REST framing.
 
-### Scaling Limits
-
-- **Maximum Prefix Sets**: Limited by Redis memory and system capabilities
-- **Maximum Prefixes per Set**: Typically 100-1000 prefixes per set
-- **Sequence Number Range**: 1-4294967295 (uint32)
+---
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Sequence Number Validation**: Ensure unique sequence numbers for CREATE/UPDATE
-2. **Database Inconsistency**: Use Redis CLI to verify database state
-3. **Configuration Sync Issues**: Check system logs for configuration errors
-4. **Last Prefix Deletion**: Cannot delete the last remaining prefix in a prefix-set individually - must delete entire container
-
-**Last Prefix Deletion Troubleshooting:**
+### Verifying canonical storage
 ```bash
-# Check how many prefixes remain in a prefix-set
-redis-cli -n 4 keys "PREFIX|my_prefix_set|*"
-
-# If only one key is returned, individual deletion will fail
-# Example output: PREFIX|my_prefix_set|10|10.0.0.0/8|8..24
-
-# Solution: Delete the entire prefix-set container instead
-gnmi_set -target_addr 192.168.1.100:8080 \
-  -delete_path "/openconfig-routing-policy:routing-policy/defined-sets/prefix-sets/prefix-set[name=my_prefix_set]"
+# After POST with raw "0::/64", DB should show canonical form:
+redis-cli -n 4 keys 'PREFIX|*|::/64|*'
 ```
 
-### Debug Commands
-
+### Confirming auto-cleanup
 ```bash
-# Check Redis database state with correct key patterns
-redis-cli -n 4 keys "*PREFIX*"
-redis-cli -n 4 hgetall "PREFIX|test_ipv4|5|10.0.0.0/8|8..24"
-redis-cli -n 4 hgetall "PREFIX_SET|test_ipv4"
-
-# Get all prefix entries for a specific prefix-set
-redis-cli -n 4 keys "PREFIX|test_ipv4|*"
-
-# Check prefix list configuration using SONiC management interface
-show running-config routing-policy
-show running-config prefix-list
-
-# Check translib logs for prefix operations
-journalctl -f | grep "prefix"
-
-# Example queries for multiple prefix debugging
-redis-cli -n 4 keys "PREFIX|multi_ipv4|*"  # Shows all prefixes in multi_ipv4 set
+# After deleting the last /prefix:
+redis-cli -n 4 keys 'PREFIX|my_set|*'      # → (empty)
+redis-cli -n 4 keys 'PREFIX_SET|my_set'    # → (empty)
 ```
 
-### API Extensions
+### Diagnosing seq-uniqueness rejections
+Production logs print which collision mode fired and which source detected it:
+```
+validateUniqueSeqNumber[db]: same prefix configured with different sequence (existing seq=10, new seq=20, ip=2001:db8:a::/48|48..64, oper=UPDATE)
+validateUniqueSeqNumber[db]: same sequence number 20 is configured with different rule 2001:db8:b::/48|48..64
+validateUniqueSeqNumber[payload]: duplicate prefix entry (two spellings of ::/64|64..64 at seq=10)
+```
+Tag `[db]` vs `[payload]` identifies the source; the rest pinpoints the conflicting pair.
 
-1. **REST API**: Full REST support alongside gNMI
-2. **CLI Integration**: SONiC CLI commands for prefix list management
-3. **Backup/Restore**: Configuration export/import functionality
+---
 
 ## Conclusion
 
-The BGP Prefix List implementation successfully provides comprehensive support for IPv4 and IPv6 route filtering in SONiC. The solution effectively addresses sequence number uniqueness validation issues during DELETE operations while maintaining proper validation for CREATE/UPDATE operations.
+This revision delivers BGP Prefix Lists with a complete validation surface:
 
-### Key Benefits
+- **Canonicalization** is end-to-end symmetric (write + read), so every spelling of a given prefix maps to exactly one DB row
+- **Host-bits** are uniformly rejected with one wording for both families
+- **Sequence-number uniqueness** is enforced across both committed DB and in-flight payload, with a three-mode rule catalog that covers every collision shape
+- **The sequence-number leaf** is protected from in-isolation DELETE
+- **Last-prefix delete** correctly auto-cleans the `PREFIX_SET` container
+- **Idempotent re-asserts** are preserved via per-source self-skip predicates, so well-formed clients are never penalized
 
-1. **Robust Validation**: Proper constraint validation for CREATE/UPDATE operations
-2. **Optimized DELETE**: Enhanced error handling and direct database operations
-3. **OpenConfig Compliance**: Full support for standard OpenConfig YANG models
-4. **Comprehensive Testing**: Extensive test scenarios covering all use cases
-5. **Production Ready**: Suitable for deployment in production networks
-
-### Implementation Summary
-
-The transformer-based solution provides:
-- Operation-specific handling (CREATE/UPDATE vs DELETE)
-- Proper database management and cleanup
-- Comprehensive error handling and validation
-- Enhanced DELETE operation handling with direct database access
-- Full feature parity with OpenConfig specifications
-
-This implementation serves as a foundation for advanced routing policy features and demonstrates best practices for handling YANG model constraints in complex CRUD operations.
+The regression suite (`xfmr_prefix_list_test.go`) pins each invariant with a dedicated test, and the cross-source collision walk has explicit non-determinism notes for any future test relying on Redis iteration.
