@@ -26,7 +26,8 @@
     - [3.1 Proxy Changes](#31-proxy-changes)
       - [3.1.1 MirrorManager](#311-mirrormanager)
       - [3.1.2 RecordingWriter](#312-recordingwriter)
-      - [3.1.3 MirrorControlServer](#313-mirrorcontrolserver)
+      - [3.1.3 RecordingArchiver](#313-recordingarchiver)
+      - [3.1.4 MirrorControlServer](#314-mirrorcontrolserver)
     - [3.2 Mirror Control Message Protocol](#32-mirror-control-message-protocol)
     - [3.3 RX Mirroring](#33-rx-mirroring)
     - [3.4 TX Mirroring](#34-tx-mirroring)
@@ -37,7 +38,6 @@
       - [3.5.4 Data Record Lines](#354-data-record-lines)
       - [3.5.5 Event Lines](#355-event-lines)
       - [3.5.6 Payload Escaping Rules](#356-payload-escaping-rules)
-      - [3.5.7 Conversion Utility](#357-conversion-utility)
     - [3.6 Error Handling](#36-error-handling)
     - [3.7 Service Lifecycle](#37-service-lifecycle)
       - [Proxy Startup](#proxy-startup)
@@ -52,7 +52,6 @@
     - [5.1 Start Mirroring](#51-start-mirroring)
     - [5.2 Stop Mirroring](#52-stop-mirroring)
     - [5.3 Show Mirror Status](#53-show-mirror-status)
-    - [5.4 Export Recording](#54-export-recording)
   - [6. Example Workflow](#6-example-workflow)
     - [6.1 Manual Stop](#61-manual-stop)
     - [6.2 Automatic Stop](#62-automatic-stop)
@@ -98,6 +97,7 @@ The feature provides the following capabilities:
 * Support configurable timestamp resolution.
 * Allow only one mirror owner per line.
 * Automatically stop each mirror session after a finite timeout, defaulting to 24 hours.
+* Package all rotated log parts into one ZIP archive after recording stops.
 
 ---
 
@@ -116,9 +116,10 @@ flowchart LR
         core["Existing proxy forwarding logic"]
         mirror["MirrorManager"]
         writer["RecordingWriter"]
+        archiver["RecordingArchiver"]
         state["STATE_DB<br/>CONSOLE_MIRROR|1"]
         control["MirrorControlServer<br/>/run/console-monitor/mirror/line1.sock"]
-        log["Text logs<br/>/var/log/sonic/console-mirror/..."]
+        files["Recording files<br/>.log parts and final .zip"]
     end
 
     ptm["PTM<br/>/dev/ttyUSB1-PTM"]
@@ -135,10 +136,13 @@ flowchart LR
     core -->|best-effort RX/TX copy| mirror
 
     mirror --> writer
-    writer --> log
+    writer --> files
+    mirror -->|"closed recording prefix"| archiver
+    archiver -->|"package and delete source parts"| files
     mirror --> state
 
     control -->|start / stop / status| mirror
+    archiver -. "completion future" .-> control
 
     userB["User B<br/>start / stop / show"]
 
@@ -151,6 +155,7 @@ flowchart LR
 * **Single active mirror owner** - At most one mirror session can be active per line.
 * **Best-effort observability** - Recording should be reliable under normal operation, but slow disk I/O must not block the proxy data path.
 * **Bounded lifetime** - Every mirror session has a finite auto-stop timeout. The default timeout is 24 hours.
+* **Asynchronous finalization** - A stopped mirror becomes idle before archive creation completes. Archiving runs outside the serial forwarding path.
 * **Text-first storage** - The recording format is a line-oriented UTF-8 text log. Printable characters are written as text, while control bytes, ANSI escape bytes, and invalid UTF-8 bytes are represented using printable escape sequences.
 * **Minimal architecture change** - The existing PTY Bridge and `consutil connect` model are retained.
 * **Operational state only** - Mirror configuration is not persisted and is not restored after reboot.
@@ -183,9 +188,10 @@ The proxy adds the following internal components:
 |-----------|-------------|
 | `MirrorManager` | Maintains mirror session state |
 | `RecordingWriter` | Writes text records to the local file |
+| `RecordingArchiver` | Packages all recording parts for a stopped session into one ZIP archive and removes the source parts after success |
 | `MirrorControlServer` | Per-line UDS endpoint for start, stop, and status commands |
 
-The proxy main loop must keep serial forwarding as the highest priority. Mirroring work is offloaded to bounded queues and writer tasks.
+The proxy main loop must keep serial forwarding as the highest priority. Recording and archive work is offloaded to bounded queues and background tasks.
 
 #### 3.1.1 MirrorManager
 
@@ -204,25 +210,27 @@ The proxy main loop must keep serial forwarding as the highest priority. Mirrori
 | `timer` | Active auto-stop timer |
 | `file_path` | Current recording file path under the fixed secure directory |
 | `writer` | Active `RecordingWriter`, if a session is active |
-| `pending_writer_drop_count` | Number of writer records dropped since the last recorded drop event |
+| `writer_drop_count` | Number of writer records dropped since the last recorded drop event |
 
 `MirrorManager` exposes internal methods to the proxy and `MirrorControlServer`:
 
 | Method | Caller | Description |
 |--------|--------|-------------|
 | `start(options)` | `MirrorControlServer` | Validate options, create session metadata and `RecordingWriter`, set the auto-stop timer, update STATE_DB |
-| `stop(reason)` | `MirrorControlServer` or auto-stop timer | Write stop event, cancel the timer, stop writer, set STATE_DB state to `idle`, and retain the final file path |
+| `stop(reason)` | `MirrorControlServer` or auto-stop timer | Stop recording, set STATE_DB state to `idle`, submit an immutable archive job, and return its completion future |
 | `status()` | `MirrorControlServer` | Return current line mirror state |
 | `submit(direction, payload)` | Proxy forwarding loop | Best-effort submit of RX/TX data to the recording writer |
 
 The proxy forwarding loop calls `MirrorManager.submit()` after it observes console bytes on the RX or TX path. `submit()` must be non-blocking from the proxy's perspective. If mirroring is idle, the method returns immediately. If the active session does not include the submitted direction, the method returns immediately.
 
 
-Writer submission is best effort. If the writer queue is full, `MirrorManager` increments `pending_writer_drop_count`, writes a syslog warning, and does not block the forwarding loop. When the writer queue later accepts records again, `MirrorManager` emits one `EVENT` record with `reason=writer_queue_full` and the accumulated `pending_writer_drop_count` value before recording subsequent data records.
+Writer submission is best effort. If the writer queue is full, `MirrorManager` increments `writer_drop_count` and does not block the forwarding loop. When the writer queue later accepts records again, `MirrorManager` emits one `EVENT` record with `reason=writer_queue_full` and the accumulated `writer_drop_count` value before recording subsequent data records.
 
 When a session starts, `MirrorManager` calculates a monotonic deadline from the configured timeout and sets the `timer`. A monotonic clock prevents wall-clock adjustments from extending or shortening the recording unexpectedly. When the deadline expires, the timer invokes `stop(reason="timeout")`. Manual stop invokes the same shutdown path with `reason="manual"` and cancels the timer.
 
 The transition from `active` to `stopping` is atomic. If a manual stop races with timer expiration, only the caller that performs this transition executes the shutdown sequence; the other caller returns the resulting session state. This prevents duplicate stop events and double-closing the writer.
+
+After the writer is closed, `MirrorManager` creates an immutable archive job containing the line, direction, recording start timestamp, recording filename prefix, expected ZIP path, and stop reason. The manager submits this job to `RecordingArchiver` and immediately transitions the mirror state to `idle`. The archiver does not read mutable fields from the next mirror session.
 
 #### 3.1.2 RecordingWriter
 
@@ -268,7 +276,45 @@ Writer shutdown sequence:
 
 If the writer encounters a fatal file error, for example disk full or write failure, it reports the error to `MirrorManager`. `MirrorManager` stops the recording session, updates STATE_DB state, and leaves the console forwarding path running.
 
-#### 3.1.3 MirrorControlServer
+#### 3.1.3 RecordingArchiver
+
+`RecordingArchiver` runs archive jobs in a background execution context after recording has stopped. It does not run in the serial forwarding path and does not keep the mirror state active.
+
+All parts belonging to one recording share the same filename prefix:
+
+```text
+console-mirror-line<line>-<direction>-<UTC start timestamp>
+```
+
+For example, the archiver packages:
+
+```text
+console-mirror-line1-both-20260613T141200Z-part0001.log
+console-mirror-line1-both-20260613T141200Z-part0002.log
+console-mirror-line1-both-20260613T141200Z-part0003.log
+```
+
+into:
+
+```text
+console-mirror-line1-both-20260613T141200Z.zip
+```
+
+Archive sequence:
+
+1. Enumerate only regular `.log` files in the per-line directory that exactly match the immutable recording prefix and `-partNNNN.log` suffix.
+2. Sort source files by part number and verify that the expected parts are readable.
+3. Create the archive as `<archive_path>.tmp` using exclusive creation, with owner `root:root` and mode `0600`.
+4. Add each source part to the ZIP using its base filename.
+5. Close and validate the ZIP, then atomically rename the temporary archive to the expected `.zip` path.
+6. Only after the final ZIP exists successfully, delete the original `.log` parts.
+7. Complete the job future with the final archive path or an error.
+
+If archive creation fails, `RecordingArchiver` deletes the incomplete `.zip.tmp` file and preserves all source logs. Archive status and archive paths are not written to STATE_DB.
+
+Because the mirror state is already `idle`, a new mirror may start while a previous archive job is running. Recording start timestamps used in filenames must be unique for a line; the implementation uses sufficient fractional UTC precision and exclusive file creation to prevent a new session from reusing an archive job's prefix.
+
+#### 3.1.4 MirrorControlServer
 
 `MirrorControlServer` is the local IPC endpoint used by `consutil mirror` to control the in-process `MirrorManager`. It is created by each per-line proxy during startup.
 
@@ -290,13 +336,13 @@ The socket is created with restrictive permissions so only Admin/root users can 
 * No mirror session is already active when processing `start`.
 * A mirror session is active when processing `stop`.
 
-After validation, `MirrorControlServer` calls the corresponding `MirrorManager` method. It returns structured success or error responses to the CLI. For example, `start` returns the secure recording file path; `status` returns current STATE_DB-equivalent runtime metadata; `stop` returns the final file path.
+After validation, `MirrorControlServer` calls the corresponding `MirrorManager` method. For `start` and `status`, it returns one structured response. For manual `stop`, it sends an initial packaging response after recording has stopped, then keeps the UDS connection open until the archive future completes and sends a final response.
 
 `MirrorControlServer` must not perform disk I/O or serial I/O itself. It only validates control messages, enforces access policy, and invokes `MirrorManager`.
 
 ### 3.2 Mirror Control Message Protocol
 
-This section defines the message protocol used on the `MirrorControlServer` UDS described in [MirrorControlServer](#313-mirrorcontrolserver). Control messages are JSON objects framed with a 4-byte big-endian length prefix:
+This section defines the message protocol used on the `MirrorControlServer` UDS described in [MirrorControlServer](#314-mirrorcontrolserver). Control messages are JSON objects framed with a 4-byte big-endian length prefix:
 
 ```json
 {
@@ -323,7 +369,7 @@ Supported control operations:
 | `stop` | Stop the active mirror session |
 | `status` | Return current mirror state for the line |
 
-The response is also a length-prefixed JSON object. Successful responses include `status: "ok"` and operation-specific fields. Error responses include `status: "error"`, a machine-readable `code`, and a human-readable `message`.
+Each response is also a length-prefixed JSON object. Successful responses include a status and operation-specific fields. Error responses include `status: "error"`, a machine-readable `code`, and a human-readable `message`.
 
 Example success response for `start`:
 
@@ -345,6 +391,27 @@ Example error response when a mirror session is already active:
   "message": "Line 1 already has an active mirror session"
 }
 ```
+
+A manual `stop` produces two responses on the same UDS connection. The first response confirms that mirroring has ended and gives the expected archive location:
+
+```json
+{
+  "status": "packaging",
+  "message": "Mirror stopped; packaging recording",
+  "archive_path": "/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip"
+}
+```
+
+The CLI prints this information and continues waiting on the socket. When packaging completes, the server sends:
+
+```json
+{
+  "status": "ok",
+  "archive_path": "/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip"
+}
+```
+
+If the CLI disconnects while waiting, `MirrorControlServer` drops only the response subscription. The background archive job continues unchanged. If packaging fails, the final response uses `status: "error"` and reports that the original log parts were preserved.
 
 ### 3.3 RX Mirroring
 
@@ -396,6 +463,12 @@ Per-line recording path:
 /var/log/sonic/console-mirror/line<line>/console-mirror-line<line>-<direction>-<UTC timestamp>-part<part>.log
 ```
 
+Final archive path:
+
+```text
+/var/log/sonic/console-mirror/line<line>/console-mirror-line<line>-<direction>-<UTC timestamp>.zip
+```
+
 Example:
 
 ```text
@@ -411,8 +484,11 @@ The proxy is responsible for creating the base directory and per-line subdirecto
 | `/var/log/sonic/console-mirror/` | `root:root` | `0700` | Base directory for all mirror recordings |
 | `/var/log/sonic/console-mirror/line<line>/` | `root:root` | `0700` | Per-line recording directory |
 | `console-mirror-line<line>-<direction>-<timestamp>-part<part>.log` | `root:root` | `0600` | Recording file |
+| `console-mirror-line<line>-<direction>-<timestamp>.zip` | `root:root` | `0600` | Completed recording archive |
 
 The `<direction>` field is `rx`, `tx`, or `both`, matching the direction selected when the recording starts.
+
+The timestamp token identifies one recording and must be unique within a line directory. If another recording starts within the same second, the implementation includes fractional UTC digits in the token. Every part and the final ZIP for that recording use the same token.
 
 #### 3.5.2 File Rotation
 
@@ -544,17 +620,6 @@ The writer applies a deterministic printable escaping function to each payload:
 
 This keeps normal console text readable while preventing terminal control sequences from changing the viewer's terminal state. For example, the ANSI clear-screen sequence is written as `\x1b[2J` rather than being emitted as a literal ESC byte.
 
-#### 3.5.7 Conversion Utility
-
-A conversion utility may still be provided for structured processing:
-
-```bash
-sudo consutil mirror export console-mirror-line1-both-20260613T141200Z-part0001.log --format json
-sudo consutil mirror export console-mirror-line1-both-20260613T141200Z-part0001.log --format raw-text
-```
-
-JSON export parses the text log and preserves direction, timestamp, original byte length, and escaped payload. Raw-text export can drop metadata and print only the payload stream for quick inspection.
-
 ### 3.6 Error Handling
 
 The mirror implementation must not block or terminate the active console session because of recording errors.
@@ -566,6 +631,10 @@ The mirror implementation must not block or terminate the active console session
 | Auto-stop timer setup failure | Reject `start` and close any newly opened recording file |
 | Disk full | Stop recording, update STATE_DB, keep console forwarding |
 | Writer queue full | Drop mirror records, record a drop event when the writer queue recovers, keep forwarding |
+| ZIP creation failure | Preserve every source `.log` part, remove the incomplete `.zip.tmp`, and return an error to a waiting CLI |
+| Source log deletion failure | Keep the valid ZIP, report the undeleted source paths, and do not treat archive contents as lost |
+| Stop CLI disconnect | Continue the archive job; only the final completion notification is lost |
+| Proxy exits during packaging | Preserve source logs; an incomplete temporary ZIP is not considered a completed archive |
 | Proxy restart | Stop current mirror session and mark state `idle` after restart |
 
 The writer queue should be bounded. When the queue is full, new mirror records are dropped rather than blocking the proxy. A drop event is inserted when the queue becomes writable again.
@@ -595,18 +664,25 @@ The writer queue should be bounded. When the queue is full, new mirror records a
 2. Proxy cancels the auto-stop timer.
 3. Proxy writes a stop event with `reason=manual` to the recording file.
 4. Proxy drains the queue, flushes, and closes the writer.
-5. Proxy sets the mirror state to `idle` after the final recording bytes are durable and retains the final `file_path` in STATE_DB.
+5. Proxy creates an immutable archive job and expected ZIP path from the stopped recording prefix.
+6. Proxy sets the mirror state to `idle` and clears active recording fields, including `file_path`, from STATE_DB.
+7. `MirrorControlServer` sends the `packaging` response. The CLI prints that mirroring has stopped and displays the expected ZIP path, then waits for another framed response.
+8. `RecordingArchiver` packages all matching part files asynchronously.
+9. When the future completes, `MirrorControlServer` sends the final archive path or error to the waiting CLI.
+
+The mirror is already idle during steps 7 through 9, so another mirror can start without waiting for packaging. A CLI process terminated during this wait does not cancel the archive job.
 
 #### Automatic Mirror Stop
 
 1. The monotonic auto-stop deadline expires.
 2. `MirrorManager` invokes the same stop path used by the CLI with `reason=timeout`.
 3. Proxy writes the timeout stop event, drains the queue, flushes, and closes the writer.
-4. Proxy updates STATE_DB state to `idle` and retains the final recording metadata and file path.
+4. Proxy submits the archive job and updates STATE_DB state to `idle`, clearing active recording fields.
+5. `RecordingArchiver` packages the stopped recording in the background. There is no waiting CLI, so completion is recorded only in process logs.
 
 #### Proxy Shutdown
 
-On proxy shutdown, the auto-stop timer is cancelled and the mirror writer receives a stop event and flushes the recording file if possible. STATE_DB is updated to show the mirror session is no longer active. Because no mirror configuration is stored in CONFIG_DB, the session is not restored when the proxy or device starts again.
+On proxy shutdown, the auto-stop timer is cancelled and the mirror writer receives a stop event and flushes the recording file if possible. STATE_DB is updated to show the mirror session is no longer active. In-progress archive tasks are allowed a bounded shutdown interval; if they cannot finish, source logs are preserved. Because no mirror configuration is stored in CONFIG_DB, the session is not restored when the proxy or device starts again.
 
 ---
 
@@ -627,7 +703,7 @@ Runtime state is stored in STATE_DB.
 | `CONSOLE_MIRROR\|<line>` | `started_by` | username | User that started mirroring |
 | `CONSOLE_MIRROR\|<line>` | `start_time` | Unix timestamp | Mirror start time |
 | `CONSOLE_MIRROR\|<line>` | `timeout` | positive integer seconds | Configured auto-stop timeout |
-| `CONSOLE_MIRROR\|<line>` | `file_path` | path | Current recording file path |
+| `CONSOLE_MIRROR\|<line>` | `file_path` | path | Current active recording part; cleared when recording stops |
 | `CONSOLE_MIRROR\|<line>` | `direction` | `rx` / `tx` / `both` | Mirrored direction |
 | `CONSOLE_MIRROR\|<line>` | `resolution` | `us` / `ms` | Timestamp resolution |
 
@@ -657,7 +733,7 @@ admin@sonic:~$ sonic-db-cli STATE_DB HGETALL "CONSOLE_MIRROR|1"
 
 ## 5. CLI
 
-The CLI is added under `consutil` because it operates on console lines and manages recording lifecycle and export.
+The CLI is added under `consutil` because it operates on console lines and manages recording lifecycle.
 
 CLI permission requirements:
 
@@ -666,7 +742,6 @@ CLI permission requirements:
 | `consutil mirror start` | Admin/root | Starts a sensitive recording and creates a protected log file |
 | `consutil mirror stop` | Admin/root | Stops an active recording session |
 | `consutil mirror show` | Admin/root | Exposes active recording metadata, including recording file path |
-| `consutil mirror export` | Admin/root | Reads protected recording files |
 
 ### 5.1 Start Mirroring
 
@@ -721,9 +796,14 @@ sudo consutil mirror stop 1
 Expected output:
 
 ```text
-Stopped mirror on line [1]
-Recording file: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
+Stopped mirror on line [1]; packaging recording
+Expected archive: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip
+Waiting for packaging to complete...
+
+Recording archive: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip
 ```
+
+After printing the expected archive path, the CLI remains blocked waiting for the final server response. Interrupting or terminating the CLI does not cancel packaging.
 
 ### 5.3 Show Mirror Status
 
@@ -738,18 +818,6 @@ Line  State   Direction  Timeout  Stop Time             File
 ----  ------  ---------  -------  --------------------  ----
 1     active  both       24h      2026-06-14T14:12:00Z  /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
 2     idle    -          -        -                     -
-```
-
-### 5.4 Export Recording
-
-```bash
-sudo consutil mirror export <file> --format {json,raw-text}
-```
-
-Example:
-
-```bash
-sudo consutil mirror export /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log --format json
 ```
 
 ---
@@ -779,8 +847,11 @@ User B stops recording:
 
 ```bash
 admin@sonic:~$ sudo consutil mirror stop 1
-Stopped mirror on line [1]
-Recording file: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
+Stopped mirror on line [1]; packaging recording
+Expected archive: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip
+Waiting for packaging to complete...
+
+Recording archive: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip
 ```
 
 ### 6.2 Automatic Stop
@@ -801,6 +872,12 @@ If no manual stop is issued, the proxy stops the mirror automatically when the d
 2026-06-14T14:12:00.000000Z +086400000000us 00001000 EVENT 00000035 {"event":"stop","reason":"timeout"}
 ```
 
+The proxy then packages all parts into:
+
+```text
+/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip
+```
+
 ---
 
 ## 7. Security Considerations
@@ -809,13 +886,14 @@ Console mirror recordings are highly sensitive. They may contain credentials, bo
 
 Security requirements:
 
-* Starting, stopping, showing, or exporting mirror sessions requires Admin/root privileges.
+* Starting, stopping, or showing mirror sessions requires Admin/root privileges.
 * Recording files are always written to `/var/log/sonic/console-mirror/`; users cannot specify a custom output directory.
-* Recording files are created with restrictive permissions (`0600`), owned by `root:root`.
+* Recording parts, temporary archives, and completed ZIP archives are created with restrictive permissions (`0600`), owned by `root:root`.
 * Recording directories are created with restrictive permissions (`0700`), owned by `root:root`, and are not world-readable.
 * The UDS control socket is created with restrictive permissions so only Admin/root users can issue mirror control commands.
 * CLI output should print the recording file path and active status for auditability.
-* STATE_DB records should include `started_by`, `owner_pid`, `start_time`, `timeout` and current `file_path`.
+* STATE_DB records should include `started_by`, `owner_pid`, `start_time`, `timeout` and the current active `file_path`.
+* Archive progress and archive paths are not stored in STATE_DB.
 * Mirroring should be visible through `consutil mirror show`.
 
 This revision does not encrypt recordings. Encryption can be added later as an optional writer mode without changing the proxy interception points.
