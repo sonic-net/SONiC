@@ -67,7 +67,7 @@ While FRR supports this and most modern DC fabrics rely on it, operators current
 3. Add a `PEER_UNNUMBERED` peer-group at the FRR side, carrying multi Address Family config
 4. Extend orchagent (`vnetorch.cpp`, parallel to the merged `vrforch.cpp` change in PR #3973) so that LLv6 traffic destined to the device in a VNET is trapped to CPU and addionally extend it so that RFC 5549 duplicate-IP ECMP routes are programmed correctly in ASIC_DB
 5. The rendered BGP session will come up over IPv4 if an IPv4 /30 or /31 IP is configured on the interface. If an IPv4 address is not configured, it will discover the peer's IPv6 link local address using Router Advertisements received from the peer. Upon discovering the v6 link local address of the peer it will establish the session over v6 link local(https://docs.frrouting.org/en/latest/bgp.html#clicmd-neighbor-PEER-interface-v6only-peer-group-NAME). 
-6. For these sessions we configure the BGP attribute `extended-next-hop`, so both IPv4 and IPv6 NLRI can be exchanged on the single session, and we enable both v4 and v6 address families by default, an optional new field `af: v4/v6/both` is introduced, such that if just v4 neighbor/bgp activation is desired then af should be specified as v4, just v6 then v6, and both if v4 and v6 both are desired over this session, with the default being both for BGP unnumbered. This is an attribute in the `BGP_NEIGHBOR` table
+6. For these sessions we configure the BGP attribute `extended-next-hop`, so both IPv4 and IPv6 NLRI can be exchanged on the single session, and we enable both v4 and v6 address families by default, an optional new field `af: v4/v6/both` is introduced, such that if just v4 neighbor/bgp activation is desired then address_family should be specified as v4, just v6 then v6, and both if v4 and v6 both are desired over this session, with the default being both for BGP unnumbered. This is an attribute in the `BGP_NEIGHBOR` table
 7. Unnumbered BGP MUST work for neighbors that live in the **default** VRF **and** in a **non-default VRF / VNET**. This implies:
    - **LLv6 IP2Me** routes (`fe80::/10` catch-all) MUST be installed in every non-default VR at create time so that BGP TCP/179 and NDP packets in that VRF are trapped to CPU instead of silently dropped.
    - **RFC 5549 ECMP** routes (multiple egress interfaces sharing the same well-known link-local nexthop placeholder, e.g. `169.254.0.1`) MUST be programmed as multi-member next-hop groups in `ASIC_DB`, not collapsed to a single next-hop.
@@ -126,11 +126,11 @@ BGP_NEIGHBOR|{{VRF/VNET-name}}|{{Peer-name}}:
             "name": {{Peer name}},
             "nhopself": {{nhopself}}, (Optional)
             "rrclient": {{rrclient}}, (Optional)
-            "af": {{v4/v6/both}} (Optional and only applicable to BGP unnumbered for now, if absent defaulted to both) >>> New
+            "address_family": {{v4/v6/both}} (Optional and only applicable to BGP unnumbered for now, if absent defaulted to both) >>> New
 ```
 Additions:
 - Peer-name: will be accepted as a Interface, PortChannel, Vlan and Ethernet/Portchannel subinterface
-- "af": Newly added optional field which is only applicable to BGP unnumbered, if set to v4, only the v4 advertisements will be activated, if set to v6, only the v6 advertisements will be activated, and if set to both OR absent this data member both v4 and v6 are activated  
+- "address_family": Newly added optional field which is only applicable to BGP unnumbered, if set to v4, only the v4 advertisements will be activated, if set to v6, only the v6 advertisements will be activated, and if set to both OR absent this data member both v4 and v6 are activated  
 
 Example configuration displaying the use of a Link Local Ipv6 interface with BGP Unnumbered(existing schema included for completeness):
 ```
@@ -172,7 +172,7 @@ route-map TO_BGP_PEER_UNNUMBERED   permit 100
 
 *Key callouts in the above config:*
 - The session-level peer-group is `PEER_UNNUMBERED` instead of a v4 specific peer group and another v6 specific peer group as it is defined for the numbered BGP sessions. This is because FRR allows exactly one session-level peer-group binding per neighbor, regardless of which AF block it appears in
-- `neighbor <intf> activate` in the v4 and v6 block is driven by the `af` data member in `BGP_NEIGHBOR` table
+- `neighbor <intf> activate` in the v4 and v6 block is driven by the `address_family` data member in `BGP_NEIGHBOR` table, activating both address families if absent. 
 - `neighbor PEER_UNNUMBERED capability extended-nexthop`: If you are peering over a v6 Global Address then turning on this command will allow BGP to install v4 routes with v6 nexthops if you do not have v4 configured on interfaces.
 
 ### Implementation Approaches
@@ -231,7 +231,7 @@ dockers/docker-fpm-frr/frr/bgpd/templates/general/
 
 ### VNET / non-default VRF support (orchagent)
 
-Unnumbered BGP inside a VNET requires two orchagent changes, both in `orchagent/vnetorch.cpp`. These mirror the already-merged `vrforch.cpp` change in PR #3973 (which only covered bare VRFs created via `VRFOrch`).
+Unnumbered BGP inside a VNET requires two orchagent changes, both in `orchagent/vnetorch.cpp`. These  mirror the already-merged `vrforch.cpp` change in PR #3973 (which only covered bare VRFs created via `VRFOrch`).
 
 #### 1. LLv6 IP2Me route in every VNET VR
 
@@ -289,7 +289,7 @@ cmd = (
 #### Yang
 Yang models will be enhanced to support:
 - Interfaces as Peer name in BGP_NEIGHBOR
-- af field in BGP_NEIGHBOR
+- address_family field in BGP_NEIGHBOR
 - VNET table asn field to modify the VRF BGP instance's ASN
 
 #### CLI
