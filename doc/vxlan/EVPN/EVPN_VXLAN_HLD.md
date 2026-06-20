@@ -2,7 +2,7 @@
 
 # EVPN VXLAN HLD
 
-#### Rev 1.0
+#### Rev 1.2
 
 # Table of Contents
 
@@ -76,6 +76,7 @@
 | 0.9 | | Nikhil Kelhapure | Warm Reboot Section added |
 | 1.0 | | Sudharsan D.G | Using P2MP Tunnel for Layer2 functionality |
 | 1.1 | | Adam Yeung | Update Fastboot limitation |
+| 1.2 | April 2024 | Mike Mallin | Add support for IPv6 VTEPs |
 
 
 # Definition/Abbreviation
@@ -129,6 +130,7 @@ This feature adds the following enhancements.
 - Routing of L3 (IPv4 and IPv6) traffic in and out of the VXLAN tunnel.
 - Overlay ECMP support.
 - EVPN ARP and ND suppression.
+- Coexistence of IPv4 and IPv6 VTEPs within the same network
 
 The following item will be added in the future. 
 - Basic OAM support for tunnels -  tunnel operational status and statistics.
@@ -142,9 +144,9 @@ This document covers high level design and interaction aspects of the SONiC soft
 The following aspects are outside the scope of this document.
 
 - Support for L2 multi-tenancy is not in scope. VLAN ids received on all the access ports are mapped to the same broadcast domain and hence the same VNI. 
-- IPv6 addresses for VTEPs.
 - Static VXLAN tunnels.
 - Multi-homing support described in the EVPN RFCs.
+- Coexistence of IPv4 and IPv6 VTEP source addresses in the same VTEP device
 
 
 
@@ -155,7 +157,7 @@ The following aspects are outside the scope of this document.
 
 Following requirements are addressed by the design presented in this document:
 
-1. Support creation and deletion of BGP EVPN discovered VXLAN tunnels (IPv4 only) based on IMET, MAC and IP Prefix  routes.
+1. Support creation and deletion of BGP EVPN discovered VXLAN tunnels (IPv4 and IPv6) based on IMET, MAC and IP Prefix  routes.
 2. Support origination and withdrawal of IMET routes. 
 3. Support origination and withdrawal of dynamic & static MAC routes.
 4. Support origination and withdrawal of MACIP routes (ARP, ND) 
@@ -428,7 +430,7 @@ Schema:
 key = VXLAN_FDB_TABLE:"Vlan"vlanid:mac_address
                           ;MAC Address and VLAN ID
 ;field = value
-remote_vtep = ipv4
+remote_vtep = ipv4/ipv6
 type          = "static" / "dynamic"  ; type of the entry.
 vni         = 1*8DIGIT                ; vni to be used for this VLAN when sending traffic to the remote VTEP
 ```
@@ -518,8 +520,8 @@ Schema:
 ; Defines schema for VXLAN State
 key             = VXLAN_TUNNEL:name    ; tunnel name
 ; field         = value
-SRC_IP          = ipv4                 ; tunnel sip
-DST_IP          = ipv4                 ; tunnel dip 
+SRC_IP          = ipv4/ipv6            ; tunnel sip
+DST_IP          = ipv4/ipv6            ; tunnel dip 
 tnl_src         = "CLI"/"EVPN"  
 operstatus      = "oper_up"/"oper_down"  
 ```
@@ -567,7 +569,7 @@ The corresponding CONFIG_DB entries are as follows.
 
 ```
 VXLAN_TUNNEL_TABLE|{{source_vtep_name}}
-    "src_ip" : {{ipv4_address}}
+    "src_ip" : {{ipv4_address|ipv6_address}}
     
 VXLAN_EVPN_NVO_TABLE|{{nvo_name}}
     "source_vtep" : {{source_vtep_name}}
@@ -618,7 +620,7 @@ VXLAN_TUNNEL_MAP|{{source_vtep_name}}|{{tunnel_map_name}}
 ```
 
 
-### 4.3.1 Tunnel Auto-discovery and Creation 
+### 4.3.1 Tunnel Auto-discovery and Creation
 
 In the current implementation, Tunnel Creation handling in the VxlanMgr and VxlanOrch is as follows. 
 
@@ -644,7 +646,7 @@ The dynamic tunnels created always have a SIP as well as a DIP. These dynamic tu
 
 The dynamic tunnels are created when the first EVPN route is received and will be deleted when the last route withdrawn. To support this, refcounting per source - IMET, MAC, VNET/Prefix routes will be maintained to determine when to create/delete the tunnel. This is maintained in the VTEP VxlanTunnel Object.
 
-The Tunnel Name for dynamic tunnels is auto-generated as EVPN_A.B.C.D where A.B.C.D is the DIP.
+The Tunnel Name for dynamic tunnels is auto-generated as EVPN_A.B.C.D or EVPN_A:B:C::D where A.B.C.D or A:B:C::D is the DIP.
 
 For every dynamic tunnel discovered, the following processing occurs. 
 - SAI objects related to tunnel are created.
@@ -746,7 +748,7 @@ REMOTE_VNI_TABLE:{{vlan_id}}:{{remote_vtep}}
      "vni" : {{vni_id}}
 ```
 
-The *vni_id* is remote VNI received in the IMET route, and *remote_vtep* is IPv4 next-hop of the IMET route.
+The *vni_id* is remote VNI received in the IMET route, and *remote_vtep* is IPv4 or IPv6 next-hop of the IMET route.
 
 ##### VxlanOrch processing
 
@@ -821,7 +823,7 @@ Zebra will install all of the remote MAC routes to kernel. All Remote MAC addres
 
 ```
 VXLAN_FDB_TABLE:{{vlan}}:{{mac_address}}
-    "remote_vtep" : {{ipv4_address}}
+    "remote_vtep" : {{ipv4_address|ipv6_address}}
     "type"   : "static" / "dynamic"  ; type of the entry.
     "vni" : {{vni_id}}
 ```
@@ -977,12 +979,12 @@ Kernel uses a single flag for both ARP & ND suppression, We support only one CLI
 
 With the L2 and L3 support over VXLAN it is useful to support tunnel statistics. 
 
-#### 4.3.11.1 Counters supported. 
+#### 4.3.11.1 Counters supported.
 
 The Packets Rx/Tx and Octets Rx/Tx will be counted per tunnel.
 These will be stored in the counters DB for each tunnel. 
 
-####  4.3.11.2 Changes to SwSS
+#### 4.3.11.2 Changes to SwSS
 
 - Flexcounter group for tunnels added with poll interval of 1 second and stat mode being STAT_MODE_READ. This is called as part of VxlanOrch constructor.
 - VxlanOrch adds and removes tunnels in the FLEX_COUNTER_DB when a tunnel gets created or destroyed. Addition to the FLEX_COUNTER_DB will be done after all the SAI calls to create the tunnel. Removal from the DB will be done before  SAI calls to delete the tunnel. 
@@ -1050,10 +1052,10 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 
 ```
 1. VTEP Source IP configuration
-   - config vxlan add <vtepname> <src_ipv4>
+   - config vxlan add <vtepname> <src_ip>
    - config vxlan del <vtepname>
    - vtepname is a string. 
-   - src_ipv4 is an IPV4 address in dotted notation A.B.C.D
+   - src_ip is an IPV4 address in dotted notation A.B.C.D or IPv6 address in notation A:B:C::D
 2. EVPN NVO configuration 
    - config vxlan evpn_nvo add <nvoname> <vtepname>
    - config vxlan evpn_nvo del <nvoname>
@@ -1085,6 +1087,12 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
            NVO Name  : nvo1,  VTEP : VTEP1
            Source interface  : Loopback33
 
+   VTEP Information:
+
+           VTEP Name : VTEP2, SIP  : 4:4:4::4
+           NVO Name  : nvo2,  VTEP : VTEP2
+           Source interface  : Loopback44
+
 2. show vxlan vlanvnimap 
    - Displays all the VLAN VNI mappings.
 
@@ -1115,43 +1123,49 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    | Vtep1                 | 4.4.4.4       |                  | map_50_Vlan5     |    50 -> 5                      |
    +-----------------------+---------------+------------------+------------------+---------------------------------+
    | Vtep1                 | 4.4.4.4       |                  | map_100_Vlan10   |    100 -> 10                    |
-   +-----------------------+---------------+------------------+------------------+---------------------------------+   
+   +-----------------------+---------------+------------------+------------------+---------------------------------+
+   | Vtep6                 | 8:8:8::8      |                  | map_200_Vlan20   |    200 -> 20                    |
+   +-----------------------+---------------+------------------+------------------+---------------------------------+    
    
 5. show vxlan remotevtep
    - lists all the discovered tunnels.  
    - SIP, DIP, Creation Source, OperStatus are the columns.
    - Since P2P tunnels are not created in the hardware on the flow where P2MP tunnel itself is used flooding using L2MC group, this table will not be populated.
 
-   +---------+---------+-------------------+--------------+
-   | SIP     | DIP     | Creation Source   | OperStatus   |
-   +=========+=========+===================+==============+
-   | 2.2.2.2 | 4.4.4.4 | EVPN              | oper_up      |
-   +---------+---------+-------------------+--------------+
-   | 2.2.2.2 | 3.3.3.3 | EVPN              | oper_up      |
-   +---------+---------+-------------------+--------------+
-   Total count : 2
+   +----------+----------+-------------------+--------------+
+   | SIP      | DIP      | Creation Source   | OperStatus   |
+   +==========+==========+===================+==============+
+   | 2.2.2.2  | 4.4.4.4  | EVPN              | oper_up      |
+   +----------+----------+-------------------+--------------+
+   | 2.2.2.2  | 3.3.3.3  | EVPN              | oper_up      |
+   +----------+----------+-------------------+--------------+
+   | 8:8:8::8 | 9:9:9::9 | EVPN              | oper_up      |
+   +----------+----------+-------------------+--------------+
+   Total count : 3
 
 6. show vxlan remote_mac <remoteip/all> 
    - lists all the MACs learnt from the specified remote ip or all the remotes for all vlans. (APP DB view) 
    - VLAN, MAC, RemoteVTEP,  VNI,  Type are the columns.
 
    show vxlan remote_mac all
-   +---------+-------------------+--------------+-------+--------+
-   | VLAN    | MAC               | RemoteVTEP   |   VNI | Type   |
-   +=========+===================+==============+=======+========+
-   | Vlan101 | 00:00:00:00:00:01 | 4.4.4.4      |  1001 | dynamic|
-   +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3      |  1001 | dynamic|
-   +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:03 | 4.4.4.4      |  1001 | dynamic|
-   +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:04 | 4.4.4.4      |  1001 | dynamic|
-   +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:05 | 4.4.4.4      |  1001 | dynamic|
-   +---------+-------------------+--------------+-------+--------+
-   | Vlan101 | 00:00:00:00:00:99 | 3.3.3.3      |  1001 | static |
-   +---------+-------------------+--------------+-------+--------+
-   Total count : 6
+   +---------+-------------------+---------------+-------+--------+
+   | VLAN    | MAC               | RemoteVTEP    |   VNI | Type   |
+   +=========+===================+===============+=======+========+
+   | Vlan101 | 00:00:00:00:00:01 | 4.4.4.4       |  1001 | dynamic|
+   +---------+-------------------+---------------+-------+--------+
+   | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3       |  1001 | dynamic|
+   +---------+-------------------+---------------+-------+--------+
+   | Vlan101 | 00:00:00:00:00:03 | 4.4.4.4       |  1001 | dynamic|
+   +---------+-------------------+---------------+-------+--------+
+   | Vlan101 | 00:00:00:00:00:04 | 4.4.4.4       |  1001 | dynamic|
+   +---------+-------------------+---------------+-------+--------+
+   | Vlan101 | 00:00:00:00:00:05 | 4.4.4.4       |  1001 | dynamic|
+   +---------+-------------------+---------------+-------+--------+
+   | Vlan101 | 00:00:00:00:00:99 | 3.3.3.3       |  1001 | static |
+   +---------+-------------------+---------------+-------+--------+
+   | Vlan601 | 00:00:00:00:00:88 | 9:9:9::9      |  6001 | dynamic|
+   +---------+-------------------+---------------+-------+--------+
+   Total count : 7
    
    show vxlan remote_mac 3.3.3.3
    +---------+-------------------+--------------+-------+--------+
@@ -1176,6 +1190,8 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +---------+--------------+-------+
    | Vlan101 | 4.4.4.4      |  1001 |
    +---------+--------------+-------+
+   | Vlan601 | 9:9:9::9     |  6001 |
+   +---------+--------------+-------+
    Total count : 2
    
    show vxlan remote_vni 3.3.3.3
@@ -1194,15 +1210,17 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
    +--------+---------+----------+--------+---------+----------+--------+
   
 9. show vxlan counters(P2P Tunnels)
-   +--------------+---------+----------+--------+---------+----------+--------+
-   | Tunnel       | RX_PKTS | RX_BYTES | RX_PPS | TX_PKTS | TX_BYTES | TX_PPS |
-   +==============+=========+==========+========+=========+==========+========+
-   | EVPN_2.2.2.2 |    1234 |  1512034 |   10/s |    2234 |  2235235 |   23/s |
-   +--------------+---------+----------+--------+---------+----------+--------+
-   | EVPN_3.2.3.2 |    2344 |   162034 |   15/s |     200 |    55235 |    2/s |
-   +--------------+---------+----------+--------+---------+----------+--------+
-   | EVPN_2.2.2.2 |    9853 |  9953260 |   27/s |    8293 |  7435211 |   18/s |
-   +--------------+---------+----------+--------+---------+----------+--------+
+   +---------------+---------+----------+--------+---------+----------+--------+
+   | Tunnel        | RX_PKTS | RX_BYTES | RX_PPS | TX_PKTS | TX_BYTES | TX_PPS |
+   +===============+=========+==========+========+=========+==========+========+
+   | EVPN_2.2.2.2  |    1234 |  1512034 |   10/s |    2234 |  2235235 |   23/s |
+   +---------------+---------+----------+--------+---------+----------+--------+
+   | EVPN_3.2.3.2  |    2344 |   162034 |   15/s |     200 |    55235 |    2/s |
+   +---------------+---------+----------+--------+---------+----------+--------+
+   | EVPN_2.2.2.2  |    9853 |  9953260 |   27/s |    8293 |  7435211 |   18/s |
+   +---------------+---------+----------+--------+---------+----------+--------+
+   | EVPN_9:9:9::9 |    9853 |  9953260 |   27/s |    8293 |  7435211 |   18/s |
+   +---------------+---------+----------+--------+---------+----------+--------+
 
   
 10. show vxlan counters EVPN_5.1.6.8 (Per P2P Tunnel)
@@ -1224,8 +1242,8 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 ```
 1. VTEP Source IP configuration
    - switch(config) interface vxlan <vtepname>
-   - switch(config-if-vtep1) [no] source-ip  <src_ipv4>
-   - <src_ipv4> is an IPV4 address in dotted notation A.B.C.D
+   - switch(config-if-vtep1) [no] source-ip  <src_ip>
+   - <src_ip> is an IPV4 address in dotted notation A.B.C.D or IPv6 address A:B:C::D
 2. VLAN VNI Mapping configuration
    - switch(config-if-vtep1) [no] map vlan <vidstart> vni <vnistart>  count <n>
    - <n> is the number of mappings being configured. 
@@ -1257,7 +1275,7 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
 
 ```
 
-#### 5.2.3 Validations 
+#### 5.2.3 Validations
 
 ```
 - VLAN to be configured before map vlan vni command is executed. 
@@ -1277,6 +1295,9 @@ Linux kernel version 4.9.x used in SONiC requires backport of a few patches to s
     "VXLAN_TUNNEL": {
         "vtep1": {
             "src_ip": "1.1.1.1"
+        }
+        "vtep2": {
+            "src_ip": "8:8:8::8"
         }
     }
 
@@ -1310,10 +1331,20 @@ The VXLAN_EVPN_NVO table is being added as part of the EVPN VXLAN feature.
 "vni": "50"
 }
 
+"VXLAN_REMOTE_VNI_TABLE:Vlan6:9:9:9::9": {
+"vni": "60"
+}
+
 "VXLAN_FDB_TABLE:Vlan5:00:00:00:00:00:03": {
 "type": "dynamic",
 "remote_vtep": "2.2.2.2",
 "vni": "50"
+}
+
+"VXLAN_FDB_TABLE:Vlan6:00:00:00:00:00:03": {
+"type": "dynamic",
+"remote_vtep": "9:9:9::9",
+"vni": "60"
 }
 
 ```
@@ -1431,7 +1462,7 @@ Currently EVPN fastboot is not supported. BGP Graceful Restart will not work wit
   
 ## 9 Unit Test Cases
 
-### 9.1 VxlanMgr and Orchagent 
+### 9.1 VxlanMgr and Orchagent
 
 1. Add VXLAN_TUNNEL table in CFG_DB. Verify that the VXLAN_TUNNEL_TABLE in App DB is added.
 2. Add VXLAN_TUNNEL_MAP  table in CFG_DB. Verify the following tables.
