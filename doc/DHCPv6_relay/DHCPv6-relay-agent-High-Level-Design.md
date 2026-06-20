@@ -24,6 +24,7 @@
   - [RADV modification](#radv-modification)
   - [CoPP manager](#copp-manager)
   - [Source IP](#source-ip)
+  - [Dynamic Configuration (no container restart)](#dynamic-configuration-no-container-restart)
 * [Performance](#performance)
 * [Testing](#testing)
 
@@ -41,7 +42,7 @@ DUID: DHCP Unique Identifier (Each DHCPv6 client and server has a DUID. DHCPv6 s
 
 SONiC currently supports DHCPv4 Relay via the use of open source ISC DHCP package. However, DHCPv6 specification does not define a way to communicate client link-layer address to the DHCP server where DHCP server is not connected to the same network link as DHCP client. DHCPv6 requires all clients prepare and send a DUID as the client identifier in all DHCPv6 message exchanges. However, these methods do not provide a simple way to extract a client's link-layer address. Providing option 79 in DHCPv6 Relay-Forward messages will help carry the client link-layer address explicitly. The server needs to know the client's MAC address to allow DHCP Reservation, which provides pre-set IP address to specific client based on its physical MAC address. The DHCPv6 relay agent is able to read the source MAC address of DHCPv6 messages that it received from client, and encapsulate these messages within a DHCPv6 Relay-Forward message, inserting the client MAC address as option 79 in the Relay-Forward header sent to the server.
 
-With heterogenous DHCP client implementation across the network, DUIDs could not resolve IP resource tracking issue. The two types of DUIDs, DUID-LL and DUID-LLT used to facilitate resource tracking both have link layer addresses embedded. The current client link-layer address option in DHCPv6 specification limits the DHCPv6 Relay to first hop to provide the client link layer address, which are relay agents that are connected to the same link as the client, and that limits SONiC DHCPv6 deployment to ToR/MoR switches for early stages. One solution would be to provide SONiC's own DHCPv6 relay agent feature. ISC DHCP currently has no support for option 79. Configuration wise, using ISC DHCP configuration requires restarting container as configuration is provided through the commandline. The plan is to eventually move away from ISC DHCP configuration, which is fairly complex, and provide SONiC's own configuration. 
+With heterogenous DHCP client implementation across the network, DUIDs could not resolve IP resource tracking issue. The two types of DUIDs, DUID-LL and DUID-LLT used to facilitate resource tracking both have link layer addresses embedded. The current client link-layer address option in DHCPv6 specification limits the DHCPv6 Relay to first hop to provide the client link layer address, which are relay agents that are connected to the same link as the client, and that limits SONiC DHCPv6 deployment to ToR/MoR switches for early stages. One solution would be to provide SONiC's own DHCPv6 relay agent feature. ISC DHCP currently has no support for option 79. Configuration wise, using ISC DHCP configuration requires restarting container as configuration is provided through the commandline. The plan is to eventually move away from ISC DHCP configuration, which is fairly complex, and provide SONiC's own configuration. As part of providing SONiC's own configuration, the DHCPv6 relay agent applies relay configuration changes at runtime without restarting the `dhcp_relay` container; see [Dynamic Configuration (no container restart)](#dynamic-configuration-no-container-restart).
 
 # DHCPv6
 
@@ -220,6 +221,39 @@ VLAN SVI IP
 
 Configurable option to use loopback address for dual ToR
 
+# Dynamic Configuration (no container restart)
+
+Historically the DHCPv6 relay agent read its configuration only once, at process start. The `dhcp6relay` process reads the `DHCP_RELAY` table during initialization, builds a per-VLAN `relay_config` map, and then enters the libevent packet-processing loop. Any subsequent change to relay configuration was not applied to the running process: the relay logged `relay config changed, need restart container to take effect`, and the operator had to restart the `dhcp_relay` container for the new configuration to take effect. Restarting the container is disruptive, as it tears down relay state for every VLAN and interrupts DHCPv6 service for all VLANs while the container restarts, even if only a single VLAN's configuration changed.
+
+This section describes a Config Manager that allows the DHCPv6 relay agent to apply configuration changes at runtime, without restarting the container.
+
+## Config Manager
+
+A dedicated Config Manager thread subscribes to the relevant CONFIG_DB and STATE_DB tables and applies changes incrementally to the running relay. The following is a non-exhaustive list of the tables monitored by the Config Manager:
+
+- **DHCP_RELAY table:** per-VLAN DHCPv6 relay configuration, i.e. the `dhcpv6_servers` list and the DHCPv6 relay options (`dhcpv6_option|rfc6939_support` for option 79 and `dhcpv6_option|interface_id` for the interface-id option).
+- **VLAN_INTERFACE table:** presence of a global or site-scoped IPv6 address on the downstream VLAN interface. A relay instance for a VLAN is only meaningful once the VLAN interface has an IPv6 address configured, so the Config Manager uses this to decide when a VLAN's relay can be activated.
+- **VLAN table:** VLAN creation and deletion, so relay instances are added or removed as VLANs are configured or unconfigured.
+- **STATE_DB INTERFACE_TABLE:** interface readiness, i.e. the link-local address becoming available on a VLAN interface, so a VLAN's relay is reconciled as soon as its interface comes up instead of waiting for the periodic link-local readiness check.
+
+On each notification, the Config Manager computes the new desired set of `relay_config` entries and synchronizes them with the relay main thread.
+
+## Applying changes at runtime
+
+The relay main thread owns all sockets and libevent events. When configuration changes, the relay applies the minimal set of actions required, rather than restarting:
+
+- **Server list or option change for an existing VLAN:** the in-memory `relay_config` for that VLAN is updated. Subsequent client messages are relayed using the updated server list and options; no socket changes are required.
+- **VLAN added (with an IPv6 address):** the relay configuration is created and the associated libevent socket events for that VLAN are armed.
+- **VLAN removed, its IPv6 address removed, or its relay config deleted:** the relay configuration is torn down and the associated libevent socket events for that VLAN are freed, leaving the relay for other VLANs untouched.
+
+To keep database notifications and the libevent loop within a single event-driven model, the Config Manager wakes the main loop when new configuration is available (for example, through a self-pipe registered as a libevent event). The main loop then re-reads the synchronized configuration and reconciles its sockets and events. This avoids a blocking poll of the databases from the packet path.
+
+The existing periodic link-local readiness check (the 60-second timer that detects when a VLAN interface's link-local address becomes ready) continues to operate and is reused to activate relays for VLANs whose IPv6 readiness changes after configuration is applied.
+
+## Backward compatibility
+
+Runtime reconfiguration is transparent to operators and requires no change to the CONFIG_DB schema. The previous requirement to restart the `dhcp_relay` container for relay configuration changes is removed, and the `need restart container to take effect` log is no longer emitted for supported configuration changes.
+
 # Performance
 
 SONiC DHCP relay agent is currently not relaying many DHCP requests. Frequency arrival rate of DHCP packets is not high so it is not going to affect performance.
@@ -233,3 +267,10 @@ Check validity of DHCP message content
 Validate control plane behavior when DHCPv6 is enabled/disabled
 
 Configuration validation
+
+Validate runtime reconfiguration without restarting the `dhcp_relay` container:
+
+- Add, modify, and remove `dhcpv6_servers` for a VLAN and confirm DHCPv6 messages are relayed to the updated server set, without a container restart
+- Toggle the option 79 (`rfc6939_support`) and interface-id options and confirm the relayed packets reflect the change
+- Add and remove a VLAN (and its IPv6 address) and confirm relay instances are created and torn down while other VLANs continue relaying uninterrupted
+- Confirm the `need restart container to take effect` log is no longer emitted for the above changes
