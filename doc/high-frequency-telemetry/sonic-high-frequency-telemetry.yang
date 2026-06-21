@@ -43,8 +43,46 @@ module sonic-high-frequency-telemetry {
 
                 leaf poll_interval {
                     mandatory true;
-                    description "The interval to poll counter, unit milliseconds.";
+                    description "The interval to poll counter, unit microseconds.";
                     type uint32;
+                }
+
+                leaf harmonizer {
+                    description "Optional harmonizer configuration applied by this profile.";
+                    type leafref {
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_HARMONIZER/HIGH_FREQUENCY_TELEMETRY_HARMONIZER_LIST/name";
+                    }
+                }
+
+            }
+        }
+
+        container HIGH_FREQUENCY_TELEMETRY_HARMONIZER {
+            description "HIGH_FREQUENCY_TELEMETRY_HARMONIZER part of config_db.json";
+            list HIGH_FREQUENCY_TELEMETRY_HARMONIZER_LIST {
+                key "name";
+
+                leaf name {
+                    type string {
+                        length 1..128;
+                    }
+                }
+
+                leaf reporting_rate {
+                    description "The reporting interval after harmonization, unit microseconds.";
+                    type uint32;
+                }
+
+                leaf-list data_rollover_flags {
+                    description "List of group and counter pairs that require rollover correction.";
+                    type string;
+                    must "re-match(current(), '(PORT|BUFFER_POOL|INGRESS_PRIORITY_GROUP|QUEUE)\\|[^|]+')";
+                }
+
+                leaf-list heatmap_counters {
+                    description "List of group and counter pairs that should be treated as heatmap data.";
+                    type string;
+                    must "re-match(current(), '(PORT|BUFFER_POOL|INGRESS_PRIORITY_GROUP|QUEUE)\\|[^|]+')";
                 }
 
             }
