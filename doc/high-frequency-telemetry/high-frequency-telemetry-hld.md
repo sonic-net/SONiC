@@ -194,8 +194,8 @@ The Harmonize actor applies optional per-profile harmonization after IPFIX recor
 A harmonizer supports the following methods and can be extended with more methods later:
 
 - Reporting rate aggregation: aggregates the lower-layer reported samples into the configured harmonizer reporting interval. The unit is microseconds. If `reporting_rate` is not configured, the harmonizer uses the lower-layer reporting interval and does not aggregate samples.
-- Data rollover: enables rollover correction for the configured group and counter pairs. The list is empty by default, so no counters are corrected for rollover unless configured.
-- Heatmap data: marks the configured group and counter pairs as heatmap data. The list is empty by default.
+- Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. The list is empty by default, so no counters are corrected for rollover unless configured.
+- Heatmap counters: marks the group and counter pairs configured in `heatmap_counters` as heatmap data. The list is empty by default.
 
 #### 7.1.2. High frequency telemetry Orch
 
@@ -542,8 +542,8 @@ harmonizer         = string ; The optional name of the HIGH_FREQUENCY_TELEMETRY_
 ```
 HIGH_FREQUENCY_TELEMETRY_HARMONIZER|{{harmonizer_name}}
     "reporting_rate": {{uint32}} (Optional)
-    "data_rollover_flags": {{list of group and counter pair}} (Optional)
-    "heatmap_counters": {{list of group and counter pair}} (Optional)
+    "rollover_counters": {{comma-separated list of group and counter pairs}} (Optional)
+    "heatmap_counters": {{comma-separated list of group and counter pairs}} (Optional)
 ```
 
 ```
@@ -552,14 +552,15 @@ key                  = HIGH_FREQUENCY_TELEMETRY_HARMONIZER|harmonizer_name a str
 reporting_rate       = uint32 ; The reporting interval after harmonization, unit microseconds.
                        It aggregates lower-layer reported samples within each reporting window.
                        If this value isn't provided, the harmonizer uses the lower-layer reporting interval and does not aggregate samples.
-data_rollover_flags  = A list of group and counter pairs that require rollover correction.
-                       The syntax of each entry is group_name|object_counter.
-                       In CONFIG_DB, multiple entries are encoded as group_name1|object_counter1,group_name2|object_counter2.
+rollover_counters    = A comma-separated list of group and counter pairs that require rollover correction.
+                       The syntax is the same list format used by object_names and object_counters.
+                       Each item uses group_name|object_counter.
                        The group_name must match HIGH_FREQUENCY_TELEMETRY_GROUP.group_name, and object_counter must be valid for that group.
-                       Examples are PORT|IF_IN_UCAST_PKTS and QUEUE|DROPPED_PACKETS.
+                       An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
                        The default value is empty, meaning no counters are corrected for rollover.
-heatmap_counters     = A list of group and counter pairs that should be treated as heatmap data.
-                       The syntax is the same as data_rollover_flags, for example PORT|IF_IN_UCAST_PKTS and QUEUE|DROPPED_PACKETS.
+heatmap_counters     = A comma-separated list of group and counter pairs that should be treated as heatmap data.
+                       The syntax is the same as rollover_counters.
+                       An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
                        The default value is empty.
 ```
 
@@ -724,7 +725,7 @@ sudo config high_frequency_telemetry profile set $profile_name --stream_state=$s
 sudo config high_frequency_telemetry profile set $profile_name --harmonizer=$harmonizer_name
 
 # Add a harmonizer
-sudo config high_frequency_telemetry harmonizer add $harmonizer_name --reporting_rate=$reporting_rate --data_rollover_flags="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_counters="$group_name3|$object_counter3"
+sudo config high_frequency_telemetry harmonizer add $harmonizer_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4"
 
 # Add a monitor group
 sudo config high_frequency_telemetry group "$profile|$group_name" --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"

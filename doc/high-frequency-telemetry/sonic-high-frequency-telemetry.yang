@@ -73,16 +73,16 @@ module sonic-high-frequency-telemetry {
                     type uint32;
                 }
 
-                leaf-list data_rollover_flags {
-                    description "List of group and counter pairs that require rollover correction.";
+                leaf-list rollover_counters {
+                    description "List of group and counter pairs that require rollover correction. It is encoded as a comma-separated string in CONFIG_DB.";
                     type string;
-                    must "re-match(current(), '(PORT|BUFFER_POOL|INGRESS_PRIORITY_GROUP|QUEUE)\\|[^|]+')";
+                    must "re-match(current(), '(PORT|BUFFER_POOL|INGRESS_PRIORITY_GROUP|QUEUE)\\|[^,|]+')";
                 }
 
                 leaf-list heatmap_counters {
-                    description "List of group and counter pairs that should be treated as heatmap data.";
+                    description "List of group and counter pairs that should be treated as heatmap data. It is encoded as a comma-separated string in CONFIG_DB.";
                     type string;
-                    must "re-match(current(), '(PORT|BUFFER_POOL|INGRESS_PRIORITY_GROUP|QUEUE)\\|[^|]+')";
+                    must "re-match(current(), '(PORT|BUFFER_POOL|INGRESS_PRIORITY_GROUP|QUEUE)\\|[^,|]+')";
                 }
 
             }
