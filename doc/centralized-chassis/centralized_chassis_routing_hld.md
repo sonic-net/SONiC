@@ -22,10 +22,11 @@ Amit Grover - Cisco
 - [10. Optimization](#10-optimization)
 - [11. Trigger handling](#11-trigger-handling)
   - [LC consumer bootstrap](#lc-consumer-bootstrap)
-- [12. Related documents](#12-related-documents)
-- [13. Operational notes](#13-operational-notes)
-- [14. Test plan](#14-test-plan)
-- [15. Review feedback and action items](#15-review-feedback-and-action-items)
+- [12. Route check and auditing](#12-route-check-and-auditing)
+- [13. Related documents](#13-related-documents)
+- [14. Operational notes](#14-operational-notes)
+- [15. Test plan](#15-test-plan)
+- [16. Review feedback and action items](#16-review-feedback-and-action-items)
 
 ---
 
@@ -36,6 +37,7 @@ Amit Grover - Cisco
 | Rev | Date       | Author       | Change Description |
 |-----|------------|--------------|--------------------|
 | 0.1 | 06/04/2026 | Amit Grover  | Initial centralized chassis routing HLD |
+| 0.2 | 06/11/2026 | Amit Grover  | Added route check and auditing section ([§12](#12-route-check-and-auditing)) |
 
 ---
 
@@ -290,7 +292,48 @@ Restart SONiC target applications on the **RP** and on **all line cards** (inclu
 
 ---
 
-## 12. Related documents
+## 12. Route check and auditing
+
+On a centralized chassis, routing state spans multiple layers — **BGP/Zebra** and **fpmsyncd** on the **RP**, central **APPL_DB**, and per-NPU **ASIC_DB** on each line card. **Route consistency auditing** uses two **`route_check`** scripts: one on the **RP** for the control-plane path, and one in **each ASIC namespace** on every line card for the data-plane path.
+
+**Table 14: Route check scripts — scope and consistency checks**
+
+| Script location | Namespace | Compares | Purpose |
+|-----------------|-----------|----------|---------|
+| **`route_check` (RP)** | RP (default) | **BGP / Zebra RIB** ↔ **kernel routing table** ↔ **fpmsyncd** ↔ **APPL_DB** `ROUTE_TABLE` | Detect drift between the authoritative control-plane route source and what **fpmsyncd** has published to central **APPL_DB**. |
+| **`route_check` (LC)** | Each LC **ASIC / NPU namespace** | **APPL_DB** `ROUTE_TABLE` (routes applicable to that NPU) ↔ local **ASIC_DB** (SAI route objects) | Detect drift between the intended application state received from the RP and what **RouteOrch** / **syncd** have programmed in hardware for that NPU. |
+
+### 12.1 RP route check
+
+The **RP `route_check`** script runs on the **Route Processor** and validates end-to-end consistency on the control-plane side of the install path (see [§7 Route installation](#7-route-installation), steps 1–4):
+
+1. **BGP / Zebra** — routes present in the protocol RIB and marked for hardware offload.
+2. **Kernel (RP)** — corresponding entries in the Linux routing table.
+3. **fpmsyncd** — routes exported over FPM and reflected in **APPL_DB** **`ROUTE_TABLE`**.
+
+Any mismatch (missing route, extra route, or attribute mismatch) is reported for operator or automated remediation. This script does **not** inspect **ASIC_DB** — that is the responsibility of the per-NPU script on each line card.
+
+### 12.2 LC route check (per ASIC namespace)
+
+The **LC `route_check`** script runs **once per ASIC namespace** on each line card (one instance per NPU). It validates consistency between:
+
+- **APPL_DB** — the subset of **`ROUTE_TABLE`** entries that **RouteOrch** on that NPU is expected to program (after ZMQ delivery / Redis bootstrap — see [§11 LC consumer bootstrap](#lc-consumer-bootstrap)).
+- **ASIC_DB** — SAI route, next-hop, and related objects written by **orchagent** and consumed by **syncd**.
+
+Because each NPU programs only the routes it participates in, the LC script scopes its **APPL_DB** view to that namespace and compares against the local **ASIC_DB** snapshot. Mismatches indicate incomplete programming, stale ASIC state, or a gap between central application state and local hardware state.
+
+### 12.3 Operational use
+
+Both scripts can be run on demand (CLI or diagnostic workflow) or on a periodic schedule. Together they cover the full centralized chassis routing path:
+
+```
+BGP/Zebra (RP) → kernel (RP) → fpmsyncd (RP) → APPL_DB (RP) → RouteOrch (LC/NPU) → ASIC_DB (LC/NPU) → ASIC
+     └──────────────── RP route_check ────────────────┘              └──── LC route_check (per NPU) ────┘
+```
+
+---
+
+## 13. Related documents
 
 **Table 11: Related documents**
 
@@ -303,13 +346,13 @@ Restart SONiC target applications on the **RP** and on **all line cards** (inclu
 
 ---
 
-## 13. Operational notes
+## 14. Operational notes
 
 - **Unified routing config model**: centralized chassis uses the **`unified`** `docker_routing_config_mode` (not `split-unified`). This affects BGP **CONFIG_DB** keys and container layout. BGP on the centralized chassis **RP** runs in the **default namespace**.
 
 ---
 
-## 14. Test plan
+## 15. Test plan
 
 1. **Route install** — inject BGP route on RP; verify `ROUTE_TABLE` → LC **ASIC_DB** on all participating NPUs → **Distributed ACK** (only last ASIC reports **APPL_STATE** status) → BGP advertisement timing.
 2. **NH resolution** — add route with unknown NH on LC; verify `NEIGH_RESOLVE_TABLE` → `NEIGH_TABLE` → SAI neighbor + NH + route completion; on multi-NPU LCs, confirm only **one** resolve entry per NH key and suppressed duplicate requests from other **NeighOrch** instances.
@@ -318,9 +361,12 @@ Restart SONiC target applications on the **RP** and on **all line cards** (inclu
 5. **Centralized chassis CLI** — `show ip route` / BGP commands on RP vs LC guard behavior.
 6. **sonic-mgmt script execution** — run BGP-specific test cases via **sonic-mgmt** scripts on the centralized chassis testbed.
 
+7. **Route check (RP)** — inject and withdraw routes via BGP; run **RP `route_check`** and verify no drift between BGP/Zebra, kernel, **fpmsyncd**, and **APPL_DB** `ROUTE_TABLE`.
+8. **Route check (LC)** — on each NPU namespace, run **LC `route_check`** and verify **APPL_DB** vs **ASIC_DB** consistency after route install, LC reboot, and **orchagent** restart.
+
 ---
 
-## 15. Review feedback and action items
+## 16. Review feedback and action items
 
 The following action items were captured from the community review session on **June 11, 2026 (5:30–6:30 PM)**. Owner for all items: **Amit Grover**.
 
@@ -331,7 +377,7 @@ The following action items were captured from the community review session on **
 | Jun 11, 5:30–6:30 PM | Add centralized vs disaggregated comparison table | Update the HLD with a comparison table between **centralized VOQ-based chassis** and **disaggregated / Ethernet-based chassis**, highlighting differences in **manageability** and **user experience**. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Add centralized vs disaggregated design section | Add a section comparing the **centralized model** with the **current disaggregated model**, including **motivations**, **advantages**, and **disadvantages** (e.g. single point of failure, manageability, scalability). | Not resolved |
 | Jun 11, 5:30–6:30 PM | Document deployment models and scenarios | Add **deployment model details**, including typical scenarios (e.g. **uplink / downlink line cards**) and how **routing** and **neighbor resolution** are handled in each case. | Not resolved |
-| Jun 11, 5:30–6:30 PM | Add AppDB vs ASICDB route audit section | Add a section on **route check / auditing** between **APPL_DB** and **ASIC_DB**, and describe how this is managed in the centralized chassis architecture. | Not resolved |
+| Jun 11, 5:30–6:30 PM | Add AppDB vs ASICDB route audit section | Add a section on **route check / auditing** between **APPL_DB** and **ASIC_DB**, and describe how this is managed in the centralized chassis architecture. | Resolved — [§12](#12-route-check-and-auditing) |
 | Jun 11, 5:30–6:30 PM | Add slow-path / punt handling section | Add a section on **slow path handling** (e.g. how **BGP control packets** are punted from **RP to line card** and vice versa), with a reference to the upcoming **PackIO / PuntIO HLD**. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Define and validate target scale numbers | Include **target scale numbers** in the HLD: expected scale for **interfaces**, **routes**, **ARP/neighbor entries**, and **BGP neighbors**; validate that **FRR/BGP** can support centralized chassis scale. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Perform and present performance analysis | Perform and present **performance analysis** (including **link flap** scenarios per Amit Pawar), with **graphs/data** on **route scale**, **convergence**, and **link-flap impact**. | Not resolved |
