@@ -8,7 +8,7 @@
 - [Non-Goals](#non-goals)
 - [Design](#design)
   - [Centralized TlvCommandMonitor](#centralized-tlvcommandmonitor)
-  - [Protocol Detail: Port Identification via `echo.id`](#protocol-detail-port-identification-via-echoid)
+  - [Protocol Detail: Port Identity and Timestamp Guard](#protocol-detail-port-identity-and-timestamp-guard)
   - [Packet flow](#packet-flow)
   - [ICMP packet format](#icmp-packet-format)
   - [Packet acceptance filter (receive side)](#packet-acceptance-filter-receive-side)
@@ -62,18 +62,20 @@ TLV         {type=TLV_COMMAND(0x5), length=1, command=COMMAND_SWITCH_ACTIVE(1)}
 TLV         {type=TLV_SENTINEL(0xff), length=0}
 ```
 
-This protocol is **not triggered on link failure** today — it requires the server's echo for delivery, which stops working when the server link is down. The new design sends the notification directly to the peer ToR over T1, bypassing the server path entirely.
+This protocol is **not triggered on link failure** today — it requires the server's echo for delivery, which stops working when the server link is down. The new design sends the notification directly to the peer ToR over T1, bypassing the server path entirely. The direct packet extends the existing TLV envelope with an origin timestamp so the receiver can reject stale notifications.
 
 ## Goals
 
 - Reduce standby-side convergence latency on link failure from ~1 probe interval to network RTT (T1 path).
-- Reuse the existing `COMMAND_SWITCH_ACTIVE` TLV wire format with no protocol changes.
+- Reuse the existing ICMP/TLV envelope and `COMMAND_SWITCH_ACTIVE` command semantics.
+- Reject stale event-driven notifications that were originated before the target port's most recent switchover.
 - Support any number of MUX ports with no hardcoded interface names.
 
 ## Non-Goals
 
 - Active-Active cable type: out of scope for this change.
-- Guaranteed delivery: the notification is best-effort over UDP/ICMP. The existing probe-based switchover remains the fallback if the notification is lost.
+- Guaranteed delivery: the notification is best-effort over ICMP. The existing probe-based switchover remains the fallback if the notification is lost.
+- NTP configuration changes. The stale-packet guard depends on both peer ToRs being NTP-synchronized before this feature is used.
 
 ## Design
 
@@ -83,7 +85,7 @@ A single new class, `TlvCommandMonitor`, is owned by `MuxManager` (one instance 
 
 Port identity within a received packet is carried by the ICMP `echo.id` field, which already equals `htons(serverId)` in the existing probing protocol (`sonic-linkmgrd/src/link_prober/LinkProberBase.cpp:369`). On receive, `TlvCommandMonitor` extracts `echo.id`, looks up the matching `MuxPort` in `MuxManager::mPortMap`, and posts a `SwitchActiveRequestEvent` to that port's per-port strand.
 
-### Protocol Detail: Port Identification via `echo.id`
+### Protocol Detail: Port Identity and Timestamp Guard
 
 Each MUX port in linkmgrd has a numeric `serverId` derived from the port name at daemon startup (`sonic-linkmgrd/src/MuxManager.cpp:492`):
 
@@ -110,15 +112,38 @@ icmphdr.un.echo.seq = 0
 
 The field is 16 bits, so up to 65535 ports can be addressed — well beyond any realistic deployment.
 
+Each direct T1 notification carries the time when the active ToR originated the notification. This prevents a delayed or replayed packet from triggering a second switchover after the target port has already moved through a newer switchover.
+
+The packet adds a timestamp TLV between `TLV_COMMAND` and `TLV_SENTINEL`:
+
+```
+TLV {type=TLV_COMMAND(0x05), length=1, command=COMMAND_SWITCH_ACTIVE(1)}
+TLV {type=TLV_ORIGIN_TIMESTAMP(0x06), length=8, value=origin_time_us}
+TLV {type=TLV_SENTINEL(0xff), length=0}
+```
+
+`origin_time_us` is a `uint64_t` in network byte order. It is the sender's UTC timestamp in microseconds since Unix epoch, captured immediately before `TlvCommandMonitor::sendSwitchCommand(serverId)` builds the packet. The receiver must convert its last-switchover value into the same epoch-microsecond representation before comparing. This comparison is only valid when both ToRs are NTP-synchronized; if the peer clocks are skewed, a valid notification can be incorrectly rejected as stale or an old notification can be incorrectly accepted.
+
+On receive, `TlvCommandMonitor` validates the timestamp TLV before dispatch. `MuxManager::handleSwitchCommandForPort(serverId, origin_time_us)` resolves the target `MuxPort`, reads the port's last switchover timestamp, and drops the packet unless:
+
+```cpp
+origin_time_us > last_switchover_time_us
+```
+
+The last switchover time is derived from the same per-port value that linkmgrd posts to STATE_DB table `MUX_SWITCH_CAUSE`, field `time`, via `DbInterface::postSwitchCause()`. The implementation should keep this value in memory per port as epoch microseconds whenever linkmgrd posts or observes a switchover, and may initialize it by parsing STATE_DB on startup. If no last switchover time is available for a port, use the Unix epoch (`0`) so the first valid notification after daemon startup is not incorrectly suppressed.
+
+This comparison is intentionally strict. A notification whose origin timestamp is equal to or older than the last switchover time is stale and must be ignored. Ignored stale notifications should be logged with `serverId`, `origin_time_us`, and `last_switchover_time_us` to aid troubleshooting without creating noisy error logs.
+
 **Receive-side dispatch:**
 
-When `TlvCommandMonitor::handleRecv()` accepts a packet (all three filters passed), it extracts the target port:
+When `TlvCommandMonitor::handleRecv()` accepts a packet (all packet-level filters passed), it extracts the target port and origin timestamp:
 
 ```cpp
 uint16_t serverId = ntohs(icmpHeader->un.echo.id);
+uint64_t originTimeUs = be64toh(timestampTlv->origin_time_us);
 ```
 
-`MuxManager::handleSwitchCommandForPort(serverId)` iterates `mPortMap` and compares `port->getServerId()` against the extracted value. The map is bounded by the number of MUX ports (typically ≤ 128), so the linear scan is negligible. No additional discriminator is needed: `echo.id` is set only by linkmgrd and matches exactly one port per daemon instance.
+`MuxManager::handleSwitchCommandForPort(serverId, originTimeUs)` iterates `mPortMap` and compares `port->getServerId()` against the extracted value. The map is bounded by the number of MUX ports (typically ≤ 128), so the linear scan is negligible. No additional discriminator is needed: `echo.id` is set only by linkmgrd and matches exactly one port per daemon instance. After finding the port, `MuxManager` compares `originTimeUs` with the port's last switchover time and dispatches only if the notification is newer.
 
 ```
   Received ICMP packet
@@ -130,17 +155,22 @@ uint16_t serverId = ntohs(icmpHeader->un.echo.id);
   |  icmphdr.type == ICMP_ECHOREPLY?  --No--> discard |
   |  icmpPayload.cookie == 0x47656d69? -No--> discard |
   |  iphdr.saddr == peer Loopback0?   --No--> discard |
+  |  TLV command == SWITCH_ACTIVE?     --No--> discard |
+  |  timestamp TLV present/valid?      --No--> discard |
   |                                                   |
   |  serverId = ntohs(icmphdr.un.echo.id)             |
+  |  originTimeUs = parse timestamp TLV               |
   +-------+-------------------------------------------+
           |
           v
-  MuxManager::handleSwitchCommandForPort(serverId)
+  MuxManager::handleSwitchCommandForPort(serverId, originTimeUs)
           |
           +-- serverId == 0 --> Ethernet0
           +-- serverId == 4 --> Ethernet4    (MuxPort::handleSwitchActiveRequestEvent)
           +-- serverId == 8 --> Ethernet8
           +-- ...
+          |
+          +-- originTimeUs <= last switchover time --> discard stale packet
           |
           v  (posted to per-port strand)
   LinkManagerStateMachineActiveStandby::handleSwitchActiveRequestEvent()
@@ -161,7 +191,10 @@ LinkManagerStateMachineActiveStandby::handleStateChange()
        → AF_INET SOCK_RAW sendto(peer Loopback0 IP)
             ICMP ECHO_REPLY, echo.id=serverId
             src IP = our Loopback0 (kernel selects via RM_SET_SRC BGP route-map)
-            IcmpPayload{cookie=mSoftwareCookie} + TLV{COMMAND_SWITCH_ACTIVE} + TLV_SENTINEL
+            IcmpPayload{cookie=mSoftwareCookie}
+            TLV{COMMAND_SWITCH_ACTIVE}
+            TLV{ORIGIN_TIMESTAMP=now_us}
+            TLV_SENTINEL
             kernel routes via T1 uplinks (BGP)
 ```
 
@@ -170,8 +203,11 @@ LinkManagerStateMachineActiveStandby::handleStateChange()
 ```
 TlvCommandMonitor::handleRecv()
   filter: ICMP type=ECHO_REPLY, cookie=mSoftwareCookie, src IP=peer Loopback0
+  filter: command TLV is COMMAND_SWITCH_ACTIVE and timestamp TLV is present
   extract serverId = ntohs(icmpHeader->un.echo.id)
-  → MuxManager::handleSwitchCommandForPort(serverId)
+  extract originTimeUs from TLV_ORIGIN_TIMESTAMP
+  → MuxManager::handleSwitchCommandForPort(serverId, originTimeUs)
+    → drop if originTimeUs <= last switchover time for the target port
     → MuxPort::handleSwitchActiveRequestEvent()
       → post to per-port strand
         → LinkManagerStateMachineActiveStandby::handleSwitchActiveRequestEvent()
@@ -198,7 +234,9 @@ RX buffer (AF_INET raw socket — kernel includes IP header):
              |  version, uuid[8], seq    |
   offset 52  +---------------------------+
              |  TLV: COMMAND_SWITCH_ACTIVE (type=0x05, len=1, value=1)  |
-             +---------------------------+
+  offset 56  +---------------------------+
+             |  TLV: ORIGIN_TIMESTAMP (type=0x06, len=8, value=origin_time_us) |
+  offset 67  +---------------------------+
              |  TLV: SENTINEL (type=0xff, len=0)                        |
              +---------------------------+
 
@@ -214,7 +252,9 @@ TX buffer (sendto — kernel prepends IP header; source IP = our Loopback0 via R
              |  version, uuid[8], seq    |
   offset 32  +---------------------------+
              |  TLV: COMMAND_SWITCH_ACTIVE (type=0x05, len=1, value=1)  |
-             +---------------------------+
+  offset 36  +---------------------------+
+             |  TLV: ORIGIN_TIMESTAMP (type=0x06, len=8, value=origin_time_us) |
+  offset 47  +---------------------------+
              |  TLV: SENTINEL (type=0xff, len=0)                        |
              +---------------------------+
 ```
@@ -223,15 +263,19 @@ TX buffer (sendto — kernel prepends IP header; source IP = our Loopback0 via R
 
 ### Packet acceptance filter (receive side)
 
-Three conditions must all be true to process a received packet:
+The following conditions must all be true to process a received packet:
 
 1. `icmpHeader->type == ICMP_ECHOREPLY`
 2. `ntohl(icmpPayload->cookie) == IcmpPayload::getSoftwareCookie()` — distinguishes from hardware prober and unrelated ICMP traffic
 3. `ipHeader->saddr == mPeerLoopback0Ip` — accepts only from the configured peer
+4. The first TLV is `TLV_COMMAND` with `COMMAND_SWITCH_ACTIVE`.
+5. The next TLV is `TLV_ORIGIN_TIMESTAMP` with length 8 and a nonzero `origin_time_us`.
+6. The timestamp is newer than the target port's last switchover time: `origin_time_us > last_switchover_time_us`.
+7. The timestamp TLV is followed by `TLV_SENTINEL`.
 
 The source IP check works because bgpcfgd installs a zebra route-map (`RM_SET_SRC`) that sets Loopback0 as the preferred source address for all BGP-learned routes. Since the route to the peer's Loopback0 is BGP-learned, the kernel automatically uses our own Loopback0 as the packet source — matching exactly what the peer filters on.
 
-Any packet failing these checks is silently dropped and the receive loop restarts.
+Any packet failing these checks is dropped and the receive loop restarts. Packets rejected for stale timestamps should produce a low-rate diagnostic log because they indicate a delayed or replayed event rather than ordinary background ICMP traffic.
 
 ## Configuration
 
@@ -251,6 +295,8 @@ If `PEER_SWITCH` is absent from CONFIG_DB (e.g., single-ToR deployment), `getPee
 
 Core class. Owns the raw socket, async receive loop (via `boost::asio::posix::stream_descriptor` + per-instance strand), and the send path. Added to `sonic-linkmgrd/src/link_prober/subdir.mk`.
 
+`handleSend()` appends `TLV_ORIGIN_TIMESTAMP` after `TLV_COMMAND` and before `TLV_SENTINEL`. `handleRecv()` validates the command TLV, timestamp TLV, and sentinel before calling `MuxManager`.
+
 ### Modified: `sonic-linkmgrd/src/DbInterface.h/.cpp`
 
 `getPeerSwitchInfo()` reads `PEER_SWITCH` from CONFIG_DB and calls `MuxManager::setPeerLoopback0Ipv4Address()`. Called in the startup config-read sequence at `sonic-linkmgrd/src/DbInterface.cpp:1815`, after `getLoopback2InterfaceInfo()`.
@@ -258,12 +304,14 @@ Core class. Owns the raw socket, async receive loop (via `boost::asio::posix::st
 ### Modified: `sonic-linkmgrd/src/MuxManager.h/.cpp`
 
 - Owns `mTlvCommandMonitorPtr` (created in constructor, initialized from `setPeerLoopback0Ipv4Address()`).
-- `handleSwitchCommandForPort(uint16_t serverId)`: iterates `mPortMap` to find the matching port and calls `MuxPort::handleSwitchActiveRequestEvent()`.
+- `handleSwitchCommandForPort(uint16_t serverId, uint64_t originTimeUs)`: iterates `mPortMap` to find the matching port, rejects stale notifications whose origin timestamp is not newer than that port's last switchover time, and calls `MuxPort::handleSwitchActiveRequestEvent()` only for fresh notifications.
 - `getMuxPortPtrOrThrow()`: after creating a port, calls `port->setLoopbackSwitchFn(bind(&TlvCommandMonitor::sendSwitchCommand, serverId))`.
+- Maintains or queries the per-port last switchover timestamp using the same value posted to STATE_DB `MUX_SWITCH_CAUSE|<port>|time`.
 
 ### Modified: `sonic-linkmgrd/src/MuxPort.h/.cpp`
 
 - `getServerId()`: exposes `mMuxPortConfig.getServerId()` for dispatch lookup.
+- `getLastSwitchTime()` / `updateLastSwitchTime()`: exposes the per-port last switchover timestamp used by `MuxManager` to reject stale direct notifications. The in-memory value should be updated whenever linkmgrd posts switch cause/time for the port.
 - `handleSwitchActiveRequestEvent()`: posts `LinkManagerStateMachineBase::handleSwitchActiveRequestEvent()` to the per-port strand. This method is already declared `virtual` in `LinkManagerStateMachineBase` and overridden in `ActiveStandbyStateMachine` — no base class changes needed.
 - `setLoopbackSwitchFn()` / `getLoopbackSwitchFn()`: stores the `boost::function<void()>` bound by `MuxManager`.
 
@@ -271,13 +319,14 @@ Core class. Owns the raw socket, async receive loop (via `boost::asio::posix::st
 
 - `mSendPeerNotifyFnPtr`: new `boost::function<void()>` alongside the existing `mSendPeerSwitchCommandFnPtr`.
 - Bound in `handleSwssBladeIpv4AddressUpdate()` via `mMuxPortPtr->getLoopbackSwitchFn()`.
-- Called in `handleStateChange()` immediately after `switchMuxState(LinkDown, Standby)`.
+- Called in `handleStateChange()` immediately after `switchMuxState(LinkDown, Standby)`. The origin timestamp used in the outbound packet must be captured after the local `switchMuxState()` call is initiated so it represents this link-failure event, not an earlier state.
+- On any local switchover, updates the per-port last switchover timestamp from the same time passed to `DbInterface::postSwitchCause()`.
 
 ## Testing
 
 ### Unit tests (`make test`)
 
-`TlvCommandMonitor` requires a real raw socket and cannot be instantiated in unit tests. The dispatch logic is tested by bypassing the socket entirely and calling `MuxPort::handleSwitchActiveRequestEvent()` directly:
+The raw socket path should be tested without depending on a live raw socket. Use focused parser or test-helper entry points for crafted packet buffers, and test final dispatch by calling `MuxPort::handleSwitchActiveRequestEvent()` or `MuxManager::handleSwitchCommandForPort()` directly:
 
 **`sonic-linkmgrd/test/LinkManagerStateMachineTest.cpp`**
 
@@ -293,16 +342,38 @@ Core class. Owns the raw socket, async receive loop (via `boost::asio::posix::st
 - Directly call `TlvCommandMonitor::handleRecv()` with a crafted `mRxBuffer` containing a wrong cookie
 - Assert `MuxManager::handleSwitchCommandForPort()` is never invoked
 
+`TEST_F(LinkManagerStateMachineTest, ActiveStandbyLoopbackNotify_StaleTimestamp_Ignored)`
+- Seed the target port's last switchover time to `T`.
+- Inject or directly dispatch a packet with `origin_time_us == T` and another with `origin_time_us < T`.
+- Assert no switch-active event is posted.
+
+`TEST_F(LinkManagerStateMachineTest, ActiveStandbyLoopbackNotify_FreshTimestamp_Accepted)`
+- Seed the target port's last switchover time to `T`.
+- Inject or directly dispatch a packet with `origin_time_us > T`.
+- Assert the normal `SwitchActiveRequestEvent` path runs.
+
+`TEST_F(LinkManagerStateMachineTest, ActiveStandbyLoopbackNotify_MissingTimestamp_Ignored)`
+- Craft a packet with valid type, cookie, source IP, and command TLV, but no timestamp TLV.
+- Assert `MuxManager::handleSwitchCommandForPort()` is never invoked.
+
 **`sonic-linkmgrd/test/MuxManagerTest.cpp`**
 
 `TEST_F(MuxManagerTest, handleSwitchCommandForPort_DispatchesToCorrectPort)`
 - Create `Ethernet0` (serverId=0) and `Ethernet4` (serverId=4) in `mPortMap`
-- Call `mMuxManagerPtr->handleSwitchCommandForPort(0)`
+- Seed `Ethernet0`'s last switchover time to `T` and call `mMuxManagerPtr->handleSwitchCommandForPort(0, T + 1)`
 - `pollIoService(N)` to drain
 - Assert only `Ethernet0`'s `handleSwitchActiveRequestEvent` counter incremented
 
 `TEST_F(MuxManagerTest, handleSwitchCommandForPort_UnknownServerId_NoOp)`
-- Call with serverId=99, assert no crash and no port state change
+- Call with serverId=99 and a valid fresh timestamp, assert no crash and no port state change
+
+`TEST_F(MuxManagerTest, handleSwitchCommandForPort_RejectsStaleTimestamp)`
+- Create `Ethernet0`, seed its last switchover time to `T`, and call `handleSwitchCommandForPort(0, T)`.
+- Assert `Ethernet0`'s `handleSwitchActiveRequestEvent` counter does not increment.
+
+`TEST_F(MuxManagerTest, handleSwitchCommandForPort_AcceptsFreshTimestamp)`
+- Create `Ethernet0`, seed its last switchover time to `T`, and call `handleSwitchCommandForPort(0, T + 1)`.
+- Assert `Ethernet0`'s `handleSwitchActiveRequestEvent` counter increments.
 
 **Test stubs needed:**
 
@@ -324,7 +395,8 @@ The simulated environment does not faithfully reproduce BGP routing latency or p
 3. Shut down the MUX-facing interface on the active ToR: `config interface shutdown Ethernet0`.
 4. **Primary assertion**: poll journalctl on standby for `TlvCommandMonitor.*COMMAND_SWITCH_ACTIVE.*serverId 0` within 10 seconds. This log line is emitted only when the ICMP packet arrives at the raw socket and passes all filters — it proves end-to-end packet delivery through the T1 path.
 5. **Secondary assertion**: verify standby's `show mux status` shows `active` within 30 seconds.
-6. Restore the interface.
+6. Verify the accepted log includes `origin_time_us` greater than the standby port's previous `MUX_SWITCH_CAUSE|Ethernet0|time`.
+7. Restore the interface.
 
 The primary assertion failing with no log line points specifically at the T1 routing path (Loopback0 → BGP → peer), not at a timing threshold.
 
@@ -334,6 +406,12 @@ The primary assertion failing with no log line points specifically at the T1 rou
 - Inject a crafted ICMP ECHO_REPLY via scapy/ptf with `cookie=0xdeadbeef` to the standby's Loopback0 IP.
 - Wait 2 seconds.
 - Assert no `COMMAND_SWITCH_ACTIVE` log appeared and MUX state remains `standby`.
+
+**`test_no_spurious_switchover_on_stale_timestamp`**
+
+- Record the standby port's current `MUX_SWITCH_CAUSE|Ethernet0|time`.
+- Inject a crafted ICMP ECHO_REPLY via scapy/ptf with the correct cookie, source peer Loopback0 IP, `COMMAND_SWITCH_ACTIVE`, and an origin timestamp equal to or older than the recorded time.
+- Assert linkmgrd logs a stale notification rejection and MUX state remains `standby`.
 
 **Fixtures reused from existing infrastructure:**
 
