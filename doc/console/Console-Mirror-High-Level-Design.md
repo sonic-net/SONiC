@@ -43,6 +43,7 @@
       - [Proxy Startup](#proxy-startup)
       - [Mirror Start](#mirror-start)
       - [Mirror Stop](#mirror-stop)
+      - [Mirror Timeout Update](#mirror-timeout-update)
       - [Automatic Mirror Stop](#automatic-mirror-stop)
       - [Proxy Shutdown](#proxy-shutdown)
   - [4. Database Changes](#4-database-changes)
@@ -51,7 +52,8 @@
   - [5. CLI](#5-cli)
     - [5.1 Start Mirroring](#51-start-mirroring)
     - [5.2 Stop Mirroring](#52-stop-mirroring)
-    - [5.3 Show Mirror Status](#53-show-mirror-status)
+    - [5.3 Update Mirror Timeout](#53-update-mirror-timeout)
+    - [5.4 Show Mirror Status](#54-show-mirror-status)
   - [6. Example Workflow](#6-example-workflow)
     - [6.1 Manual Stop](#61-manual-stop)
     - [6.2 Automatic Stop](#62-automatic-stop)
@@ -94,10 +96,8 @@ The feature provides the following capabilities:
 * Record RX data received from the managed device.
 * Record TX data sent by the active console user.
 * Store the byte stream in a file format that preserves direction and timestamp information.
-* Support configurable timestamp resolution.
 * Allow only one mirror owner per line.
 * Automatically stop each mirror session after a finite timeout, defaulting to 24 hours.
-* Package all rotated log parts into one ZIP archive after recording stops.
 
 ---
 
@@ -141,10 +141,10 @@ flowchart LR
     archiver -->|"package and delete source parts"| files
     mirror --> state
 
-    control -->|start / stop / status| mirror
+    control -->|start / stop / timeout / status| mirror
     archiver -. "completion future" .-> control
 
-    userB["User B<br/>start / stop / show"]
+    userB["User B<br/>start / stop / timeout / show"]
 
     userB -. "UDS control messages" .-> control
 ```
@@ -204,7 +204,6 @@ The proxy main loop must keep serial forwarding as the highest priority. Recordi
 | `state` | `idle`, `active`, or `stopping` |
 | `line` | Console line owned by the proxy |
 | `direction` | `rx`, `tx`, or `both` |
-| `resolution` | Timestamp resolution for the recording |
 | `start_time` | Recording start timestamp |
 | `timeout` | Configured finite session timeout |
 | `timer` | Active auto-stop timer |
@@ -217,7 +216,8 @@ The proxy main loop must keep serial forwarding as the highest priority. Recordi
 | Method | Caller | Description |
 |--------|--------|-------------|
 | `start(options)` | `MirrorControlServer` | Validate options, create session metadata and `RecordingWriter`, set the auto-stop timer, update STATE_DB |
-| `stop(reason)` | `MirrorControlServer` or auto-stop timer | Stop recording, set STATE_DB state to `idle`, submit an immutable archive job, and return its completion future |
+| `stop(reason, archive)` | `MirrorControlServer` or auto-stop timer | Stop recording and either retain source logs or submit an immutable archive job |
+| `update_timeout(timeout)` | `MirrorControlServer` | Replace the configured timeout and reset the remaining time from the update moment |
 | `status()` | `MirrorControlServer` | Return current line mirror state |
 | `submit(direction, payload)` | Proxy forwarding loop | Best-effort submit of RX/TX data to the recording writer |
 
@@ -226,11 +226,13 @@ The proxy forwarding loop calls `MirrorManager.submit()` after it observes conso
 
 Writer submission is best effort. If the writer queue is full, `MirrorManager` increments `writer_drop_count` and does not block the forwarding loop. When the writer queue later accepts records again, `MirrorManager` emits one `EVENT` record with `reason=writer_queue_full` and the accumulated `writer_drop_count` value before recording subsequent data records.
 
-When a session starts, `MirrorManager` calculates a monotonic deadline from the configured timeout and sets the `timer`. A monotonic clock prevents wall-clock adjustments from extending or shortening the recording unexpectedly. When the deadline expires, the timer invokes `stop(reason="timeout")`. Manual stop invokes the same shutdown path with `reason="manual"` and cancels the timer.
+When a session starts, `MirrorManager` calculates a monotonic deadline from the configured timeout and sets the `timer`. A monotonic clock prevents wall-clock adjustments from extending or shortening the recording unexpectedly. When the deadline expires, the timer invokes `stop(reason="timeout", archive=true)`.
 
-The transition from `active` to `stopping` is atomic. If a manual stop races with timer expiration, only the caller that performs this transition executes the shutdown sequence; the other caller returns the resulting session state. This prevents duplicate stop events and double-closing the writer.
+`update_timeout(timeout)` validates the new duration and prepares a replacement timer with a deadline of `now + timeout`. Under the manager lock, it atomically installs the replacement and cancels the previous timer. If replacement timer setup fails, the previous timeout and timer remain active. Thus, if 5 minutes remain and the timeout is changed to `2h`, the new remaining time is 2 hours. The recording `start_time` does not change. After replacement succeeds, the update writes a timeout-change event.
 
-After the writer is closed, `MirrorManager` creates an immutable archive job containing the line, direction, recording start timestamp, recording filename prefix, expected ZIP path, and stop reason. The manager submits this job to `RecordingArchiver` and immediately transitions the mirror state to `idle`. The archiver does not read mutable fields from the next mirror session.
+The transition from `active` to `stopping` is atomic. If a manual stop, timeout update, and timer expiration race, state and timer changes are serialized. Once stopping begins, a timeout update is rejected. Only the caller that performs the transition to `stopping` executes the shutdown sequence, preventing duplicate stop events and double-closing the writer.
+
+After the writer is closed, `MirrorManager` immediately transitions the mirror state to `idle`. If archiving is requested, it creates an immutable archive job containing the line, direction, recording start timestamp, recording filename prefix, expected ZIP path, and stop reason. The archiver does not read mutable fields from the next mirror session. If archiving is not requested, all `.log` parts remain in their original directory.
 
 #### 3.1.2 RecordingWriter
 
@@ -278,7 +280,7 @@ If the writer encounters a fatal file error, for example disk full or write fail
 
 #### 3.1.3 RecordingArchiver
 
-`RecordingArchiver` runs archive jobs in a background execution context after recording has stopped. It does not run in the serial forwarding path and does not keep the mirror state active.
+`RecordingArchiver` runs requested archive jobs in a background execution context after recording has stopped. It is used when a manual stop includes `-a` / `--archive` and for every automatic timeout stop. It does not run in the serial forwarding path and does not keep the mirror state active.
 
 All parts belonging to one recording share the same filename prefix:
 
@@ -314,6 +316,8 @@ If archive creation fails, `RecordingArchiver` deletes the incomplete `.zip.tmp`
 
 Because the mirror state is already `idle`, a new mirror may start while a previous archive job is running. Recording start timestamps used in filenames must be unique for a line; the implementation uses sufficient fractional UTC precision and exclusive file creation to prevent a new session from reusing an archive job's prefix.
 
+When archiving is not requested, `RecordingArchiver` is not invoked and the original `.log` parts remain unchanged.
+
 #### 3.1.4 MirrorControlServer
 
 `MirrorControlServer` is the local IPC endpoint used by `consutil mirror` to control the in-process `MirrorManager`. It is created by each per-line proxy during startup.
@@ -331,12 +335,12 @@ The socket is created with restrictive permissions so only Admin/root users can 
 * The requested line matches the proxy line.
 * The caller is authorized.
 * The requested operation is supported.
-* The requested direction and resolution are valid.
-* The requested timeout is a valid positive finite duration that fits within the selected resolution's 12-digit delta range.
+* The requested direction is valid.
+* The requested timeout is a valid positive finite duration that fits within the fixed millisecond 12-digit delta range.
 * No mirror session is already active when processing `start`.
 * A mirror session is active when processing `stop`.
 
-After validation, `MirrorControlServer` calls the corresponding `MirrorManager` method. For `start` and `status`, it returns one structured response. For manual `stop`, it sends an initial packaging response after recording has stopped, then keeps the UDS connection open until the archive future completes and sends a final response.
+After validation, `MirrorControlServer` calls the corresponding `MirrorManager` method. For `start`, `status`, `timeout`, and a manual stop without archiving, it returns one structured response. For `stop --archive`, it sends an initial packaging response after recording has stopped, then keeps the UDS connection open until the archive future completes and sends a final response.
 
 `MirrorControlServer` must not perform disk I/O or serial I/O itself. It only validates control messages, enforces access policy, and invokes `MirrorManager`.
 
@@ -349,24 +353,24 @@ This section defines the message protocol used on the `MirrorControlServer` UDS 
   "op": "start",
   "line": "1",
   "direction": "both",
-  "resolution": "us",
   "timeout": "24h",
-  "max_file_size": "64MiB"
+  "max_file_size": 64
 }
 ```
 
-`max_file_size` uses the same size syntax as the CLI `--max-file-size` option. Supported suffixes are `B`, `KiB`, `MiB`, and `GiB`; if no suffix is provided, the value is interpreted as bytes.
+`max_file_size` uses the same value semantics as the CLI `--max-file-size` option. It is a positive integer expressed in MB. Unit suffixes are not accepted; for example, `64` means 64 MB.
 
 `timeout` uses the same duration syntax as the CLI `--timeout` option. Supported suffixes are `s`, `m`, `h`, and `d`. If omitted, the proxy uses the default value `24h`. Zero, negative, and infinite timeout values are rejected so every mirror session has a bounded lifetime.
 
-The timeout must also be no greater than the maximum recording duration supported by the selected timestamp resolution, as defined in [Data Record Lines](#354-data-record-lines).
+For `start`, the timeout must be no greater than the maximum duration supported by the fixed millisecond delta field. For `timeout`, the sum of elapsed recording time and the new timeout must not exceed that maximum, as defined in [Data Record Lines](#354-data-record-lines).
 
 Supported control operations:
 
 | Operation | Description |
 |-----------|-------------|
 | `start` | Start a mirror session if no mirror session is active |
-| `stop` | Stop the active mirror session |
+| `stop` | Stop the active mirror session and optionally archive its log parts |
+| `timeout` | Reset the timeout and remaining time of an active mirror session |
 | `status` | Return current mirror state for the line |
 
 Each response is also a length-prefixed JSON object. Successful responses include a status and operation-specific fields. Error responses include `status: "error"`, a machine-readable `code`, and a human-readable `message`.
@@ -378,7 +382,7 @@ Example success response for `start`:
   "status": "ok",
   "file_path": "/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log",
   "timeout": "24h",
-  "stop_time": "2026-06-14T14:12:00Z"
+  "remaining": "24h"
 }
 ```
 
@@ -392,7 +396,27 @@ Example error response when a mirror session is already active:
 }
 ```
 
-A manual `stop` produces two responses on the same UDS connection. The first response confirms that mirroring has ended and gives the expected archive location:
+A manual stop request contains an explicit archive flag:
+
+```json
+{
+  "op": "stop",
+  "line": "1",
+  "archive": true
+}
+```
+
+If `archive` is omitted or false, the server returns one response and leaves all log parts on disk:
+
+```json
+{
+  "status": "ok",
+  "message": "Mirror stopped; recording files retained",
+  "recording_prefix": "/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z"
+}
+```
+
+If `archive` is true, the stop produces two responses on the same UDS connection. The first response confirms that mirroring has ended and gives the expected archive location:
 
 ```json
 {
@@ -412,6 +436,41 @@ The CLI prints this information and continues waiting on the socket. When packag
 ```
 
 If the CLI disconnects while waiting, `MirrorControlServer` drops only the response subscription. The background archive job continues unchanged. If packaging fails, the final response uses `status: "error"` and reports that the original log parts were preserved.
+
+Example timeout update request:
+
+```json
+{
+  "op": "timeout",
+  "line": "1",
+  "timeout": "2h"
+}
+```
+
+Successful response:
+
+```json
+{
+  "status": "ok",
+  "timeout": "2h",
+  "remaining": "2h"
+}
+```
+
+Example status response:
+
+```json
+{
+  "status": "ok",
+  "state": "active",
+  "line": "1",
+  "start_time": "2026-06-13T14:12:00Z",
+  "direction": "both",
+  "timeout": "24h",
+  "remaining": "12h15m",
+  "file_path": "/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log"
+}
+```
 
 ### 3.3 RX Mirroring
 
@@ -492,7 +551,7 @@ The timestamp token identifies one recording and must be unique within a line di
 
 #### 3.5.2 File Rotation
 
-Rotation is controlled by `max_file_size`, which can be set through the CLI `--max-file-size` option or the control message `max_file_size` field.
+Rotation is controlled by `max_file_size`.
 
 Rotation behavior:
 
@@ -500,7 +559,7 @@ Rotation behavior:
 2. Before writing a record, `RecordingWriter` checks whether appending that record would make the current file exceed `max_file_size`.
 3. If the limit would be exceeded, `RecordingWriter` writes a rotate event to the current file if space allows, then flushes and closes the current file.
 4. The writer increments the part number, creates the new file, writes its header lines, and updates STATE_DB `file_path`.
-5. The new file uses the same line, direction, start timestamp, resolution, and timeout, but a different part number.
+5. The new file uses the same line, direction, and start timestamp, but a different part number. Its header contains the timeout effective at rotation time.
 6. After updating STATE_DB, the writer continues writing data records to the new part.
 
 File rotation does not reset or extend the auto-stop deadline.
@@ -516,7 +575,7 @@ Example rotated files:
 Rotate event example:
 
 ```text
-2026-06-13T14:13:00.000000Z +000060000000us 00000125 EVENT 00000041 {"event":"rotate","next_part":"part0002"}
+2026-06-13T14:13:00.000Z +000000060000ms 00000125 EVENT 00000041 {"event":"rotate","next_part":"part0002"}
 ```
 
 If opening the next part file fails, `RecordingWriter` reports a fatal writer error to `MirrorManager`. The mirror session is stopped, STATE_DB is updated, and the normal console forwarding path continues.
@@ -527,11 +586,13 @@ The file starts with comment-style header lines. Header keys use `key=value` syn
 
 ```text
 # SONIC_CONSOLE_MIRROR_TEXT version=1
-# line=1 direction=both resolution=us start_time=2026-06-13T14:12:00.123456Z timeout=24h stop_time=2026-06-14T14:12:00.123456Z part=part0001 encoding=printable-escape
+# line=1 direction=both start_time=2026-06-13T14:12:00.123Z timeout=24h part=part0001 encoding=printable-escape
 # fields=timestamp delta seq direction length payload
 ```
 
 Header lines start with `# ` so that simple text tools can distinguish metadata from data records.
+
+The `timeout` header value is the effective timeout when that part is created. Later timeout changes are represented by `timeout_update` event records.
 
 #### 3.5.4 Data Record Lines
 
@@ -547,8 +608,8 @@ Fields:
 
 | Field | Format | Example | Description |
 |-------|--------|---------|-------------|
-| `timestamp` | RFC 3339 UTC timestamp with configured fractional precision | `2026-06-13T14:12:01.000003Z` | Absolute time when the record is created |
-| `delta` | `+` followed by a zero-padded 12-digit decimal value and the resolution suffix | `+000000876547us` | Time elapsed since the recording start timestamp |
+| `timestamp` | RFC 3339 UTC timestamp with millisecond precision | `2026-06-13T14:12:01.000Z` | Absolute time when the record is created |
+| `delta` | `+` followed by a zero-padded 12-digit millisecond value and the `ms` suffix | `+000000000877ms` | Time elapsed since the recording start timestamp |
 | `seq` | Zero-padded 8-digit decimal number | `00000002` | Monotonic record sequence number, starting from `00000001` |
 | `direction` | Fixed token | `RX`, `TX`, or `EVENT` | Record direction or event marker |
 | `length` | Zero-padded 8-digit decimal number | `00000005` | Original payload length in bytes before escaping |
@@ -560,30 +621,16 @@ The `delta` field is a relative timestamp. It is calculated from the absolute re
 delta = record_timestamp - recording_start_timestamp
 ```
 
-The unit suffix follows the selected timestamp resolution:
+The fixed delta unit is milliseconds. Because the delta value is limited to 12 decimal digits, its maximum value is `999999999999ms`, which is approximately 11,574 days or 31.69 years. The proxy rejects a start or timeout-update request that exceeds this maximum.
 
-| Resolution | Delta Suffix | Meaning |
-|------------|--------------|---------|
-| `us` | `us` | Delta value is in microseconds |
-| `ms` | `ms` | Delta value is in milliseconds |
-
-Because the delta value is limited to 12 decimal digits, its maximum value is `999999999999`. This limits the maximum recording duration:
-
-| Resolution | Maximum Duration | Approximate Duration |
-|------------|------------------|----------------------|
-| `us` | `999999.999999` seconds | 11 days, 13 hours, 46 minutes, 39.999999 seconds |
-| `ms` | `999999999.999` seconds | 11,574 days, 1 hour, 46 minutes, 39.999 seconds, or approximately 31.69 years |
-
-The proxy rejects a `start` request when its timeout exceeds the maximum duration for the selected resolution. The default `24h` timeout is valid for both supported resolutions.
-
-For example, if the recording starts at `2026-06-13T14:12:00.123456Z` and a record is created at `2026-06-13T14:12:01.000003Z`, the elapsed time is `876547` microseconds, so the `delta` field is written as `+000000876547us`. The delta field makes it easy to analyze timing gaps between RX and TX records without repeatedly subtracting absolute timestamps.
+For example, if the recording starts at `2026-06-13T14:12:00.123Z` and a record is created at `2026-06-13T14:12:01.000Z`, the elapsed time is `877` milliseconds, so the `delta` field is written as `+000000000877ms`. The delta field makes it easy to analyze timing gaps between RX and TX records without repeatedly subtracting absolute timestamps.
 
 Example records:
 
 ```text
-2026-06-13T14:12:00.123456Z +000000000000us 00000001 RX 00000014 Booting SONiC\n
-2026-06-13T14:12:01.000003Z +000000876547us 00000002 TX 00000005 show\n
-2026-06-13T14:12:01.004200Z +000000880744us 00000003 RX 00000010 \x1b[2Jlogin:
+2026-06-13T14:12:00.123Z +000000000000ms 00000001 RX 00000014 Booting SONiC\n
+2026-06-13T14:12:01.000Z +000000000877ms 00000002 TX 00000005 show\n
+2026-06-13T14:12:01.004Z +000000000881ms 00000003 RX 00000010 \x1b[2Jlogin:
 ```
 
 #### 3.5.5 Event Lines
@@ -591,7 +638,7 @@ Example records:
 Mirror lifecycle and error events are also written as text lines. Event lines use `EVENT` as the direction field and a JSON object as the payload.
 
 ```text
-2026-06-13T14:12:05.000000Z +000004876544us 00000004 EVENT 00000028 {"event":"drop","count":128}
+2026-06-13T14:12:05.000Z +000000004877ms 00000004 EVENT 00000028 {"event":"drop","count":128}
 ```
 
 Events are used for start, stop, queue overflow, file rotation, and writer error.
@@ -599,7 +646,13 @@ Events are used for start, stop, queue overflow, file rotation, and writer error
 The stop event includes the reason so tooling can distinguish manual and automatic termination:
 
 ```text
-2026-06-14T14:12:00.123456Z +086400000000us 00001000 EVENT 00000035 {"event":"stop","reason":"timeout"}
+2026-06-14T14:12:00.123Z +000086400000ms 00001000 EVENT 00000035 {"event":"stop","reason":"timeout"}
+```
+
+A timeout update is also recorded:
+
+```text
+2026-06-13T14:55:00.123Z +000002580000ms 00000500 EVENT 00000041 {"event":"timeout_update","timeout":"2h"}
 ```
 
 #### 3.5.6 Payload Escaping Rules
@@ -627,7 +680,9 @@ The mirror implementation must not block or terminate the active console session
 | Error | Behavior |
 |-------|----------|
 | File open failure | Reject `start` and report error to CLI |
-| Invalid timeout | Reject `start`; zero, negative, infinite, and resolution-overflowing values are not accepted |
+| Invalid timeout | Reject `start` or `timeout`; zero, negative and overflowing values are not accepted |
+| Timeout update during stop | Reject the update because the session is no longer active |
+| Timeout timer reset failure | Keep the previous timeout and timer active, and return an error |
 | Auto-stop timer setup failure | Reject `start` and close any newly opened recording file |
 | Disk full | Stop recording, update STATE_DB, keep console forwarding |
 | Writer queue full | Drop mirror records, record a drop event when the writer queue recovers, keep forwarding |
@@ -655,27 +710,35 @@ The writer queue should be bounded. When the queue is full, new mirror records a
 2. CLI sends a `start` request.
 3. Proxy validates line, permissions, active mirror state, and timeout.
 4. Proxy creates the recording file and starts `RecordingWriter`.
-5. Proxy calculates `stop_time`, arms the monotonic auto-stop timer, and updates STATE_DB with active mirror metadata.
-6. Proxy replies with the recording file path, timeout, and expected stop time.
+5. Proxy calculates the deadline, arms the auto-stop timer, and updates STATE_DB with active mirror metadata.
+6. Proxy replies with the recording file path, timeout and remaining time.
 
 #### Mirror Stop
 
-1. CLI sends a `stop` request.
+1. CLI sends a `stop` request with `archive=false` by default or `archive=true` when `-a` / `--archive` is specified.
 2. Proxy cancels the auto-stop timer.
 3. Proxy writes a stop event with `reason=manual` to the recording file.
 4. Proxy drains the queue, flushes, and closes the writer.
-5. Proxy creates an immutable archive job and expected ZIP path from the stopped recording prefix.
-6. Proxy sets the mirror state to `idle` and clears active recording fields, including `file_path`, from STATE_DB.
-7. `MirrorControlServer` sends the `packaging` response. The CLI prints that mirroring has stopped and displays the expected ZIP path, then waits for another framed response.
-8. `RecordingArchiver` packages all matching part files asynchronously.
-9. When the future completes, `MirrorControlServer` sends the final archive path or error to the waiting CLI.
+5. Proxy sets the mirror state to `idle` and clears active recording fields, including `file_path`, from STATE_DB.
+6. If `archive=false`, the proxy leaves all recording parts in place and returns the recording prefix immediately.
+7. If `archive=true`, the proxy creates an immutable archive job and expected ZIP path, sends the `packaging` response, and submits the job to `RecordingArchiver`.
+8. When the archive future completes, `MirrorControlServer` sends the final archive path or error to the waiting CLI.
 
-The mirror is already idle during steps 7 through 9, so another mirror can start without waiting for packaging. A CLI process terminated during this wait does not cancel the archive job.
+The mirror is already idle during archive creation, so another mirror can start without waiting for packaging. A CLI process terminated during this wait does not cancel the archive job.
+
+#### Mirror Timeout Update
+
+1. CLI sends a `timeout` request for an active line.
+2. Proxy validates the new duration against the delta limit.
+3. Proxy prepares a replacement timer with a monotonic deadline equal to the current monotonic time plus the requested duration.
+4. Under the manager lock, the proxy installs the replacement timer, sets `timeout` to the requested duration, and cancels the previous timer. If replacement setup fails, the old timeout and timer remain active.
+5. Proxy updates STATE_DB `timeout` and writes a timeout-change event to the recording.
+6. Proxy returns the new timeout and remaining duration, which are equal immediately after the reset.
 
 #### Automatic Mirror Stop
 
 1. The monotonic auto-stop deadline expires.
-2. `MirrorManager` invokes the same stop path used by the CLI with `reason=timeout`.
+2. `MirrorManager` invokes `stop(reason="timeout", archive=true)`.
 3. Proxy writes the timeout stop event, drains the queue, flushes, and closes the writer.
 4. Proxy submits the archive job and updates STATE_DB state to `idle`, clearing active recording fields.
 5. `RecordingArchiver` packages the stopped recording in the background. There is no waiting CLI, so completion is recorded only in process logs.
@@ -705,7 +768,6 @@ Runtime state is stored in STATE_DB.
 | `CONSOLE_MIRROR\|<line>` | `timeout` | positive integer seconds | Configured auto-stop timeout |
 | `CONSOLE_MIRROR\|<line>` | `file_path` | path | Current active recording part; cleared when recording stops |
 | `CONSOLE_MIRROR\|<line>` | `direction` | `rx` / `tx` / `both` | Mirrored direction |
-| `CONSOLE_MIRROR\|<line>` | `resolution` | `us` / `ms` | Timestamp resolution |
 
 Example:
 
@@ -725,8 +787,6 @@ admin@sonic:~$ sonic-db-cli STATE_DB HGETALL "CONSOLE_MIRROR|1"
 12) "/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log"
 13) "direction"
 14) "both"
-15) "resolution"
-16) "us"
 ```
 
 ---
@@ -741,6 +801,7 @@ CLI permission requirements:
 |---------|--------------------|--------|
 | `consutil mirror start` | Admin/root | Starts a sensitive recording and creates a protected log file |
 | `consutil mirror stop` | Admin/root | Stops an active recording session |
+| `consutil mirror timeout` | Admin/root | Resets the timeout of an active recording session |
 | `consutil mirror show` | Admin/root | Exposes active recording metadata, including recording file path |
 
 ### 5.1 Start Mirroring
@@ -753,17 +814,17 @@ Options:
 
 | Option | Description |
 |--------|-------------|
-| `--devicename`, `-d` | Interpret target as remote device name instead of line number |
+| `--devicename` | Interpret target as remote device name instead of line number |
 | `--direction {rx,tx,both}` | Select mirrored direction, default `both` |
-| `--resolution {us,ms}` | Timestamp resolution, default `us` |
-| `--timeout <duration>` | Auto-stop timeout, default `24h`. Supported suffixes are `s`, `m`, `h`, and `d`; the value must be positive, finite, and within the selected resolution's maximum duration |
-| `--max-file-size <size>` | Maximum size of each recording part before rotation. Supported suffixes are `B`, `KiB`, `MiB`, and `GiB`; values without suffix are bytes |
+| `--timeout <duration>` | Auto-stop timeout, default `24h`. Supported suffixes are `s`, `m`, `h`, and `d`; the value must be positive and within the delta maximum |
+| `--max-file-size <MB>` | Maximum size of each recording part before rotation, expressed as a positive integer in MB. For example, `64` means 64 MB |
 
 Example:
 
 ```bash
-sudo consutil mirror start 1 --direction both --resolution us
+sudo consutil mirror start 1 --direction both
 sudo consutil mirror start 1 --timeout 2h
+sudo consutil mirror start 1 --max-file-size 64
 ```
 
 Expected output when the default timeout is used:
@@ -772,7 +833,7 @@ Expected output when the default timeout is used:
 Started mirror on line [1]
 Recording file: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
 Auto-stop timeout: 24h
-Expected stop time: 2026-06-14T14:12:00Z
+Remaining: 24h
 ```
 
 If a mirror session is already active for the target line, the command fails:
@@ -784,13 +845,34 @@ Cannot start mirror: line [1] already has an active mirror session
 ### 5.2 Stop Mirroring
 
 ```bash
-sudo consutil mirror stop <target> [--devicename]
+sudo consutil mirror stop <target> [OPTIONS]
 ```
+
+Options:
+
+| Option | Description |
+|--------|-------------|
+| `--devicename` | Interpret target as remote device name instead of line number |
+| `-a`, `--archive` | Package all parts into a ZIP and remove source logs after successful packaging |
 
 Example:
 
 ```bash
 sudo consutil mirror stop 1
+```
+
+By default, manual stop keeps all `.log` parts in their original directory:
+
+```text
+Stopped mirror on line [1]
+Recording files retained with prefix:
+/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z
+```
+
+Use `-a` or `--archive` to create a ZIP and remove the source logs after successful packaging:
+
+```bash
+sudo consutil mirror stop 1 -a
 ```
 
 Expected output:
@@ -805,7 +887,29 @@ Recording archive: /var/log/sonic/console-mirror/line1/console-mirror-line1-both
 
 After printing the expected archive path, the CLI remains blocked waiting for the final server response. Interrupting or terminating the CLI does not cancel packaging.
 
-### 5.3 Show Mirror Status
+### 5.3 Update Mirror Timeout
+
+```bash
+sudo consutil mirror timeout <target> <duration> [--devicename]
+```
+
+The command resets both the configured timeout and remaining session time from the moment the command is processed.
+
+Example:
+
+```bash
+sudo consutil mirror timeout 1 2h
+```
+
+Expected output:
+
+```text
+Updated mirror timeout on line [1]
+Timeout: 2h
+Remaining: 2h
+```
+
+### 5.4 Show Mirror Status
 
 ```bash
 sudo consutil mirror show [target] [--devicename]
@@ -814,11 +918,13 @@ sudo consutil mirror show [target] [--devicename]
 Example output:
 
 ```text
-Line  State   Direction  Timeout  Stop Time             File
-----  ------  ---------  -------  --------------------  ----
-1     active  both       24h      2026-06-14T14:12:00Z  /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
-2     idle    -          -        -                     -
+Line  State   Start Time            Direction  Timeout  Remaining  File
+----  ------  --------------------  ---------  -------  ---------  ----
+1     active  2026-06-13T14:12:00Z  both       24h      12h15m     /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
+2     idle    -                     -          -        -          -
 ```
+
+`Start Time` is derived from STATE_DB `start_time`. `Remaining` is calculated at request time from the in-memory deadline and is not persisted in STATE_DB.
 
 ---
 
@@ -840,13 +946,22 @@ admin@sonic:~$ sudo consutil mirror start 1
 Started mirror on line [1]
 Recording file: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
 Auto-stop timeout: 24h
-Expected stop time: 2026-06-14T14:12:00Z
+Remaining: 24h
 ```
 
-User B stops recording:
+User B stops recording without archiving:
 
 ```bash
 admin@sonic:~$ sudo consutil mirror stop 1
+Stopped mirror on line [1]
+Recording files retained with prefix:
+/var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z
+```
+
+Alternatively, User B requests an archive:
+
+```bash
+admin@sonic:~$ sudo consutil mirror stop 1 -a
 Stopped mirror on line [1]; packaging recording
 Expected archive: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip
 Waiting for packaging to complete...
@@ -863,13 +978,13 @@ admin@sonic:~$ sudo consutil mirror start 1
 Started mirror on line [1]
 Recording file: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z-part0001.log
 Auto-stop timeout: 24h
-Expected stop time: 2026-06-14T14:12:00Z
+Remaining: 24h
 ```
 
 If no manual stop is issued, the proxy stops the mirror automatically when the deadline expires. The recording ends with a timeout stop event:
 
 ```text
-2026-06-14T14:12:00.000000Z +086400000000us 00001000 EVENT 00000035 {"event":"stop","reason":"timeout"}
+2026-06-14T14:12:00.000Z +000086400000ms 00001000 EVENT 00000035 {"event":"stop","reason":"timeout"}
 ```
 
 The proxy then packages all parts into:
@@ -886,7 +1001,7 @@ Console mirror recordings are highly sensitive. They may contain credentials, bo
 
 Security requirements:
 
-* Starting, stopping, or showing mirror sessions requires Admin/root privileges.
+* Starting, stopping, updating timeout, or showing mirror sessions requires Admin/root privileges.
 * Recording files are always written to `/var/log/sonic/console-mirror/`; users cannot specify a custom output directory.
 * Recording parts, temporary archives, and completed ZIP archives are created with restrictive permissions (`0600`), owned by `root:root`.
 * Recording directories are created with restrictive permissions (`0700`), owned by `root:root`, and are not world-readable.
