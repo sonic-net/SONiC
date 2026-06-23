@@ -98,12 +98,17 @@ COUNTERS_DB via `mod_sonic` in `hsflowd` — not from the SAI sFlow path.
             |  SAMPLEPACKET / port attr /     |
             |  hostif trap / hostif / policer |
             +----------------+----------------+
-                             | SAI ABI
+                             | SAI API
                              v
-                  +----------+-----------+         +--------------+
-                  |        syncd         |<------->|  ASIC_DB     |
-                  +----------+-----------+         +--------------+
-                             | SAI ABI
+                     +--------------+
+                     |  ASIC_DB     |
+                     +--------------+
+                             |
+                             v
+                  +----------+-----------+
+                  |        syncd         | 
+                  +----------+-----------+
+                             | SAI API
                              v
             +-----------------+--------------------+
             |          Platform SAI driver         |
@@ -222,9 +227,9 @@ config CLI ---> |    CONFIG_DB       |
                           v
                 +---------+----------+
                 |       syncd        |   subscribes to ASIC_DB,
-                |                    |   replays ops via SAI ABI
+                |                    |   replays ops via SAI API
                 +---------+----------+
-                          | SAI ABI (libsai.so == sairedis vpplib)
+                          | SAI API (libsai.so == sairedis vpplib)
                           v
                 +---------+--------------+
                 |    sairedis vpplib     |   SAI -> VPP translation:
