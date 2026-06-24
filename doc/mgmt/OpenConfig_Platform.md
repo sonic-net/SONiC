@@ -28,6 +28,7 @@
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
 | 0.1 | 08/24/2025  | Anukul Verma | Initial version                   |
+| 0.3 | 06/23/2026  | Neha Das | Add software components.                   |
 
 # About this Manual
 This document provides general information about the OpenConfig monitoring of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
@@ -105,6 +106,9 @@ module: openconfig-platform
         |              +--ro oc-port:index?                    uint8
         |              +--ro oc-port:num-breakouts?            uint8
         |              +--ro oc-port:breakout-speed?           identityref
+        +--rw software-module
+        |  +--ro state
+        |     +--ro module-type? string
         +--rw oc-transceiver:transceiver
            +--ro oc-transceiver:state
            |  +--ro oc-transceiver:enabled?               boolean
@@ -175,6 +179,7 @@ module: openconfig-platform
     * temperature
     * transceiver
     * port (breakout-mode configuration)
+    * software components (network_stack, bootloader, os)
 4. Support for platform component state information including:
     * Basic component information (name, type, description, manufacturer, etc.)
     * Operational status and health monitoring
@@ -230,6 +235,7 @@ The following existing STATE DB tables are utilized for platform component infor
 - FAN_DRAWER_INFO
 - CHASSIS_INFO
 - CPU_STATS (new table; sonic-host-services will have changes to populate this)
+- SW_COMP_INFO (new table for software component version and state information)
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
@@ -498,6 +504,29 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/components/component/port/breakout-mode/groups/group[index=0]/config/breakout-speed` | BREAKOUT_CFG | brkout_mode | Extracted speed identity (e.g., SPEED_25GB from "4x25G[4x25G]") |
 | `/components/component/port/breakout-mode/groups/group[index=0]/state/num-breakouts` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
 | `/components/component/port/breakout-mode/groups/group[index=0]/state/breakout-speed` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
+
+#### 3.3.2.11 Software Component Mapping
+**Database Table:** SW_COMP_INFO
+**Component Type:** openconfig-platform-types:SOFTWARE (software component entries: `network_stack0`, `network_stack1`, `boot_loader`, `os0`, `os1`)
+
+| OpenConfig YANG Path | SONiC DB Key | SONiC DB Field | Notes |
+|---------------------|----------------------|----------------|--------|
+| `/components/component[name=<network_stack>]/state/name` | `SW_COMP_INFO|network_stack0` | - | Component key and name |
+| `/components/component[name=<network_stack>]/state/type` | `SW_COMP_INFO|network_stack0` | `type` | Maps to SOFTWARE_MODULE |
+| `/components/component[name=<network_stack>]/state/parent` | `SW_COMP_INFO|network_stack0` | `parent` | Parent component reference |
+| `/components/component[name=<network_stack>]/state/oper-status` | `SW_COMP_INFO|network_stack0` | `oper-status` | Operational status of the network stack |
+| `/components/component[name=<network_stack>]/state/software-version` | `SW_COMP_INFO|network_stack0` | `software-version` | Version of the network stack |
+| `/components/component[name=<network_stack>]/state/storage-side` | `SW_COMP_INFO|network_stack0` | `storage-side` | Storage side |
+| `/components/component[name=<network_stack>]/software-module/state/module-type` | `SW_COMP_INFO|network_stack0` | `module-type` | Specific module subtype |
+| `/components/component[name=<bootloader>]/state/name` | `SW_COMP_INFO|boot_loader` | - | Component key and name |
+| `/components/component[name=<bootloader>]/state/type` | `SW_COMP_INFO|boot_loader` | `type` | Maps to SOFTWARE_MODULE |
+| `/components/component[name=<bootloader>]/state/parent` | `SW_COMP_INFO|boot_loader` | `parent` | Parent component reference |
+| `/components/component[name=<bootloader>]/state/software-version` | `SW_COMP_INFO|boot_loader` | `software-version` | Bootloader version |
+| `/components/component[name=<os>]/state/name` | `SW_COMP_INFO|os0` | - | Component key and name |
+| `/components/component[name=<os>]/state/parent` | `SW_COMP_INFO|os0` | `parent` | Parent component reference |
+| `/components/component[name=<os>]/state/software-version` | `SW_COMP_INFO|os0` | `software-version` | OS version |
+| `/components/component[name=<os>]/state/storage-side` | `SW_COMP_INFO|os0` | `storage-side` | Google-specific augment |
+| `/components/component[name=<os>]/state/oper-status` | `SW_COMP_INFO|os0` | `oper-status` | Operational status of the OS |
 
 
 ### 3.3.4 REST API Support
@@ -796,6 +825,9 @@ Component types are determined based on YANG key patterns:
 | "fantray*" | Fantray | "fantray1", "fantray2" |
 | "Ethernet*" (state paths) | Transceiver | "Ethernet0", "Ethernet4" |
 | "Ethernet*" (breakout-mode path) | Port | "Ethernet0", "Ethernet4" |
+| "network_stack*" | Software component | Software network stack entries |
+| "boot_loader" | Software component | Bootloader entry |
+| "os*" | Software component | Operating system entries |
 | Others | Temperature | "temp1", "cpu-thermal", "NPU0_TEMP_0" |
 
 ### 3.4.2 Error Handling
