@@ -28,12 +28,13 @@
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
 | 0.1 | 08/24/2025  | Anukul Verma | Initial version                   |
+| 0.2 | 12/10/2025  | Neha Das | Added integrated-circuit and PCIE components   |
 
 # About this Manual
-This document provides general information about the OpenConfig monitoring of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
+This document provides general information about the OpenConfig configuration/management of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
 
 # Scope
-- This document describes the high level design of OpenConfig monitoring of Platform components via gNMI/REST in SONiC.
+- This document describes the high level design of OpenConfig configuration/management of Platform components via gNMI/REST in SONiC.
 - This does not cover the SONiC KLISH CLI.
 - Openconfig-platform.yang version latest from openconfig yang repo is considered.
 - Previous implementation supported only EEPROM component using Custom app approach (pfm_app.go). This new implementation uses common app (transformer) approach and extends support to all listed component types.
@@ -68,6 +69,55 @@ module: openconfig-platform
         |  |  +--ro alarm-status?      boolean
         |  |  +--ro oc-platform-ext:critical-high-threshold?   decimal64
         |  |  +--ro oc-platform-ext:critical-low-threshold?    decimal64
+        |  +--ro pcie
+        |     +--ro fatal-errors
+        |        +--ro total-errors?                   oc-yang:counter64 
+        |        +--ro undefined-errors?               oc-yang:counter64
+        |        +--ro data-link-errors?               oc-yang:counter64
+        |        +--ro surprise-down-errors?           oc-yang:counter64
+        |        +--ro poisoned-tlp-errors?            oc-yang:counter64
+        |        +--ro flow-control-protocol-errors?   oc-yang:counter64
+        |        +--ro completion-timeout-errors?      oc-yang:counter64
+        |        +--ro completion-abort-errors?        oc-yang:counter64
+        |        +--ro unexpected-completion-errors?   oc-yang:counter64
+        |        +--ro receiver-overflow-errors?       oc-yang:counter64
+        |        +--ro malformed-tlp-errors?           oc-yang:counter64
+        |        +--ro ecrc-errors?                    oc-yang:counter64
+        |        +--ro unsupported-request-errors?     oc-yang:counter64
+        |        +--ro acs-violation-errors?           oc-yang:counter64
+        |        +--ro internal-errors?                oc-yang:counter64
+        |        +--ro blocked-tlp-errors?             oc-yang:counter64
+        |        +--ro atomic-op-blocked-errors?       oc-yang:counter64
+        |        +--ro tlp-prefix-blocked-errors?      oc-yang:counter64
+        |     +--ro non-fatal-errors?
+        |        +--ro total-errors?                   oc-yang:counter64 
+        |        +--ro undefined-errors?               oc-yang:counter64
+        |        +--ro data-link-errors?               oc-yang:counter64
+        |        +--ro surprise-down-errors?           oc-yang:counter64
+        |        +--ro poisoned-tlp-errors?            oc-yang:counter64
+        |        +--ro flow-control-protocol-errors?   oc-yang:counter64
+        |        +--ro completion-timeout-errors?      oc-yang:counter64
+        |        +--ro completion-abort-errors?        oc-yang:counter64
+        |        +--ro unexpected-completion-errors?   oc-yang:counter64
+        |        +--ro receiver-overflow-errors?       oc-yang:counter64
+        |        +--ro malformed-tlp-errors?           oc-yang:counter64
+        |        +--ro ecrc-errors?                    oc-yang:counter64
+        |        +--ro unsupported-request-errors?     oc-yang:counter64
+        |        +--ro acs-violation-errors?           oc-yang:counter64
+        |        +--ro internal-errors?                oc-yang:counter64
+        |        +--ro blocked-tlp-errors?             oc-yang:counter64
+        |        +--ro atomic-op-blocked-errors?       oc-yang:counter64
+        |        +--ro tlp-prefix-blocked-errors?      oc-yang:counter64
+        |     +--ro correctable-errors?
+        |        +--ro total-errors?                   oc-yang:counter64 
+        |        +--ro receiver-errors?                oc-yang:counter64
+        |        +--ro bad-tlp-errors?                 oc-yang:counter64
+        |        +--ro bad-dllp-errors?                oc-yang:counter64
+        |        +--ro relay-rollover-errors?          oc-yang:counter64
+        |        +--ro replay-timeout-errors?          oc-yang:counter64
+        |        +--ro advisory-non-fatal-errors?      oc-yang:counter64
+        |        +--ro internal-errors?                oc-yang:counter64
+        |        +--ro hdr-log-overflow-errors?        oc-yang:counter64
         +--rw power-supply
         |  +--ro state
         |     +--ro oc-platform-psu:enabled?          boolean
@@ -144,6 +194,11 @@ module: openconfig-platform
                     +--ro oc-transceiver:laser-bias-current-lower?   decimal64
                     +--ro oc-transceiver:supply-voltage-upper?       decimal64
                     +--ro oc-transceiver:supply-voltage-lower?       decimal64
+        +--rw integrated-circuit
+        |  +--rw config
+        |     +--rw oc-p4rt:node-id                      uint64
+        |  +--ro state
+        |     +--rw oc-p4rt:node-id                      uint64
 ```
 
 # Definition/Abbreviation
@@ -175,6 +230,8 @@ module: openconfig-platform
     * temperature
     * transceiver
     * port (breakout-mode configuration)
+    * integrated-circuit
+    * pcie
 4. Support for platform component state information including:
     * Basic component information (name, type, description, manufacturer, etc.)
     * Operational status and health monitoring
@@ -184,9 +241,11 @@ module: openconfig-platform
     * Fan speed monitoring
     * Transceiver information and DOM (Digital Optical Monitoring) data
     * Port breakout-mode configuration (Dynamic Port Breakout)
+    * Integrated Circuit configuration and telemetry
+    * PCIE error telemetry monitoring
 
 ### 1.1.2 Configuration and Management Requirements
-The Platform module is primarily read-only (monitoring). Get and Subscribe operations are supported via REST and gNMI for all component types. Set operations are supported only for port breakout-mode configuration (Dynamic Port Breakout). All other platform component paths will return an error if a Set operation is attempted.
+The Platform module is primarily read-only (monitoring). Get and Subscribe operations are supported via REST and gNMI for all component types. Set operations are supported only for integrated-circuit and port breakout-mode configuration (Dynamic Port Breakout). All other platform component paths will return an error if a Set operation is attempted.
 
 ### 1.1.3 Scalability Requirements
 The maximum number of components depends on the hardware platform capabilities and the number of physical components present in the system.
@@ -211,8 +270,9 @@ This HLD design is in line with the [Management Framework HLD](https://github.co
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
-The following existing CONFIG DB table is utilized for port breakout-mode configuration:
+The following existing CONFIG DB tables are utilized for:
 - BREAKOUT_CFG
+- NODE_CFG
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
@@ -230,6 +290,9 @@ The following existing STATE DB tables are utilized for platform component infor
 - FAN_DRAWER_INFO
 - CHASSIS_INFO
 - CPU_STATS (new table; sonic-host-services will have changes to populate this)
+- NODE_CFG
+- NODE_INFO
+- PCIE_DEVICE
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
@@ -252,6 +315,8 @@ Openconfig-platform.yang and its submodules will be used as user interfacing mod
 - openconfig-platform-port.yang (port breakout-mode configuration)
 - openconfig-platform-annotation.yang
 - openconfig-platform-deviation.yang
+- openconfig-platform-integrated-circuit.yang
+- openconfig-p4rt.yang (for node-id)
 
 ### 3.3.2 Database Table and Field Mapping
 The following sections provide detailed mapping between OpenConfig YANG paths and SONiC STATE DB tables and fields for each component type.
@@ -498,6 +563,77 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/components/component/port/breakout-mode/groups/group[index=0]/config/breakout-speed` | BREAKOUT_CFG | brkout_mode | Extracted speed identity (e.g., SPEED_25GB from "4x25G[4x25G]") |
 | `/components/component/port/breakout-mode/groups/group[index=0]/state/num-breakouts` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
 | `/components/component/port/breakout-mode/groups/group[index=0]/state/breakout-speed` | BREAKOUT_CFG | brkout_mode | Same as config (read from DB) |
+
+#### 3.3.2.11 Integrated-Circuit Component Mapping
+**Database Table:** NODE_CFG and NODE_INFO  
+**Key Pattern:** "integrated_circuit*" (e.g., "integrated_circuit0")  
+**Component Type:** openconfig-platform-types:INTEGRATED_CIRCUIT
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/type` | - | - | Fixed: INTEGRATED_CIRCUIT |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/integrated-circuit/config/node-id` | NODE_CFG | node-id | Device ID |
+| `/components/component/integrated-circuit/state/node-id` | NODE_INFO | node-id | Device ID |
+
+#### 3.3.2.12 PCIE Component Mapping
+**Database Table:** PCIE_DEVICE  
+**Key Pattern:** "{Bus}:{Dev}.{Fn}" (e.g., "01:00.0")  
+**Component Type:** openconfig-platform-types:PCIE
+
+| OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
+|---------------------|----------------|----------------|--------|
+| `/components/component/state/type` | - | - | Fixed: PCIE |
+| `/components/component/state/description` | - | - | Static description |
+| `/components/component/state/parent` | PHYSICAL_ENTITY_INFO | parent_name | Parent component |
+| `/components/component/state/removable` | - | - | Fixed: false |
+| `/components/component/state/pcie/correctable-errors/total-errors` | PCIE_DEVICE | `correctable|TOTAL_ERR_COR` | Total correctable errors |
+| `/components/component/state/pcie/correctable-errors/receiver-errors` | PCIE_DEVICE | `correctable|RxErr` | Receiver errors |
+| `/components/component/state/pcie/correctable-errors/bad-tlp-errors` | PCIE_DEVICE | `correctable|BadTLP` | Bad TLP errors |
+| `/components/component/state/pcie/correctable-errors/bad-dllp-errors` | PCIE_DEVICE | `correctable|BadDLLP` | Bad DLLP errors |
+| `/components/component/state/pcie/correctable-errors/relay-rollover-errors` | PCIE_DEVICE | `correctable|Rollover` | Relay Rollover errors |
+| `/components/component/state/pcie/correctable-errors/replay-timeout-errors` | PCIE_DEVICE | `correctable|Timeout` | Replay timeout errors |
+| `/components/component/state/pcie/correctable-errors/advisory-non-fatal-errors` | PCIE_DEVICE | `correctable|NonFatalErr` | Advisory non fatal errors |
+| `/components/component/state/pcie/correctable-errors/internal-errors` | PCIE_DEVICE | `correctable|CorrIntErr` | Internal errors |
+| `/components/component/state/pcie/correctable-errors/hdr-log-overflow-errors` | PCIE_DEVICE | `correctable|HeaderOF` | Header log overflow errors |
+| `/components/component/state/pcie/fatal-errors/total-errors` | PCIE_DEVICE | `fatal|TOTAL_ERR_FATAL` | Total fatal errors |
+| `/components/component/state/pcie/fatal-errors/undefined-errors` | PCIE_DEVICE | `fatal|Undefined` | fatal undefined errors |
+| `/components/component/state/pcie/fatal-errors/data-link-errors` | PCIE_DEVICE | `fatal|DLP` | fatal DLP errors |
+| `/components/component/state/pcie/fatal-errors/surprise-down-errors` | PCIE_DEVICE | `fatal|SDES` | fatal SDES errors |
+| `/components/component/state/pcie/fatal-errors/poisoned-tlp-errors` | PCIE_DEVICE | `fatal|PoisonTLPBlocked` | fatal Poison TLP errors |
+| `/components/component/state/pcie/fatal-errors/flow-control-protocol-errors` | PCIE_DEVICE | `fatal|FCP` | fatal FCP errors |
+| `/components/component/state/pcie/fatal-errors/completion-timeout-errors` | PCIE_DEVICE | `fatal|CmpltTO` | fatal completion timeout errors |
+| `/components/component/state/pcie/fatal-errors/completion-abort-errors` | PCIE_DEVICE | `fatal|CmpltAbrt` | fatal completion abort errors |
+| `/components/component/state/pcie/fatal-errors/unexpected-completion-errors` | PCIE_DEVICE | `fatal|UnxCmplt` | fatal unexpected completion errors |
+| `/components/component/state/pcie/fatal-errors/receiver-overflow-errors` | PCIE_DEVICE | `fatal|RxOF` | fatal receiver overflow errors |
+| `/components/component/state/pcie/fatal-errors/malformed-tlp-errors` | PCIE_DEVICE | `fatal|MalfTLP` | fatal malformed tlp errors |
+| `/components/component/state/pcie/fatal-errors/ecrc-errors` | PCIE_DEVICE | `fatal|ECRC` | fatal ECRC errors |
+| `/components/component/state/pcie/fatal-errors/unsupported-request-errors` | PCIE_DEVICE | `fatal|UnsupReq` | fatal unsupported request errors |
+| `/components/component/state/pcie/fatal-errors/acs-violation-errors` | PCIE_DEVICE | `fatal|ACSViol` | fatal ACS violation errors |
+| `/components/component/state/pcie/fatal-errors/internal-errors` | PCIE_DEVICE | `fatal|UncorrIntErr` | fatal internal errors |
+| `/components/component/state/pcie/fatal-errors/blocked-tlp-errors` | PCIE_DEVICE | `fatal|BlockedTLP` | fatal blocked TLP errors |
+| `/components/component/state/pcie/fatal-errors/atomic-op-blocked-errors` | PCIE_DEVICE | `fatal|AtomicOpBlocked` | fatal atomic operations blocked errors |
+| `/components/component/state/pcie/fatal-errors/tlp-prefix-blocked-errors` | PCIE_DEVICE | `fatal|TLPBlockedErr` | fatal internal errors |
+| `/components/component/state/pcie/non-fatal-errors/total-errors` | PCIE_DEVICE | `non_fatal|TOTAL_ERR_FATAL` | Total non-fatal errors |
+| `/components/component/state/pcie/non-fatal-errors/undefined-errors` | PCIE_DEVICE | `non_fatal|Undefined` | non-fatal undefined errors |
+| `/components/component/state/pcie/non-fatal-errors/data-link-errors` | PCIE_DEVICE | `non_fatal|DLP` | non-fatal DLP errors |
+| `/components/component/state/pcie/non-fatal-errors/surprise-down-errors` | PCIE_DEVICE | `non_fatal|SDES` | non-fatal SDES errors |
+| `/components/component/state/pcie/non-fatal-errors/poisoned-tlp-errors` | PCIE_DEVICE | `non_fatal|PoisonTLPBlocked` | non-fatal Poison TLP errors |
+| `/components/component/state/pcie/non-fatal-errors/flow-control-protocol-errors` | PCIE_DEVICE | `non_fatal|FCP` | non-fatal FCP errors |
+| `/components/component/state/pcie/non-fatal-errors/completion-timeout-errors` | PCIE_DEVICE | `non_fatal|CmpltTO` | non-fatal completion timeout errors |
+| `/components/component/state/pcie/non-fatal-errors/completion-abort-errors` | PCIE_DEVICE | `non_fatal|SDCmpltAbrtES` | non-fatal completion abort errors |
+| `/components/component/state/pcie/non-fatal-errors/unexpected-completion-errors` | PCIE_DEVICE | `non_fatal|UnxCmplt` | non-fatal unexpected completion errors |
+| `/components/component/state/pcie/non-fatal-errors/receiver-overflow-errors` | PCIE_DEVICE | `non_fatal|RxOF` | non-fatal receiver overflow errors |
+| `/components/component/state/pcie/non-fatal-errors/malformed-tlp-errors` | PCIE_DEVICE | `non_fatal|MalfTLP` | non-fatal malformed tlp errors |
+| `/components/component/state/pcie/non-fatal-errors/ecrc-errors` | PCIE_DEVICE | `non_fatal|ECRC` | non-fatal ECRC errors |
+| `/components/component/state/pcie/non-fatal-errors/unsupported-request-errors` | PCIE_DEVICE | `non_fatal|UnsupReq` | non-fatal unsupported request errors |
+| `/components/component/state/pcie/non-fatal-errors/acs-violation-errors` | PCIE_DEVICE | `non_fatal|ACSViol` | non-fatal ACS violation errors |
+| `/components/component/state/pcie/non-fatal-errors/internal-errors` | PCIE_DEVICE | `non_fatal|UncorrIntErr` | non-fatal internal errors |
+| `/components/component/state/pcie/non-fatal-errors/blocked-tlp-errors` | PCIE_DEVICE | `non_fatal|BlockedTLP` | non-fatal blocked TLP errors |
+| `/components/component/state/pcie/non-fatal-errors/atomic-op-blocked-errors` | PCIE_DEVICE | `non_fatal|AtomicOpBlocked` | non-fatal atomic operations blocked errors |
+| `/components/component/state/pcie/non-fatal-errors/tlp-prefix-blocked-errors` | PCIE_DEVICE | `non_fatal|TLPBlockedErr` | non-fatal internal errors |
 
 
 ### 3.3.4 REST API Support
@@ -797,6 +933,8 @@ Component types are determined based on YANG key patterns:
 | "Ethernet*" (state paths) | Transceiver | "Ethernet0", "Ethernet4" |
 | "Ethernet*" (breakout-mode path) | Port | "Ethernet0", "Ethernet4" |
 | Others | Temperature | "temp1", "cpu-thermal", "NPU0_TEMP_0" |
+| "integrated_circuit*" | Integrated Circuit | "integrated_circuit0", "integrated_circuit1" |
+| "{Bus}:{Dev}.{Fn}" | PCIE | "01:00.0", "00:00.0" |
 
 ### 3.4.2 Error Handling
 - Graceful handling of missing components
