@@ -240,11 +240,12 @@ module: openconfig-platform
     * Power supply capacity and status
     * Fan speed monitoring
     * Transceiver information and DOM (Digital Optical Monitoring) data
+    * Port breakout-mode configuration (Dynamic Port Breakout)
     * Integrated Circuit configuration and telemetry
     * PCIE error telemetry monitoring
 
 ### 1.1.2 Configuration and Management Requirements
-The Platform configuration/management can be done via REST and gNMI. The implementation will return an error if configuration is not allowed due to misconfiguration or un-supported node is accessed.
+The Platform module is primarily read-only (monitoring). Get and Subscribe operations are supported via REST and gNMI for all component types. Set operations are supported only for integrated-circuit and port breakout-mode configuration (Dynamic Port Breakout). All other platform component paths will return an error if a Set operation is attempted.
 
 ### 1.1.3 Scalability Requirements
 The maximum number of components depends on the hardware platform capabilities and the number of physical components present in the system.
