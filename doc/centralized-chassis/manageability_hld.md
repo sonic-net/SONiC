@@ -385,7 +385,7 @@ Features that receive `has_chassis_scope` in the centralized image template incl
 
 ### Port and System-Port Models
 
-Both `PORT` and `SYSTEM_PORT` models are extended to carry `slot_id` and `asic_id` for centralized chassis, enabling the Supervisor to maintain a complete, per-card port inventory:
+`PORT` and `FABRIC_PORT` are extended to carry `slot_id` and `asic_id` for centralized chassis, enabling the Supervisor to maintain a complete, per-card port inventory. `SYSTEM_PORT` does not add those fields; slot and NPU scope are encoded in the existing key (`hostname`, `asic_name`, `ifname`), for example `SYSTEM_PORT|LC1|asic0|Ethernet1_8`.
 
 ```
 module: sonic-system-port (Centralized-Chassis)
@@ -394,8 +394,6 @@ module: sonic-system-port (Centralized-Chassis)
       +--rw hostname           stypes:hostname
       +--rw asic_name          stypes:asic_name
       +--rw ifname             string
-      +--rw slot_id?           string   ← NEW for centralized
-      +--rw asic_id?           string   ← NEW for centralized
       +--rw core_index?        uint8
       +--rw core_port_index?   uint16
       +--rw num_voq?           uint8
@@ -482,7 +480,7 @@ module: sonic-events-swss
   │  ├── Slot 1: Ethernet0/1 … Ethernet35/1                          │
   │  └── … up to Slot 7                                              │
   │                                                                  │
-  │  SYSTEM_PORT (all LCs, with slot_id and asic_id)                 │
+  │  SYSTEM_PORT (all LCs; slot/NPU encoded in key: LC{n}|asic{n}|…) │
   │  FABRIC_PORT (fabric ports across all slots)                     │
   │                                                                  │
   └──────────────────────────────────────────────────────────────────┘
@@ -646,11 +644,9 @@ sonic-db-dump -n CONFIG_DB -y -k "SYSTEM_PORT|LC0|asic1|Recycle4"
     "ttl": -0.001,
     "type": "hash",
     "value": {
-      "asic_id": "1",
       "core_index": "8",
       "core_port_index": "25",
       "num_voq": "8",
-      "slot_id": "0",
       "speed": "100000",
       "switch_id": "1",
       "system_port_id": "1510"
@@ -947,7 +943,7 @@ The **mgmt-framework** container on the Supervisor provides modeled northbound m
 Modeled APIs are generated from SONiC and OpenConfig YANG. For centralized chassis, chassis-wide objects are extended with **slot** and **ASIC** keys as described in [YANG Model Changes](#yang-model-changes):
 
 - `DEVICE_METADATA`, `DEVICE_METADATA_SLOT`, and `DEVICE_METADATA_ASIC` for card and ASIC identity
-- `PORT`, `SYSTEM_PORT`, and `FABRIC_PORT` entries keyed by slot and ASIC
+- `PORT` and `FABRIC_PORT` carry `slot_id` and `asic_id`; `SYSTEM_PORT` entries are keyed by LC hostname and `asic_name` (for example `LC1|asic0|…`)
 - Event models extended with a `slot` leaf for source-card correlation
 
 Clients therefore manage the chassis as a **single modeled instance** from the RP while still addressing per-card and per-ASIC resources through the extended schema.
