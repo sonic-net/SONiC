@@ -23,7 +23,7 @@
 - [Manageability Service Placement](#manageability-service-placement)
   - [Supervisor-only northbound services](#supervisor-only-northbound-services)
   - [Line card services](#line-card-services)
-  - [FEATURE table and hostcfgd enforcement](#feature-table-and-hostcfgd-enforcement)
+  - [FEATURE table and featured enforcement](#feature-table-and-featured-enforcement)
 - [YANG Model Changes](#yang-model-changes)
   - [Device-Metadata Model](#device-metadata-model)
   - [FEATURE Model](#feature-model)
@@ -113,7 +113,8 @@ The scope of this document is defined in [Scope](#scope). Terms used throughout 
 | FRU | Field-Replaceable Unit (fan, PSU, line card, fabric card, etc.) |
 | OIR | Online Insertion and Removal of chassis modules |
 | Push model | Line cards publish local operational data to central `STATE_DB` on the Supervisor (preferred approach in this HLD) |
-| hostcfgd | Host configuration daemon in sonic-host-services; applies FEATURE table policy to start and stop containers on each card |
+| hostcfgd | Host configuration daemon in sonic-host-services; applies CONFIG_DB host settings (AAA, SSH, TACACS/RADIUS, logging, kdump, etc.) on each card; on centralized chassis line cards it runs a reduced handler set. Does **not** manage the **FEATURE** table |
+| featured | Feature configuration daemon in sonic-host-services; reads CONFIG_DB **FEATURE**, applies scope flags (`has_global_scope`, `has_per_asic_scope`, `has_chassis_scope`), and starts/stops/masks the corresponding systemd container units on RP vs LC |
 | mgmt-framework | SONiC management framework providing sonic-cli and REST/RESTCONF northbound APIs |
 
 ---
@@ -225,10 +226,11 @@ The `ChassisBase.is_centralized_chassis()` API is also exposed through `sonic-pl
 
 On a centralized chassis, **all operator-facing northbound interfaces are anchored on the active Supervisor (Route Processor)**. External SSH sessions, automation, SNMP polls, gNMI subscriptions, RESTCONF requests, and centralized event collection target the RP management address only. Line cards participate by publishing state and executing propagated configuration; they are not alternate management endpoints.
 
-Service placement is enforced in two layers:
+Service placement is enforced as follows:
 
 1. **FEATURE table policy** — default configuration marks chassis-wide containers with `has_chassis_scope: true` so they start only on the Supervisor.
-2. **hostcfgd** — the host configuration daemon (sonic-host-services) runs on **both** the Supervisor and each line card and applies FEATURE entries to start, stop, or skip containers according to card role and scope flags.
+2. **featured** — the feature configuration daemon (sonic-host-services) runs on **both** the Supervisor and each line card, subscribes to CONFIG_DB **FEATURE**, and uses systemd to start, stop, mask, or unmask container service units according to card role and scope flags (`has_chassis_scope`, `has_global_scope`, `has_per_asic_scope`).
+3. **hostcfgd** — a separate host-configuration daemon in the same package; applies CONFIG_DB host settings (AAA, SSH, logging, kdump, etc.) and does **not** read the **FEATURE** table.
 
 Detailed behavior of individual northbound protocols is covered in later sections ([REST and OpenConfig](#rest-and-openconfig), [statsd](#statsd), [SNMP Manageability](#snmp-manageability), [Event Architecture](#event-architecture), [Telemetry](#telemetry), [Config Restriction](#config-restriction)).
 
@@ -257,14 +259,15 @@ Line cards run a **reduced container set** focused on forwarding, platform monit
 | **syncd** / **swss** | Per-ASIC forwarding and orchagent (one stack per ASIC namespace) |
 | **pmon** | Platform monitoring (thermal, sensor, transceiver) |
 | **card-agent** | Host service (`card-agent.service`); applies Supervisor-initiated actions and participates in cross-card CLI dispatch via **CHASSIS_STATE_DB** / `card_event` |
-| **hostcfgd** | Enforces FEATURE policy for local-scope containers |
+| **hostcfgd** | Host OS configuration (reduced handler set on LC: kdump, logging, banner, auto-techsupport) |
+| **featured** | Enforces **FEATURE** scope; starts per-ASIC and global containers, masks chassis-scoped services on LC |
 | **NTP client** | Syncs time from the Supervisor |
 
 Line cards **do not** start **mgmt-framework**, **SNMP**, **gNMI**, **eventd**, or **BGP** containers when `has_chassis_scope` enforcement is active for centralized chassis.
 
-### FEATURE table and hostcfgd enforcement
+### FEATURE table and featured enforcement
 
-Default chassis configuration is generated at image provisioning time (`init_cfg.json` from build templates). For centralized VOQ chassis, selected FEATURE entries include **`has_chassis_scope: true`**, meaning **hostcfgd** starts that container only when the card is the Supervisor.
+Default chassis configuration is generated at image provisioning time (`init_cfg.json` from build templates). For centralized VOQ chassis, selected FEATURE entries include **`has_chassis_scope: true`**, meaning **featured** starts that container only when the card is the Supervisor.
 
 Representative FEATURE entries (illustrative; exact states may vary by platform SKU and image options):
 
@@ -281,7 +284,7 @@ Representative FEATURE entries (illustrative; exact states may vary by platform 
 | `pmon` | false | false (global on card) | Each card |
 | `database` | false | true | RP and each LC (namespace-scoped) |
 
-**hostcfgd** on the Supervisor starts chassis-scoped containers and the full management stack. **hostcfgd** on a line card skips chassis-scoped features and starts only local forwarding and platform containers. This keeps a single external management surface while still allowing each card to run the processes it needs for ASIC programming and hardware monitoring.
+**featured** on the Supervisor starts chassis-scoped containers and the full management stack. **featured** on a line card masks or skips chassis-scoped features and starts only local forwarding and platform containers (via systemd units such as `swss@0`, `syncd@0`, `pmon`). This keeps a single external management surface while still allowing each card to run the processes it needs for ASIC programming and hardware monitoring.
 
 ### Comparison with distributed modular SONiC
 
@@ -363,7 +366,7 @@ module: sonic-feature (Centralized-Chassis)
 | `has_global_scope` | **One instance per card** (host namespace) | Services needed once on each physical module (e.g. `pmon`) |
 | `has_per_asic_scope` | **One instance per ASIC namespace** | Forwarding stack: `swss`, `syncd`, `database@N` |
 
-When `has_chassis_scope` is **`True`**, **hostcfgd** (`featured`) treats the feature as Supervisor-only: it forces `has_global_scope` and `has_per_asic_scope` to **`False`** for that entry and **masks/stops** the service on line cards. On the active Supervisor, the feature runs as a single unit (e.g. `bgp.service`, not `bgp@0`).
+When `has_chassis_scope` is **`True`**, **featured** treats the feature as Supervisor-only: it forces `has_global_scope` and `has_per_asic_scope` to **`False`** for that entry and **masks/stops** the systemd service on line cards. On the active Supervisor, the feature runs as a single unit (e.g. `bgp.service`, not `bgp@0`). See [FEATURE table and featured enforcement](#feature-table-and-featured-enforcement) for representative placement and runtime behavior.
 
 **Default configuration**
 
