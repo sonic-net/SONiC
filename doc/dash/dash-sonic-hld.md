@@ -32,6 +32,8 @@
 
 |  Rev  |    Date    |       Author        | Change Description                        |
 | :---: | :--------: | :-----------------: | :---------------------------------------- |
+| 2.6.1 | 02/23/2026 |    Lawrence Lee     | Change 'trusted_vnis' field to 'trusted_vnis_list' |
+|  2.6  | 10/27/2025 |    Lawrence Lee     | Move route rule priority to key |
 |  2.5  | 06/13/2025 |    Lawrence Lee     | Add DB schema for PL redirect map         |
 |  2.4  | 02/05/2025 |    Prince Sunny     | Update DASH_TUNNEL, FNIC, minor clarifications  |
 |  2.3  | 11/07/2024 | Kumaresh Perumal    | Update DASH_PA_VALIDATION_TABLE           |
@@ -386,7 +388,7 @@ DASH_ENI_TABLE:{{eni}}
     "v6_meter_policy_id": {{string}} (OPTIONAL)
     "disable_fast_path_icmp_flow_redirection": {{bool}} (OPTIONAL)
     "mode": {{floating_nic_mode/vm_mode}} (OPTIONAL)
-    "trusted_vni": {{vni list}} (OPTIONAL)
+    "trusted_vnis_list": {{vni list}} (OPTIONAL)
 ```
 ```
 key                      = DASH_ENI_TABLE:eni ; ENI MAC as key
@@ -402,7 +404,7 @@ v4_meter_policy_id	 = IPv4 meter policy ID
 v6_meter_policy_id	 = IPv6 meter policy ID
 disable_fast_path_icmp_flow_redirection = Disable handling fast path ICMP flow redirection packets
 mode                     = floating nic mode or vm mode. Default is 'vm_mode'
-trusted_vni              = list of trusted VNIs for this ENI, single value or "-" for range both inclusive. MSEE VNIs can added here temporarily.
+trusted_vnis_list              = list of trusted VNIs for this ENI, single value or "-" for range both inclusive. MSEE VNIs can added here temporarily.
 ```
 
 ### 3.2.4 TAG
@@ -522,7 +524,7 @@ DASH_APPLIANCE_TABLE:{{appliance_id}}
     "vm_vni": {{vni}}
     "local_region_id": {{region_id}}
     "outbound_direction_lookup": {{dst_mac/src_mac}} (OPTIONAL)
-    "trusted_vnis": {{vni list}} (OPTIONAL)
+    "trusted_vnis_list": {{vni list}} (OPTIONAL)
 ```
 
 ```
@@ -532,7 +534,7 @@ sip                      = source ip address, to be used in encap
 vm_vni                   = VM VNI that is used for setting direction. Also used for inbound encap to VM
 local_region_id          = Region where this appliance is located
 outbound_direction_lookup= dst_mac or src_mac; Default is src_mac. This attribute overrides to dst_mac
-trusted_vnis             = list of global trusted VNIs, single value or "-" for range both inclusive.
+trusted_vnis_list             = list of global trusted VNIs, single value or "-" for range both inclusive.
 ```
 
 ### 3.2.9 ROUTE LPM TABLE - OUTBOUND
@@ -592,9 +594,9 @@ tunnel                   = string                    ; Nexthop tunnel for ECMP o
 ### 3.2.10 ROUTE RULE TABLE - INBOUND
 
 ``` 
-DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix/tag}}
+DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix/tag}}:{{priority}}
     "action_type": {{routing_type}} 
-    "priority": {{priority}}
+    "priority": {{priority}}  (deprecated)
     "protocol": {{protocol_value}} (OPTIONAL)
     "vnet":{{vnet_name}} (OPTIONAL)
     "pa_validation": {{bool}} (OPTIONAL)
@@ -604,10 +606,10 @@ DASH_ROUTE_RULE_TABLE:{{eni}}:{{vni}}:{{prefix/tag}}
 ```
   
 ```
-key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix ; ENI Inbound route table with VNI and optional SRC PA prefix or prefix tag defined by DASH_PREFIX_TAG_TABLE
+key                      = DASH_ROUTE_RULE_TABLE:eni:vni:prefix:priority ; ENI Inbound route table with VNI and optional SRC PA prefix or prefix tag defined by DASH_PREFIX_TAG_TABLE
 ; field                  = value 
 action_type              = routing_type              ; reference to routing type, action can be decap or drop
-priority                 = INT32 value               ; priority of the rule, lower the value, higher the priority
+priority                 = INT32 value               ; priority of the rule, lower the value, higher the priority (field is deprecated, moved to key)
 protocol                 = INT32 value               ; protocol value of incoming packet to match; 0 (any)
 vnet                     = vnet name                 ; mapped VNET for the key vni/pa
 pa_validation            = true/false                ; perform PA validation in the mapping table belonging to vnet_name. Default is set to true 
@@ -772,7 +774,7 @@ See [PL redirect map HLD](https://github.com/sonic-net/DASH/blob/main/documentat
 |                                    |              | vm_vni                    | sai_direction_lookup_entry_t.VNI                                                                |                                                                                            |
 |                                    |              | local_region_id           | SAI_DASH_APPLIANCE_ATTR_LOCAL_REGION_ID                                                         |                                                                                            |
 |                                    |              | outbound_direction_lookup | SAI_DIRECTION_LOOKUP_ENTRY_ATTR_ACTION                                                          | Also used to determine value of SAI_DIRECTION_LOOKUP_ENTRY_ATTR_DASH_ENI_MAC_OVERRIDE_TYPE |
-|                                    |              | trusted_vnis              | sai_global_trusted_vni_entry_t.vni_range                                                        |                                                                                            |
+|                                    |              | trusted_vnis_list         | sai_global_trusted_vni_entry_t.vni_range                                                        |                                                                                            |
 | DASH_ENI_ROUTE_TABLE               |              |                           |                                                                                                 |                                                                                            |
 |                                    | eni          |                           |                                                                                                 |                                                                                            |
 |                                    |              | group_id                  | SAI_ENI_ATTR_OUTBOUND_ROUTING_GROUP_ID                                                          |                                                                                            |
@@ -806,7 +808,7 @@ See [PL redirect map HLD](https://github.com/sonic-net/DASH/blob/main/documentat
 |                                    |              | v4_meter_policy_id        | SAI_ENI_ATTR_V4_METER_POLICY_ID                                                                 |                                                                                            |
 |                                    |              | v6_meter_policy_id        | SAI_ENI_ATTR_V6_METER_POLICY_ID                                                                 |                                                                                            |
 |                                    |              | mode                      | SAI_ENI_ATTR_DASH_ENI_MODE                                                                      |                                                                                            |
-|                                    |              | trusted_vni               | sai_eni_trusted_vni_entry_t.vni_range                                                           |                                                                                            |
+|                                    |              | trusted_vnis_list         | sai_eni_trusted_vni_entry_t.vni_range                                                           |                                                                                            |
 | DASH_ACL_V4_IN_TABLE               |              |                           |                                                                                                 | Same for V6                                                                                |
 |                                    | eni          |                           |                                                                                                 |                                                                                            |
 |                                    |              | stage                     | SAI_ENI_ATTR_INBOUND_V4_stage_DASH_ACL_GROUP_ID                                                 | STAGE1..STAGE5                                                                             |
@@ -1716,7 +1718,7 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
             "vm_vni": "20",
             "local_region_id": "2",
             "outbound_direction_lookup": "dst_mac",
-            "trusted_vni": "100"
+            "trusted_vnis_list": ["100"]
         },
         "OP": "SET"
     },
@@ -1743,7 +1745,7 @@ final_overlay_dip = (orig_packet_dip & ~overlay_dip_prefix.mask)
 	    "vnet": "Vnet1",
             "pl_sip_encoding": "::cb3a:16e5:ff71:0:0/::ffff:ffff:ffff:0:0"
 	    "mode": "floating_nic_mode",
-	    "trusted_vni": "1000"
+	    "trusted_vnis_list": ["1000"]
         },
         "OP": "SET"
     },
