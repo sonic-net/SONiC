@@ -180,7 +180,39 @@ At a functional level, SONiC shall manage supervisor cards, line cards, and all 
 
 ### Chassis Topology
 
-![Centralized service placement](images/centralized-service-placement.png)
+**Centralized service placement**
+
+```mermaid
+flowchart TB
+    classDef external fill:#FEF3C7,stroke:#B45309,stroke-width:2px,color:#78350F
+    classDef supervisor fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#1E3A8A
+    classDef midplane fill:#F1F5F9,stroke:#475569,stroke-width:2px,color:#334155
+    classDef linecard fill:#DCFCE7,stroke:#16A34A,stroke-width:2px,color:#14532D
+
+    Ext["External operators / NMS<br/>SSH · CLI · SNMP · gNMI · RESTCONF"]:::external
+
+    subgraph RP["Supervisor (Route Processor)"]
+        direction TB
+        North["Chassis-scoped containers<br/>mgmt-framework · SNMP · gNMI · eventd<br/>BGP · swss-central"]:::supervisor
+        Central["database-central<br/>CONFIG_DB · APPL_DB · STATE_DB<br/>COUNTERS_DB"]:::supervisor
+        North --> Central
+    end
+
+    subgraph MP["Midplane"]
+        Mid["CHASSIS_MIDPLANE_TABLE<br/>RP ↔ line-card reachability"]:::midplane
+    end
+
+    subgraph LC["Line Card (each)"]
+        direction TB
+        Local["Local containers<br/>database · syncd · swss · pmon<br/>card-agent · hostcfgd"]:::linecard
+        Pub["Publish STATE_DB keys<br/>statsd → central COUNTERS_DB"]:::linecard
+        Local --> Pub
+    end
+
+    Ext --> North
+    Pub --> Mid --> Central
+    Central -->|"APPL state (distributor / ZMQ)"| Local
+```
 
 **Key design principle:** The Supervisor is the single control-plane and northbound management node. Line cards run forwarding and platform services (`syncd`, `swss`, `pmon`, **card-agent**, NTP client). They do not run BGP, SNMP, `eventd`, **mgmt-framework**, or **gNMI**. Local **`show`** access remains available on line cards for troubleshooting; **`config`** and all external automation endpoints are Supervisor-only (see [Config Restriction](#config-restriction)).
 
