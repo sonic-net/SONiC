@@ -21,11 +21,12 @@ We expand the list of FRR Maintainers to include Cisco, Nexthop.AI and Marvell. 
 The proposed maintainer assignments for the next three SONiC releases are as follows:
 
 * 202511 release: Alibaba (primary), shadowed by Nexthop.AI
-* 202605 release: Microsoft
-* 202611 release: Dell
-* 202705 release: Nvidia
-* 202711 release: Broadcom
-* 202805 release: Cisco
+* 202605 release: Marvell
+* 202611 release: Microsoft
+* 202705 release: Dell
+* 202711 release: Nvidia
+* 202805 release: Broadcom
+* 202811 release: Cisco
 * ... (Defer this list to the routing WG to decide the next assignment based on rotation record.) ...
 
 If there is a large feature / commits from a member company, it is better to swap the FRR release maintainer duty to make FRR maintaining more smooth. This transition must be approved by Routing Workgroup and announce to community to avoid confusion.
@@ -40,6 +41,7 @@ The assigned FRR Maintainer is responsible for the following tasks:
 * Bring in FRR vulnerabilities and critical patches to SONiC
     - The FRR maintainer for the current SONiC release is responsible for monitoring the corresponding FRR release branch (e.g., the 10.4 branch for SONiC 202511) and cherry-picking any critical patches into both the SONiC release branch (202511) and the master branch.
     - Additionally, the maintainer must also monitor the FRR branch selected for the previous SONiC release (e.g., FRR 10.3 for SONiC 202505) and apply any critical patches from that branch to the prior SONiC release branch (e.g., 202505).
+    - As suggested by the NV team, the FRR maintainer is responsible to proactively patch FRR CVEs (https://nvd.nist.gov/vuln/search#/nvd/home?keyword=FRR&resultType=records) and SONiC-specific issues. However, for other fixes in release branches, proactive patching is not necessary to avoid introducing potentially unstable changes.
 
 Note:
 1. Currently, SONiC FRR maintainers are NOT responsible for cherry-picking patches across different SONiC releases. For example, applying critical patches from the FRR 10.4 branch to the SONiC 202505 branch. Such patches must first be merged upstream into FRR.

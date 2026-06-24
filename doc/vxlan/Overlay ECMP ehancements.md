@@ -74,6 +74,7 @@ The following new fields have been added the **VNET_ROUTE_TUNNEL_TABLE**
  - check_directly_connected
  - monitoring
  - adv_prefix
+ - pinned_state
 
 ```
 
@@ -91,6 +92,7 @@ VNET_ROUTE_TUNNEL_TABLE:/{/{vnet_name/}/}:/{/{prefix/}/}
     “rx_monitor_timer”: /{time in milliseconds/} (OPTIONAL)                  <<<< New Field
     “tx_monitor_timer”: /{time in milliseconds/} (OPTIONAL)                  <<<< New Field
     “check_directly_connected”: /{/{true|false/}/} (OPTIONAL)                  <<<< New Field
+    "pinned_state": /{/{none|up|down/}/} (OPTIONAL)                            <<<< New Field
 ```
 
 
@@ -101,6 +103,7 @@ rx_monitor_timer         = DIGITS                    ; time in Milliseconds for 
 tx_monitor_timer         = DIGITS                    ; time in Milliseconds for the monitor session Tx internval.(Applicable to BFD only) (Optional) 
 check_directly_connected = BOOLEAN                   ; Boolean used by the route creator to indicate if nexthops need to be checked for being directly connected.
 adv_prefix               = IP-PREFIX                 ; PRefix value to be advertised instead of route prefix.
+pinned_state             = STRING                    ; Pinned BFD session state to change the traffic forwarding behavior
 ```
 
 A new table **VNET_MONITOR_TABLE** has been added to send the endpoint information to the custom monitoring module.
@@ -198,6 +201,14 @@ The check_directly_connected can be set to true or false. This is intended for t
 Since  Smart Switch uses primary/secondary route model, it must ensure that all the next hops in either primary or secondary set must be direct connected. e.g. a primary set of two next hops where one is directly connected cannot be supported. Similarly, a secondary set of two next hops where one is directly connected is also not supported. If such a configuration is applied, this would result in failure. 
 
 The Orchagent shall check all the next hops in the ARP table to verify if directly connected. For such next hops, a regular encamp route shall be employed instead of a tunnel route. This regular ECMP route would be updated based on the BFD liveness as is done for a regular vxlan ECMP route. 
+
+## 3.4 Pinned BFD State
+
+Add support for pinning BFD probe state with new field `pinned_state`.
+
+`pinned_state` enables controller to override the actual BFD probe state for endpoints. This is essential for Smart Switch HA scenarios where traffic must be redirected to a standby DPU before planned maintenance (by pinning the primary to down), or for livesite mitigation to prevent unnecessary switchovers on vnet route nexthop (by pinning to up). The pinned state values are none (default, use actual BFD state), up (force endpoint active), and down (force endpoint inactive).
+
+Routes will be updated when pinned state changes. The effects of probe state pinning are in [SmartSwitch HA HLD](https://github.com/sonic-net/SONiC/blob/master/doc/smart-switch/high-availability/smart-switch-ha-hld.md#641-pinning-bfd-probe).
 
 
 # 4 Test Plan for the enhacements.
