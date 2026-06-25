@@ -29,6 +29,7 @@
 |:---:|:-----------:|:---------------------:|-----------------------------------|
 | 0.1 | 08/24/2025  | Anukul Verma | Initial version                   |
 | 0.2 | 12/10/2025  | Neha Das | Added integrated-circuit and PCIE components   |
+| 0.3 | 06/23/2026  | Neha Das | Add software components.                   |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration/management of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
@@ -155,6 +156,9 @@ module: openconfig-platform
         |              +--ro oc-port:index?                    uint8
         |              +--ro oc-port:num-breakouts?            uint8
         |              +--ro oc-port:breakout-speed?           identityref
+        +--rw software-module
+        |  +--ro state
+        |     +--ro module-type? string
         +--rw oc-transceiver:transceiver
            +--ro oc-transceiver:state
            |  +--ro oc-transceiver:enabled?               boolean
@@ -232,6 +236,7 @@ module: openconfig-platform
     * port (breakout-mode configuration)
     * integrated-circuit
     * pcie
+    * software components (network_stack, bootloader, os)
 4. Support for platform component state information including:
     * Basic component information (name, type, description, manufacturer, etc.)
     * Operational status and health monitoring
@@ -293,6 +298,7 @@ The following existing STATE DB tables are utilized for platform component infor
 - NODE_CFG
 - NODE_INFO
 - PCIE_DEVICE
+- SW_COMP_INFO (new table for software component version and state information)
 
 ### 3.2.4 ASIC DB
 There are no changes to ASIC DB schema definition.
@@ -635,6 +641,29 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/components/component/state/pcie/non-fatal-errors/atomic-op-blocked-errors` | PCIE_DEVICE | `non_fatal|AtomicOpBlocked` | non-fatal atomic operations blocked errors |
 | `/components/component/state/pcie/non-fatal-errors/tlp-prefix-blocked-errors` | PCIE_DEVICE | `non_fatal|TLPBlockedErr` | non-fatal internal errors |
 
+#### 3.3.2.13 Software Component Mapping
+**Database Table:** SW_COMP_INFO
+**Component Type:** openconfig-platform-types:SOFTWARE (software component entries: `network_stack0`, `network_stack1`, `boot_loader`, `os0`, `os1`)
+
+| OpenConfig YANG Path | SONiC DB Key | SONiC DB Field | Notes |
+|---------------------|----------------------|----------------|--------|
+| `/components/component[name=<network_stack>]/state/name` | `SW_COMP_INFO|network_stack0` | - | Component key and name |
+| `/components/component[name=<network_stack>]/state/type` | `SW_COMP_INFO|network_stack0` | `type` | Maps to SOFTWARE_MODULE |
+| `/components/component[name=<network_stack>]/state/parent` | `SW_COMP_INFO|network_stack0` | `parent` | Parent component reference |
+| `/components/component[name=<network_stack>]/state/oper-status` | `SW_COMP_INFO|network_stack0` | `oper-status` | Operational status of the network stack |
+| `/components/component[name=<network_stack>]/state/software-version` | `SW_COMP_INFO|network_stack0` | `software-version` | Version of the network stack |
+| `/components/component[name=<network_stack>]/state/storage-side` | `SW_COMP_INFO|network_stack0` | `storage-side` | Storage side |
+| `/components/component[name=<network_stack>]/software-module/state/module-type` | `SW_COMP_INFO|network_stack0` | `module-type` | Specific module subtype |
+| `/components/component[name=<bootloader>]/state/name` | `SW_COMP_INFO|boot_loader` | - | Component key and name |
+| `/components/component[name=<bootloader>]/state/type` | `SW_COMP_INFO|boot_loader` | `type` | Maps to SOFTWARE_MODULE |
+| `/components/component[name=<bootloader>]/state/parent` | `SW_COMP_INFO|boot_loader` | `parent` | Parent component reference |
+| `/components/component[name=<bootloader>]/state/software-version` | `SW_COMP_INFO|boot_loader` | `software-version` | Bootloader version |
+| `/components/component[name=<os>]/state/name` | `SW_COMP_INFO|os0` | - | Component key and name |
+| `/components/component[name=<os>]/state/parent` | `SW_COMP_INFO|os0` | `parent` | Parent component reference |
+| `/components/component[name=<os>]/state/software-version` | `SW_COMP_INFO|os0` | `software-version` | OS version |
+| `/components/component[name=<os>]/state/storage-side` | `SW_COMP_INFO|os0` | `storage-side` | Google-specific augment |
+| `/components/component[name=<os>]/state/oper-status` | `SW_COMP_INFO|os0` | `oper-status` | Operational status of the OS |
+
 
 ### 3.3.4 REST API Support
 #### 3.3.4.1 GET Operations
@@ -935,6 +964,9 @@ Component types are determined based on YANG key patterns:
 | Others | Temperature | "temp1", "cpu-thermal", "NPU0_TEMP_0" |
 | "integrated_circuit*" | Integrated Circuit | "integrated_circuit0", "integrated_circuit1" |
 | "{Bus}:{Dev}.{Fn}" | PCIE | "01:00.0", "00:00.0" |
+| "network_stack*" | Software network stack entries | "network_stack0", "network_stack1" |
+| "boot_loader" | Bootloader entry | "boot_loader" |
+| "os*" | Operating system entries | "os0", "os1" |
 
 ### 3.4.2 Error Handling
 - Graceful handling of missing components
