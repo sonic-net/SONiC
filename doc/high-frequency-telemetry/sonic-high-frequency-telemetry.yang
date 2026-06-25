@@ -47,19 +47,19 @@ module sonic-high-frequency-telemetry {
                     type uint32;
                 }
 
-                leaf harmonizer {
-                    description "Optional harmonizer configuration applied by this profile.";
+                leaf aggregator {
+                    description "Optional aggregator configuration applied by this profile.";
                     type leafref {
-                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_HARMONIZER/HIGH_FREQUENCY_TELEMETRY_HARMONIZER_LIST/name";
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST/name";
                     }
                 }
 
             }
         }
 
-        container HIGH_FREQUENCY_TELEMETRY_HARMONIZER {
-            description "HIGH_FREQUENCY_TELEMETRY_HARMONIZER part of config_db.json";
-            list HIGH_FREQUENCY_TELEMETRY_HARMONIZER_LIST {
+        container HIGH_FREQUENCY_TELEMETRY_AGGREGATOR {
+            description "HIGH_FREQUENCY_TELEMETRY_AGGREGATOR part of config_db.json";
+            list HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST {
                 key "name";
 
                 leaf name {
@@ -69,7 +69,7 @@ module sonic-high-frequency-telemetry {
                 }
 
                 leaf reporting_rate {
-                    description "The reporting interval after harmonization, unit microseconds.";
+                    description "The reporting interval after aggregation, unit microseconds.";
                     type uint32;
                 }
 
