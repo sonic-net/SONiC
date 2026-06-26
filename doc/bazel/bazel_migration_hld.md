@@ -73,7 +73,7 @@ Please see these publications about our work:
 
 > [!tip]
 > A full example of migrating a container can be found in [sonic-buildimage#28005](https://github.com/sonic-net/sonic-buildimage/pull/28005).
-> We will explore the different moving pieces in that PR in [Section 7](7-high-level-design).
+> We will explore the different moving pieces in that PR in [Section 7](#7-high-level-design).
 
 #### 4.a Motivation
 
@@ -96,11 +96,11 @@ Users can control whether they want to build with Bazel or GNU make with a comma
 $ make target/docker-sysmgr.gz
 # Builds make-based target as usual
 
-$ BUILD_WITH_BAZEL_WHEN_AVAILABLE=true make target/docker-sysmgr.gz
+$ BUILD_WITH_BAZEL_WHEN_AVAILABLE=y make target/docker-sysmgr.gz
 # make runs Bazel to build the target
 ```
 
-This flag will start off by default. The implementation of this flag's semantics is defined in [section 7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability).
+This flag will start off disabled by default. The implementation of this flag's semantics is defined in [section 7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability).
 
 To minimize disruption, we propose the following phases to the migration:
 
@@ -127,7 +127,7 @@ By the end of this phase, we expect most users to be able to build their compone
 
 ##### Phase 3: Bazel-only
 
-When every component can be built with Bazel, and most users have had a reasonable opportunity to migratie, we expect to be able to remove the current build system, and transition to using exclusively Bazel.
+When every component can be built with Bazel, and most users have had a reasonable opportunity to migrate, we expect to be able to remove the current build system, and transition to using exclusively Bazel.
 
 We cannot give estimations of when this will be, as it will depend on community support and involvement.
 
@@ -236,21 +236,21 @@ SONIC_TARGET_LIST += $(addprefix $(TARGET_PATH)/, $(SONIC_BAZEL_DOCKER_IMAGES))
 Please note that these new targets depend on make-built base images, through the `$*_BAZEL_BASE` condition.
 We have written [some tooling to import make-built base images into Bazel](https://github.com/sonic-net/sonic-buildimage/tree/e09be005b19c3521c674e4415d08a25648fc15f4/tools/bazel/oci), but they are out of scope of this section.
 
-This ensures that Bazel-built dockers are built exactly any other Docker, in the slave container, while maintaining Bazel's benefits like hermeticity and a more granular cache.
+This ensures that Bazel-built dockers are built exactly like any other Docker, in the slave container, while maintaining Bazel's benefits like hermeticity and a more granular cache.
 It also ensures that **there should be no change to the workflow of someone using Bazel**. The way they call make is the same, and the produced artifacts should be interchangeable.
 
-Our goal is that there can be ICs that have switched to Bazel without realizing it.
+Our goal is that a contributor could switch to Bazel without even realizing it.
 
 #### 7.b Bazel Build
 
-This section describes how individual components are built with Bazel. It only touches on Bazel, not on any existing system.
+This section describes how individual components are built with Bazel, focusing on the Bazel build itself rather than its interoperability with the existing make-based system.
 
 ##### 7.b.1 Groundwork
 
 The Bazel ethos is that **every input to a build must be known, down to the checksum, before the build starts**. The current build system has a few instances where we cannot deterministically predict these inputs.
 
 - Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/blorente/sonic-build-infra/tree/master/toolchains/gcc).
-- Fetch Debian packages deterministically, instead of relying in `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](TODO LInk to the PR).
+- Fetch Debian packages deterministically, instead of relying on `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](TODO LInk to the PR).
 
 ##### 7.b.2 Managing Patched External Dependencies
 
@@ -362,7 +362,7 @@ $ bazel build <target> --config=broadcom # Equivalent to the above.
 
 ##### 7.b.5 Debuggability
 
-We will implmement automatic debug container generation, mirroring the current system.
+We will implement automatic debug container generation, mirroring the current system.
 
 We will write a Bazel rule that will crawl the dependency tree of an image, capture the debug symbols of its binaries, and bundle them with well-known debugging tools such as `gdb` to create debug containers.
 
@@ -386,8 +386,8 @@ Users will then be able to load these containers into switches normally for debu
 
 ###### Dependency Changes
 
-We lose a few dependencies:
-- We no longer need a sonic-slave container.
+Once components build entirely in Bazel, we lose a few dependencies:
+- We no longer need a sonic-slave container. Note that, during the migration, Bazel still runs inside the slave container (see [7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability)); this dependency only goes away once a component builds entirely in Bazel.
 - We no longer depend on developer tools such as `gcc` and `python` being installed in the build machine.
 - We no longer depend on Docker at build time.
 
@@ -419,7 +419,7 @@ TODO BL: I probably need help from Brian for this
 
 ### Warmboot and Fastboot Performance Impact
 This sub-section must cover the impact of the functionality on warmboot and fastboot performance, that is control plane and data plane downtime.
-As part of the analysis cover the flowing:
+As part of the analysis cover the following:
 
 - Does this feature add any stalls/sleeps/IO operations to the boot critical chain? Does it change when this feature is disabled/unused? 
 - Does this feature add any additional CPU heavy processing (e.g. rendering Jinja templates) in the boot path (process, library or utility used during boot up)? Does it change when this feature is disabled/unused?
