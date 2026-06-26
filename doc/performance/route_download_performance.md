@@ -2,8 +2,9 @@
 
 **Authors**:
 Mike Dubrovsky - Cisco
+Patrice Brissette - Cisco
 
-**Date:** 8/21/2025
+**Date:** 6/26/2026
 
 ## Table of Contents
 
@@ -36,6 +37,7 @@ Mike Dubrovsky - Cisco
 | 1.0 | 8/21/2025  | Mike Dubrovsky     | Initial version    |
 | 1.1 | 1/8/2026   | Patrice Brissette  | Updating table     |
 | 1.2 | 2/20/2026  | Patrice Brissette  | Adding Action Plan |
+| 1.3 | 6/26/2026  | Patrice Brissette  | Clean unrequired sections |
 
 ---
 
@@ -140,22 +142,22 @@ This section presents detailed performance analysis and optimization techniques 
 
 ## Performance Summary
 
-| Optimization                                             | Owner / Status | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 |
-|----------------------------------------------------------|----------------|----|----|----|----|----|----|----|----|----|----|-----|-----|-----|
-| [Async mode](#async-mode)                                | Cisco          |    |    | On |    |    |    |    | On | On | On | On  | On  |     |
-| [Multi db](#multi-db)                                    | Nexthop        |    |    |    | On |    | On | On | On | On | On | On  | On  |     |
-| [Batch / bulk sizes](#batch--bulk-sizes)                 | Cisco          |    |    |    |    |    |    | On |    | On |    | On  | On  |     |
-| [No APPL_STATE_DB population](#no-appl_state_db-population) | Cisco       |    | On |    |    |    |    | On | On | On | On | On  | On  |     |
-| [Separate pthread for APPL_STATE_DB](#separate-pthread-for-responsepublisher) | P4Orch only ⁽¹⁾ |    |    |    |    |    |    |    |    |    |    |     |     |     |
-| [Ring buffer](#ring-buffer)                              | Alibaba ⁽²⁾    |    |    |    |    |    |    | On | On | On | On | On  | On  |     |
-| [ZMQ for ConsumerStateTable](#zmq-for-consumerstatetable) | Nexthop ⁽³⁾   |    |    |    |    | On | On | On | On | On |    | On  | On  |     |
-| [No logs](#no-logs)                                      | Nexthop ⁽⁴⁾    |    |    |    |    |    |    | On | On | On |    | On  | On  |     |
-| [Use nexthop groups](#use-nexthop-groups-even-for-single-nbr) | No action ⁽⁵⁾ |    |    |    |    |    |    |    |    |    |    |     | On  |     |
-| [Sort SAI route bulk](#sort-sai-route-bulk)              | Cisco          |    |    |    |    |    |    | On | On | On |    | On  | On  |     |
-| [Bypass saimeta::Meta](#bypass-saimetameta-for-bulk-operations) | Cisco    |    |    |    |    |    |    | On | On | On |    | On  | On  |     |
-| [No APPL_DB / ASIC_DB populations](#no-appl_db-and-appl_asic_db-populations) | Not planned ⁽⁶⁾ |    |    |    |    |    |    |    | On | On |    |     | On  |     |
-| [SNMP Polling](#no-appl_db-and-appl_asic_db-populations) | Nexthop       |    |    |    |    |    |    |    | On | On |    |     | On  |     |
-| **Total speed (1K routes/sec)**                          |                | **2** | **4** | **2.9** | **3.6** | **5.1** | **7.1** | **12** | **13** | **14** | **14** | **18.5** | **20.6** | **21** |
+| Optimization                                             | T1 | T2 | T3 | T4 | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 |
+|----------------------------------------------------------|----|----|----|----|----|----|----|----|----|-----|-----|-----|-----|
+| [Async mode](#async-mode)                                |    |    | On |    |    |    |    | On | On | On  | On  | On  |     |
+| [Multi db](#multi-db)                                    |    |    |    | On |    | On | On | On | On | On  | On  | On  |     |
+| [Batch / bulk sizes](#batch--bulk-sizes)                 |    |    |    |    |    |    | On |    | On |     | On  | On  |     |
+| [No APPL_STATE_DB population](#no-appl_state_db-population) |    | On |    |    |    |    | On | On | On | On  | On  | On  |     |
+| [Separate pthread for APPL_STATE_DB](#separate-pthread-for-responsepublisher) (P4Orch only ⁽¹⁾) |    |    |    |    |    |    |    |    |    |     |     |     |     |
+| [Ring buffer](#ring-buffer) ⁽²⁾                          |    |    |    |    |    |    | On | On | On | On  | On  | On  |     |
+| [ZMQ for ConsumerStateTable](#zmq-for-consumerstatetable) ⁽³⁾ |    |    |    |    | On | On | On | On | On |     | On  | On  |     |
+| [No logs](#no-logs) ⁽⁴⁾                                  |    |    |    |    |    |    | On | On | On |     | On  | On  |     |
+| [Use nexthop groups](#use-nexthop-groups-even-for-single-nbr) (No action ⁽⁵⁾) |    |    |    |    |    |    |    |    |    |     |     | On  |     |
+| [Sort SAI route bulk](#sort-sai-route-bulk)              |    |    |    |    |    |    | On | On | On |     | On  | On  |     |
+| [Bypass saimeta::Meta](#bypass-saimetameta-for-bulk-operations) |    |    |    |    |    |    | On | On | On |     | On  | On  |     |
+| [No APPL_DB / ASIC_DB populations](#no-appl_db-and-appl_asic_db-populations) (Not planned ⁽⁶⁾) |    |    |    |    |    |    |    | On | On |     |     | On  |     |
+| [SNMP Polling](#no-appl_db-and-appl_asic_db-populations) |    |    |    |    |    |    |    | On | On |     |     | On  |     |
+| **Total speed (1K routes/sec)**                          | **2** | **4** | **2.9** | **3.6** | **5.1** | **7.1** | **12** | **13** | **14** | **14** | **18.5** | **20.6** | **21** |
 
 **Notes:**
 - ⁽¹⁾ Merged PR sonic-swss/pull/3066 - only for P4Orch, not RouteOrch. Backup plan to Async mode and No APPL_STATE_DB
@@ -198,54 +200,6 @@ Important notes:
 - For T0 devices (LeafRouter role), minigraph automatically enables this feature. Minigraph is a legacy XML-based configuration file (minigraph.xml) that was historically used to configure SONiC devices, particularly in automated network deployments. When generating CONFIG_DB from minigraph for devices with role "LeafRouter" (T0 devices), the suppress-fib-pending feature is automatically enabled. This is why the performance impact affects T0 deployments more significantly.
 
 Reference: The full HLD is available at BGP-supress-fib-pending.md
-
----
-
-### Title: Multi db
-Owner: **Nexthop**
-
-Add runtime option in the platform.json file for database initialization
-
----
-
-### Title: Batch / bulk sizes
-Owner: **Cisco**
-
-- Requested more characterization on the benefits and potential issues of different batch sizes.
-- Suggested testing different batch sizes to find the optimal balance.
-- Look at potentially have CLI to set them up
-- A mention about issues with interface bring-up times on chassis when batch sizes are too large.
-
----
-
-### Title: ZMQ for ConsumerStateTable
-Owner: **Nexthop**
-- Impact on process restart, warm reboot, etc.
-- https://github.com/sonic-net/SONiC/blob/b578f6c1a5135d60c087427d8c421df9dc670e05/doc/orchagent_zmq/Improve_route_performance_with_zmq.md
-- Nexthop to present HLD covering restart and reboot
-
----
-
-### Title: Sort SAI route bulk
-Owner: Cisco
-
-- Impact on process restart, warm reboot, etc.
-- Measurement required!
-
----
-
-### Title: Bypass saimeta::Meta for bulk operations
-Owner: **Cisco**
-
-Disable the functionality via CLI
-
----
-
-### Title: SNMP Polling
-Owner: Nexthop
-
-There is no plan to move forward on that topic. APPL_DB and APPL_ASIC_DB are still fundamentals,
-Venkit to send email to Routing WG to understand if the route check is still required.
 
 ---
  
