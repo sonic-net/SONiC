@@ -67,6 +67,23 @@ The existing VPP LAG design creates the VPP LAG bond first, then adds member por
 
 One important detail is that LCP/tap creation is intentionally delayed until the first enabled member is added. Creating the tap too early, while the VPP bond has no active member, can leave the tap with a stale generated MAC address instead of the first member's MAC address. When the first member is added, the VPP bond adopts that member's MAC, so delaying tap creation until then ensures the tap, bond, and first-member MAC addresses all match.
 
+### Egress disable in the data plane
+
+`SAI_LAG_MEMBER_ATTR_EGRESS_DISABLE` controls only **data-plane egress distribution** for a LAG member. It is the egress half of the IEEE 802.1AX *collecting / distributing* model that SONiC uses to represent a member's LACP selection state, and it has an ingress counterpart:
+
+| SAI attribute | 802.1AX role | Direction | Effect when set to `true` |
+|---|---|---|---|
+| `SAI_LAG_MEMBER_ATTR_EGRESS_DISABLE` | Distributing off | Egress (Tx data frames) | Member is removed from the LAG's egress distribution (hash) set |
+| `SAI_LAG_MEMBER_ATTR_INGRESS_DISABLE` | Collecting off | Ingress (Rx data frames) | Member stops accepting data frames into the LAG |
+
+SONiC drives these attributes from teamd's LACP state: a member is added with both disabled while it is still unselected, and Orchagent clears them once teamd reports the member as collecting and distributing. SONiC's expectation for `EGRESS_DISABLE=true` is therefore deliberately narrow:
+
+- **Only data frames are affected.** The member is taken out of the port channel's egress traffic distribution, so the forwarding plane no longer hashes data traffic onto it. `EGRESS_DISABLE` is the egress counterpart of `INGRESS_DISABLE`; it is **not** a port shutdown and **not** a "drop all egress" rule.
+- **The member link stays up and LACP keeps running.** Egress-disable does not bring the member link down. LACP is control-plane traffic that continues to be exchanged over the member regardless of its distribution state, so teamd can still select or deselect it. If egress-disable dropped *all* egress packets, LACPDUs could not be sent, LACP would stall, and the member could never be (re)selected, which is why it must not be modeled as a blanket egress drop.
+- **It is a normal transient state, not an error.** SONiC adds every LAG member with `EGRESS_DISABLE=true` (and `INGRESS_DISABLE=true`) *before* LACP has selected it, then teamd clears both once the member reaches the collecting + distributing state. Egress-disable is thus the expected initial and deselected state of a member that is still negotiating LACP.
+
+The contract any SONiC dataplane must honor is: remove the member from egress data distribution while keeping its link up and its LACP control path alive. This is exactly why this design models egress-disable by detaching the member from the VPP bond rather than taking the member link down (see [§7](#7-high-level-design)); the next subsection details the VPP-specific LACP path that makes this distinction load-bearing.
+
 ### LACP control path
 
 The VPP bond is created in **XOR mode**; VPP itself does not run LACP. LACP is run by **teamd in Linux**. Each LAG member port (e.g. `Ethernet0`) is an LCP tap paired with the member's VPP hardware-interface, and teamd runs the LACP state machine over those member taps. LACP control PDUs are punted/injected through the member hardware-interface, and teamd's per-member link watch follows that interface's link state.
