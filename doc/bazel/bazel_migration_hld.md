@@ -16,16 +16,16 @@
 5. [Requirements](#5-requirements)
 6. [Architecture Design](#6-architecture-design)
 7. [High-Level Design](#7-high-level-design)
-   - [7.a Groundwork](#7a-groundwork)
-   - [7.b Managing Patched External Dependencies](#7b-managing-patched-external-dependencies)
-   - [7.c Building Component Containers](#7c-building-component-containers)
-   - [7.d Platform & Device Support](#7d-platform--device-support)
-   - [7.e Debuggability](#7e-debuggability)
-   - [7.f Affected Systems](#7f-affected-systems)
+   - [7.a Bazel/make interoperability](#7a-bazelmake-interoperability)
+   - [7.b Groundwork](#7b-groundwork)
+   - [7.c Managing Patched External Dependencies](#7c-managing-patched-external-dependencies)
+   - [7.d Building Component Containers](#7d-building-component-containers)
+   - [7.e Platform & Device Support](#7e-platform--device-support)
+   - [7.f Debuggability](#7f-debuggability)
+   - [7.g Affected Systems](#7g-affected-systems)
      - [Dependency Changes](#dependency-changes)
      - [Changed Repositories](#changed-repositories)
-   - [7.g Performance Summary](#7g-performance-summary)
-   - [7.h Bazel/make interoperability](#7h-bazelmake-interoperability)
+   - [7.h Performance Summary](#7h-performance-summary)
 8. [SAI API](#8-sai-api)
 9. [Configuration and management](#9-configuration-and-management)
 10. [Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
@@ -70,6 +70,10 @@ Please see these publications about our work:
 
 ### 4. Overview 
 
+> [!tip]
+> A full example of migrating a container can be found in [sonic-buildimage#28005](https://github.com/sonic-net/sonic-buildimage/pull/28005).
+> We will explore the different moving pieces in that PR in [Section 7](7-high-level-design).
+
 #### 4.a Motivation
 
 The current SONiC build system, while being ergonomic and accommodating the vast matrix of platforms and vendors that are required, has some shortcomings, that the community has been feeling for some time.
@@ -78,14 +82,13 @@ After two decades of SONiC development, we now have a fuller picture of what SON
 
 Early results demonstrate that we can produce cold builds similar to those in the current system, but **sub-minute builds** for some classes of incremental changes, all while keeping hermeticity and reproducibility, so that the same build on the same commit will produce the same results a year from now.
 
-// TODO BL: Should we include a table here?
-
 #### 4.b Migration
 
 Bazel migrations are expensive, and famously disruptive. To alleviate this issue as much as possible, we propose a gradual, non-mandatory rollout.
 
-We will migrate each component in turn, starting from the components that are depended on the least.
-For each component, we will introduce the Bazel build for its container, while retaining the ability to build the container with the current system.
+We will extend the existing build system with a new target type that can build docker containers in Bazel.
+The mechanics of this new target are discussed in [7.a](#7a-bazelmake-interoperability).
+
 Users can control whether they want to build with Bazel or GNU make with a command line flag:
 
 ```
@@ -96,7 +99,7 @@ $ BUILD_WITH_BAZEL_WHEN_AVAILABLE=true make target/docker-sysmgr.gz
 # make runs Bazel to build the target
 ```
 
-This flag will start off by default. The implementation of this flag's semantics is defined in [section 7.h](#7h-bazelmake-interoperability).
+This flag will start off by default. The implementation of this flag's semantics is defined in [section 7.a](#7a-bazelmake-interoperability).
 
 To minimize disruption, we propose the following phases to the migration:
 
@@ -168,21 +171,87 @@ There are no expected changes to the SONiC architecture.
 
 ### 7. High-Level Design 
 
-This section specifies how different parts of the build will work under Bazel. Everything explained here has already been implemented in a proof of concept, in [thesayyn/sonic-buildimage](https://github.com/thesayyn/sonic-buildimage).
+This section specifies how different parts of the build will work under Bazel.
+Everything explained here has already been implemented in a proof of concept migrating `docker-sysmgr`, in [sonic-buildimage#28005](https://github.com/sonic-net/sonic-buildimage/pull/28005).
+The following sections will explain different parts of that PR.
 
-#### 7.a Groundwork
+#### 7.a Changes to Existing Build System (Bazel/make Interoperability)
+
+During the migration, Bazel and make will have to interoperate. This section explains the changes needed in the current build system to make that happen.
+
+We propose to **extend the existing build system to add the ability to build some targets with Bazel**. For example, with [docker-sysmgr](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/rules/docker-sysmgr.mk#L21-L30):
+
+```make
+# From sonic-buildimage#28005/rules/docker-sysmgr.mk
+
+...
+ifeq ($(BUILD_WITH_BAZEL_WHEN_AVAILABLE),n)
+
+SONIC_DOCKER_IMAGES += $(DOCKER_SYSMGR)
+SONIC_INSTALL_DOCKER_IMAGES += $(DOCKER_SYSMGR)
+
+else
+
+# When BUILD_WITH_BAZEL_WHEN_AVAILABLE is enabled, build this docker with Bazel.
+# Bazel only supports bookworm today, which is enforced at the root Makefile.
+$(DOCKER_SYSMGR)_BAZEL_BASE += $(DOCKER_CONFIG_ENGINE_BOOKWORM)
+SONIC_BAZEL_DOCKER_IMAGES += $(DOCKER_SYSMGR)
+SONIC_BOOKWORM_DOCKERS += $(DOCKER_SYSMGR)
+
+endif
+...
+```
+
+As shown in the example, the `BUILD_WITH_BAZEL_WHEN_AVAILABLE` configuration flag will toggle the entire Bazel behaviour. When switched off, the system will use the regular make-based build:
+
+```make
+# From sonic-buildimage#28005/rules/config
+
+...
+# Build eligible dockers (those registered in SONIC_BAZEL_DOCKER_IMAGES) with
+# Bazel instead of the legacy `docker build` flow.
+# When disabled, fall back to the normal Make docker build.
+BUILD_WITH_BAZEL_WHEN_AVAILABLE ?= n
+```
+
+This flag is defined in [rules/config](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/rules/config#L164-L177), along with another flag to control where the Bazel cache directory goes, `SONIC_BAZEL_CACHE_SOURCE`.
+
+We modify the rules execution engine to create targets for this new target type. In [`slave.mk`](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/slave.mk#L1413-L1420):
+
+```make
+# From sonic-buildimage#28005/slave.mk
+
+...
+# Targets for building docker images with Bazel.
+$(addprefix $(TARGET_PATH)/, $(SONIC_BAZEL_DOCKER_IMAGES)) : $(TARGET_PATH)/%.gz : .platform \
+		$$(addprefix $(TARGET_PATH)/,$$($$*.gz_BAZEL_BASE))
+	$(HEADER)
+	bazel run --config=slave //dockers/$*:write_$*.gz $(LOG)
+	$(FOOTER)
+
+SONIC_TARGET_LIST += $(addprefix $(TARGET_PATH)/, $(SONIC_BAZEL_DOCKER_IMAGES))
+```
+
+Please note that these new targets depend on make-built base images, through the `$*_BAZEL_BASE` condition.
+We have written [some tooling to import make-built base images into Bazel](https://github.com/sonic-net/sonic-buildimage/tree/e09be005b19c3521c674e4415d08a25648fc15f4/tools/bazel/oci), but they are out of scope of this section.
+
+This ensures that Bazel-built dockers are built exactly any other Docker, in the slave container, while maintaining Bazel's benefits like hermeticity and a more granular cache.
+It also ensures that **there should be no change to the workflow of someone using Bazel**. The way they call make is the same, and the produced artifacts should be interchangeable.
+
+Our goal is that there can be ICs that have switched to Bazel without realizing it.
+
+#### 7.b Groundwork
 
 The Bazel ethos is that **every input to a build must be known, down to the checksum, before the build starts**. The current build system has a few instances where we cannot deterministically predict these inputs.
 
-- Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/thesayyn/sonic-build-infra/tree/master/toolchains/gcc).
-- Fetch Debian packages deterministically, instead of relying in `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](https://github.com/thesayyn/sonic-buildimage/blob/master/dockers/docker-base-bookworm/base_bookworm.MODULE.bazel).
-- For components that have Python dependencies, we created `pyproject.toml` files to be able to generate deterministic `uv` lockfiles. [Example](https://github.com/thesayyn/sonic-utilities/blob/master/pyproject.toml).
+- Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/blorente/sonic-build-infra/tree/master/toolchains/gcc).
+- Fetch Debian packages deterministically, instead of relying in `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](TODO LInk to the PR).
 
-#### 7.b Managing Patched External Dependencies
+#### 7.c Managing Patched External Dependencies
 
-The SONiC build relies on patching several third party dependencies (e.g. [libnl3](https://github.com/thesayyn/sonic-buildimage/tree/master/src/libnl3)). Furthermore, it relies on the Debian suite of tools ([debhelper](https://man7.org/linux/man-pages/man1/dh.1.html) and associated tools), which is not compatible with Bazel. Hence, another solution is required.
+The SONiC build relies on patching several third party dependencies (e.g. [libnl3](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/src/libnl3/BUILD.bazel)). Furthermore, it relies on the Debian suite of tools ([debhelper](https://man7.org/linux/man-pages/man1/dh.1.html) and associated tools), which is not compatible with Bazel. Hence, another solution is required.
 
-We propose four approaches to tackle this problem. They are detailed in [this PR to `thesayyn/sonic-buidimage`](https://github.com/thesayyn/sonic-buildimage/pull/15), but we will list their summaries here for ease of reference.
+We propose four approaches to tackle this problem. They are detailed in [this documentation](https://github.com/thesayyn/sonic-buildimage/blob/master/tools/bazel/docs/import-external-projects.md), but we will list their summaries here for ease of reference.
 
 In order of most preferred to least preferred, they are:
 
@@ -191,14 +260,16 @@ In order of most preferred to least preferred, they are:
 3. Migrate said dependency to Bazel. The specific method will depend on the dependency, but tips and tricks have been listed in the document above.
 4. Patch and build the dependency out of band, and then import the built artifacts into the Bazel build.
 
-#### 7.c Building Component Containers
+An early draft of documentation explaining these can be found [here](https://github.com/thesayyn/sonic-buildimage/blob/master/tools/bazel/docs/import-external-projects.md).
+
+#### 7.d Building Component Containers
 
 Currently, most components in SONiC are bundled into `.deb` archives before being installed in the containers to be deployed.
 
 We propose a similar model except, instead of `.deb` archives, we will bundle the components into tar archives for ease of consumption. Using `tar.bzl` and `mtree`, we can replicate the rootfs structure of `.deb` packages:
 
 ```starlark
-# Example from: https://github.com/thesayyn/sonic-buildimage/blob/master/src/sonic-sysmgr/BUILD.bazel#L4-L11
+# Example from: https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/src/sonic-sysmgr/BUILD.bazel#L4-L11
 # Note how we're able to place a file in `/debian/sysmgr/rebootbackend`.
 tar(
     name = "sysmgr_pkg",
@@ -213,31 +284,28 @@ tar(
 Then, we can skip the `apt install` step of building containers and just treat each tar as an OCI container layer with `rules_oci`:
 
 ```starlark
-# Example from: https://github.com/thesayyn/sonic-buildimage/blob/master/dockers/docker-base-bookworm/BUILD.bazel#L123-L139
+# Example from: https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/dockers/docker-sysmgr/BUILD.bazel#L59-L72
 oci_image(
-    name = "docker-base-bookworm",
-    architecture = "amd64",
-    entrypoint = ["/usr/bin/supervisord"],
+    name = "docker-sysmgr",
+    base = ":config_engine_base_layout",
+    entrypoint = ["/usr/local/bin/supervisord"],
     env = {
         "DEBIAN_FRONTEND": "noninteractive",
     },
-    os = "linux",
-    tars = [ # Each of these is a tar() target.
-        ":rootfs",
-        ":rootdirslinks",
-        ":flat",
-        ":site-packages",
-        "@sonic_supervisord_utilities//:dist",
+    tars = [
+        ":apt_deps",
+        ":rdeps",
+        ":source_files",
     ],
     visibility = ["//visibility:public"],
 )
 ```
 
-#### 7.d Platform & Device Support
+#### 7.e Platform & Device Support
 
 The current SONiC build supports a rich matrix of vendors, platforms, and devices. This can be replicated with Bazel's expressive configuration language.
 
-We define command line flags to allow users to specify which device and ASIC manufacturer they're targeting ([link](https://github.com/thesayyn/sonic-build-infra/blob/master/config/BUILD.bazel)):
+We define command line flags to allow users to specify which device and ASIC manufacturer they're targeting ([link](https://github.com/blorente/sonic-build-infra/blob/master/config/BUILD.bazel)):
 
 ```starlark
 # SONiC platform, which maps to ASIC manufacturers
@@ -287,13 +355,13 @@ For ease of use, we propose bundling default configurations for well-known combi
 $ bazel build <target> --config=broadcom # Equivalent to the above.
 ```
 
-#### 7.e Debuggability
+#### 7.f Debuggability
 
 We will implmement automatic debug container generation, mirroring the current system.
 
 We will write a Bazel rule that will crawl the dependency tree of an image, capture the debug symbols of its binaries, and bundle them with well-known debugging tools such as `gdb` to create debug containers.
 
-For instance, following the example in [7.d](#7d-platform--device-support):
+For instance, following the example in [7.e](#7e-platform--device-support):
 
 ```starlark
 oci_image(
@@ -309,7 +377,7 @@ debug_container(
 
 Users will then be able to load these containers into switches normally for debugging.
 
-#### 7.f Affected Systems
+#### 7.g Affected Systems
 
 ##### Dependency Changes
 
@@ -326,21 +394,11 @@ And we gain a few dependencies:
 
 Every component repository will need to be migrated to Bazel. `sonic-buildimage` will also need to change, but it will be migrated piecemeal.
 
-#### 7.g Performance Summary
+#### 7.h Performance Summary
 
 We expect the resulting containers to be comparable (if not equal) to those produced by the old build system, both in terms of size and runtime performance and memory footprint.
 
 We aim for build times to be reduced dramatically, especially for incremental builds. We expect noticeable second-order effects on developer ergonomics, as a more reliable build means fewer cold builds overall. We expect on-disk build caches to be significantly larger than those of the old build system.
-
-#### 7.h Bazel/make interoperability
-
-During the migration, Bazel and make will have to interoperate. We propose a model where we introduce top-level make targets for Bazel-compatible containers.
-
-// TODO BL: Fill out with code examples
-
-Some other considerations:
-- Bazel should consume layers built by make.
-- Bazel would execute inside the slave container for now. There are still hermeticity issues in the Bazel build, so it does end up depending on the host system. Therefore, to ensure interoperability with the make-built layers, we'll build in the slave container. These hermeticity issues should be treated as bugs, but in the interest of getting the build in the hands of users we choose to solve them later in the migration.
 
 ### 8. SAI API 
 
