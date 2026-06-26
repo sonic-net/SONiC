@@ -16,16 +16,17 @@
 5. [Requirements](#5-requirements)
 6. [Architecture Design](#6-architecture-design)
 7. [High-Level Design](#7-high-level-design)
-   - [7.a Bazel/make interoperability](#7a-bazelmake-interoperability)
-   - [7.b Groundwork](#7b-groundwork)
-   - [7.c Managing Patched External Dependencies](#7c-managing-patched-external-dependencies)
-   - [7.d Building Component Containers](#7d-building-component-containers)
-   - [7.e Platform & Device Support](#7e-platform--device-support)
-   - [7.f Debuggability](#7f-debuggability)
-   - [7.g Affected Systems](#7g-affected-systems)
-     - [Dependency Changes](#dependency-changes)
-     - [Changed Repositories](#changed-repositories)
-   - [7.h Performance Summary](#7h-performance-summary)
+   - [7.a Changes to Existing Build System (Bazel/make Interoperability)](#7a-changes-to-existing-build-system-bazelmake-interoperability)
+   - [7.b Bazel Build](#7b-bazel-build)
+     - [7.b.1 Groundwork](#7b1-groundwork)
+     - [7.b.2 Managing Patched External Dependencies](#7b2-managing-patched-external-dependencies)
+     - [7.b.3 Building Component Containers](#7b3-building-component-containers)
+     - [7.b.4 Platform & Device Support](#7b4-platform--device-support)
+     - [7.b.5 Debuggability](#7b5-debuggability)
+     - [7.b.6 Affected Systems](#7b6-affected-systems)
+       - [Dependency Changes](#dependency-changes)
+       - [Changed Repositories](#changed-repositories)
+     - [7.b.7 Performance Summary](#7b7-performance-summary)
 8. [SAI API](#8-sai-api)
 9. [Configuration and management](#9-configuration-and-management)
 10. [Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
@@ -87,7 +88,7 @@ Early results demonstrate that we can produce cold builds similar to those in th
 Bazel migrations are expensive, and famously disruptive. To alleviate this issue as much as possible, we propose a gradual, non-mandatory rollout.
 
 We will extend the existing build system with a new target type that can build docker containers in Bazel.
-The mechanics of this new target are discussed in [7.a](#7a-bazelmake-interoperability).
+The mechanics of this new target are discussed in [7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability).
 
 Users can control whether they want to build with Bazel or GNU make with a command line flag:
 
@@ -99,7 +100,7 @@ $ BUILD_WITH_BAZEL_WHEN_AVAILABLE=true make target/docker-sysmgr.gz
 # make runs Bazel to build the target
 ```
 
-This flag will start off by default. The implementation of this flag's semantics is defined in [section 7.a](#7a-bazelmake-interoperability).
+This flag will start off by default. The implementation of this flag's semantics is defined in [section 7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability).
 
 To minimize disruption, we propose the following phases to the migration:
 
@@ -240,14 +241,18 @@ It also ensures that **there should be no change to the workflow of someone usin
 
 Our goal is that there can be ICs that have switched to Bazel without realizing it.
 
-#### 7.b Groundwork
+#### 7.b Bazel Build
+
+This section describes how individual components are built with Bazel. It only touches on Bazel, not on any existing system.
+
+##### 7.b.1 Groundwork
 
 The Bazel ethos is that **every input to a build must be known, down to the checksum, before the build starts**. The current build system has a few instances where we cannot deterministically predict these inputs.
 
 - Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/blorente/sonic-build-infra/tree/master/toolchains/gcc).
 - Fetch Debian packages deterministically, instead of relying in `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](TODO LInk to the PR).
 
-#### 7.c Managing Patched External Dependencies
+##### 7.b.2 Managing Patched External Dependencies
 
 The SONiC build relies on patching several third party dependencies (e.g. [libnl3](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/src/libnl3/BUILD.bazel)). Furthermore, it relies on the Debian suite of tools ([debhelper](https://man7.org/linux/man-pages/man1/dh.1.html) and associated tools), which is not compatible with Bazel. Hence, another solution is required.
 
@@ -262,7 +267,7 @@ In order of most preferred to least preferred, they are:
 
 An early draft of documentation explaining these can be found [here](https://github.com/thesayyn/sonic-buildimage/blob/master/tools/bazel/docs/import-external-projects.md).
 
-#### 7.d Building Component Containers
+##### 7.b.3 Building Component Containers
 
 Currently, most components in SONiC are bundled into `.deb` archives before being installed in the containers to be deployed.
 
@@ -301,7 +306,7 @@ oci_image(
 )
 ```
 
-#### 7.e Platform & Device Support
+##### 7.b.4 Platform & Device Support
 
 The current SONiC build supports a rich matrix of vendors, platforms, and devices. This can be replicated with Bazel's expressive configuration language.
 
@@ -355,13 +360,13 @@ For ease of use, we propose bundling default configurations for well-known combi
 $ bazel build <target> --config=broadcom # Equivalent to the above.
 ```
 
-#### 7.f Debuggability
+##### 7.b.5 Debuggability
 
 We will implmement automatic debug container generation, mirroring the current system.
 
 We will write a Bazel rule that will crawl the dependency tree of an image, capture the debug symbols of its binaries, and bundle them with well-known debugging tools such as `gdb` to create debug containers.
 
-For instance, following the example in [7.e](#7e-platform--device-support):
+For instance, following the example in [7.b.4](#7b4-platform--device-support):
 
 ```starlark
 oci_image(
@@ -377,9 +382,9 @@ debug_container(
 
 Users will then be able to load these containers into switches normally for debugging.
 
-#### 7.g Affected Systems
+##### 7.b.6 Affected Systems
 
-##### Dependency Changes
+###### Dependency Changes
 
 We lose a few dependencies:
 - We no longer need a sonic-slave container.
@@ -390,11 +395,11 @@ And we gain a few dependencies:
 - We depend on Google servers to download and install Bazel at build time.
 - We gain a dependency on the Bazel Central Registry.
 
-##### Changed Repositories
+###### Changed Repositories
 
 Every component repository will need to be migrated to Bazel. `sonic-buildimage` will also need to change, but it will be migrated piecemeal.
 
-#### 7.h Performance Summary
+##### 7.b.7 Performance Summary
 
 We expect the resulting containers to be comparable (if not equal) to those produced by the old build system, both in terms of size and runtime performance and memory footprint.
 
