@@ -23,10 +23,10 @@
      - [7.b.3 Building Component Containers](#7b3-building-component-containers)
      - [7.b.4 Platform & Device Support](#7b4-platform--device-support)
      - [7.b.5 Debuggability](#7b5-debuggability)
-     - [7.b.6 Affected Systems](#7b6-affected-systems)
-       - [Dependency Changes](#dependency-changes)
-       - [Changed Repositories](#changed-repositories)
-     - [7.b.7 Performance Summary](#7b7-performance-summary)
+   - [7.c Affected Systems](#7c-affected-systems)
+     - [Dependency Changes](#dependency-changes)
+     - [Changed Repositories](#changed-repositories)
+   - [7.d Performance Summary](#7d-performance-summary)
 8. [SAI API](#8-sai-api)
 9. [Configuration and management](#9-configuration-and-management)
 10. [Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
@@ -382,9 +382,9 @@ debug_container(
 
 Users will then be able to load these containers into switches normally for debugging.
 
-##### 7.b.6 Affected Systems
+#### 7.c Affected Systems
 
-###### Dependency Changes
+##### Dependency Changes
 
 Once components build entirely in Bazel, we lose a few dependencies:
 - We no longer need a sonic-slave container. Note that, during the migration, Bazel still runs inside the slave container (see [7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability)); this dependency only goes away once a component builds entirely in Bazel.
@@ -395,11 +395,11 @@ And we gain a few dependencies:
 - We depend on Google servers to download and install Bazel at build time.
 - We gain a dependency on the Bazel Central Registry.
 
-###### Changed Repositories
+##### Changed Repositories
 
 Every component repository will need to be migrated to Bazel. `sonic-buildimage` will also need to change, but it will be migrated piecemeal.
 
-##### 7.b.7 Performance Summary
+#### 7.d Performance Summary
 
 We expect the resulting containers to be comparable (if not equal) to those produced by the old build system, both in terms of size and runtime performance and memory footprint.
 
