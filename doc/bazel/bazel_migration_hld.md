@@ -250,7 +250,7 @@ This section describes how individual components are built with Bazel, focusing 
 The Bazel ethos is that **every input to a build must be known, down to the checksum, before the build starts**. The current build system has a few instances where we cannot deterministically predict these inputs.
 
 - Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/blorente/sonic-build-infra/tree/master/toolchains/gcc).
-- Fetch Debian packages deterministically, instead of relying on `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](TODO LInk to the PR).
+- Fetch Debian packages deterministically, instead of relying on `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/MODULE.bazel#L23-L56).
 
 ##### 7.b.2 Managing Patched External Dependencies
 
