@@ -4,14 +4,14 @@
 
 - [1.Revision](#1-revision)
 - [2.Scope](#2-scope)
-- [3. Definitions/Abbreviations](#3-definitionsabbreviations)
+- [3.Definitions/Abbreviations](#3-definitions-abbreviations)
 - [4. Feature Overview](#4-feature-overview)
-- [5. Requirements](#5-requirements)  
+- [5. Requirements](#5-requirements)
     - [5.1 Functional Requirements](#51-functional-requirements)
     - [5.2 Functional Description](#52-functional-description)
       - [5.2.1 CPU Utilization Monitoring](#521-cpu-utilization-monitoring)
       - [5.2.2 Memory Utilization Monitoring](#522-memory-utilization-monitoring)
-      - [5.2.3 Storage/Disk Utilization Monitoring](#523-storagedisk-utilization-monitoring)
+      - [5.2.3 Storage/Disk Utilization Monitoring](#523-storage-disk-utilization-monitoring)
       - [5.2.4 Threshold-Based Alarming](#526-threshold-based-alarming)
       - [5.2.5 Syslog Notifications](#525-syslog-notifications)
     - [5.3 Target Deployment Use Cases](#53-target-deployment-use-cases)
@@ -35,7 +35,7 @@
     - [8.1 Platform API Integration](#81-platform-api-integration)
 - [9. Configuration and Management](#9-configuration-and-management)
     - [9.1 Daemon Design](#91-daemon-design)
-      - [9.1.1 platformd](#911-platformd)
+      - [9.1.1 platformmond](#911-platformmond)
       - [9.1.2 Collection and History Engine](#912-collection-and-history-engine)
       - [9.1.3 Threshold and Alarm Engine](#913-threshold-and-alarm-engine)
       - [9.1.4 stormond](#914-stormond)
@@ -131,8 +131,6 @@ This document describes the high-level design of the System Resource Monitoring 
 | STATE_DB   | SONiC state database (Redis)                         |
 | YANG       | Yet Another Next Generation (data modeling language) |
 
----
-
 ### 4. Feature Overview
 
 This document provides a high-level design for the System Resource Monitoring (SRM) feature in SONiC, enabling proactive system health management and prevent resource exhaustion. It covers CPU, memory, and storage utilization monitoring with history and threshold-based alarming; and syslog-based notifications. The document is written so that a new engineer or architect joining the SONiC community can understand the end-to-end feature design.
@@ -141,17 +139,17 @@ This document provides a high-level design for the System Resource Monitoring (S
 
 #### 5.1 Functional Requirements
 
-| ID    | Requirement Summary                                                                                                         |
-|-------|-----------------------------------------------------------------------------------------------------------------------------|
-| FR-1  | Retrieve current snapshot of CPU utilization **per logical core**.                                                          |
+| ID    | Requirement Summary                                                                                                             |
+|-------|-----------------------------------------------------------------------------------------------------------------------------    |
+| FR-1  | Retrieve current snapshot of CPU utilization **per logical core**.                                                              |
 | FR-2  | Retrieve CPU utilization **history per core** for a configurable duration (default 60 min) at a configurable measurement interval (default 5 min). Each value is the average utilization during that interval. History is read-only and non-persistent across restarts. |
-| FR-3  | Retrieve current snapshot of system-level physical memory (RAM): available and used.                                        |
+| FR-3  | Retrieve current snapshot of system-level physical memory (RAM): available and used.                                            |
 | FR-4  | Retrieve memory utilization **history** for a configurable duration (default 60 min) at a configurable measurement interval (default 5 min). History is read-only and non-persistent across restarts.  |
 | FR-5  | Retrieve storage partition information and utilization for all permanently attached storage devices. Report number of partitions per device and utilization percentage of each mounted partition. Removable devices excluded. |
-| FR-6  | Support configurable maximum CPU utilization threshold (default 85 %). Generate alarm when exceeded; auto-clear when below. |
-| FR-7 | Support configurable maximum memory utilization threshold (default 80 %). Generate alarm when exceeded; auto-clear when below.    |
-| FR-8 | Support configurable maximum flash/disk utilization threshold (default 75 %). Generate alarm when exceeded; auto-clear when below.    |
-| FR-9 | Generate syslog notifications for all threshold violations (raise and clear).                                               |
+| FR-6  | Support configurable maximum CPU utilization threshold (default 85 %). Generate alarm when exceeded; auto-clear when below.     |
+| FR-7  | Support configurable maximum memory utilization threshold (default 80 %). Generate alarm when exceeded; auto-clear when below.  |
+| FR-8  | Support configurable maximum flash/disk utilization threshold (default 75 %). Generate alarm when exceeded; auto-clear when below.|
+| FR-9  | Generate syslog notifications for all threshold violations (raise and clear).                                               |
 
 #### 5.2 Functional Description
 
@@ -278,7 +276,6 @@ used_memory = total_memory − available_memory
 - **Memory Utilization Percentage:**
 memory_utilization = round((used_memory / total_memory) × 100)
 
-
 **Polling Mechanism**
 
 - **Polling Interval:** 5 seconds (System-wide)
@@ -286,7 +283,7 @@ memory_utilization = round((used_memory / total_memory) × 100)
 
 **Rationale for 5-Second Interval**
 
-- **System Overhead:** Minimal CPU impact; `/proc/meminfo` read is a lightweight operation
+**System Overhead:** Minimal CPU impact; `/proc/meminfo` read is a lightweight operation
 
 **Store in STATE_DB:** Update memory snapshot in STATE_DB
 
@@ -309,7 +306,7 @@ memory_utilization = round((used_memory / total_memory) × 100)
 **Key Considerations**
 
 - **System-Level Only:** Single memory snapshot for entire system (not per-process or per-core)
-- **Current Snapshot Only:** No historical data maintained for FR-3
+- **Current Snapshot Only:** No average or historical data maintained for FR-3
 - **MemAvailable vs MemFree:** Uses MemAvailable for more accurate available memory estimation
 - **Unit Consistency:** All values stored in Bytes (raw). Converted to KB by the Management Interfaces for flexibility
 - **Non-Persistent:** Snapshot resets on daemon restart
@@ -340,10 +337,10 @@ The daemon shall perform filesystem statistics collection on mounted partitions 
 
 - **Input Source:** `/proc/mounts` filesystem table
 - **Parse Format:** Space-separated fields per line
-    - **Field 1:** Device path (e.g., `/dev/sda1`)
-    - **Field 2:** Mount point (e.g., `/`, `/home`)
-    - **Field 3:** Filesystem type (e.g., `ext4`, `xfs`, `btrfs`)
-     - **Remaining fields:** Mount options and metadata
+- **Field 1:** Device path (e.g., `/dev/sda1`)
+- **Field 2:** Mount point (e.g., `/`, `/home`)
+- **Field 3:** Filesystem type (e.g., `ext4`, `xfs`, `btrfs`)
+- **Remaining fields:** Mount options and metadata
 - **Action:** Read entire file and parse each line to extract device, mount point, and filesystem type
 
 **2.2 Stage 2: Device Type Filtering (Inclusion Criteria)**
@@ -490,8 +487,8 @@ Base Device: nvme0n1
 
 - **Per-Device Count:** Total number of qualifying mounted partitions belonging to each base device.
 - **Count Determination:Partition count is implicitly determined by counting STATE_DB entries per base device.
-    # Count partitions for device 'sda'
-    redis-cli -n 6 KEYS "STORAGE_TABLE|sda|*" | wc -l
+  # Count partitions for device 'sda'
+  redis-cli -n 6 KEYS "STORAGE_TABLE|sda|*" | wc -l
 - **Count Criteria:** Include only partitions that successfully passed all four filtering stages
 - **Unmounted Partitions:** Do not include in count (only mounted partitions are considered)
 
@@ -667,7 +664,7 @@ Three independent thresholds are supported:
 
 - **CPU** - CONFIG_DB Key: `CPU_GLOBAL|global` - Field: `cpu_utilization_threshold`- Default: 85% 
 - **Memory** - CONFIG_DB Key: `RAM_GLOBAL|global` field:`ram_utilization_threshold` - Default: 80% 
-- **Disk** - CONFIG_DB Key: `STORAGE_GLOBAL|global, Field: `storage_utilization_threshold` - Default: 75% - Alarm Status: active or cleared
+- **Disk** - CONFIG_DB Key: `STORAGE_GLOBAL|global, Field: `storage_utilization_threshold` - Default: 75% 
 
 **Alarm lifecycle:**
       current >= threshold
@@ -700,31 +697,31 @@ All threshold events produce syslog entries via the Python `syslog` module:
 
 **Alarm raised (Three syslog entries emitted):**
 
-<WARNING> pmon#platformd: ALARM RAISED: CPU_UTILIZATION | Resource: 0|0 | Current: 90% | Threshold: 85% | CPU utilization exceeded threshold
+<WARNING> pmon#platformmond: ALARM RAISED: CPU_UTILIZATION | Resource: 0|0 | Current: 90% | Threshold: 85% | CPU utilization exceeded threshold
 
-<ALERT> pmon#platformd: ALARM RAISED: CPU_UTILIZATION | Resource: 0|0 | Current: 90% | Threshold: 85% | CPU utilization exceeded threshold
+<ALERT> pmon#platformmond: ALARM RAISED: CPU_UTILIZATION | Resource: 0|0 | Current: 90% | Threshold: 85% | CPU utilization exceeded threshold
 
-<WARNING> pmon#platformd: PLATFORM_ALARM: type=CPU_UTILIZATION, resource=0|0, action=raised, current=90, threshold=85
+<WARNING> pmon#platformmond: PLATFORM_ALARM: type=CPU_UTILIZATION, resource=0|0, action=raised, current=90, threshold=85
 
-<WARNING> pmon#platformd: ALARM RAISED: RAM_UTILIZATION | Current: 90% | Threshold: 80% | RAM utilization exceeded threshold
+<WARNING> pmon#platformmond: ALARM RAISED: RAM_UTILIZATION | Current: 90% | Threshold: 80% | RAM utilization exceeded threshold
 
-<ALERT> pmon#platformd: ALARM RAISED: RAM_UTILIZATION | Current: 90% | Threshold: 80% | RAM utilization exceeded threshold
+<ALERT> pmon#platformmond: ALARM RAISED: RAM_UTILIZATION | Current: 90% | Threshold: 80% | RAM utilization exceeded threshold
 
-<WARNING> pmon#platformd: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=global, action=raised, current=90, threshold=80
+<WARNING> pmon#platformmond: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=global, action=raised, current=90, threshold=80
 
 **Alarm cleared (Three syslog entries emitted):**
 
-<WARNING> pmon#platformd: ALARM CLEARED: CPU_UTILIZATION | Resource: 0|0 | Current: 31% | Threshold: 85% | CPU utilization returned to normal
+<WARNING> pmon#platformmond: ALARM CLEARED: CPU_UTILIZATION | Resource: 0|0 | Current: 31% | Threshold: 85% | CPU utilization returned to normal
 
-<INFO> pmon#platformd: ALARM CLEARED: CPU_UTILIZATION | Resource: 0|0 | Current: 31% | Threshold: 85% | CPU utilization returned to normal
+<INFO> pmon#platformmond: ALARM CLEARED: CPU_UTILIZATION | Resource: 0|0 | Current: 31% | Threshold: 85% | CPU utilization returned to normal
 
-<INFO> pmon#platformd: PLATFORM_ALARM: type=CPU_UTILIZATION, resource=0|0, action=cleared, current=31, threshold=85
+<INFO> pmon#platformmond: PLATFORM_ALARM: type=CPU_UTILIZATION, resource=0|0, action=cleared, current=31, threshold=85
 
-<WARNING> pmon#platformd: ALARM CLEARED: RAM_UTILIZATION | Current: 31% | Threshold: 80% | RAM utilization returned to normal
+<WARNING> pmon#platformmond: ALARM CLEARED: RAM_UTILIZATION | Current: 31% | Threshold: 80% | RAM utilization returned to normal
 
-<INFO> pmon#platformd: ALARM CLEARED: RAM_UTILIZATION | Current: 31% | Threshold: 80% | RAM utilization returned to normal
+<INFO> pmon#platformmond: ALARM CLEARED: RAM_UTILIZATION | Current: 31% | Threshold: 80% | RAM utilization returned to normal
 
-<INFO>    pmon#platformd: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=global, action=cleared, current=31, threshold=80
+<INFO>    pmon#platformmond: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=global, action=cleared, current=31, threshold=80
 
 **Disk example (per-partition):**
 
@@ -801,10 +798,10 @@ The daemon consumes negligible CPU resources (< 0.1 % of a single core).
 
 ### 6. Architecture Design
 
-**platformd Architecture diagram flow:**
+**platformmond Architecture diagram flow:**
 
 ┌─────────────────────────────────────────────────────────┐
-│                    Management Layer                     │
+│                Management Layer                         │
 │                    (CLI)                                │
 └────────────────────┬────────────────────────────────────┘
                      │ read thresholds / history config
@@ -824,9 +821,9 @@ The daemon consumes negligible CPU resources (< 0.1 % of a single core).
 └────────────────────┬────────────────────────────────────┘
                      │ read on startup + every 5s poll
 ┌────────────────────▼────────────────────────────────────┐
-│              PMON Container                             │
+│                   PMON Container                        │
 │  ┌───────────────────────────────────────────────────┐  │
-│  │            platformd                         │       │
+│  │                   platformmond                    │  │
 │  │                                                   │  │
 │  │  ┌─────────────────────────────────────────────┐  │  │
 │  │  │  Thread 1: CPU Snapshot (every 5s)          │  │  │
@@ -867,7 +864,7 @@ The daemon consumes negligible CPU resources (< 0.1 % of a single core).
 │  │  ┌─────────────────────────────────────────────┐  │  │
 │  │  │  AlarmManager (shared by Thread 1 & 3)      │  │  │
 │  │  │  - Two-state machine: cleared ↔ active      │  │  │
-│  │  │  - threshold == 0 → alarm disabled          │  │  │
+│  │  │  - threshold == 0 → alarm Cleared           │  │  │
 │  │  │  - Raise: LOG_ALERT + LOG_WARNING (syslog)  │  │  │
 │  │  │  - Clear: LOG_INFO  + LOG_INFO   (syslog)   │  │  │
 │  │  └─────────────────────────────────────────────┘  │  │
@@ -957,7 +954,7 @@ The daemon consumes negligible CPU resources (< 0.1 % of a single core).
 │  │  ┌─────────────────────────────────────────────┐  │  │
 │  │  │  AlarmManager                               │  │  │
 │  │  │  - Two-state machine: cleared ↔ active      │  │  │
-│  │  │  - threshold == 0 → alarm disabled          │  │  │
+│  │  │  - threshold == 0 → alarm Cleared           │  │  │
 │  │  │  - Raise: LOG_ALERT + LOG_WARNING (syslog)  │  │  │
 │  │  │  - Clear: LOG_INFO  + LOG_INFO   (syslog)   │  │  │
 │  │  └─────────────────────────────────────────────┘  │  │
@@ -998,14 +995,14 @@ The daemon consumes negligible CPU resources (< 0.1 % of a single core).
 #### 6.1 Basic Approach
 
 Two Python daemons handle system resource monitoring, both running inside the **PMON container**.
-A new Python daemon — **`platformd`** — is introduced for this feature. It collects CPU and memory (RAM) metrics from the Linux kernel. It uses four independent threads — two snapshot threads (every 5 seconds) and two history threads (every configurable interval) — to collect current utilization and maintain historical averages in a circular buffer. It monitors configurable thresholds and raises/clears alarms via syslog. Alarm status is stored as a field within the respective resource tables (CPU_TABLE, RAM_GLOBAL) in STATE_DB.
+A new Python daemon — **`platformmond`** — is introduced for this feature. It collects CPU and memory (RAM) metrics from the Linux kernel. It uses four independent threads — two snapshot threads (every 5 seconds) and two history threads (every configurable interval) — to collect current utilization and maintain historical averages in a circular buffer. It monitors configurable thresholds and raises/clears alarms via syslog. Alarm status is stored as a field within the respective resource tables (CPU_TABLE, RAM_GLOBAL) in STATE_DB.
 **`stormond`** is an existing SONiC daemon that has been extended to support storage/disk partition monitoring as part of this feature. It runs a single-threaded main loop (every 5 seconds), discovers permanently attached storage devices via a multi-stage filtering pipeline (/proc/mounts, /sys/block/*/removable), and computes per-partition utilization using os.statvfs(). It monitors configurable thresholds and raises/clears alarms via syslog. Alarm status is stored within STORAGE_TABLE in STATE_DB. FSIO counters are persisted to a JSON file to survive reboots.
 
 #### 6.2 Container
 
 | Component                  | Location                                            |
 |----------------------------|-----------------------------------------------------|
-| `platformd` , `stormond`   | `pmon` container                                    |
+| `platformmond` , `stormond`| `pmon` container                                    |
 | CLI                        | `sonic-cli` / Click framework                       |
 | YANG                       | `sonic-mgmt-framework` container                    |
 
@@ -1021,7 +1018,7 @@ A new Python daemon — **`platformd`** — is introduced for this feature. It c
 │  │                        pmon container                               │  │
 │  │                                                                     │  │
 │  │  ┌──────────────────────────────────────────────────────────────┐   │  │
-│  │  │                platformd  (New Python daemon)                │   │  │
+│  │  │                platformmond  (New Python daemon)             │   │  │
 │  │  │                                                              │   │  │
 │  │  │  ┌───────────────────────┐  ┌───────────────────────────┐    │   │  │
 │  │  │  │  Thread 1 & 2:        │  │  Thread 3 & 4:            │    │   │  │
@@ -1034,7 +1031,7 @@ A new Python daemon — **`platformd`** — is introduced for this feature. It c
 │  │  │             └──────────────┬──────────────┘                  │   │  │
 │  │  │                            ▼                                 │   │  │
 │  │  │  ┌─────────────────────────────────────────────────────┐     │   │  │
-│  │  │  │                  History Engine                     │     │   │  │
+│  │  │  │              History Engine                         │     │   │  │
 │  │  │  │  Circular buffer per core/resource per interval     │     │   │  │
 │  │  │  │  Writes: CPU_HISTORY_TABLE, RAM_HISTORY_TABLE       │     │   │  │
 │  │  │  └──────────────────────┬──────────────────────────────┘     │   │  │
@@ -1059,7 +1056,7 @@ A new Python daemon — **`platformd`** — is introduced for this feature. It c
 │  │  │  │  os.statvfs() per partition                         │     │   │  │
 │  │  │  │  Writes: STORAGE_TABLE                              │     │   │  │
 │  │  │  └──────────────────────┬──────────────────────────────┘     │   │  │
-│  │  │                         ▼                                    |   │  │
+│  │  │                         ▼                                    │   │  │
 │  │  │  ┌─────────────────────────────────────────────────────┐     │   │  │
 │  │  │  │  FSIO Counter Reconciliation                        │     │   │  │
 │  │  │  │  /proc/diskstats → STATE_DB + JSON persistence      │     │   │  │
@@ -1068,7 +1065,7 @@ A new Python daemon — **`platformd`** — is introduced for this feature. It c
 │  │  │                         ▼                                    │   │  │
 │  │  │  ┌─────────────────────────────────────────────────────┐     │   │  │
 │  │  │  │           Threshold / Alarm Engine                  │     │   │  │
-│  │  │  │   Compare current vs CONFIG_DB thresholds           │     │   │  │
+│  │  │  │  Compare current vs CONFIG_DB thresholds            │     │   │  │
 │  │  │  │  Raise/clear alarms → syslog + STORAGE_TABLE        │     │   │  │
 │  │  │  └─────────────────────────────────────────────────────┘     │   │  │
 │  │  └──────────────────────────────────────────────────────────────┘   │  │
@@ -1077,9 +1074,9 @@ A new Python daemon — **`platformd`** — is introduced for this feature. It c
 │                                  │                                        │
 │                                  ▼                                        │
 │  ┌────────────────────────────────────────────────────────────────────┐   │
-|  │                     Redis (STATE_DB)                               │   │
+│  │                     Redis (STATE_DB)                               │   │
 │  │                                                                    │   │
-│  │  platformd writes:                  stormond writes:               │   │
+│  │  platformmond writes:                  stormond writes:            │   │
 │  │  • CPU_TABLE|{cpu}|{core}           • STORAGE_TABLE|{dev}|{part}   │   │
 │  │  • CPU_HISTORY_TABLE|{cpu}|         • STORAGE_INFO|{device}        │   │
 │  │      {core}|{timestamp}                                            │   │
@@ -1088,7 +1085,7 @@ A new Python daemon — **`platformd`** — is introduced for this feature. It c
 │  └────────────────────────────────────────────────────────────────────┘   │
 │                                                                           │
 │  ┌────────────────────────────────────────────────────────────────────┐   │
-│  │                    Redis (CONFIG_DB)                               │   │
+│  │                     Redis (CONFIG_DB)                              │   │
 │  │  • CPU_GLOBAL|global                                               │   │
 │  │  • RAM_GLOBAL|global                                               │   │
 │  │  • STORAGE_GLOBAL|global                                           │   │
@@ -1292,10 +1289,10 @@ No changes to COUNTERS_DB are required for this feature.
 ##### 7.3.1 Resource Collection Flow
 
 ```
-**platformd**
+**platformmond**
                     ┌─────────────────────────┐
-                    │       platformd         │
-                    │       (startup)         │
+                    │        platformmond     │
+                    │        (startup)        │
                     └────────────┬────────────┘
                                  │
                     ┌────────────▼────────────┐
@@ -1427,7 +1424,7 @@ No changes to COUNTERS_DB are required for this feature.
               │  ┌──────────────▼────────────────┐  │
               │  │  Check alarm threshold        │  │
               │  │  (every poll)                 │  │
-              │         │           │               │
+              │  │                               │  │
               │  │  current >= threshold?        │  │
               │  │  → raise alarm (LOG_ALERT     │  │
               │  │    + LOG_WARNING)             │  │
@@ -1467,7 +1464,7 @@ No changes to COUNTERS_DB are required for this feature.
 ```
     ┌──────────────────┐        ┌──────────────────┐
     │  Daemon collects │        │  threshold == 0? │
-    │  current metric  │─────▶  │                  │
+    │  current metric  │───────▶│                 │
     │  (CPU/RAM/Disk)  │        └────────┬─────────┘
     └──────────────────┘                 │
                                YES       │    NO
@@ -1482,12 +1479,12 @@ No changes to COUNTERS_DB are required for this feature.
                           │                    │
               ┌───────────▼──────────┐  ┌──────▼───────────────┐
               │ current >= threshold │  │ current < threshold  │
-              │ AND prev=cleared     │  │ AND prev=active      │
+              │ AND prev = cleared   │  │ AND prev = active    │
               └───────────┬──────────┘  └──────┬───────────────┘
                           │                    │
               ┌───────────▼──────────┐  ┌──────▼───────────────┐
-              │ Set alarm=active     │  │Set alarm=cleared     │
-              │ Write STATE_DB       │  │ Write STATE_DB       │
+              │  Set alarm = active  │  │  Set alarm = cleared │
+              │  Write STATE_DB      │  │  Write STATE_DB      │
               │  syslog LOG_ALERT    │  │  syslog LOG_INFO     │
               │  syslog LOG_WARNING  │  │  syslog LOG_INFO     │
               │  (structured)        │  │  (structured)        │
@@ -1497,20 +1494,20 @@ No changes to COUNTERS_DB are required for this feature.
 
 #### 7.4 Sequence Diagram
 
-**Sequence 1a: platformd Initialization**
+**Sequence 1a: platformmond Initialization**
 ```
-┌──────┐    ┌──────────┐    ┌───────────┐    ┌──────────┐
-│ PMON │    │ platformd│    │ CONFIG_DB │    │ STATE_DB │
-└──┬───┘    └────┬─────┘    └─────┬─────┘    └────┬─────┘
-   │             │                │               │
-   │ Start       │                │               │
-   │ platformd   │                │               │
-   ├────────────>│                │               │
-   │             │                │               │
-   │             │ Read CPU_GLOBAL│               │
-   │             ├───────────────>│               │
-   │             │                │               │
-   │             │ Read RAM_GLOBAL│               │
+┌──────┐    ┌────────────┐       ┌───────────┐       ┌──────────┐
+│ PMON │    │platformmond│       │ CONFIG_DB │       │ STATE_DB │
+└──┬───┘    └────┬───────┘       └─────┬─────┘       └────┬─────┘
+   │             │                     │                  │
+   │ Start       │                     │                  │
+   │ platformmond│                     │                  │
+   ├────────────>│                     │                  │
+   │             │                     │                  │
+   │             │ Read CPU_GLOBAL     │                  │
+   │             ├────────────────────>│                  │
+   │             │                     │                  │
+   │             │ Read RAM_GLOBAL     │                  │
    │             ├────────────────────>│                  │
    │             │                     │                  │
    │             │ CPU & RAM thresholds│                  │
@@ -1566,13 +1563,13 @@ No changes to COUNTERS_DB are required for this feature.
    │ Start       │                     │                  │
    │ stormond    │                     │                  │
    ├────────────>│                     │                  │
-   │             │                │               │
+   │             │                     │                  │
    │             │ Read STORAGE_GLOBAL │                  │
    │             ├────────────────────>│                  │
-   │             │                │               │
+   │             │                     │                  │
    │             │ Storage threshold   │                  │
    │             │<────────────────────┤                  │
-   │             │                │               │
+   │             │                     │                  │
    │             │ Device Discovery Pipeline              │
    │             │ Stage 1: Parse /proc/mounts            │
    │             │ Stage 2: Filter device path patterns   │
@@ -1582,7 +1579,7 @@ No changes to COUNTERS_DB are required for this feature.
    │             │──┐                  │                  │
    │             │  │                  │                  │
    │             │<─┘                  │                  │
-   │             │                │               │
+   │             │                     │                  │
    │             │ FSIO Counter Reconciliation            │
    │             │ Read existing STATE_DB FSIO values     │
    │             ├────────────────────────────────────────>
@@ -1597,26 +1594,26 @@ No changes to COUNTERS_DB are required for this feature.
    │             │ INIT / STATE_DB /   │                  │
    │             │ JSON                │                  │
    │             │──┐                  │                  │
-   │             │ │              │               │
+   │             │  │                  │                  │
    │             │<─┘                  │                  │
    │             │                     │                  │
    │             │ Start single-threaded main loop (5s)   │
    │             │──┐                  │                  │
    │             │  │                  │                  │
    │             │<─┘                  │                  │
-   │             │                │               │
-   │   Ready     │                │               │
-   │<────────────┤                │               │
+   │             │                     │                  │
+   │   Ready     │                     │                  │
+   │<────────────┤                     │                  │
 
 ```
 
-**Sequence 2a: platformd Metric Collection and Threshold Monitoring**
+**Sequence 2a: platformmond Metric Collection and Threshold Monitoring**
 
 ```
-┌────────────┐  ┌───────────┐  ┌────────┐  ┌────────┐
-│platformd │  │   Linux    │  │STATE_DB│  │ Syslog │
-│(4 threads) │  │  Kernel   │  │        │  │        │
-└─────┬──────┘  └─────┬─────┘  └───┬────┘  └───┬────┘
+┌─────────────┐ ┌───────────┐  ┌────────┐  ┌────────┐
+│ platformmond│ │  Linux    │  │STATE_DB│  │ Syslog │
+│(4 threads)  │ │  Kernel   │  │        │  │        │
+└─────┬───────┘ └─────┬─────┘  └───┬────┘  └───┬────┘
       │               │            │           │
       │ [Thread 1: CPU Snapshot - every 5s]    │
       │               │            │           │
@@ -1653,7 +1650,7 @@ No changes to COUNTERS_DB are required for this feature.
       │ Write CPU_TABLE|{cpu}|{core}           │
       │ (util%, alarm_status,      │           │
       │  timestamp)   │            │           │
-      ├───────────────────────────>│           │
+      ├──────────────────────────>│            │
       │               │            │           │
       │ Poll CONFIG_DB for         │           │
       │ threshold changes          │           │
@@ -1697,20 +1694,20 @@ No changes to COUNTERS_DB are required for this feature.
       │ Write RAM_GLOBAL|global    │           │
       │ (total/used/avail/util%,   │           │
       │  alarm_status, timestamp)  │           │
-      ├───────────────────────────>│           │
+      ├──────────────────────────>│            │
       │               │            │           │
       │ [Thread 2: CPU History - every N min]  │
       │               │            │           │
       │ Average accumulator[]      │           │
       │ Evict oldest if            │           │
       │ >= max_history_entries     │           │
-      │──┐           │             │           │
-      │  │           │             │           │
-      │<─┘           │             │           │
-      │              │             │           │
+      │──┐            │            │           │
+      │  │            │            │           │
+      │<─┘            │            │           │
+      │               │            │           │
       │ Write CPU_HISTORY_TABLE    │           │
       │ |{cpu}|{core}|{timestamp}  │           │
-      ├───────────────────────────>│           │
+      ├──────────────────────────>│            │
       │               │            │           │
       │ Clear accumulator[]        │           │
       │──┐            │            │           │
@@ -1755,38 +1752,38 @@ No changes to COUNTERS_DB are required for this feature.
       │               │            │           │
       │ f_blocks, f_bfree,         │           │
       │ f_bavail, f_frsize         │           │
-      │<─────────────┤             │           │
-      │              │             │           │
+      │<──────────────┤            │           │
+      │               │            │           │
       │ Compute total/used/        │           │
       │ available/util%            │           │
-      │──┐           │             │           │
-      │  │           │             │           │
-      │<─┘           │             │           │
-      │              │             │           │
-      │ Check alarm: │             │           │
+      │──┐            │            │           │
+      │  │            │            │           │
+      │<─┘            │            │           │
+      │               │            │           │
+      │ Check alarm:  │            │           │
       │ current >= threshold?      │           │
-      │──┐           │             │           │
-      │  │           │             │           │
-      │<─┘           │             │           │
-      │              │             │           │
+      │──┐            │            │           │
+      │  │            │            │           │
+      │<─┘            │            │           │
+      │               │            │           │
       │ [If alarm state changes]   │           │
-      │              │             │           │
-      │ Alarm raised:│             │           │
+      │               │            │           │
+      │ Alarm raised: │            │           │
       ├───────────────────────────────────────>│
       │ LOG_ALERT (human-readable) │           │
       │ LOG_WARNING (structured)   │           │
-      │              │             │           │
+      │               │            │           │
       │ Alarm cleared:│            │           │
       ├───────────────────────────────────────>│
       │ LOG_INFO (human-readable)  │           │
       │ LOG_INFO (structured)      │           │
-      │              │             │           │
+      │               │            │           │
       │ Write STORAGE_TABLE        │           │
       │ |{device}|{partition}      │           │
       │ (total/used/avail/util%,   │           │
       │  alarm_status, timestamp)  │           │
       ├──────────────────────────> │           │
-      │              │             │           │
+      │               │            │           │
       │ Update FSIO counters       │           │
       │ from /proc/diskstats       │           │
       ├──────────────>│            │           │
@@ -1808,7 +1805,7 @@ No changes to COUNTERS_DB are required for this feature.
 
 ```
 ┌──────────────┐     ┌──────────┐     ┌───────────┐
-│  platformd   │     │ STATE_DB │     │ CONFIG_DB │
+│ platformmond │     │ STATE_DB │     │ CONFIG_DB │
 │ (Thread 2:   │     │          │     │           │
 │  CPU History │     │          │     │           │
 │  Thread 4:   │     │          │     │           │
@@ -1820,7 +1817,7 @@ No changes to COUNTERS_DB are required for this feature.
        │ Read CPU_GLOBAL & RAM_GLOBAL       │
        │ history config                     │
        ├───────────────────────────────────>│
-       │               │                    │
+       │                  │                 │
        │ cpu/ram_history_duration,          │
        │ cpu/ram_history_measurement_       │
        │ interval                           │
@@ -1836,25 +1833,25 @@ No changes to COUNTERS_DB are required for this feature.
        │                  │                 │
        │ [Thread 2: CPU History]            │
        │ [Runs independently every N min]   │
-       │              │                     │
+       │                  │                 │
        │ Sleep(cpu_history_interval)        │
-       │──┐           │                     │
-       │  │           │                     │
-       │<─┘           │                     │
-       │              │                     │
+       │──┐               │                 │
+       │  │               │                 │
+       │<─┘               │                 │
+       │                  │                 │
        │ Compute average of                 │
        │ cpu_core.history_accumulator[]     │
-       │──┐           │                     │
-       │  │           │                     │
-       │<─┘           │                     │
-       │              │                     │
+       │──┐               │                 │
+       │  │               │                 │
+       │<─┘               │                 │
+       │                  │                 │
        │ Evict oldest entry if              │
        │ len(buffer) >= max_history_entries │
        │ (remove from buffer + STATE_DB)    │
-       │──┐           │                     │
-       │  │           │                     │
-       │<─┘           │                     │
-       │              │                     │
+       │──┐               │                 │
+       │  │               │                 │
+       │<─┘               │                 │
+       │                  │                 │
        │ Write CPU_HISTORY_TABLE            │
        │ |{cpu_index}|{core_index}          │
        │ |{timestamp}     │                 │
@@ -1909,7 +1906,7 @@ No new SAI attributes or APIs are required.
 
 #### 9.1 Daemon Design
 
-##### 9.1.1 platformd
+##### 9.1.1 platformmond
 
 **Location:** Inside `pmon` container
 **Language:** Python 3
@@ -1942,7 +1939,7 @@ WantedBy=multi-user.target
 4. Load Storage configuration from STORAGE_GLOBAL|global.
 5. Clear any stale entries from STATE_DB history tables
    (CPU_HISTORY_TABLE, RAM_HISTORY_TABLE).
-6.  Discover logical CPU cores from /proc/stat.
+6. Discover logical CPU cores from /proc/stat.
 7. Discover mounted storage partitions via os.statvfs().
 8. Start 4 independent threads:
    - Thread 1: CPU snapshot (every 5s)
@@ -1956,7 +1953,7 @@ WantedBy=multi-user.target
 
 ```python
 
-class PlatformDaemon(daemon_base.DaemonBase):
+class platformmondaemon(daemon_base.DaemonBase):
     def __init__(self):
         self.config_db = daemon_base.db_connect(CONFIG_DB)
         self.state_db  = daemon_base.db_connect(STATE_DB)
@@ -2232,44 +2229,6 @@ def update_history(self):
             self.log_error(f"Failed to update RAM history: {str(e)}")
 
 ```
-
-**Storage Collection:**
-
-```python
-def collect_storage_snapshot(self):
-    partitions = self.discover_permanent_partitions()
-    devices = {}  # device -> set of partitions
-
-    for part in partitions:
-        vfs = os.statvfs(part.mount_point)
-        total_blocks = vfs.f_blocks
-        free_blocks  = vfs.f_bfree
-        if total_blocks > 0:
-            used_blocks = total_blocks - free_blocks
-            util_pct = round(100.0 * used_blocks / total_blocks, 1)
-        else:
-            util_pct = 0.0
-
-        mp_encoded = part.mount_point.replace('/', '_') or '_root'
-        self.state_db.set(self.state_db.STATE_DB,
-            f"SYSTEM_STORAGE_PARTITION|{mp_encoded}", {
-                "device": part.device,
-                "filesystem_type": part.fstype,
-                "mount_point": part.mount_point,
-                "utilization_percent": str(util_pct),
-                "timestamp": iso_now()
-        })
-        parent_dev = self.get_parent_device(part.device)
-        devices.setdefault(parent_dev, set()).add(part.device)
-
-    for dev, parts in devices.items():
-        self.state_db.set(self.state_db.STATE_DB,
-            f"SYSTEM_STORAGE_DEVICE|{dev}", {
-                "num_partitions": str(len(parts)),
-                "type": self.detect_device_type(dev)
-        })
-```
-
 ##### 9.1.3 Threshold and Alarm Engine
 
 ```python
@@ -2416,13 +2375,13 @@ WantedBy=multi-user.target
 **Initialization sequence:**
 
 ```
-1.   Connect to CONFIG_DB and STATE_DB
-2.   Load SRM configuration from STORAGE_GLOBAL|global
-3.   Initialize legacy stormond components (storage device monitoring)
-4.   Discover permanent storage devices and partitions from /proc/mounts
-5.   Filter removable devices via /sys/block/*/removable
-6.   Initialize alarm manager
-7.   Enter main loop
+1. Connect to CONFIG_DB and STATE_DB
+2. Load SRM configuration from STORAGE_GLOBAL|global
+3. Initialize legacy stormond components (storage device monitoring)
+4. Discover permanent storage devices and partitions from /proc/mounts
+5. Filter removable devices via /sys/block/*/removable
+6. Initialize alarm manager
+7. Enter main loop
 ```
 
 **Main loop (simplified pseudocode):**
@@ -2464,7 +2423,42 @@ class DaemonStorage(daemon_base.DaemonBase):
         
         return True
 ```
+**Storage Collection:**
 
+```python
+def collect_storage_snapshot(self):
+    partitions = self.discover_permanent_partitions()
+    devices = {}  # device -> set of partitions
+
+    for part in partitions:
+        vfs = os.statvfs(part.mount_point)
+        total_blocks = vfs.f_blocks
+        free_blocks  = vfs.f_bfree
+        if total_blocks > 0:
+            used_blocks = total_blocks - free_blocks
+            util_pct = round(100.0 * used_blocks / total_blocks, 1)
+        else:
+            util_pct = 0.0
+
+        mp_encoded = part.mount_point.replace('/', '_') or '_root'
+        self.state_db.set(self.state_db.STATE_DB,
+            f"SYSTEM_STORAGE_PARTITION|{mp_encoded}", {
+                "device": part.device,
+                "filesystem_type": part.fstype,
+                "mount_point": part.mount_point,
+                "utilization_percent": str(util_pct),
+                "timestamp": iso_now()
+        })
+        parent_dev = self.get_parent_device(part.device)
+        devices.setdefault(parent_dev, set()).add(part.device)
+
+    for dev, parts in devices.items():
+        self.state_db.set(self.state_db.STATE_DB,
+            f"SYSTEM_STORAGE_DEVICE|{dev}", {
+                "num_partitions": str(len(parts)),
+                "type": self.detect_device_type(dev)
+        })
+```
 ##### 9.1.5 Storage Partition Discovery and Monitoring
 
 **Partition Discovery:**
@@ -2718,7 +2712,6 @@ sudo config platform storage utilization-threshold <0-100>
 Example:
 ```
 admin@sonic:~$ sudo config platform cpu utilization-threshold 60
-CPU utilization threshold set to 60%.
 ```
 
 #### 9.4.2 Show Commands
@@ -2731,11 +2724,11 @@ admin@sonic:~$ show platform cpu
 
 Output:
 ```
-  Cpu Index    Core Index  Utilization    Alarm Status    Threshold    Timestamp
------------  ------------  -------------  --------------  -----------  ------------------
-          0             0  11%            Cleared         60%          20260602 14:51:07
-          0             1  5%             Cleared         60%          20260602 14:51:07
-
+admin@sonic:~$ show platform cpu
+ Cpu Index    Core Index    Utilization    Alarm Status    Threshold       Timestamp
+-----------  ------------  -------------  --------------  -----------  -----------------
+     0            0             4%           Cleared         20%       20260612 10:13:46
+     0            1             4%           Cleared         20%       20260612 10:13:46
 ```
 
 **Show CPU Utilization History:**
@@ -2755,7 +2748,7 @@ admin@sonic:~$ show platform cpu-history
 
 Output:
 ```
-    Status   : Enabled
+  Status   : Enabled
   Duration : 60 minutes
   Interval : 5 minutes
 
@@ -2832,10 +2825,10 @@ admin@sonic:~$ show platform cpu
 
 Output:
 ```
-  Cpu Index    Core Index  Utilization    Alarm Status    Threshold    Timestamp
------------  ------------  -------------  --------------  -----------  ------------------
-          0             0  90%            Active          85%          20260603 05:15:47
-          0             1  7%             Cleared         85%          20260603 05:15:47
+ Cpu Index    Core Index    Utilization    Alarm Status    Threshold       Timestamp
+-----------  ------------  -------------  --------------  -----------  -----------------
+     0            0             90%            Active          85%       20260612 10:13:46
+     0            1             7%             Cleared         85%       20260612 10:13:46
 ```
 
 ```
@@ -3422,73 +3415,73 @@ This section describes error handling organized by subsystem, with precise handl
 
 ####9.8.1 Database Connection Errors
 
-|Scenario                               |Handling                    |Log Level  |
+| Scenario                              | Handling                   | Log Level |
 |---------------------------------------|----------------------------|--------- -|
 |Database connection failure (startup)  |Exit, supervisord restarts  |ERROR      |
 |STATE_DB write failure                 |Skip, retry next cycle (5s) |WARNING    |
 
 #### 9.8.2 Data Collection Errors
 
-|Error Condition                                  |Handling                                      |Log Level |
+| Error Condition                                  | Handling                                      |Log Level |
 |------------------------------------------------- |-----------------------------------------------|----------|
 |`/proc/stat unreadable                           |Skips cycle for all cores. STATE_DB CPU_TABLE retains last written values; timestamp field not updated — consumers can detect staleness|
 |`/proc/stat missing steal field (len(parts) < 8) | len(parts) > 8 guard handles missing steal field — steal defaults to 0. Other missing fields (user, nice, system, idle) raise IndexError; caught by generic exception handler; cycle skipped for affected core|
 |New CPU core appears between cycles (CPU hotplug)| update_snapshot() checks if core_name not in self.cpu_cores: continue — new cores silently skipped until daemon restart.
 | `/proc/meminfo` missing unreadable (file missing or permission denied) | Log `LOG_ERR` : "Failed to update RAM snapshot: <str(e)>". Skip the current collection cycle for the affected resource (memory). Retry on the next cycle. STATE_DB retains the last successfully written values; the `timestamp` field is **not** updated, allowing consumers to detect staleness. |
 | `/proc/meminfo` contains malformed or unexpected data (e.g., truncated read, missing fields MemTotal or MemAvailable fields) | mem_info.get('MemTotal', 0) silently returns 0. If total_memory == 0, the utilization division is skipped and memory_utilization remains 0. No explicit error is logged for malformed data — treated as zero utilization silently.|
-|/proc/mounts read error                          |Skip discovery, retry next cycle              |ERROR     |
-|Malformed /proc/mounts line                      |Skip line, continue parsing                   |Silent    |
-|/sys/block/*/removable error                     |Assume permanent device, continue             |WARNING   |
-|Mount point disappeared |PermissionError         |Skip partition, retry next cycle              |WARNING   |
-|statvfs() permission denied                      |Skip partition, retry next cycle              |WARNING   |
-|Zero total blocks                                |Set utilization 0%, continue                  |INFO      |
-|Partition mounted during operation               |Rediscover on next cycle, add to STATE_DB     |INFO      |
-|Partition unmounted during operation             |Remove from STATE_DB, clear alarms if active  |NOTICE    |
+| /proc/mounts read error                          | Skip discovery, retry next cycle              |ERROR     |
+| Malformed /proc/mounts line                      | Skip line, continue parsing                   |Silent    |
+| /sys/block/*/removable error                     | Assume permanent device, continue             |WARNING   |
+| Mount point disappeared |PermissionError         | Skip partition, retry next cycle              |WARNING   |
+| statvfs() permission denied                      | Skip partition, retry next cycle              |WARNING   |
+| Zero total blocks                                | Set utilization 0%, continue                  |INFO      |
+| Partition mounted during operation               | Rediscover on next cycle, add to STATE_DB     |INFO      |
+| Partition unmounted during operation             | Remove from STATE_DB, clear alarms if active  |NOTICE    |
 
 
 #### 9.8.3 Configuration Errors
 
-|Error Condition                                      |Handling                                                           |Log Level |
+| Error Condition                                     | Handling                                                                 |Log Level|
 |-----------------------------------------------------|-------------------------------------------------------|----------------------------|
-|CPU_GLOBAL missing at startup                        |Create default config (85% threshold)                                  |INFO      |
-| CONFIG_DB global key missing at startup             | Create default config (hardcoded defaults written to CONFIG_DB)       | INFO      |
-| Invalid values in CONFIG_DB (non-integer, etc.)     | Retain defaults; int() conversion attempted, caught by generic handler| ERR       |
-| interval > duration (no YANG validation)            | No validation performed; invalid relationship silently accepted       |  —       |
-| CONFIG_DB table entry deleted while running         | Deletion undetected until next poll; last known config retained silently | —         |
-| history_status changed disabled → enabled           | Clear history buffers, reset STATE_DB entries, update flag               | INFO       |
-| history_status changed enabled → disabled           | Update flag and STATE_DB; history data retained in STATE_DB              |   —        |
+| CPU_GLOBAL, RAM_GLOBAL missing at startup           | Create default config threshold                                          | INFO    |
+| CONFIG_DB global key missing at startup             | Create default config (hardcoded defaults written to CONFIG_DB)          | INFO    |
+| Invalid values in CONFIG_DB (non-integer, etc.)     | Retain defaults; int() conversion attempted, caught by generic handler   | ERROR   |
+| interval > duration (no YANG validation)            | No validation performed; invalid relationship silently accepted          |  —      |
+| CONFIG_DB table entry deleted while running         | Deletion undetected until next poll; last known config retained silently |  —      |
+| history_status changed disabled → enabled         | Clear history buffers, reset STATE_DB entries, update flag               | INFO    |
+| history_status changed enabled → disabled         | Update flag and STATE_DB; history data left unchanged in STATE_DB        |  —      |
 | Threshold changed while alarm is active             | Apply new threshold; if new threshold == 0, clear alarm immediately; otherwise re-evaluate on next cycle (≤5s)  |  —     |
-| Interval/duration changed while history enabled     | Changes silently ignored; buffers not recomputed                          | —         |
-| Interval/duration changed while history disabled    | Apply new values, recompute max_history_entries (duration // interval)  | INFO      |
-|STORAGE_GLOBAL missing at startup                    |Create default config (75% threshold)                  |INFO      |
-|Invalid threshold value                              |Use default (75%)                                      |WARNING   |
-|Threshold out of range                               |Clamp to 0-100                                         |WARNING   |
-|Threshold changed while alarm active                 |Re-evaluate immediately, clear if below new threshold  |INFO      |
+| Interval/duration changed while history enabled     | Changes silently ignored; buffers not recomputed                         |  —      |
+| Interval/duration changed while history disabled    | Apply new values, recompute max_history_entries (duration // interval)   | INFO    |
+| STORAGE_GLOBAL missing at startup                   | Create default config (75% threshold)                                    | INFO    |
+| Invalid threshold value                             | Retain defaults; int() conversion attempted, caught by generic handler   | ERROR   |
+| Threshold out of range                              | No validation performed; out-of-range values silently accepted           |  —      |
+| Threshold changed while alarm active                | Apply new threshold; re-evaluate on next polling cycle (≤5s)             | INFO    |
 
 #### 9.8.4 Alarm Processing Errors
 
-|Error Condition                       |Handling                            |Log Level |
+| Error Condition                      | Handling                           | Log Level|
 |--------------------------------------|------------------------------------|----------|
-|Invalid alarm values (non-numeric)    |Return "cleared", skip check        |ERROR     |
-|Syslog write failure                  |Continue (alarm still in STATE_DB)  |Silent    |
-|Multiple partitions exceed threshold  |Raise separate alarm per partition  |WARNING   |
+| Invalid alarm values (non-numeric)   | Return "cleared", skip check       | ERROR    |
+| Syslog write failure                 | Continue (alarm still in STATE_DB) | Silent   |
+| Multiple partitions exceed threshold | Raise separate alarm per partition | WARNING  |
 
 #### 9.8.5 Legacy Stormond Integration Errors
 
-|Error Condition          |Handling                             |Log Level |
-|-------------------------|------------------------------------ |----------|
-|FSIO JSON read failure   |Use STATE_DB baseline or init state  |NOTICE    |
-|FSIO JSON parse error    |Use STATE_DB baseline or init state  |ERROR     |
-|FSIO JSON write failure  |Skip sync, retry next interval       |WARNING   |
-|STORAGE_INFO corruption  |Pivot to JSON baseline if available  |WARNING   |
+| Error Condition         | Handling                                                                                                       | Log Level                 |
+|-------------------------|----------------------------------------------------------------------------------------------------------------|---------------------------|
+| FSIO JSON read failure  | File not found logs NOTICE; read/access errors log ERROR;Use STATE_DB baseline or init state                   | NOTICE / ERROR            |
+| FSIO JSON parse error   | Malformed JSON logs ERROR; invalid content (None values) logs WARNING; use STATE_DB baseline or init state     | ERROR / WARNING           |
+| FSIO JSON write failure | Log ERROR on write exception, then WARNING in caller; skip sync, retry next interval                           | ERROR / WARNING           |
+| STORAGE_INFO corruption | Pivot to JSON baseline if available; key count mismatch silent, None values log WARNING, read errors log ERROR | Silent / WARNING / ERROR  |
 
 #### 9.8.6 Daemon Lifecycle Errors
 
-|Error Condition                  |Handling                            |Log Level |
+| Error Condition                 | Handling                           | Log Level|
 |---------------------------------|------------------------------------|----------|
-|SIGTERM/SIGINT received          |Sync FSIO, clean exit               |NOTICE    |
-|Uncaught exception in main loop  |Exit non-zero, supervisord restarts |ERROR     |
-|Daemon crash                     |Supervisord restarts after 30s      |N/A       |
+| SIGTERM/SIGINT received         | Sync FSIO, clean exit              | NOTICE   |
+| Uncaught exception in main loop | Exit non-zero, supervisord restarts| ERROR    |
+| Daemon crash                    | Supervisord restarts after 30s     | N/A      |
 
 #### 9.8.7  Infrastructure Errors
 
@@ -3502,30 +3495,30 @@ This section describes error handling organized by subsystem, with precise handl
 | STATE_DB write fails in update_history()           | History entry lost for that interval; in-memory buffer still updated    | ERR       |
 | STATE_DB entries manually deleted                  | Snapshot entries re-created within ≤5s; deleted history entries permanently lost   | —         |
 | history_table._del() fails (removing oldest entry) | No explicit handler; propagates to outer except block; entire history update skipped  | ERR       |
-|STATE_DB unreachable during runtime                 |Continue monitoring, retry writes next cycle    |ERROR     |
-|Disk full (STATE_DB writes fail)                    |Continue read-only, resume when space available |ERROR     |
-|STATE_DB entries manually deleted                   |Re-create on next cycle (5s)                    |N/A       |
+| STATE_DB unreachable during runtime                | Continue monitoring, retry writes next cycle    |ERROR     |
+| Disk full (STATE_DB writes fail)                   | Continue read-only, resume when space available |ERROR     |
+| STATE_DB entries manually deleted                  | Re-create on next cycle (5s)                    |N/A       |
 
 
 #### 9.8.8 CLI Errors
 
 |Scenario                                                                    |  Handling |
 |----------------------------------------------------------------------------|-----------|
-| show platform cpu issued before daemon has completed first collection cycle| CPU_TABLE contains no entries in STATE_DB. CLI displays: "No CPU utilization data available. The monitoring daemon (platformd) may still be initializing."
+| show platform cpu issued before daemon has completed first collection cycle| CPU_TABLE contains no entries in STATE_DB. CLI displays: "No CPU utilization data available. The monitoring daemon (platformmond) may still be initializing."
 | show platform cpu-history with no history entries collected yet            | CLI displays: "No CPU history data available. History collection interval is <X> minutes; please wait for the first sample.
 | show system-resource storage when no permanent partitions are discovered   | CLI displays: "No storage partitions found." Log LOG_WARNING — this is unexpected on any real system and may indicate a /proc/mounts parsing issue.
-| sudo config platform cpu utilization-threshold <value> with out-of-range value (e.g., negative or 101)|    YANG range "0..100" constraint rejects the value. CLI returns: "Error: Invalid value <value>. CPU threshold must be between 0 and 100." CONFIG_DB is not modified.
-| show platform ram issued before daemon has completed first collection cycle RAM_GLOBAL_TABLE in STATE_DB contains no snapshot fields — _update_ram_snapshot_db() has not yet been called. Within first 5 seconds (RAM_SNAPSHOT_POLLING_INTERVAL=5), total_memory, used_memory, available_memory, memory_utilization fields are absent.
-| show platform ram-history with no history entries collected yet RAM_HISTORY_TABLE in STATE_DB contains no keys. _ram_history_worker() polls is_history_enabled() every 5 seconds — if history_enabled=False, no entries are written.
-| config platform ram threshold <value> with out-of-range value Handled at management framework layer via YANG constraints before reaching CONFIG_DB. Daemon's _check_configuration_changes() reads ram_utilization_threshold via int() conversion — non-integer values raise ValueError, caught by generic except Exception as e, logs LOG_ERR: 'Failed to check ram configuration: <str(e)>', threshold unchanged.
-| config platform  ram-history measurement-interval <value> where value does not evenly divide duration No daemon-level validation of interval vs duration relationship. _calculate_max_history_entries() uses integer division duration // interval — non-zero result always produced. YANG must constraint is the only enforcement layer.
-| CONFIG_DB Redis operations are atomic. _check_configuration_changes() is polled every update_snapshot() cycle (every 5 seconds) — not subscription-based. Last write to CONFIG_DB wins. Daemon reads full config on next poll cycle and applies final state.
-|show platform storage when no permanent partitions exist on system |CLI displays: "No storage partitions found." Log LOG_WARNING: "No permanent storage devices discovered. Check /proc/mounts and device filters."|
-|config platform storage utilization-threshold <value> with out-of-range value (e.g., 0 or 100)  |YANG range constraint "0..100" rejects the value. CLI returns: "Error: Invalid value. Storage threshold must be between 0 and 100." CONFIG_DB not modified. |
-|config platform storage utilization-threshold <value> where CONFIG_DB write fails |CLI logs LOG_ERROR: "Failed to update storage threshold in CONFIG_DB: <error>". Command fails. Daemon continues using previous threshold. Next restart reloads old threshold from CONFIG_DB.  |
-|Partition unmounted between daemon cycles  |cycles - Next cycle removes from STATE_DB STORAGE_TABLE. Active alarm auto-cleared. Log LOG_NOTICE: "STORAGE ALARM CLEARED: <partition> - No longer mounted".|
-|Partition mounted between daemon cycles |Next cycle adds to STATE_DB if qualifying. Log LOG_INFO: "Discovered new storage partition: <device>|<partition> at <mount_point>". |
-|show platform storage while partition unmounting |CLI reads stale STATE_DB entry. Shows old data with old timestamp. Next cycle (5s) updates. No CLI crash — temporary inconsistency.  |
+| sudo config platform cpu utilization-threshold <value> with out-of-range value (e.g., negative or 101)|  YANG range "0..100" constraint rejects the value,Daemon also validates range 0-100 in _check_configuration_changes() and logs LOG_ERR if invalid, providing defense-in-depth beyond YANG constraints.CLI returns: "Error: Invalid value <value>. CPU threshold must be between (0-100)." CONFIG_DB is not modified.
+| show platform ram issued before daemon has completed first collection cycle| RAM_GLOBAL_TABLE in STATE_DB contains no snapshot fields — _update_ram_snapshot_db() has not yet been called. Within first 5 seconds (RAM_SNAPSHOT_POLLING_INTERVAL=5), total_memory, used_memory, available_memory, memory_utilization fields are absent.
+| show platform ram-history with no history entries collected yet            | RAM_HISTORY_TABLE in STATE_DB contains no keys. _ram_history_worker() polls is_history_enabled() every 5 seconds — if history_enabled=False, no entries are written.
+| config platform ram threshold <value> with out-of-range value              | Handled at management framework layer via YANG constraints before reaching CONFIG_DB. Daemon's _check_configuration_changes() reads ram_utilization_threshold via int() conversion — non-integer values raise ValueError, caught by generic except Exception as e, logs LOG_ERR: 'Failed to check ram configuration: <str(e)>', threshold unchanged.
+| config platform  ram-history measurement-interval <value>                  | where value does not evenly divide duration No daemon-level validation of interval vs duration relationship. _calculate_max_history_entries() uses integer division duration // interval — non-zero result always produced. YANG must constraint is the only enforcement layer.
+| CONFIG_DB Redis operations are atomic. _check_configuration_changes() is polled every update_snapshot() cycle (every 5 seconds) | not subscription-based. Last write to CONFIG_DB wins. Daemon reads full config on next poll cycle and applies final state.
+| show platform storage when no permanent partitions exist on system         | CLI displays: "No storage partitions found." Log LOG_WARNING: "No permanent storage devices discovered. Check /proc/mounts and device filters."|
+| config platform storage utilization-threshold <value> with out-of-range value (e.g., 0 or 100)  | YANG range constraint "0..100" rejects the value, aemon also validates range 0-100 in _check_configuration_changes() and logs LOG_ERR if invalid, providing defense-in-depth beyond YANG constraints. CLI returns: "Error: Invalid value. Storage threshold must be between (0-100)." CONFIG_DB not modified. |
+| config platform storage utilization-threshold <value> where CONFIG_DB write fails |CLI logs LOG_ERROR: "Failed to update storage threshold in CONFIG_DB: <error>". Command fails. Daemon continues using previous threshold. Next restart reloads old threshold from CONFIG_DB.  |
+| Partition unmounted between daemon cycles  |cycles - Next cycle removes from STATE_DB STORAGE_TABLE. Active alarm auto-cleared. Log LOG_NOTICE: "STORAGE ALARM CLEARED: <partition> - No longer mounted".|
+| Partition mounted between daemon cycles |Next cycle adds to STATE_DB if qualifying. Log LOG_INFO: "Discovered new storage partition: <device>|<partition> at <mount_point>". |
+| show platform storage while partition unmounting |CLI reads stale STATE_DB entry. Shows old data with old timestamp. Next cycle (5s) updates. No CLI crash — temporary inconsistency.  |
 
 
 
@@ -3543,14 +3536,14 @@ This section describes error handling organized by subsystem, with precise handl
 | History write and history read (show ... history) occur simultaneously    The daemon writes history entries as individual Redis hash keys (`SYSTEM_CPU_UTILIZATION_HISTORY)
 | Daemon restarts while CLI is reading STATE_DB    The CLI may read stale data that is about to be cleared. After the daemon restart completes (clears and repopulates STATE_DB), subsequent CLI reads return fresh data. No crash or corruption occurs on the CLI side — it simply displays whatever STATE_DB contains at read time.
 | Alarm evaluation and threshold configuration change occur simultaneously    The daemon processes configuration changes and alarm evaluation sequentially within the same thread. There is no concurrent execution — the daemon is single-threaded with an event loop. Configuration is applied first, then the next alarm evaluation uses the updated threshold.
-|CONFIG_DB STORAGE_GLOBAL|global updated during daemon cycle                                         |Daemon polls CONFIG_DB at start of each cycle (_load_srm_config()). Changes detected next cycle after current STATE_DB writes complete. New threshold effective for following cycle's alarm evaluation. Log LOG_INFO when loaded.                                              |
-|Multiple CONFIG_DB changes in rapid succession (threshold changed multiple times within 5 seconds)  |Daemon reads full config once per cycle. Only final CONFIG_DB state at poll moment is visible. Intermediate changes ignored. Example: 75→80→90 over 3s; daemon sees only 90 on next 5s cycle.                                                                                  |
-|STATE_DB read by CLI during daemon write                                                            |Redis HSET/HGETALL atomic at key level. CLI gets either old or new complete entry — never partial mix. Daemon uses swsscommon.FieldValuePairs for atomic multi-field updates. No locking needed.                                                                               |
-|Daemon restarts while CLI reading STATE_DB                                                          |CLI may read stale data during restart (~10s). After daemon re-initializes and writes fresh data, subsequent CLI reads return current data. No CLI crash — displays whatever STATE_DB contains. Stale indicated by old timestamp.                                              |
-|Partition unmounted while daemon reads /proc/mounts                                                 |/proc/mounts provides atomic snapshot. If unmount happens after /proc/mounts read but before os.statvfs(), statvfs() raises OSError. Exception handler catches, logs LOG_WARNING, skips partition, continues. Entry remains with stale timestamp until next cycle removes it.  |
-|os.statvfs() on stale NFS mount                                                                     |May hang indefinitely or return ESTALE. Daemon has no timeout on statvfs() currently. Hang blocks entire cycle (~60s+ kernel timeout). Systemd watchdog may restart daemon. Mitigation (not implemented): Add signal timeout or subprocess with timeout.                       |
-|Alarm evaluation and threshold change in same cycle                                                 |Single-threaded sequential execution:  1. _load_srm_config() — Read threshold  2. update_srm_storage_partition_info() — Evaluate thresholds  3. Sleep 5s - No concurrency — threshold loaded in Step 1 applied in Step 2 same cycle.                                           |
-|Multiple alarms (multiple partitions over threshold) in same cycle                                  |Sequential evaluation per partition. AlarmManager.check_threshold() called once per partition. Independent alarm states. All logged in order. STATE_DB updates atomic per key. Multiple syslog messages possible.                                                              |
+| CONFIG_DB STORAGE_GLOBAL|global updated during daemon cycle                                         |Daemon polls CONFIG_DB at start of each cycle (_load_srm_config()). Changes detected next cycle after current STATE_DB writes complete. New threshold effective for following cycle's alarm evaluation. Log LOG_INFO when loaded.                                              |
+| Multiple CONFIG_DB changes in rapid succession (threshold changed multiple times within 5 seconds)  |Daemon reads full config once per cycle. Only final CONFIG_DB state at poll moment is visible. Intermediate changes ignored. Example: 75→80→90 over 3s; daemon sees only 90 on next 5s cycle.                                                                                  |
+| STATE_DB read by CLI during daemon write                                                            |Redis HSET/HGETALL atomic at key level. CLI gets either old or new complete entry — never partial mix. Daemon uses swsscommon.FieldValuePairs for atomic multi-field updates. No locking needed.                                                                               |
+| Daemon restarts while CLI reading STATE_DB                                                          |CLI may read stale data during restart (~10s). After daemon re-initializes and writes fresh data, subsequent CLI reads return current data. No CLI crash — displays whatever STATE_DB contains. Stale indicated by old timestamp.                                              |
+| Partition unmounted while daemon reads /proc/mounts                                                 |/proc/mounts provides atomic snapshot. If unmount happens after /proc/mounts read but before os.statvfs(), statvfs() raises OSError. Exception handler catches, logs LOG_WARNING, skips partition, continues. Entry remains with stale timestamp until next cycle removes it.  |
+| os.statvfs() on stale NFS mount                                                                     |May hang indefinitely or return ESTALE. Daemon has no timeout on statvfs() currently. Hang blocks entire cycle (~60s+ kernel timeout). Systemd watchdog may restart daemon. Mitigation (not implemented): Add signal timeout or subprocess with timeout.                       |
+| Alarm evaluation and threshold change in same cycle                                                 |Single-threaded sequential execution:  1. _load_srm_config() — Read threshold  2. update_srm_storage_partition_info() — Evaluate thresholds  3. Sleep 5s - No concurrency — threshold loaded in Step 1 applied in Step 2 same cycle.                                           |
+| Multiple alarms (multiple partitions over threshold) in same cycle                                  |Sequential evaluation per partition. AlarmManager.check_threshold() called once per partition. Independent alarm states. All logged in order. STATE_DB updates atomic per key. Multiple syslog messages possible.                                                              |
 
 
 #### 9.8.10 Error Recovery Summary
@@ -3558,16 +3551,16 @@ This section describes error handling organized by subsystem, with precise handl
 The following diagram illustrates the daemon's error recovery state machine:
 
 ┌─────────────┐
-│  supervisord│
-│  starts     │
-│  platformd  │
-│  stormond   │
+│ supervisord │
+│ starts      │
+│ platformmond│
+│ stormond    │
 └──────┬──────┘
        │
        ├────────────────────────────────────────────────────────┐
        │                                                        │
 ┌──────▼──────┐    Exception        ┌──────────────┐    ┌───────▼──────┐    Exception        ┌──────────────┐
-│  platformd  │───in init()────────►│  sys.exit(1) │    │   stormond   │───in __init__()────►│  sys.exit(1) │
+│platformmond │───in init()────────►│  sys.exit(1) │    │   stormond   │───in __init__()────►│  sys.exit(1) │
 │   main()    │                     │  supervisord │    │   main()     │                     │  supervisord │
 │   init()    │                     │  restarts    │    │   __init__() │                     │  restarts    │
 └──────┬──────┘                     └──────────────┘    └──────┬───────┘                     └──────────────┘
@@ -3613,13 +3606,13 @@ The following diagram illustrates the daemon's error recovery state machine:
 │                              run() — Spawned Threads / Main Loop                               │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                │
-│   PLATFORMD (4 threads)                          STORMOND (single-threaded loop)               │
+│   platformmond (4 threads)                          STORMOND (single-threaded loop)            │
 │   ─────────────────────                          ───────────────────────────────               │
 │                                                                                                │
 │  ┌──────────────┬──────────────┬─────────────┐  ┌──────────────────────────────────────────┐   │
 │  │cpu_snapshot  │ cpu_history  │ ram_snapshot│  │  1. get_configdb_intervals()             │   │
-│  │(every 5s)    │ (every Nmin) │ (every 5s)  │  │    • daemon_polling_interval (def 3600s) │   │
-│  │              │              │             │  │    • fsstats_sync_interval   (def 86400s)│   │
+│  │(every 5s)    │ (every Nmin) │ (every 5s)  │  │     • daemon_polling_interval(def 3600s) │   │
+│  │              │              │             │  │     • fsstats_sync_interval  (def 86400s)│   │
 │  │              │              │ ram_history │  └──────────────────┬───────────────────────┘   │
 │  │              │              │ (every Nmin)│                     │                           │
 │  └──────┬───────┴────────┬─────┴──────┬──────┘  ┌──────────────────▼──────────────────────┐    │
@@ -3637,9 +3630,9 @@ The following diagram illustrates the daemon's error recovery state machine:
 │    │    │                │        │    │        │    • update STORAGE_INFO|<dev> StateDB  │    │
 │    ▼    │                │        ▼    │        └──────────────────┬──────────────────────┘    │
 │  log_err│                │      log_err│                           │                           │
-│  skip   │                │      skip  │         ┌──────────────────▼──────────────────────┐    │
-│  cycle  │                │      cycle │         │   _reconcile_fsio_rw_values()           │    │
-│         │                │            │         │                                         │    │
+│  skip   │                │      skip   │        ┌──────────────────▼──────────────────────┐    │
+│  cycle  │                │      cycle  │        │   _reconcile_fsio_rw_values()           │    │
+│         │                │             │        │                                         │    │
 │  ┌──────▼──────┐         │   ┌─────────▼─────┐  │  INIT state?                            │    │
 │  │_update_cpu_ │         │   │_update_ram_   │  │  total = latest (baseline=0)            │    │
 │  │snapshot_db()│         │   │snapshot_db()  │  │                                         │    │
@@ -3650,7 +3643,7 @@ The following diagram illustrates the daemon's error recovery state machine:
 │  │alarm()      │         │   │alarm()        │  │  delta  = latest - statedb_latest       │    │
 │  │per core     │         │   │RAM global     │  │  total  = statedb_total + delta         │    │
 │  └──────┬──────┘         │   └────────┬──────┘  └─────────────────────────────────────────┘    │
-│         │                │            │                              │                         │
+│         │                │            │                             │                          │
 │  ┌──────▼──────┐         │   ┌────────▼──────┐   ┌──────────────────▼──────────────────────┐   │
 │  │_check_      │         │   │_check_        │   │  stop_event.wait(timeout)               │   │
 │  │config_      │         │   │config_        │   │  (polling_interval seconds)             │   │
@@ -3658,44 +3651,44 @@ The following diagram illustrates the daemon's error recovery state machine:
 │  └──────┬──────┘         │   └────────┬──────┘              │              │                   │
 │         │                │            │                  SIGTERM/      timeout                 │
 │  ┌──────▼──────┐         │   ┌────────▼──────┐          SIGINT         elapsed                 │
-│  │stop_event.  │         │   │stop_event.    │             │              │                    │
-│  │wait(5s)     │         │   │wait(5s)       │             │   ┌──────────▼─────────────────┐  │
-│  └──────┬──────┘         │   └────────┬──────┘             │   │elapsed > fsstats_sync_     │  │
-│         │                │            │                    │   │interval?                   │  │
-│         └────────────────┼────────────┘                    │   └──────┬──────────┬──────────┘  │
-│                          │                                 │         Yes         No            │
-│                          │                                 │          │          │             │
-│                          │                                 │   ┌──────▼──────┐   │             │
-│                          │                                 │   │sync_fsio_   │   │             │
-│                          │                                 │   │rw_json()    │   │             │
-│                          │                                 │   │STATE_DB ──► │   │             │
-│                          │                                 │   │JSON file    │   │             │
-│                          │                                 │   └──────┬──────┘   │             │
-│                          │                                 │      OK? │ No       │             │
-│                          │                                 │     Yes  ▼          │             │
-│                          │                                 │      │  log_warning │             │
-│                          │                                 │      ▼              │             │
-│                          │                                 │  write_sync_time_   │             │
-│                          │                                 │  statedb()          │             │
-│                          │                                 │      │              │             │
-│                          │                                 │      └──────┬───────┘             │
-│                          │                                 │             │                     │
-│                          │                                 │         loop again  ◄─────────────┘
-└──────────────────────────┼─────────────────────────────────┼──────────────────────────────────┘
-                           │                                 │
-                           │                                 │
-          ┌────────────────▼─────────────────────────────────▼──────────────--────┐
-          │                    SIGTERM / SIGINT received                          │
-          ├────────────────────────────────┬──────────────────────────────────── ─┤
-          │         PLATFORMD              │              STORMOND                │
-          │                                │                                      │
-          │  signal_handler()              │  signal_handler()                    │
-          │  • raises KeyboardInterrupt    │  • sync_fsio_rw_json()               │
-          │                                │    (STATE_DB → JSON file)            │
-          │  deinit()                      │  • write_sync_time_statedb()         │
-          │  • stop_event.set()            │  • exit_code = 128 + sig             │
-          │  • join threads (timeout=10s)  │  • stop_event.set()                  │
-          └────────────────────────────────┴─────────────────────────────────────-┘
+│  │stop_event.  │         │   │stop_event.    │              │              │                   │
+│  │wait(5s)     │         │   │wait(5s)       │              │   ┌──────────▼─────────────────┐ │
+│  └──────┬──────┘         │   └────────┬──────┘              │   │elapsed > fsstats_sync_     │ │
+│         │                │            │                     │   │interval?                   │ │
+│         └────────────────┼────────────┘                     │   └──────┬──────────┬──────────┘ │
+│                          │                                  │         Yes         No           │
+│                          │                                  │          │          │            │
+│                          │                                  │   ┌──────▼──────┐   │            │
+│                          │                                  │   │sync_fsio_   │   │            │
+│                          │                                  │   │rw_json()    │   │            │
+│                          │                                  │   │STATE_DB ──► │   │            │
+│                          │                                  │   │JSON file    │   │            │
+│                          │                                  │   └──────┬──────┘   │            │
+│                          │                                  │      OK? │ No       │            │
+│                          │                                  │     Yes  ▼          │            │
+│                          │                                  │      │  log_warning │            │
+│                          │                                  │      ▼              │            │
+│                          │                                  │  write_sync_time_   │            │
+│                          │                                  │  statedb()          │            │
+│                          │                                  │      │              │            │
+│                          │                                  │      └──────┬───────┘            │
+│                          │                                  │             │                    │
+│                          │                                  │         loop again ◄─────────────┘
+└──────────────────────────┼──────────────────────────────────┼──────────────────────────────────┘
+                           │                                  │
+                           │                                  │
+          ┌────────────────▼──────────────────────────────────▼──────────────────┐
+          │                    SIGTERM / SIGINT received                         │
+          ├────────────────────────────────┬─────────────────────────────────────┤
+          │         platformmond           │              STORMOND               │
+          │                                │                                     │
+          │  signal_handler()              │  signal_handler()                   │
+          │  • raises KeyboardInterrupt    │  • sync_fsio_rw_json()              │
+          │                                │    (STATE_DB → JSON file)           │
+          │  deinit()                      │  • write_sync_time_statedb()        │
+          │  • stop_event.set()            │  • exit_code = 128 + sig            │
+          │  • join threads (timeout=10s)  │  • stop_event.set()                 │
+          └────────────────────────────────┴─────────────────────────────────────┘
                            │                                   │
           ┌────────────────▼───────────────────────────────────▼──────────────────┐
           │                    main() exits / sys.exit(exit_code)                 │
@@ -3706,51 +3699,51 @@ The following diagram illustrates the daemon's error recovery state machine:
 
 All errors returned by the CLI follow a consistent format. The table below catalogues every error code used by this feature:
 
-|Error Code              |Message                        |Trigger                              |
+| Error Code              | Message                        | Trigger                                           |
 |-------------------------|--------------------------------|---------------------------------------------------|
-|ERR_DAEMON_UNAVAILABLE  |Daemon not running or no data  |STATE_DB empty, daemon not detected  |
-|ERR_INVALID_THRESHOLD   |Invalid threshold (0-100)      |YANG constraint violation            |
-|ERR_RESOURCE_NOT_FOUND  |Resource not found             |Queried CPU core index does not exist in STATE_DB |
-|ERR_CONFIG_NOT_FOUND    |Config missing, using default  |STORAGE_GLOBAL missing               |
-|ERR_INTERNAL            |Invalid Interval (1-10  )      |YANG constraint violation           |
-|ERR_INVALID_DURATION    |Invalid Duration (30-180)      |YANG constraint violation            |
+| ERR_DAEMON_UNAVAILABLE  | Daemon not running or no data  | STATE_DB empty, daemon not detected               |
+| ERR_INVALID_THRESHOLD   | Invalid threshold (0-100)      | YANG constraint violation                         |
+| ERR_RESOURCE_NOT_FOUND  | Resource not found             | Queried CPU core index does not exist in STATE_DB |
+| ERR_CONFIG_NOT_FOUND    | Config missing, using default  | STORAGE_GLOBAL missing                            |
+| ERR_INTERNAL            | Invalid Interval (1-10  )      | YANG constraint violation                         |
+| ERR_INVALID_DURATION    | Invalid Duration (30-180)      | YANG constraint violation                         |
 
 #### 9.8.12 Syslog Error Message Catalog
 
-All error and warning syslog messages emitted by platformd and stormond are catalogued below for operational reference:
+All error and warning syslog messages emitted by platformmond and stormond are catalogued below for operational reference:
 
 
-|Message ID     |Severity  |Message                                        |Condition                              |
+| Message ID    | Severity  | Message                                                                       | Condition                             |
 |---------------|-------------------------------------------------------------------------------------------|---------------------------------------|
-| platformd-001 | LOG_ERR   | "Failed to check alarm for {cpu_index}|{core_index}: {exception}"             | Alarm state check failure for specific core
-| platformd-002 | LOG_INFO  | "CPU config: interval={x}min, duration={y}min, enabled={bool}, threshold={z}%"| Configuration loaded or reloaded successfully
-| platformd-003 | LOG_INFO  | "Updated CPU history at {timestamp} (max entries: {n})"                       | History write cycle completed successfully
-| platformd-004 | LOG_INFO  | "Removed oldest CPU history entry: {cpu_index}|{core_index}|{timestamp}"      | Circular buffer eviction — oldest entry removed from STATE_DB
-| platformd-005 | LOG_WARN  | "ALARM RAISED: CPU_UTILIZATION | Resource: {cpu_index}|{core_index} | Current: {value}% | Threshold: {threshold}% | CPU utilization exceeded threshold" CPU core exceeded threshold — structured syslog (confirmed from actual output)
-| platformd-006 | LOG_INFO  | "ALARM CLEARED: CPU_UTILIZATION | Resource: {cpu_index}|{core_index} | Current: {value}% | Threshold: {threshold}% | CPU utilization returned to normal" CPU core dropped below threshold — human-readable syslog
-| platformd-007 | LOG_INFO  | "PLATFORM_ALARM: type=CPU_UTILIZATION, resource={cpu_index}|{core_index}, action=cleared, current={value}, threshold={threshold}" CPU core dropped below threshold — machine-parseable structured message
-| platformd-008 | LOG_ERR   | Failed to initialize RAM monitor: <str(e)>                                    | Exception during initialize()                                  |
-| platformd-009 | LOG_ERR   | Failed to load RAM configuration: <str(e)>                                    | Exception in _load_configuration()                             |
-| platformd-010 | LOG_ERR   | Failed to create default RAM configuration: <str(e)>                          | CONFIG_DB write failure in _create_default_configuration()     |
-| platformd-011 | LOG_ERR   | Failed to initialize RAM state DB: <str(e)>                                   | STATE_DB access failure in _initialize_state_db()              |
-| platformd-012 | LOG_ERR   | Failed to update RAM snapshot DB: <str(e)>                                    | STATE_DB write failure in _update_ram_snapshot_db()            |
-| platformd-013 | LOG_ERR   | Failed to update RAM snapshot: <str(e)>                                       | /proc/meminfo read failure or parse error in update_snapshot() |
-| platformd-014 | LOG_ERR   | Failed to update RAM history: <str(e)>                                        | STATE_DB write failure or exception in update_history()        |
-| platformd-015 | LOG_ERR   | Failed to clear RAM history data: <str(e)>                                    | STATE_DB delete failure in _clear_history_data()               |
-| platformd-016 | LOG_ERR   | Failed to update RAM global state: <str(e)>                                   | STATE_DB write failure in _update_global_state()               |
-| platformd-017 | LOG_ERR   | Failed to check RAM configuration: <str(e)>                                   | CONFIG_DB read failure in _check_configuration_changes()       |
-| platformd-018 | LOG_ERR   | Failed to check RAM alarm: <str(e)>                                           | Exception in _check_alarm()                                    |
-| platformd-019 | LOG_ERR   | Failed to cleanup old RAM history: <str(e)>                                   | STATE_DB delete failure in _cleanup_old_history_entries()      |
-| platformd-020 | LOG_ALERT | ALARM RAISED: RAM_UTILIZATION | Current: <X>% | Threshold: <Y>%               | RAM utilization ≥ threshold       | RAM utilization exceeded threshold     |                                                                
-| platformd-021 | LOG_INFO  | ALARM CLEARED: RAM_UTILIZATION | Current: <X>% | Threshold: <Y>%              | RAM utilization drops below threshold  | RAM utilization returned to normal |                                                                
-| platformd-022 | LOG_INFO  | RAM history status changed: <old> -> <new>                                    | history_status toggled in CONFIG_DB                            |
-| platformd-023 | LOG_INFO  | Cleared previous RAM history data on re-enable                                | history_status transitions disabled → enabled at startup       |
-| platformd-024 | LOG_INFO  | Cleared RAM history data                                                      | _clear_history_data() completes successfully                   |
-| platformd-025 | LOG_INFO  | Removed oldest RAM history entry: <timestamp>                                 | Circular buffer evicts oldest entry in update_history()        |
-| platformd-026 | LOG_INFO  | Updated RAM history at <timestamp> (max entries: <N>)                         | History entry successfully written to STATE_DB                 |
-| platformd-027 | LOG_INFO  | Created default RAM configuration                                             | CONFIG_DB global key missing at startup                        |
-| platformd-028 | LOG_INFO  | RAM monitor initialized                                                       | initialize() completes successfully                            |
-| platformd-029 | LOG_INFO  | RAM config: interval=<N>min, duration=<N>min, enabled=<bool>, threshold=<N>%  | Configuration loaded successfully                              |
+| platformmond-001 | LOG_ERR   | "Failed to check alarm for {cpu_index}|{core_index}: {exception}"             | Alarm state check failure for specific core
+| platformmond-002 | LOG_INFO  | "CPU config: interval={x}min, duration={y}min, enabled={bool}, threshold={z}%"| Configuration loaded or reloaded successfully
+| platformmond-003 | LOG_INFO  | "Updated CPU history at {timestamp} (max entries: {n})"                       | History write cycle completed successfully
+| platformmond-004 | LOG_INFO  | "Removed oldest CPU history entry: {cpu_index}|{core_index}|{timestamp}"      | Circular buffer eviction — oldest entry removed from STATE_DB
+| platformmond-005 | LOG_WARN  | "ALARM RAISED: CPU_UTILIZATION | Resource: {cpu_index}|{core_index} | Current: {value}% | Threshold: {threshold}% | CPU utilization exceeded threshold" CPU core exceeded threshold — structured syslog (confirmed from actual output)
+| platformmond-006 | LOG_INFO  | "ALARM CLEARED: CPU_UTILIZATION | Resource: {cpu_index}|{core_index} | Current: {value}% | Threshold: {threshold}% | CPU utilization returned to normal" CPU core dropped below threshold — human-readable syslog
+| platformmond-007 | LOG_INFO  | "PLATFORM_ALARM: type=CPU_UTILIZATION, resource={cpu_index}|{core_index}, action=cleared, current={value}, threshold={threshold}" CPU core dropped below threshold — machine-parseable structured message
+| platformmond-008 | LOG_ERR   | Failed to initialize RAM monitor: <str(e)>                                    | Exception during initialize()                                  |
+| platformmond-009 | LOG_ERR   | Failed to load RAM configuration: <str(e)>                                    | Exception in _load_configuration()                             |
+| platformmond-010 | LOG_ERR   | Failed to create default RAM configuration: <str(e)>                          | CONFIG_DB write failure in _create_default_configuration()     |
+| platformmond-011 | LOG_ERR   | Failed to initialize RAM state DB: <str(e)>                                   | STATE_DB access failure in _initialize_state_db()              |
+| platformmond-012 | LOG_ERR   | Failed to update RAM snapshot DB: <str(e)>                                    | STATE_DB write failure in _update_ram_snapshot_db()            |
+| platformmond-013 | LOG_ERR   | Failed to update RAM snapshot: <str(e)>                                       | /proc/meminfo read failure or parse error in update_snapshot() |
+| platformmond-014 | LOG_ERR   | Failed to update RAM history: <str(e)>                                        | STATE_DB write failure or exception in update_history()        |
+| platformmond-015 | LOG_ERR   | Failed to clear RAM history data: <str(e)>                                    | STATE_DB delete failure in _clear_history_data()               |
+| platformmond-016 | LOG_ERR   | Failed to update RAM global state: <str(e)>                                   | STATE_DB write failure in _update_global_state()               |
+| platformmond-017 | LOG_ERR   | Failed to check RAM configuration: <str(e)>                                   | CONFIG_DB read failure in _check_configuration_changes()       |
+| platformmond-018 | LOG_ERR   | Failed to check RAM alarm: <str(e)>                                           | Exception in _check_alarm()                                    |
+| platformmond-019 | LOG_ERR   | Failed to cleanup old RAM history: <str(e)>                                   | STATE_DB delete failure in _cleanup_old_history_entries()      |
+| platformmond-020 | LOG_ALERT | ALARM RAISED: RAM_UTILIZATION | Current: <X>% | Threshold: <Y>%               | RAM utilization ≥ threshold       | RAM utilization exceeded threshold     |                                                                
+| platformmond-021 | LOG_INFO  | ALARM CLEARED: RAM_UTILIZATION | Current: <X>% | Threshold: <Y>%              | RAM utilization drops below threshold  | RAM utilization returned to normal |                                                                
+| platformmond-022 | LOG_INFO  | RAM history status changed: <old> -> <new>                                    | history_status toggled in CONFIG_DB                            |
+| platformmond-023 | LOG_INFO  | Cleared previous RAM history data on re-enable                                | history_status transitions disabled → enabled at startup       |
+| platformmond-024 | LOG_INFO  | Cleared RAM history data                                                      | _clear_history_data() completes successfully                   |
+| platformmond-025 | LOG_INFO  | Removed oldest RAM history entry: <timestamp>                                 | Circular buffer evicts oldest entry in update_history()        |
+| platformmond-026 | LOG_INFO  | Updated RAM history at <timestamp> (max entries: <N>)                         | History entry successfully written to STATE_DB                 |
+| platformmond-027 | LOG_INFO  | Created default RAM configuration                                             | CONFIG_DB global key missing at startup                        |
+| platformmond-028 | LOG_INFO  | RAM monitor initialized                                                       | initialize() completes successfully                            |
+| platformmond-029 | LOG_INFO  | RAM config: interval=<N>min, duration=<N>min, enabled=<bool>, threshold=<N>%  | Configuration loaded successfully                              |
 | stormond-030  | LOG_ERR   | Failed to parse /proc/mounts                                                  | /proc/mounts read failure                                      |
 | stormond-031  | LOG_ERR   | Corrupted filesystem metadata for <partition>                                 | Negative statvfs() values detected                             |
 | stormond-032  | LOG_ERR   | Failed to initialize databases                                                | CONFIG_DB/STATE_DB connection failure                          |
@@ -3781,11 +3774,11 @@ All daemon operations are logged via Python `syslog` module with facility `LOG_U
 Debug logging can be enabled at runtime:
 
 ```bash
-# View live platformd logs
-sudo tail -f /var/log/syslog | grep platformd
+# View live platformmond logs
+sudo tail -f /var/log/syslog | grep platformmond
 
 # Filter by alarm events only
-sudo grep -iE 'alarm|raised|cleared|threshold' /var/log/syslog | grep platformd
+sudo grep -iE 'alarm|raised|cleared|threshold' /var/log/syslog | grep platformmond
 
 # View logs in syslog
 sudo grep stormond /var/log/syslog
@@ -3800,7 +3793,7 @@ The `show techsupport` command shall be extended to collect:
 
 | Artifact          | Source                                                               |
 |-------------------|----------------------------------------------------------------------|
-| Daemon log        | `sudo tail -f /var/log/syslog | grep -iE 'platformd|stormond'`       |
+| Daemon log        | `sudo tail -f /var/log/syslog | grep -iE 'platformmond|stormond'`       |
 | CONFIG_DB tables  | `CPU_GLOBAL`, `RAM_GLOBAL`, `STORAGE_GLOBAL`                         |
 | STATE_DB tables   | `CPU_TABLE`, `CPU_HISTORY_TABLE`, `RAM_HISTORY_TABLE`,`STORAGE_TABLE`|
 | System files      | `/proc/stat`, `/proc/meminfo`, `/proc/mounts`, `df -h` output        |
@@ -3811,16 +3804,16 @@ The `show techsupport` command shall be extended to collect:
 
 The daemon registers itself with the SONiC `supervisord` watchdog pattern. A health check script verifies:
 
-1. The `platformd ` process is running inside the pmon container.
+1. The `platformmond ` process is running inside the pmon container.
 2. STATE_DB `CPU_TABLE|0|0` has a `timestamp` within the last 60 seconds.
 3. CONFIG_DB `CPU_GLOBAL|global` exists.
 
 #!/bin/bash
-# Health check for platformd
+# Health check for platformmond
 
 # Check process is running
-if ! pgrep -f "platformd" > /dev/null 2>&1; then
-    echo "FAIL: platformd process not running"
+if ! pgrep -f "platformmond" > /dev/null 2>&1; then
+    echo "FAIL: platformmond process not running"
     exit 1
 fi
 
@@ -3838,7 +3831,7 @@ if [ $? -ne 0 ] || [ $((EPOCH_NOW - EPOCH_TS)) -gt 60 ]; then
     exit 1
 fi
 
-echo "PASS: platformd is healthy"
+echo "PASS: platformmond is healthy"
 exit 0
 ```
 
@@ -3912,7 +3905,6 @@ fi
 echo "PASS: stormond is healthy (data age: ${AGE}s)"
 exit 0
 
----
 
 ### 10. Warmboot and Fastboot Design Impact
 
@@ -3984,65 +3976,65 @@ The daemon is **not warmboot-aware** and does not require special handling durin
 
 Unit tests are implemented using `pytest` with mocked file I/O and Redis connections.
 
-| Test ID | Test Case                                                                       | Expected Result                        |
+| Test ID | Test Case                                                                             | Expected Result                                                                    |
 |---------|---------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| UT-01   | Parse `/proc/stat` with 4 cores                                                 | Returns dict with 4 core entries       |
-| UT-02   | Parse `/proc/stat` with 128 cores                                               | Returns dict with 128 entries          |
-| UT-03   | CPU utilization calculation: idle_delta=20, total_delta=100                     | Returns 80%                            |
-| UT-04   | CPU utilization calculation: total_delta=0 (edge case)                          | Returns 0% (no division by zero)     |
-| UT-05   | Circular buffer: add 5 entries to buffer of size 12                             | `get_all()` returns 5 entries in order |
-| UT-06   | Circular buffer: add 15 entries to buffer of size 12                            | `get_all()` returns last 12 entries in order     |
-| UT-07   | Circular buffer: add exactly 12 entries to buffer of size 12                    | `get_all()` returns all 12 in order    |
-| UT-08   | Threshold alarm: CPU at 90%, threshold 85% (previously cleared)                 | Alarm raised, alarm_status=active      |
-| UT-09   | Threshold alarm: CPU at 80%, threshold 85% (previously active)                  | Alarm cleared, alarm_status=cleared    |
-| UT-10   | Threshold alarm: CPU at 90%, threshold 85% (already active)                     | No state change (no duplicate alarm)   |
-| UT-11   | Threshold alarm: CPU at 80%, threshold 85% (already cleared)                    | No state change no duplicate syslog    |
-| UT-12   | Parse /proc/meminfo standard format | Returns correct total, available, used, usage_percent |
+| UT-01   | Parse `/proc/stat` with 4 cores                                                       | Returns dict with 4 core entries                                                   |
+| UT-02   | Parse `/proc/stat` with 128 cores                                                     | Returns dict with 128 entries                                                      |
+| UT-03   | CPU utilization calculation: idle_delta=20, total_delta=100                           | Returns 80%                                                                        |
+| UT-04   | CPU utilization calculation: total_delta=0 (edge case)                                | Returns 0% (no division by zero)                                                   |
+| UT-05   | Circular buffer: add 5 entries to buffer of size 12                                   | `get_all()` returns 5 entries in order                                             |
+| UT-06   | Circular buffer: add 15 entries to buffer of size 12                                  | `get_all()` returns last 12 entries in order                                       |
+| UT-07   | Circular buffer: add exactly 12 entries to buffer of size 12                          | `get_all()` returns all 12 in order                                                |
+| UT-08   | Threshold alarm: CPU at 90%, threshold 85% (previously cleared)                       | Alarm raised, alarm_status=active                                                  |
+| UT-09   | Threshold alarm: CPU at 80%, threshold 85% (previously active)                        | Alarm cleared, alarm_status=cleared                                                |
+| UT-10   | Threshold alarm: CPU at 90%, threshold 85% (already active)                           | No state change (no duplicate alarm)                                               |
+| UT-11   | Threshold alarm: CPU at 80%, threshold 85% (already cleared)                          | No state change no duplicate syslog                                                |
+| UT-12   | Parse /proc/meminfo standard format                                                   | Returns correct total, available, used, usage_percent                              |
 | UT-13   | Memory usage percent: used=8192MB, total=16384MB | Returns 50.0% |
 | UT-14   | Memory usage percent: total=0 (edge case) | Returns 0.0% (no division by zero) |
-| UT-15   | RAM threshold alarm: RAM at 85%, threshold 80% (previously cleared) | Alarm raised, status=active |
-| UT-16   | RAM threshold alarm: RAM at 75%, threshold 80% (previously active) | Alarm cleared, status=cleared |
-| UT-17   | RAM threshold alarm: RAM at 85%, threshold 80% (already active) | No state change (no duplicate alarm) |
-| UT-18   | RAM threshold alarm: RAM at 75%, threshold 80% (already cleared) | No state change |
-| UT-19   | CONFIG_DB missing RAM_GLOBAL key at startup | Daemon uses defaults (duration=60, interval=5, threshold=80) |
-| UT-20   | CONFIG_DB change: RAM interval 5→10 minutes while history disabled | Buffer re-initialized, max_entries recalculated |
-| UT-21   | CONFIG_DB change: RAM interval/duration changed while history enabled | Change silently ignored; buffers unchanged |
-| UT-22   | history_status changed disabled→enabled at runtime | _clear_history_data() called; history_enabled=True; STATE_DB updated |
-| UT-23   | history_status changed enabled→disabled at runtime | history_enabled=False; STATE_DB updated; history data retained |
-| UT-24   | STATE_DB write failure in _update_ram_snapshot_db() | Error logged; retried on next cycle; daemon continues |
-| UT-25   | STATE_DB write failure in update_history() | Error logged; in-memory buffer still updated; history entry lost for that interval  |
-| UT-26   | STATE_DB RAM history entries manually deleted | Not re-created; permanently lost |
-| UT-27   | YANG validation: ram_history_duration=60, interval=7 | Rejected (60 not divisible by 7) |
-| UT-28   | YANG validation: ram_utilization_threshold=0 | Rejected (range 1–100) |
-| UT-29   | YANG validation: ram_utilization_threshold=101 | Rejected (range 1–100) |
-| UT-30   | Syslog message format: RAM alarm raised | Contains ALARM RAISED, RAM_UTILIZATION, current value, threshold |
-| UT-31   | Syslog message format: RAM alarm cleared | Contains ALARM CLEARED, RAM_UTILIZATION, current value, threshold |
-| UT-32   | Storage partition discovery: mock /proc/mounts with 3 permanent + 1 removable device  | Returns only 3 permanent partitions                                      |
-| UT-33   | Storage partition: removable device (/sys/block/sdb/removable == 1)                   | Excluded from results                                                    |
-| UT-34   | Storage partition: tmpfs, devtmpfs, proc, squashfs, overlay                           | All pseudo-filesystems excluded from results                             |
-| UT-35   | Storage utilization: used=750MB, total=1000MB                                   | Returns 75.0%                          |
-| UT-36   | Storage utilization: total_blocks=0 (edge case)                                       | Returns 0.0% (no division by zero)                                       |
-| UT-37   | Storage utilization: utilization >100% (over-provisioned)                             | Capped at 100.0%, logs warning                                           |
-| UT-38   | Device name extraction: /dev/sda1 → sda                                               | Correct base device name                                                 |
-| UT-39   | Storage threshold alarm: utilization 80%, threshold 75% (previously cleared)          | Alarm raised, status=active                                              |
-| UT-40   | Storage threshold alarm: utilization 70%, threshold 75% (previously active)           | Alarm cleared, status=cleared                                            |
-| UT-41   | Storage utilization: used_blocks negative (corrupted FS)                              | Returns 0.0%, logs error                                                 |
-| UT-42   | Storage threshold: 3 partitions, 1 exceeds threshold                                  | Alarm raised only for exceeding partition                                |
-| UT-43   | Storage threshold: partition unmounted between cycles                                 | Alarm auto-cleared, STATE_DB STORAGE_TABLE entry removed                 |
-| UT-44   | Storage threshold: new partition mounted between cycles                               | New partition added to STATE_DB, alarm evaluated                         |
-| UT-45   | /proc/mounts parsing: malformed line                                                  | Skip malformed line, log warning, continue                               |
-| UT-46   | /proc/mounts parsing: empty file                                                      | Returns empty partition list, logs info                                  |
-| UT-47   | os.statvfs() failure: I/O error on mount point                                        | Logs warning, skips partition, continues                                 |
-| UT-48   | Bind mount deduplication: same device at /host and /var/lib/docker                    | Only highest priority mount (/host) included                             |
-| UT-49   | CONFIG_DB change: interval 5→10 minutes                                               | History buffer re-initialized, max_entries recalculated                  |
-| UT-50   | CONFIG_DB change: invalid interval > duration                                         | Change rejected by YANG validation                                       |
-| UT-51   | CONFIG_DB missing at startup                                                          | Daemon uses defaults (duration=60, interval=5, thresholds=85/80/75)      |
-| UT-52   | Syslog message format: alarm raised                                                   | Contains `ALARM RAISED`, alarm ID, current value, threshold              |
-| UT-53   | Syslog message format: alarm cleared                                                  | Contains `ALARM CLEARED`, alarm ID, current value, threshold             |
-| UT-54   | STATE_DB cleanup on daemon restart                                                    | All `*_HISTORY` and `ALARM` keys cleared                                 |
-| UT-55   | YANG validation: cpu_history_duration=60, interval=7                            | Rejected (60 not divisible by 7)       |
-| UT-56   | YANG validation: max_threshold=0                                                | Rejected (range 1-100)                 |
-| UT-57   | YANG validation: max_threshold=101                                              | Rejected (range 1-100)                 |
+| UT-15   | RAM threshold alarm: RAM at 85%, threshold 80% (previously cleared)                   | Alarm raised, status=active                                                        |
+| UT-16   | RAM threshold alarm: RAM at 75%, threshold 80% (previously active)                    | Alarm cleared, status=cleared                                                      |
+| UT-17   | RAM threshold alarm: RAM at 85%, threshold 80% (already active)                       | No state change (no duplicate alarm)                                               |
+| UT-18   | RAM threshold alarm: RAM at 75%, threshold 80% (already cleared)                      | No state change                                                                    |
+| UT-19   | CONFIG_DB missing RAM_GLOBAL key at startup                                           | Daemon uses defaults (duration=60, interval=5, threshold=80)                       |
+| UT-20   | CONFIG_DB change: RAM interval 5→10 minutes while history disabled                    | Buffer re-initialized, max_entries recalculated                                    |
+| UT-21   | CONFIG_DB change: RAM interval/duration changed while history enabled                 | Change silently ignored; buffers unchanged                                         |
+| UT-22   | history_status changed disabled→enabled at runtime                                    | _clear_history_data() called; history_enabled=True; STATE_DB updated               |
+| UT-23   | history_status changed enabled→disabled at runtime                                    | history_enabled=False; STATE_DB updated; history data retained                     |
+| UT-24   | STATE_DB write failure in _update_ram_snapshot_db()                                   | Error logged; retried on next cycle; daemon continues                              |
+| UT-25   | STATE_DB write failure in update_history()                                            | Error logged; in-memory buffer still updated; history entry lost for that interval |
+| UT-26   | STATE_DB RAM history entries manually deleted                                         | Not re-created; permanently lost                                                   |
+| UT-27   | YANG validation: ram_history_duration=60, interval=7                                  | Rejected (60 not divisible by 7)                                                   |
+| UT-28   | YANG validation: ram_utilization_threshold=0                                          | Rejected (range 1–100)                                                             |
+| UT-29   | YANG validation: ram_utilization_threshold=101                                        | Rejected (range 1–100)                                                             |
+| UT-30   | Syslog message format: RAM alarm raised                                               | Contains ALARM RAISED, RAM_UTILIZATION, current value, threshold                   |
+| UT-31   | Syslog message format: RAM alarm cleared                                              | Contains ALARM CLEARED, RAM_UTILIZATION, current value, threshold                  |
+| UT-32   | Storage partition discovery: mock /proc/mounts with 3 permanent + 1 removable device  | Returns only 3 permanent partitions                                                |
+| UT-33   | Storage partition: removable device (/sys/block/sdb/removable == 1)                   | Excluded from results                                                              |
+| UT-34   | Storage partition: tmpfs, devtmpfs, proc, squashfs, overlay                           | All pseudo-filesystems excluded from results                                       |
+| UT-35   | Storage utilization: used=750MB, total=1000MB                                         | Returns 75.0%                                                                      |
+| UT-36   | Storage utilization: total_blocks=0 (edge case)                                       | Returns 0.0% (no division by zero)                                                 |
+| UT-37   | Storage utilization: utilization >100% (over-provisioned)                             | Capped at 100.0%, logs warning                                                     |
+| UT-38   | Device name extraction: /dev/sda1 → sda                                               | Correct base device name                                                           |
+| UT-39   | Storage threshold alarm: utilization 80%, threshold 75% (previously cleared)          | Alarm raised, status=active                                                        |
+| UT-40   | Storage threshold alarm: utilization 70%, threshold 75% (previously active)           | Alarm cleared, status=cleared                                                      |
+| UT-41   | Storage utilization: used_blocks negative (corrupted FS)                              | Returns 0.0%, logs error                                                           |
+| UT-42   | Storage threshold: 3 partitions, 1 exceeds threshold                                  | Alarm raised only for exceeding partition                                          |
+| UT-43   | Storage threshold: partition unmounted between cycles                                 | Alarm auto-cleared, STATE_DB STORAGE_TABLE entry removed                           |
+| UT-44   | Storage threshold: new partition mounted between cycles                               | New partition added to STATE_DB, alarm evaluated                                   |
+| UT-45   | /proc/mounts parsing: malformed line                                                  | Skip malformed line, log warning, continue                                         |
+| UT-46   | /proc/mounts parsing: empty file                                                      | Returns empty partition list, logs info                                            |
+| UT-47   | os.statvfs() failure: I/O error on mount point                                        | Logs warning, skips partition, continues                                           |
+| UT-48   | Bind mount deduplication: same device at /host and /var/lib/docker                    | Only highest priority mount (/host) included                                       |
+| UT-49   | CONFIG_DB change: interval 5→10 minutes                                               | History buffer re-initialized, max_entries recalculated                            |
+| UT-50   | CONFIG_DB change: invalid interval > duration                                         | Change rejected by YANG validation                                                 |
+| UT-51   | CONFIG_DB missing at startup                                                          | Daemon uses defaults (duration=60, interval=5, thresholds=85/80/75)                |
+| UT-52   | Syslog message format: alarm raised                                                   | Contains `ALARM RAISED`, alarm ID, current value, threshold                        |
+| UT-53   | Syslog message format: alarm cleared                                                  | Contains `ALARM CLEARED`, alarm ID, current value, threshold                       |
+| UT-54   | STATE_DB cleanup on daemon restart                                                    | All `*_HISTORY` and `ALARM` keys cleared                                           |
+| UT-55   | YANG validation: cpu_history_duration=60, interval=7                                  | Rejected (60 not divisible by 7)                                                   |
+| UT-56   | YANG validation: max_threshold=0                                                      | Rejected (range 1-100)                                                             |
+| UT-57   | YANG validation: max_threshold=101                                                    | Rejected (range 1-100)                                                             |
 
 #### 13.2 Functional Tests
 
@@ -4055,14 +4047,14 @@ End-to-end functional tests using `pytest` with a running SONiC instance or VS (
 | FT-03   | CPU history with custom config                     | 1. `sudo config platform cpu-history measurement-interval 2`. 2. `sudo config platform cpu-history duration 10`. 3. Wait 4+ minutes. 4. `show platform cpu history` | At least 2 history entries; max 5 entries (10/2) |
 | FT-04   | CPU threshold alarm — raise                        | 1. `sudo config platform cpu utilization-threshold 10` (low threshold to trigger). 2. Wait one cycle. 3. `show platform cpu` | Per-core `alarm_status=Active` for cores exceeding 10% |
 | FT-05   | CPU threshold alarm — clear                        | 1. `sudo config platform cpu utilization-threshold 99` (high threshold to clear). 2. Wait one cycle. 3. `show platform cpu` | All per-core `alarm_status=Cleared` |
-| FT-06   | Syslog verification — alarm raised                 | 1. Trigger CPU alarm (set threshold low). 2. Check `grep platformd /var/log/syslog` | Syslog contains `ALARM RAISED: CPU_UTILIZATION` with resource ID, current value, threshold at LOG_ALERT severity |
+| FT-06   | Syslog verification — alarm raised                 | 1. Trigger CPU alarm (set threshold low). 2. Check `grep platformmond /var/log/syslog` | Syslog contains `ALARM RAISED: CPU_UTILIZATION` with resource ID, current value, threshold at LOG_ALERT severity |
 | FT-07   | Syslog verification — alarm cleared                | 1. Clear CPU alarm (set threshold high). 2. Check syslog | Syslog contains `ALARM CLEARED: CPU_UTILIZATION` with resource ID, current value, threshold at LOG_INFO severity |
 | FT-08   | Default threshold values                           | 1. Remove all threshold config. 2. Restart daemon. 3. `show platform threshold` | CPU=85%, MEMORY=80%, DISK=75% |
 | FT-09   | History not persisted across reboot                | 1. Verify history has entries. 2. Reboot. 3. `show platform cpu-history` | History is empty after reboot |
 | FT-10   | Config persisted across reboot                     | 1. `sudo config platform cpu utilization-threshold 90`. 2. Reboot. 3. `show platform cpu` | CPU threshold is still 90% |
 | FT-11   | Show config command                                | 1. Configure various parameters. 2. `show runningconfiguration all | grep cpu` | All cpu related configured values displayed correctly |
 | FT-12   | Multiple cores — max utilization alarm             | 1. Set CPU threshold to 50%. 2. Stress one core. 3. Verify alarm raised | Alarm raised referencing the highest-utilization core |
-| FT-13   | Daemon restart recovery                            | 1. `systemctl restart platformd`. 2. Wait 15 seconds. 3. `show platform cpu` | Data collection resumes; current snapshot available |
+| FT-13   | Daemon restart recovery                            | 1. `systemctl restart platformmond`. 2. Wait 15 seconds. 3. `show platform cpu` | Data collection resumes; current snapshot available |
 | FT-14   | RAM snapshot retrieval                             | 1. Wait for daemon to run one cycle. 2. show system-resource memory | Displays total, used, available (MB) and usage percentage (0–100) with recent timestamp |
 | FT-15   | RAM snapshot accuracy                              | 1. Note values from show system-resource memory. 2. Cross-check with free -m | Total, used, available values match free -m output |
 | FT-16   | RAM history with default config                    | 1. Use default config (duration=60min, interval=5min). 2. Wait 5+ minutes. 3. show platform ram-history| At least 1 history entry with valid timestamp and utilization |
@@ -4074,14 +4066,14 @@ End-to-end functional tests using `pytest` with a running SONiC instance or VS (
 | FT-22   | RAM threshold alarm — clear                        | 1. sudo config platform ram utilization-threshold 99 (high threshold). 2. Wait one cycle. 3. show system-resource alarms | RAM_UTILIZATION alarm cleared |
 | FT-23   | RAM alarm no duplicate raise                       | 1. Set threshold low. 2. Wait 3 cycles. 3. Check syslog | ALARM RAISED logged only once; no duplicate entries across cycles |
 | FT-24   | RAM alarm no duplicate clear                       | 1. Set threshold high. 2. Wait 3 cycles. 3. Check syslog | ALARM CLEARED logged only once; no duplicate entries across cycles |
-| FT-25   | Syslog verification — RAM alarm raised             | 1. Set threshold below current usage. 2. Wait one cycle. 3. grep platformd /var/log/syslog | Syslog contains ALARM RAISED: RAM_UTILIZATION with current value and threshold at LOG_ALERT severity |
+| FT-25   | Syslog verification — RAM alarm raised             | 1. Set threshold below current usage. 2. Wait one cycle. 3. grep platformmond /var/log/syslog | Syslog contains ALARM RAISED: RAM_UTILIZATION with current value and threshold at LOG_ALERT severity |
 | FT-26   | Syslog verification — RAM alarm cleared            | 1. Set threshold above current usage. 2. Wait one cycle. 3. Check syslog | Syslog contains ALARM CLEARED: RAM_UTILIZATION with current value and threshold at LOG_INFO severity |
 | FT-27   | Default RAM threshold                              | 1. Remove all RAM threshold config. 2. Restart daemon. 3. show platform ram | RAM threshold defaults to 80% |
 | FT-28   | RAM config persisted across reboot                 | 1. sudo config platform ram utilization-threshold 70. 2. sudo config save. 3. Reboot. 4. show system-resource memory | RAM threshold is still 70% after reboot |
 | FT-29   | RAM history not persisted across reboot            | 1. Verify history has entries. 2. Reboot. 3. show system-resource memory history | History is empty after reboot |
 | FT-30   | RAM interval/duration change while history disabled| 1. Set history_status=disabled. 2. Change interval to 10min, duration to 30min. 3. Enable history. 4. Wait 10+ minutes. 5. show system-resource memory history | New interval/duration applied; max 3 entries (30/10) |
 | FT-31   | RAM interval/duration change while history enabled | 1. Enable history. 2. Change interval while enabled. 3. show system-resource memory history | Change silently ignored; existing interval retained until history disabled |
-| FT-32   | Daemon restart — RAM recovery                      | 1. systemctl restart platformd. 2. Wait 15 seconds. 3. show system-resource memory | RAM data collection resumes; current snapshot available |
+| FT-32   | Daemon restart — RAM recovery                      | 1. systemctl restart platformmond. 2. Wait 15 seconds. 3. show system-resource memory | RAM data collection resumes; current snapshot available |
 | FT-33   | RAM STATE_DB entry manually deleted                | 1. Manually delete RAM STATE_DB snapshot entry. 2. Wait one cycle. 3. show system-resource memory | Entry re-created within ≤5 seconds |
 | FT-34   | Storage partition listing                          | 1. Wait for daemon to run one cycle  2. show platform storage | Lists devices with partition counts and mounted partition utilization |
 | FT-35   | Storage excludes removable devices                 | 1. Insert USB drive (if applicable)  2. show platform storage | USB partitions not listed |
@@ -4200,7 +4192,7 @@ End-to-end functional tests using `pytest` with a running SONiC instance or VS (
 | TC-HIST-001 | Oldest Entry Removal When Buffer Full   | 1. Configure history duration to 60 minutes with 5-minute intervals (12 entries max) 2. Wait for buffer to fill completely (60+ minutes) 3. Verify buffer contains exactly 12 entries 4. Wait for one more interval (5 minutes) 5. Query history and verify: Buffer still contains 12 entries, Oldest entry removed, Newest entry added 6. Record timestamps of first and last entries 7. Wait for another interval 8. Verify timestamps shifted (FIFO behavior) | Buffer maintains maximum size (duration/interval entries) Oldest entries automatically removed when buffer full FIFO (First-In-First-Out) behavior confirmed No buffer overflow or data corruption
 | TC-HIST-002 | History Cleared on Configuration Change | 1. Configure history duration to 60 minutes, interval 5 minutes 2. Wait for history data to accumulate (at least 6 entries) 3. Verify history contains data 4. Change history duration to 30 minutes 5. Query history immediately 6. Verify history is cleared/empty 7. Wait for new data collection 8. Verify new history follows new configuration | History cleared when duration changes History cleared when interval changes New history collection starts with new parameters No stale data from previous configuration
 | TC-HIST-003 | History Data Format Validation          | 1. Configure history collection for CPU and memory 2. Wait for multiple data points to collect 3. Query CPU utilization history 4. Verify response is valid JSON 5. Verify structure is JSON array 6. Validate each array element contains: Timestamp, Utilization value(s), Per-core data (for CPU) 7. Query memory utilization history 8. Verify same JSON array format 9. Parse JSON programmatically to confirm validity | History data returned as valid JSON array Array elements properly formatted Timestamps in ISO 8601 or Unix epoch format Data parseable by standard JSON libraries Schema consistent across resource types
-| TC-HIST-004 | History Lost on Daemon Restart          | 1. Start SRM daemon 2. Configure history collection 3. Wait for history data to accumulate (at least 30 minutes) 4. Query and record history data (verify multiple entries exist) 5. Restart platform daemon (systemctl restart platformd) 6. Wait for daemon to fully restart 7. Query history data 8. Verify history is empty/cleared 9. Wait for new data collection 10. Verify new history starts from zero | History data cleared on daemon restart No persistence of history to disk New history collection begins after restart Configuration settings preserved (duration/interval) Only history data is lost, not configuration
+| TC-HIST-004 | History Lost on Daemon Restart          | 1. Start SRM daemon 2. Configure history collection 3. Wait for history data to accumulate (at least 30 minutes) 4. Query and record history data (verify multiple entries exist) 5. Restart platform daemon (systemctl restart platformmond) 6. Wait for daemon to fully restart 7. Query history data 8. Verify history is empty/cleared 9. Wait for new data collection 10. Verify new history starts from zero | History data cleared on daemon restart No persistence of history to disk New history collection begins after restart Configuration settings preserved (duration/interval) Only history data is lost, not configuration
 
 13. Alarm Test
 
@@ -4223,19 +4215,19 @@ End-to-end functional tests using `pytest` with a running SONiC instance or VS (
 
 | Test ID       | Test Case                            | Steps | Expected Result |
 |---------------|--------------------------------------|-------|-----------------|
-| TC-STRESS-001 | 24-Hour Continuous Operation         | 1. Configure platformd with standard settings 2. Start platform daemon 3. Run for 24 hours continuously 4. During 24-hour period, monitor: CPU usage of platform daemon, Memory usage of platform daemon, Daemon process status (no crashes), Log file size growth, History data collection continuity 5. Every 4 hours, perform: Query all current metrics, Query history data, Trigger and clear threshold alarms, Verify all functions operational 6. After 24 hours, verify: Daemon still running, No memory leaks (memory usage stable), No excessive CPU usage, All functions still operational, Log files manageable size | platformd runs continuously for 24+ hours No daemon crashes or restarts Memory usage stable (no leaks) CPU usage remains low (<5%) All monitoring functions remain accurate History collection continuous Alarm generation functional throughout Log rotation working (if configured)
+| TC-STRESS-001 | 24-Hour Continuous Operation         | 1. Configure platformmond with standard settings 2. Start platform daemon 3. Run for 24 hours continuously 4. During 24-hour period, monitor: CPU usage of platform daemon, Memory usage of platform daemon, Daemon process status (no crashes), Log file size growth, History data collection continuity 5. Every 4 hours, perform: Query all current metrics, Query history data, Trigger and clear threshold alarms, Verify all functions operational 6. After 24 hours, verify: Daemon still running, No memory leaks (memory usage stable), No excessive CPU usage, All functions still operational, Log files manageable size | platformmond runs continuously for 24+ hours No daemon crashes or restarts Memory usage stable (no leaks) CPU usage remains low (<5%) All monitoring functions remain accurate History collection continuous Alarm generation functional throughout Log rotation working (if configured)
 | TC-STRESS-002 | Minimum History Interval Stress Test | 1. Configure history interval to minimum (1 minute) 2. Configure history duration to 30 minutes (30 entries) 3. Start monitoring 4. Run for 2 hours 5. Monitor system impact: platform daemon CPU usage, platform daemon memory usage, Disk I/O (if history persisted), System responsiveness 6. Verify data collection: Query history every 10 minutes, Verify data points collected every minute, Verify buffer management (oldest entries removed) 7. Verify accuracy: Compare with Linux tools, Verify no data loss, Verify timestamps accurate | places handles 1-minute interval without issues CPU overhead acceptable (<10%) Memory usage stable All data points collected accurately Buffer management works correctly (FIFO) No performance degradation System remains responsive
-| TC-STRESS-003 | Maximum History Duration Stress Test | 1. Configure history duration to maximum (180 minutes) 2. Configure history interval to 10 minutes (18 entries) 3. Run for 25+ hours to fill buffer 4. Monitor: Memory usage of platform daemon, History query response time, Buffer management 5. Verify: All 18 entries stored correctly, Oldest entries removed when buffer full, Query performance acceptable (<5 seconds), Memory usage reasonable 6. Query complete history multiple times 7. Verify data integrity platformd handles maximum duration configuration | Memory usage scales appropriately Query performance acceptable even with large dataset Buffer management works correctly No data corruption FIFO behavior maintained
-| TC-STRESS-004 | Rapid Configuration Changes          | 1. Create script to rapidly change configuration 2. Script performs 100 iterations of: Change CPU threshold (random 50-90%), Change memory threshold (random 50-90%), Change storage threshold (random 50-90%), Change history duration (random 30-120 min), Change history interval (random 1-10 min), Wait 1 second between changes 3. Run script 4. Monitor: platform daemon status (no crashes), Configuration file integrity, System logs for errors 5. After 100 changes, verify: Daemon still running, Final configuration applied correctly, No configuration corruption, Monitoring functions operational 6. Query all metrics 7. Trigger alarms to verify functionality | platformd handles rapid configuration changes No daemon crashes Configuration file remains valid Final configuration applied correctly No race conditions or deadlocks Monitoring functions remain operational History cleared appropriately on config changes No memory leaks from repeated reconfigurations
+| TC-STRESS-003 | Maximum History Duration Stress Test | 1. Configure history duration to maximum (180 minutes) 2. Configure history interval to 10 minutes (18 entries) 3. Run for 25+ hours to fill buffer 4. Monitor: Memory usage of platform daemon, History query response time, Buffer management 5. Verify: All 18 entries stored correctly, Oldest entries removed when buffer full, Query performance acceptable (<5 seconds), Memory usage reasonable 6. Query complete history multiple times 7. Verify data integrity platformmond handles maximum duration configuration | Memory usage scales appropriately Query performance acceptable even with large dataset Buffer management works correctly No data corruption FIFO behavior maintained
+| TC-STRESS-004 | Rapid Configuration Changes          | 1. Create script to rapidly change configuration 2. Script performs 100 iterations of: Change CPU threshold (random 50-90%), Change memory threshold (random 50-90%), Change storage threshold (random 50-90%), Change history duration (random 30-120 min), Change history interval (random 1-10 min), Wait 1 second between changes 3. Run script 4. Monitor: platform daemon status (no crashes), Configuration file integrity, System logs for errors 5. After 100 changes, verify: Daemon still running, Final configuration applied correctly, No configuration corruption, Monitoring functions operational 6. Query all metrics 7. Trigger alarms to verify functionality | platformmond handles rapid configuration changes No daemon crashes Configuration file remains valid Final configuration applied correctly No race conditions or deadlocks Monitoring functions remain operational History cleared appropriately on config changes No memory leaks from repeated reconfigurations
 
 16. Other Sonic Services
 
 | Test ID      | Test Case                           | Steps | Expected Result |
 |--------------|-------------------------------------|-------|-----------------|
-| TC-INTEG-001 | platformd with Other SONiC Services | 1. Start all standard SONiC services (BGP, SWSS, syncd, etc.) 2. Start platform daemon 3. Generate network traffic 4. Trigger platformd alarms 5. Verify: No interference with routing protocols, No impact on switching performance, platformd monitoring accurate during traffic 6. Restart individual services 7. Verify platformd continues operating    | platformd coexists peacefully with other services No resource contention Monitoring remains accurate No impact on network functions
-| TC-INTEG-002 | platformd During System Upgrades    | 1. Configure platformd 2. Collect history data 3. Perform SONiC image upgrade 4. After upgrade, verify: platformd configuration preserved, platform daemon starts automatically, Monitoring functions operational 5. Verify compatibility with new SONiC version | Configuration survives upgrade platformd operational after upgrade No compatibility issues
+| TC-INTEG-001 | platformmond with Other SONiC Services | 1. Start all standard SONiC services (BGP, SWSS, syncd, etc.) 2. Start platform daemon 3. Generate network traffic 4. Trigger platformmond alarms 5. Verify: No interference with routing protocols, No impact on switching performance, platformmond monitoring accurate during traffic 6. Restart individual services 7. Verify platformmond continues operating    | platformmond coexists peacefully with other services No resource contention Monitoring remains accurate No impact on network functions
+| TC-INTEG-002 | platformmond During System Upgrades    | 1. Configure platformmond 2. Collect history data 3. Perform SONiC image upgrade 4. After upgrade, verify: platformmond configuration preserved, platform daemon starts automatically, Monitoring functions operational 5. Verify compatibility with new SONiC version | Configuration survives upgrade platformmond operational after upgrade No compatibility issues
 
-17. platformd During System Upgrades
+17. platformmond During System Upgrades
 
 | Test ID       | Test Case                                 | Steps | Expected Result |
 |---------------|-------------------------------------------|-------|-----------------|
@@ -4291,10 +4283,10 @@ These defaults are loaded via `init_cfg.json` during first boot or when no confi
 
 | Event                 | Severity      | Message Format|
 |-----------------------|---------------|---------------|
-| CPU alarm raised      | `LOG_WARNING` | `pmon#platformd[{pid}]: PLATFORM_ALARM: type=CPU_UTILIZATION, resource={cpu_index}|{core_index}, action=raised, current={value}, threshold={threshold}` |
-| CPU alarm cleared     | `LOG_INFO`    | `pmon#platformd[{pid}]: PLATFORM_ALARM: type=CPU_UTILIZATION, resource={cpu_index}|{core_index}, action=cleared, current={value}, threshold={threshold}` | |
-| RAM alarm raised      | `LOG_WARNING` | `pmon#platformd[{pid}]: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=None, action=raised, current={value}, threshold={threshold}` |
-| RAM alarm cleared     | `LOG_INFO`    | `pmon#platformd[{pid}]: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=None, action=cleared, current={value}, threshold={threshold}`|
+| CPU alarm raised      | `LOG_WARNING` | `pmon#platformmond[{pid}]: PLATFORM_ALARM: type=CPU_UTILIZATION, resource={cpu_index}|{core_index}, action=raised, current={value}, threshold={threshold}` |
+| CPU alarm cleared     | `LOG_INFO`    | `pmon#platformmond[{pid}]: PLATFORM_ALARM: type=CPU_UTILIZATION, resource={cpu_index}|{core_index}, action=cleared, current={value}, threshold={threshold}` | |
+| RAM alarm raised      | `LOG_WARNING` | `pmon#platformmond[{pid}]: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=None, action=raised, current={value}, threshold={threshold}` |
+| RAM alarm cleared     | `LOG_INFO`    | `pmon#platformmond[{pid}]: PLATFORM_ALARM: type=RAM_UTILIZATION, resource=None, action=cleared, current={value}, threshold={threshold}`|
 | Storage alarm raised  | `LOG_WARNING` | pmon#stormond[{pid}]: STORAGE ALARM ACTIVE: {device}|{partition} utilization at {value}% exceeds threshold {threshold}%|
 | Storage alarm cleared | `LOG_INFO`    | pmon#stormond[{pid}]: STORAGE ALARM CLEARED: {device}|{partition} utilization at {value}% is below threshold {threshold}% |
 
