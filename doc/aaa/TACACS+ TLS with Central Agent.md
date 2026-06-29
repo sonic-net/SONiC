@@ -158,7 +158,7 @@ The feature is disabled by default unless explicitly enabled and shall preserve 
 - The design shall not store raw TLS private keys or raw PSK material in plaintext CONFIG_DB fields.
 - The feature shall define how certificates, trust anchors, private keys, and PSK material are referenced and protected on the device.
 - The loopback TACACS+ listener shall bind only to a host-local address and shall not expose a network-reachable TACACS+ listener.
-- The loopback TACACS+ listener shall support both unobfuscated local TACACS+ packets and obfuscated local TACACS+ packets from existing SONiC consumers. If a local consumer sends an obfuscated packet, the shared secret used by that consumer must match the secret expected by the selected upstream server because the proxy does not translate obfuscation keys.
+- The loopback TACACS+ listener shall support both unobfuscated local TACACS+ packets and obfuscated local TACACS+ packets from existing SONiC consumers. For obfuscated local packets, the local forwarding service shall deobfuscate using the loopback server configuration passkey, preserve the TACACS+ message data, and apply the selected upstream server obfuscation policy before sending the request upstream. Responses shall be decoded using the selected upstream policy and re-encoded for the local hop when the local client session uses obfuscation.
 - Any native IPC endpoint shall be protected by Unix socket permissions on Linux.
 - Unsafe TLS options, such as disabling certificate verification, shall be explicit in configuration and visible in logs and show output.
 - Sensitive values such as shared secrets, private keys, PSK values, and user passwords shall not be logged or displayed.
@@ -300,7 +300,7 @@ Existing SONiC consumer
   -> TACACS+ over TCP or TACACS+ over TLS to configured upstream servers
 ```
 
-The local listener accepts TACACS+ packets from existing consumers on loopback. Obfuscation handling follows the ConfigDB integration rules in this HLD: already-obfuscated packet bodies are forwarded unchanged, while unobfuscated packet bodies can be obfuscated using the selected upstream server configuration before they are sent upstream. If a local consumer sends obfuscated packets through the proxy, that local consumer must use the same TACACS+ shared secret expected by the selected upstream server.
+The local listener accepts TACACS+ packets from existing consumers on loopback. Obfuscation handling follows the ConfigDB integration rules in this HLD. The proxy preserves the TACACS+ message data but may rewrite TACACS+ session IDs to avoid collisions between local client components, so it treats TACACS+ shared-secret obfuscation as hop-local: local-hop obfuscation uses the loopback server configuration passkey, and upstream-hop obfuscation uses the selected upstream server configuration.
 
 The KubeSONiC deployment must make the listener reachable from the host network namespace at the configured loopback address and TCP port. A pod-local `127.0.0.1` listener is not sufficient because existing PAM, shell, audit, accounting, and CLI components run in the SONiC host context. The exact mechanism, such as host networking or an approved host-local port exposure pattern, requires KubeSONiC review.
 
@@ -472,7 +472,7 @@ TACPLUS_SERVER|127.0.0.1
   priority    "1"
   tcp_port    "49"
   timeout     "3"
-  passkey     "upstream-secret"
+  passkey     "loopback-secret"
 
 TACPLUS_SERVER|192.0.2.10
   priority    "100"
@@ -494,15 +494,19 @@ TACPLUS_SERVER_TLS|192.0.2.20
   psk_key_exchange_groups "x25519:secp256r1"
 ```
 
-The proxy does not exchange, translate, or synchronize TACACS+ shared-secret obfuscation keys. It handles TACACS+ packet obfuscation as follows:
+The proxy does not exchange or synchronize TACACS+ shared-secret obfuscation keys between hops. It terminates TACACS+ obfuscation at the forwarding boundary and applies the local-hop and upstream-hop obfuscation policies independently. TACACS+ obfuscation depends on packet header fields, including the session ID, and the proxy may rewrite TACACS+ session IDs to avoid collisions among local client components. Therefore, preserving TACACS+ message data across a proxied session may require deobfuscating and reobfuscating packet bodies rather than forwarding an obfuscated body unchanged.
 
-- If the packet received from the local TACACS+ client is already obfuscated, the proxy forwards that TACACS+ packet body unchanged to the selected upstream server. The local sender's TACACS+ shared secret must therefore be the same secret expected by the final upstream server.
-- If the packet received from the local TACACS+ client is unobfuscated and the selected upstream server configuration has TACACS+ shared-secret obfuscation enabled, the proxy applies obfuscation using the selected upstream server configuration before sending the packet upstream.
-- If the packet received from the local TACACS+ client is unobfuscated and the selected upstream server configuration does not enable TACACS+ shared-secret obfuscation, the proxy sends the upstream TACACS+ packet unobfuscated.
+- If the packet received from the local TACACS+ client is obfuscated, the proxy deobfuscates it using the loopback compatibility server configuration passkey.
+- If the packet received from the local TACACS+ client is unobfuscated, the proxy treats the local-hop TACACS+ message data as already cleartext.
+- Before sending a request upstream, if the selected upstream server configuration enables TACACS+ shared-secret obfuscation, the proxy obfuscates the upstream packet using the selected upstream server configuration and the upstream session ID.
+- Before sending a request upstream, if the selected upstream server configuration does not enable TACACS+ shared-secret obfuscation, the proxy sends the upstream packet unobfuscated.
+- When receiving a response from an upstream server that used TACACS+ shared-secret obfuscation, the proxy deobfuscates the response using the selected upstream server configuration.
+- When sending a response back to a local client session that used TACACS+ shared-secret obfuscation, the proxy obfuscates the local response using the loopback compatibility server configuration passkey and the local client session ID.
+- When sending a response back to a local client session that did not use TACACS+ shared-secret obfuscation, the proxy sends the local response unobfuscated.
 
-When the loopback compatibility row configures a `passkey`, existing local clients can send packets obfuscated with that passkey. Because the proxy does not translate shared-secret obfuscation, that loopback `passkey` must match the `passkey` of any upstream candidate that can receive the already-obfuscated packet. If upstream candidates use different passkeys, operators should avoid obfuscating the loopback hop so the proxy can apply the selected upstream server's passkey.
+When the loopback compatibility row configures a `passkey`, that value is the local-hop TACACS+ obfuscation key for existing local clients that send obfuscated packets to the loopback listener. The loopback `passkey` does not need to match any upstream server `passkey`; each upstream candidate uses its own `passkey` only for the upstream hop when that hop requires TACACS+ shared-secret obfuscation.
 
-The loopback TCP hop is locally sniffable with tools such as tcpdump. Operators choose between obfuscating the loopback hop, which hides local packet contents but requires the local TACACS+ client secret to match the upstream server secret when packets pass through, and leaving the loopback hop unobfuscated, which avoids synchronizing a proxy-local shared secret with the upstream shared secret. The unobfuscated loopback option keeps a similar practical security posture to current on-box TACACS+ behavior because the protection boundary remains the local device and the upstream connection policy.
+The loopback TCP hop is locally sniffable with tools such as tcpdump. Operators choose between obfuscating the loopback hop with the loopback compatibility row `passkey`, which hides local packet contents on that hop, and leaving the loopback hop unobfuscated, which avoids maintaining a local-hop TACACS+ shared secret. This choice is independent of upstream obfuscation and TLS policy because the proxy applies obfuscation per hop. The unobfuscated loopback option keeps a similar practical security posture to current on-box TACACS+ behavior because the protection boundary remains the local device and the upstream connection policy.
 
 The SONiC CLI is not required to expose the full TACACS+ YANG tree directly. CLI and management changes update the existing TCP compatibility rows, new TLS server rows, and forwarder-local row through stable SONiC commands. The local forwarding service validates and maps the combined upstream candidate set before use. This HLD does not propose replacing Redis-backed ConfigDB storage with RFC 7951 JSON or another YANG-backed datastore; RFC 7951 is used here only for the lexical style of values that map to YANG-modeled data.
 
@@ -631,7 +635,7 @@ Candidate CLI examples:
 config feature state tacacs-tls-forwarder enabled
 
 # Existing SONiC TACACS+ consumers use loopback first.
-config tacacs add 127.0.0.1 --port 49 --timeout 3 --key upstream-secret --type pap --pri 1
+config tacacs add 127.0.0.1 --port 49 --timeout 3 --key loopback-secret --type pap --pri 1
 
 # Optional migration fallback through the existing non-TLS path.
 config tacacs add 192.0.2.10 --port 49 --timeout 10 --key upstream-secret --type pap --pri 100
@@ -692,7 +696,7 @@ Candidate CLI, ConfigDB, and model mapping:
 | `--domain-name` | `domain_name` | Name used for certificate verification and SNI. |
 | `--sni-enabled` | `sni_enabled` | Enable SNI. |
 | `--single-connection` | `single_connection` | Enable persistent connection reuse. |
-| `--key` | `passkey` | TACACS+ shared-secret value used when the forwarder applies upstream obfuscation to an unobfuscated local packet, or when a TLS server requires a TACACS+ shared secret inside the TLS-protected channel for interoperability. |
+| `--key` | `passkey` | TACACS+ shared-secret value for the row being configured. On a loopback compatibility row, this is the local-hop obfuscation key for existing clients. On an upstream TCP or TLS row, this is the upstream-hop obfuscation key when required by the TACACS+ server. |
 | `--trust-anchor-ref` | `trust_anchor_ref` | Reference to DER-encoded X.509 trust anchor material, pinned server certificate material, trust bundle file, or credential profile. |
 | `--client-certificate-ref` | `client_certificate_ref` | Reference to DER-encoded X.509 client certificate file or credential profile for mTLS. |
 | `--client-private-key-ref` | `client_private_key_ref` | Reference to protected client key file or credential profile. |
@@ -732,7 +736,7 @@ The `FEATURE` scope fields in the example follow existing SONiC multi-ASIC servi
       "priority": "1",
       "tcp_port": "49",
       "timeout": "3",
-      "passkey": "upstream-secret"
+      "passkey": "loopback-secret"
     },
     "192.0.2.10": {
       "priority": "100",
@@ -805,7 +809,7 @@ Candidate ConfigDB-to-runtime mapping:
 | `domain_name` and `sni_enabled` | `domain-name` and `sni-enabled`. |
 | `trust_anchor_ref` | `server-authentication` credential reference, SONiC-approved truststore reference, or protected CA bundle path. |
 | `client_certificate_ref` and `client_private_key_ref` | `client-identity` credential reference, SONiC-approved keystore reference, or protected certificate/key path. |
-| `passkey` | TACACS+ shared-secret value for upstream TACACS+ payload obfuscation when required by a TACACS+ server inside the TLS-protected channel. |
+| `passkey` | TACACS+ shared-secret value for TACACS+ payload obfuscation on the row's hop. For the loopback compatibility row, it is the local-hop obfuscation key used with existing clients. For upstream TCP or TLS rows, it is the upstream-hop obfuscation key when required by the TACACS+ server. |
 | `psk_identity` and `psk_secret_ref` | TLS PSK identity and protected symmetric key file or credential reference. |
 | `psk_key_exchange_groups` | Colon-separated approved RFC 8446 `NamedGroup` preference list for PSK-DHE; presence implies TLS 1.3 `psk_dhe_ke`. |
 | `psk_key_exchange` | Optional interoperability override. The value `psk-only` maps to TLS 1.3 `psk_ke`; stored rows without `psk_key_exchange_groups` also use `psk_ke`. CLI commands normally write default DHE groups unless PSK-only interop mode is explicitly requested. |
@@ -920,6 +924,7 @@ The implementation shall include unit tests for the following items:
 - Rejecting empty or unsupported TLS cipher suite preference lists.
 - Rejecting incomplete TLS credential configurations, including missing client certificate material or missing PSK material for the selected choice.
 - Rejecting unsupported, empty, or unapproved PSK-DHE group lists and rejecting PSK-only configuration combined with DHE groups.
+- Deobfuscating and reobfuscating proxied TACACS+ packets when loopback and upstream hops use different session IDs or different passkeys, while preserving TACACS+ message data.
 - Rejecting referenced credential files that are missing, unreadable, or have unsafe ownership or permissions.
 - Masking sensitive fields in logs and show output helpers.
 - Selecting preferred upstream server and ordered failover behavior.
