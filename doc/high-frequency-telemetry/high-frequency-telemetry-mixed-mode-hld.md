@@ -75,7 +75,7 @@ Non-requirements:
 
 ## 6. Architecture Design
 
-The architecture diagram from the [base HLD §6](high-frequency-telemetry-hld.md#6-architecture-design) is unchanged. The bulk of the change is internal to `Orchagent → High frequency telemetry Orch`; the SAI/syncd boundary, the CounterSyncd public interface, the OpenTelemetry container, and the Redis databases are unaffected. CounterSyncd's label-resolution path is extended for the MIXED case where one template is shared across per-group sessions (see §7.6.1).
+The architecture diagram from the [base HLD §6](high-frequency-telemetry-hld.md#6-architecture-design) is unchanged. The bulk of the change is internal to `Orchagent → High frequency telemetry Orch`; the SAI/syncd boundary, the CounterSyncd public interface, the OpenTelemetry container, and the Redis databases are unaffected. CounterSyncd's label-resolution path is extended for the MIXED case where one set of templates is shared across per-group sessions (see §7.6.1).
 
 ## 7. High-Level Design
 
