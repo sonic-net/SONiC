@@ -1,6 +1,6 @@
-# SONiC Build System Migration #
+# SONiC Build System Migration
 
-## Table of Content 
+## Table of Content
 
 1. [Revision](#1-revision)
 2. [Scope](#2-scope)
@@ -38,15 +38,15 @@
     - [13.2. System Test cases](#132-system-test-cases)
 14. [Open/Action items - if any](#14-openaction-items---if-any)
 
-### 1. Revision  
+### 1. Revision
 
-### 2. Scope  
+### 2. Scope
 
 This document covers the migration of the SONiC build system into a modern, Bazel-based system. It proposes an end state of the build system, as well as a migration path to get us there.
 
 Please note that this design covers only the migration of individual components. Migrating the full image assembly process is out of the scope of this document.
 
-### 3. Definitions/Abbreviations 
+### 3. Definitions/Abbreviations
 
 - Bazel: A build system open-sourced by Google. It specializes in polyglot builds, and promises fast, reproducible builds through hermeticity. [Documentation](https://bazel.build/docs)
 - Bazel rules, also called rulesets: Extensions to Bazel to provide additional capabilities, usually to integrate Bazel with a new programming language. Usually named `rules_<lang>`. For instance, `rules_go` extends Bazel to be able to build and test Go sources. [Documentation](https://bazel-docs-staging.netlify.app/versions/master/skylark/rules.html)
@@ -69,7 +69,7 @@ Please see these publications about our work:
 - Talk from OCP EMEA Summit 2026: https://www.youtube.com/watch?v=uSKCNDWuXjc
 - Blog article about our work:  https://aspect.build/blog/bazel-for-sonic
 
-### 4. Overview 
+### 4. Overview
 
 > [!tip]
 > A full example of migrating a container can be found in [sonic-buildimage#28005](https://github.com/sonic-net/sonic-buildimage/pull/28005).
@@ -87,7 +87,7 @@ Early results demonstrate that we can produce cold builds similar to those in th
 
 Bazel migrations are expensive, and famously disruptive. To alleviate this issue as much as possible, we propose a gradual, non-mandatory rollout.
 
-We will extend the existing build system with a new target type that can build docker containers in Bazel.
+We will **extend the existing build system** with a new target type that can build docker containers in Bazel.
 The mechanics of this new target are discussed in [7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability).
 
 Users can control whether they want to build with Bazel or GNU make with a command line flag:
@@ -104,43 +104,72 @@ This flag will start off disabled by default. The implementation of this flag's 
 
 To minimize disruption, we propose the following phases to the migration:
 
-##### Phase 1: Opt-in trial period
+##### Phase 1: Trial of Bazel Infrastructure
 
-Phase 1 will introduce Bazel as an optional build system for some components. For this phase, `BUILD_WITH_BAZEL_WHEN_AVAILABLE` will be turned off by default.
-We will start with small components such as `sflow`, `teamd`, and `database`, and continue onto progressively larger leaf components until we have sufficient coverage to be representative of the Bazel build.
-We expect this phase to last until the November release.
+Phase 1 will introduce Bazel as an optional build system for some components. The goal is to validate whether and how SONiC could most benefit from Bazel.
+
+For this phase, `BUILD_WITH_BAZEL_WHEN_AVAILABLE` will be turned off by default.
+We will start adding Bazel builds for leaf, small components such as `sysmgr`, `p4rt`, and the small watchdog binaries, and continue onto progressively larger leaf components until we have sufficient coverage to be representative of the benefits and challenges that Bazel poses.
+
+All components should still be buildable with the regular Make-based flow.
+
+When a component is built with Bazel, this will entail:
+
+- Eliminating system dependencies (e.g. from `apt` and `whl`), as well as other sonic-make injected deps. All dependencies will go through the hermetic Bazel build graph.
+- Removing `deb` packages as an intermediate format, instead relying on the Bazel dependency graph.
+- Removing `docker` as a dependency, instead building containers directly with Bazel.
+
+However, we will not attempt to:
+
+- Build a component with Bazel outside of the SONiC Make infra, or outside the slave container. The interface for users will still be `make target/dockers-*.gz`.
+- Build the base layers in Bazel. Bazel will consume Make-built base layers (e.g. `docker-base-bookworm`, `config-engine`).
+
+**We expect this phase to last until the November release.**
 
 The community can use this period to experiment with Bazel, adopt it into their own builds, and generally gather information on whether this is a net benefit.
 
-After the November release, the community will face a decision point: Should we adopt Bazel fully?
+After the November release, the community will face a decision point: Should Bazel be a first-class build system in SONiC?
+
+Specifically:
+
+- Should Bazel be allowed to be the _only option_ for certain components (like it is today for `p4rt`)?
+- Should Bazel be allowed to handle most of the dependency graph for these components? As a consequence, some SONiC dependencies will have to be converted to Bazel (e.g. `sonic-utilities`).
 
 If we decide to move forward, we will continue onto Phase 2.
 
-##### Phase 2: Opt-out migration period
+##### Phase 2: Migration Period
 
 At the start of this phase, we will flip `BUILD_WITH_BAZEL_WHEN_AVAILABLE` to be on by default.
 This will signal to the community that we do intend to adopt Bazel, and that they should start adopting it into their internal forks if they haven't already.
 
-We expect to massively increase coverage of targets that build with Bazel, specifically extending to building the base layers (`docker-base-*`, `docker-config-engine-*`, and `docker-swss-layer-*`) with Bazel by default.
+By turning `BUILD_WITH_BAZEL_WHEN_AVAILABLE` on, we'll also be making the Bazel build **blocking in CI**. As a consequence, any changes that break the Bazel build will have to be fixed before they're merged.
+
+It is possible that, at this point, the need arises for a per-target toggle. This is left as an [open question](#14-openaction-items---if-any).
+
+We expect to increase coverage of targets that build with Bazel. Specifically, we'll transition to building the base layers (`docker-base-*`, `docker-config-engine-*`, and `docker-swss-layer-*`) with Bazel by default.
 
 By the end of this phase, we expect most users to be able to build their components entirely in Bazel, without the need of a slave container.
 
+**This opt-out window will only exist for 1 release. After that, we will move into Phase 3.**
+
 ##### Phase 3: Bazel-only
 
-When every component can be built with Bazel, and most users have had a reasonable opportunity to migrate, we expect to be able to remove the current build system, and transition to using exclusively Bazel.
+When most users have had a reasonable opportunity to migrate (1 release after the Bazel build was introduced to a component), component owners will be able to **remove Make support** from their components entirely.
 
-We cannot give estimations of when this will be, as it will depend on community support and involvement.
+This can happen piecemeal, and be up to the discretion of each component owner.
 
 ##### CI considerations
 
 One open question is when we will establish a blocking CI pipeline for Bazel builds.
-We propose doing this early, as part of Phase 1.
 
-After the first container build merges, we will stand up a non-blocking CI pipeline that will test the Bazel build.
-That pipeline will run on every build, but failures in it won't block contributors from merging code.
+We propose the following structure:
 
-When that pipeline has been proven to be stable for a reasonable period, we propose to make it blocking, so that contributions that would break the Bazel build cannot be merged.
-This will avoid code drift between the two builds, helping tremendously with migration speed.
+- Phase 1: A nightly, post-merge job that tests the Bazel builds only. There are no expectations to keep this job green.
+- Phase 2: At the start of Phase 2, the components that are migrated to Bazell will now be blocking pre-merge, as we flip the default of `BUILD_WITH_BAZEL_WHEN_AVAILABLE`.
+
+This phased approach allows us to establish critical infrastructure and let the build mature before we make it required for anyone.
+
+We expect to be able to leverage the remote caching mechanism with Bazel to make these pipelines significantly faster than the Make-based version.
 
 ### 5. Requirements
 
@@ -166,11 +195,15 @@ The migration must satisfy the following requirements:
 6. Maintained developer experience
     * Automatic generation of debug containers, mirroring the current system
 
-### 6. Architecture Design 
+### 6. Architecture Design
 
-There are no expected changes to the SONiC architecture.
+There are no expected changes to the SONiC component architecture.
 
-### 7. High-Level Design 
+However, we will extende the SONiC build architecture to add a new target type for containers (read more in [Section 7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability)).
+
+In addition, some of the existing dependency graph for libraries, binaries, and third party dependencies will move into Bazel.
+
+### 7. High-Level Design
 
 This section specifies how different parts of the build will work under Bazel.
 Everything explained here has already been implemented in a proof of concept migrating `docker-sysmgr`, in [sonic-buildimage#28005](https://github.com/sonic-net/sonic-buildimage/pull/28005).
@@ -251,6 +284,11 @@ The Bazel ethos is that **every input to a build must be known, down to the chec
 
 - Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/blorente/sonic-build-infra/tree/master/toolchains/gcc).
 - Fetch Debian packages deterministically, instead of relying on `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/MODULE.bazel#L23-L56).
+
+> [!warning]
+> During the transition, Bazel will consume base layers from the Make-based build. This can lead to discrepancies in runtime dependencies if we don't keep the `rules_distroless` dependencies up to date.
+>
+> This is not a regression, but it is one more synchronization point that we'll need to keep up to date temporarily.
 
 ##### 7.b.2 Managing Patched External Dependencies
 
@@ -415,17 +453,7 @@ There are no changes to the configuration.
 
 ### 10. Warmboot and Fastboot Design Impact  
 
-TODO BL: I probably need help from Brian for this
-
-### Warmboot and Fastboot Performance Impact
-This sub-section must cover the impact of the functionality on warmboot and fastboot performance, that is control plane and data plane downtime.
-As part of the analysis cover the following:
-
-- Does this feature add any stalls/sleeps/IO operations to the boot critical chain? Does it change when this feature is disabled/unused? 
-- Does this feature add any additional CPU heavy processing (e.g. rendering Jinja templates) in the boot path (process, library or utility used during boot up)? Does it change when this feature is disabled/unused?
-- In case this feature updates a third party dependency does it cause any impact on boot time performance?
-- Can the feature (service or docker) be delayed?
-- What are the possible optimizations and what is the expected boot time degradation if, by the nature of the feature, additional CPU/IO costs can't be avoided?
+This design doesn't impact warmboot
 
 ### 11. Memory Consumption
 
@@ -439,7 +467,9 @@ This means that, sometimes, we'll need to migrated dependencies to Bazel, which 
 
 ### 13. Testing Requirements/Design  
 
-// TODO BL: I probably need Brian's help for this, since his team has been donig the validation
+There are no new SONiC functional, unit, or system tests required.
+
+However, we will be adding CI jobs to validate the Bazel builds in the required environments, as outlined in the [CI Considerations](#ci-considerations). We expect to be able to leverage remote caching to make these builds significantly more performant than the alternative.
 
 #### 13.1. Unit Test cases  
 
@@ -447,4 +477,5 @@ This means that, sometimes, we'll need to migrated dependencies to Bazel, which 
 
 ### 14. Open/Action items - if any 
 
- // TODO BL:
+- **Should we add a per-component toggle during the migration?**
+  - If necessary, it's entirely possible to add a per-target flag, so that individual components can be toggled without affecting the rest of the build. We're not confident that the feature is needed, and the effort to implement it is relatively low, therefore we've left it out of this document.
