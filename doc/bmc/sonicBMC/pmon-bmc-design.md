@@ -281,7 +281,7 @@ It will be powered ON and come ONLINE only with external tool/user sending RACK_
 The Leak detection is applicable only to Liquid cooling platform. The action is based on alerts from two different sources 
 
 (i) System leak detection uses the leak status in LIQUID_COOLING_INFO|leakage_sensors{X}.
-    The result (`CRITICAL_SYSTEM_LEAK` or `MINOR_SYSTEM_LEAK`) will be updated in `SYSTEM_LEAK_STATUS` table defined in [2.2.2.1 DB schema](#2221-db-schema)
+    The result (`CRITICAL` or `MINOR`, and `None` when clear) will be updated in `SYSTEM_LEAK_STATUS` table defined in [2.2.2.1 DB schema](#2221-db-schema)
         
 (ii) External Rack manager alert status is updated by redfish/bmcweb in RACK_MANAGER_ALERT table defined in [2.1.2.1 DB schema](#2121-db-schema).
     
@@ -326,7 +326,7 @@ if the previous reboot was a Cold Boot (Full Power Cycle, reboot cause : REBOOT_
   - Sleep for power_on_delay configured in CHASSIS_MODULE|SWITCH-HOST (this is configurable value in config_db)
   - This is to make sure the Rack Manager is up and Liquid flow rate is good.
 
-Check for any CRITICAL alert/leak in RACK_MANAGER_ALERT* tables or system SYSTEM_LEAK_STATUS table (device_leak_status == CRITICAL_SYSTEM_LEAK) in STATE_DB
+Check for any CRITICAL alert/leak in RACK_MANAGER_ALERT* tables or system SYSTEM_LEAK_STATUS table (device_leak_status == CRITICAL) in STATE_DB
 NO External/System LEAK present
 {
   - Check the oper_status of Switch-Host
@@ -342,7 +342,7 @@ On an Event
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
 
   - if POWER_ON request
-      - Check for any CRITICAL alert/leak in RACK_MANAGER_ALERT* tables or system SYSTEM_LEAK_STATUS table (device_leak_status == CRITICAL_SYSTEM_LEAK) in STATE_DB
+      - Check for any CRITICAL alert/leak in RACK_MANAGER_ALERT* tables or system SYSTEM_LEAK_STATUS table (device_leak_status == CRITICAL) in STATE_DB
       - if NO LEAK, Call the platform API module->set_admin_state(UP) to power ON the Switch-Host
       - update the HOST_STATE|switch-host with the device_power_state.
       - update RACK_MANAGER_COMMAND|CMD_<command_id> status to DONE or FAILED.
@@ -351,7 +351,7 @@ On an Event
       - ==> GRACEFUL_SHUT_DOWN_SWITCH_HOST
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if CRITICAL_SYSTEM_LEAK (device_leak_status == CRITICAL_SYSTEM_LEAK in SYSTEM_LEAK_STATUS)
+  - if SYSTEM_LEAK_CRITICAL_EVENT (device_leak_status == CRITICAL in SYSTEM_LEAK_STATUS)
       - SKIP if `system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Read system_critical_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(system_critical_leak_action)
       - update the HOST_STATE|switch-host with the device_power_state.
@@ -362,7 +362,7 @@ On an Event
       - Read rack_mgr_critical_alert_action from LEAK_CONTROL_POLICY; ==> dispatch_action(rack_mgr_critical_alert_action)
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if MINOR_SYSTEM_LEAK (device_leak_status == MINOR_SYSTEM_LEAK in SYSTEM_LEAK_STATUS)
+  - if SYSTEM_LEAK_MINOR_EVENT (device_leak_status == MINOR in SYSTEM_LEAK_STATUS)
       - SKIP if `system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Read system_minor_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(system_minor_leak_action)
 
@@ -370,7 +370,7 @@ On an Event
       - SKIP if `rack_mgr_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Read rack_mgr_minor_alert_action from LEAK_CONTROL_POLICY; ==> dispatch_action(rack_mgr_minor_alert_action)
 
-  - if CLEAR of MINOR_SYSTEM_LEAK/CRITICAL_SYSTEM_LEAK System AND External-Rack-Mgr leak
+  - if CLEAR of System leak status (device_leak_status == None) AND External-Rack-Mgr leak
       - No System action on BMC
       - POWER_ON to be controlled by an External tool/user CLI.
 
@@ -427,59 +427,61 @@ last_change_timestamp     = STR
 #### 2.2.2 thermalctld
 In Liquid cooled platform, thermalctld will skip the PSU, FAN, SFP thermals but have additional responsibilities to check leak sensors and apply leak policy.
 
-There is a thread to check the leak sensors and store it in the LIQUID_COOLING_INFO table
+There is a dedicated `LiquidCoolingUpdater` thread to check the leak sensors, store per-sensor state in the `LIQUID_COOLING_INFO` table, and update the aggregate system leak status.
 
 ```
 Loop on this logic 
   (i) Check system leak sensors using platform API
-         -- store the result in LIQUID_COOLING_INFO table
+         -- store the per-sensor result in LIQUID_COOLING_INFO table
          -- Per-sensor leak_severity can be CRITICAL or MINOR (sensor-level assessment)
+         -- Maintain the current leak state in memory inside the updater thread
+  (ii) Apply the system leak severity algorithm using the current sensor states
+  (iii) Update SYSTEM_LEAK_STATUS table only when the aggregate system leak status changes
 
 ```
 
-The main thermalctld daemon will run the sonic thermal policy based on the number and severity of leak sensors with leak
+The `LiquidCoolingUpdater` thread applies the sonic leak policy based on the number and severity of leak sensors with leak.
 
 ```
-    - Subscribe to LIQUID_COOLING_INFO to check if there is any change in leak sensor status 
     - Apply the System leak severity detection algorithm as below
        
        +--------------------------------------+-------------------------------------------+-------------------------------+
        | Individual Leak Sensor Condition     | Individual Leak Sensor Severity (Input)   | System Leak Severity (Output) |
        +--------------------------------------+-------------------------------------------+-------------------------------+
-       | 1 Critical leak                      |                   CRITICAL                | CRITICAL_SYSTEM_LEAK          |
-       | 2 or more leaks (any severity)       |                 Any Severity              | CRITICAL_SYSTEM_LEAK          |
-       | 1 Minor leak staying for MAX-T secs  |                   MINOR                   | CRITICAL_SYSTEM_LEAK          |
-       | 1 Minor leak detected                |                   MINOR                   | MINOR_SYSTEM_LEAK             |
+       | 1 Critical leak                      |                   CRITICAL                | CRITICAL                      |
+       | 2 or more leaks (any severity)       |                 Any Severity              | CRITICAL                      |
+       | 1 Minor leak staying for MAX-T secs  |                   MINOR                   | CRITICAL                      |
+       | 1 Minor leak detected                |                   MINOR                   | MINOR                         |
        +--------------------------------------+-------------------------------------------+-------------------------------+
 
     - Additional considerations, the timers can be configured per leak sensor profile.
        - MAX-T secs defined before which a MINOR leak can be considered CRITICAL.
-
     - Update the system SYSTEM_LEAK_STATUS table with the severity of leak. This will be used in bmcctld process.
 
 ```
  
 #### 2.2.2.1 DB schema
 
-This LIQUID_COOLING_INFO table is already populated by thermalctld. New field **leak_severity** is introduced to capture per-sensor severity.
+These leak tables are populated by `thermalctld` in `STATE_DB`.
 ```
 key                       = LIQUID_COOLING_INFO|leakage_sensors{X}  ; leak data in STATE_DB per sensor
  ; field                  = value
 name                      = STR                                       ; sensor name
-leaking                   = STR                                       ; Yes or No to indicate leak status
-leak_sensor_status        = STR                                       ; Is Leak sensor good or faulty.
+leaking                   = STR                                       ; Yes, No, or N/A if the sensor is faulty or unreadable
+leak_status               = STR                                       ; Same value as leaking, kept for backward compatibility
+leak_sensor_status        = STR                                       ; Good or Fault
 type                      = STR                                       ; leak sensor type
 location                  = STR                                       ; leak sensor location
-leak_severity             = "status"                                  ; CRITICAL/MINOR (per-sensor level)
+leak_severity             = STR                                       ; CRITICAL, MINOR, or None
 
-key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in CONFIG_DB
+key                       = LEAK_PROFILE|<sensor_type>                ; leak profile per leak sensor type in STATE_DB
 ; field                   = value
-leak_type                 = STR                                       ; Leak sensor type
+type                      = STR                                       ; Leak sensor type
 max_minor_duration_sec    = integer                                   ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
 
 key                       = SYSTEM_LEAK_STATUS|system                  ; system bmc leak status in STATE DB
 ; field                   = value
-device_leak_status        = "status"                                  ; CRITICAL_SYSTEM_LEAK/MINOR_SYSTEM_LEAK (system aggregate level)
+device_leak_status        = STR                                       ; CRITICAL, MINOR, or None
 timestamp                 = STR                                       ; timestamp when this status is recorded.
 ```     
 
@@ -499,17 +501,17 @@ Reference doc:
 ####  LeakageSensorBase
 
 This class defines the APIs available per leak sensor.
-This base class is already defined in sonic-platform-common, additional new platform APIs are introduced.
+This base class is defined in sonic-platform-common and is used by `thermalctld` for per-sensor leak handling.
 
-| Method | Present | Action |
-|---------|---------|----------|
-| get_name() | Y | Get leak sensor name |
-| is_leak() | Y | Is there a leak detected? **Only stable leak conditions** are asserted or cleared. This could be done by debounce logic in <vendor>platform/firmware |
-| is_leak_sensor_ok() | New | Is the leak sensor OK or faulty ? |
-| get_leak_sensor_type() | New | What type of leak sensor is this rope, flex_pcb, spot etc |
-| get_leak_sensor_location() | New | Location of leak sensor |
-| get_leak_severity() | New | Get the severity based on the criticality of the location/zone or how severe the leak is for a sensor for eg: more liquid presence |
-| get_leak_profile() | New | Returns the leak sensor profile associated with this leak sensor type. there will be a profile created per leak sensor type rope, flex_pcb, spot etc  |
+| Method | Description |
+|---------|----------|
+| get_name() | Get leak sensor name |
+| is_leak() | Is there a leak detected? **Only stable leak conditions** are asserted or cleared. This could be done by debounce logic in <vendor>platform/firmware |
+| is_leak_sensor_ok() | Is the leak sensor OK or faulty? |
+| get_leak_sensor_type() | Get the sensor type, for example rope, flex_pcb, or spot |
+| get_leak_sensor_location() | Get the sensor location |
+| get_leak_severity() | Get the per-sensor leak severity as `LeakSeverity.CRITICAL`, `LeakSeverity.MINOR`, or `None` |
+| get_leak_profile() | Return the `LeakSensorProfileBase` associated with this leak sensor type |
 
 **Note**
 
@@ -526,20 +528,23 @@ Even if the sensor is located farther from critical components (e.g., a rope/cab
 This base class is for getting the platform specific leak sensor profile.
 This profile is created per leak sensor type and it will contain tunable parameters per leak sensor type.
 
-| Method | Present | Action |
-|---------|---------|----------|
-| get_leak_max_minor_duration_sec() | New | Get MAX time in secs before which a minor leak can be marked CRITICAL. This API could return back 0 if a platform don't support this concept of minor severity leak gets critical over time |
+| Method | Description |
+|---------|----------|
+| get_type() | Get the sensor type described by this profile |
+| get_leak_max_minor_duration_sec() | Get MAX time in secs before which a minor leak can be marked CRITICAL. This API can return 0 if a platform does not support minor-severity escalation over time |
 
 
 #### LiquidCoolingBase
 This base class is already defined in sonic-platform-common. 
 
-| Method | Present | Action |
-|---------|---------|----------|
-| get_num_leak_sensors() | Y | Get number of leak sensors |
-| get_leak_sensor(index) | Y | Get per-leak-sensor status |
-| get_leak_sensor_status() | Y | Get all leak sensor status |
-| get_all_leak_sensors() | Y | Get list of all leak sensors |
+| Method | Description |
+|---------|----------|
+| get_num_leak_sensors() | Get number of leak sensors |
+| get_leak_sensor(index) | Get a specific leak sensor object |
+| get_leak_sensor_status() | Get the list of sensors that are currently leaking |
+| get_all_leak_sensors() | Get the list of all leak sensors |
+| get_all_profiles() | Get the list of all leak sensor profiles |
+| get_profile(type) | Get the profile associated with the given sensor type |
 
 
 ####  ModuleBase
