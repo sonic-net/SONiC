@@ -43,8 +43,52 @@ module sonic-high-frequency-telemetry {
 
                 leaf poll_interval {
                     mandatory true;
-                    description "The interval to poll counter, unit milliseconds.";
+                    description "The interval to poll counter, unit microseconds.";
                     type uint32;
+                }
+
+                leaf aggregator {
+                    description "Optional aggregator configuration applied by this profile.";
+                    type leafref {
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST/name";
+                    }
+                }
+
+            }
+        }
+
+        container HIGH_FREQUENCY_TELEMETRY_AGGREGATOR {
+            description "HIGH_FREQUENCY_TELEMETRY_AGGREGATOR part of config_db.json";
+            list HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST {
+                key "name";
+
+                leaf name {
+                    type string {
+                        length 1..128;
+                    }
+                }
+
+                leaf reporting_rate {
+                    description "The reporting interval after aggregation, unit microseconds.";
+                    type uint32;
+                }
+
+                leaf-list rollover_counters {
+                    description "List of group and counter pairs that require rollover correction. It is encoded as a comma-separated string in CONFIG_DB.";
+                    type string;
+                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
+                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )"
+                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
+                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )";
+                }
+
+                leaf-list heatmap_counters {
+                    description "List of group and counter pairs that should be treated as heatmap data. It is encoded as a comma-separated string in CONFIG_DB.";
+                    type string;
+                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
+                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )"
+                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
+                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )";
                 }
 
             }
