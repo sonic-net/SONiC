@@ -1,6 +1,6 @@
 # ACL in SONiC
 # High Level Design Document
-### Rev 1.1
+### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -88,6 +88,7 @@
 | 0.3 | 10-Nov-2016 | Andriy Moroz       | Updated according to the comments   |
 | 0.4 | 20-Dec-2016 | Oleksandr Ivantsiv | Update data structures              |
 | 1.1 | 08-Apr-2025 | Anish Narsian      | VXLAN inner src mac rewrite support |
+| 1.2 | 30-Jun-2026 | Anant Kishor Sharma | POLICER_ACTION (policer/rate-limit) ACL rule action |
 # About this Manual
 This document provides general information about the ACL feature implementation in SONiC.
 # Scope
@@ -568,6 +569,14 @@ to class AclRuleMirror to indicate the stage the ACL mirror rule, according to t
 action, "SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS" for ingress ACL rule, "SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS"
 for egress ACL rule.  
 Add possibility to receive updates about mirror sessions state change and perform mirroring rules state change accordingly.
+
+To meter/rate-limit ACL-matched traffic, the policer action (keyword "POLICER_ACTION") is realized by class "AclRulePolicer",
+which resolves the referenced POLICER table entry to its SAI policer object and programs "SAI_ACL_ENTRY_ATTR_ACTION_SET_POLICER"
+on the ACL entry. "AclRulePolicer" holds a reference on the bound policer for the lifetime of the rule: the reference is
+acquired before the SAI ACL entry is created and released when the rule is removed (or if entry creation fails), so a
+POLICER cannot be deleted while an ACL rule binds it. If the referenced policer does not exist yet, rule creation is deferred
+and retried (via the Consumer m_toSync mechanism) until the policer appears, mirroring the existing "wait for ACL table" behavior.
+
 # 4 Flows
 ## 4.1 Creating of ACL Objects
 ![](acl_create.png)
@@ -629,6 +638,7 @@ Ansible + PTF
 |packet_action | ACL Rule property. Packet actions "forward" or "drop". Valid for rules in "L3" tables only
 |mirror_action | Action "mirror". Valid for rules in "mirror" tables only
 |inner_src_mac_rewrite_action | Action to rewrite the inner src mac rewrite field.
+|policer_action | Action to meter/rate-limit matching packets via a referenced POLICER table entry. Maps to SAI_ACL_ENTRY_ATTR_ACTION_SET_POLICER
 *Keywords derived from the SAI ACL attributes.*
 # Appendix B: Sample input json file
 ```
