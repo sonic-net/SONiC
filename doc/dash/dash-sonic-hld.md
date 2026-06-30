@@ -32,6 +32,7 @@
 
 |  Rev  |    Date    |       Author        | Change Description                        |
 | :---: | :--------: | :-----------------: | :---------------------------------------- |
+| 2.7   | 06/02/2026 |    Lawrence Lee     | Add FNIC+PL metering example |
 | 2.6.1 | 02/23/2026 |    Lawrence Lee     | Change 'trusted_vnis' field to 'trusted_vnis_list' |
 |  2.6  | 10/27/2025 |    Lawrence Lee     | Move route rule priority to key |
 |  2.5  | 06/13/2025 |    Lawrence Lee     | Add DB schema for PL redirect map         |
@@ -300,6 +301,41 @@ It is possible that a given packet can get a hit in route table and/or mapping t
 
 
   ![dash-outbound-meter](../../images/dash/dash-hld-outbound-meter-pipeline.png)
+
+### 2.4.3 Floating NIC + PrivateLink Metering Behavior
+
+For the FNIC + PL scenario, a single round trip from the VM to the PL endpoint and back consists of four total packets from the DPU perspective:
+
+1. The original packet from the VM, which lands on the DPU
+2. The packet from the DPU to the PE (which is the original VM packet w/ transforms/mappings applied)
+3. The return packet from the PE, which lands on the DPU
+4. The packet from the DPU to the VM (which is the return packet w/ transforms/mappings applied)
+
+Since transformations on the DPU (particularly the 4to6 and 6to4 IP address transformations) will change the packet size, it's important to consider how DASH metering buckets will reflect the different packet sizes. The packet which lands on the DPU from an external source should increment the inbound bytes of the matched metering bucket, while the resulting packet sent by the DPU should increment the outbound bytes of the same bucket.
+
+As an example, assume the following:
+- The original packet from the VM has an original inner packet size of 100 bytes and matches metering bucket 1
+- The return packet from the PE has an original inner packet size of 200 bytes and matches metering bucket 2. 
+- All metering stats start at 0
+- The IPv4 to IPv6 transformation on the DPU will increase the inner packet size by 20 bytes (and the v6 to v4 transformation will decrease it by 20 bytes). 
+
+This results in the following packet sizes:
+
+| Packet | Size | Metering Bucket Stat Incremented |
+| - | - | - |
+| VM to DPU | 100 bytes | Bucket 1 inbound bytes |
+| DPU to PE | 120 bytes | Bucket 1 outbound bytes |
+| PE to DPU | 200 bytes | Bucket 2 inbound bytes |
+| DPU to VM | 180 bytes | Bucket 2 outbound bytes |
+
+The final expected metering stat values are:
+
+| Metering Bucket | Stat | Value |
+| - | - | - |
+| Bucket 1 | Inbound Bytes | 100 |
+| Bucket 1 | Outbound Bytes | 120 |
+| Bucket 2 | Inbound Bytes | 200 |
+| Bucket 2 | Outbound Bytes | 180 |
 
 ## 2.5 FastPath
 
