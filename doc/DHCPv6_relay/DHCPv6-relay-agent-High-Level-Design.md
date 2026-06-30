@@ -25,6 +25,7 @@
   - [CoPP manager](#copp-manager)
   - [Source IP](#source-ip)
   - [Dynamic Configuration (no container restart)](#dynamic-configuration-no-container-restart)
+  - [VRF Support](#vrf-support)
 * [Performance](#performance)
 * [Testing](#testing)
 
@@ -254,6 +255,54 @@ The existing periodic link-local readiness check (the 60-second timer that detec
 
 Runtime reconfiguration is transparent to operators and requires no change to the CONFIG_DB schema. The previous requirement to restart the `dhcp_relay` container for relay configuration changes is removed, and the `need restart container to take effect` log is no longer emitted for supported configuration changes.
 
+# VRF Support
+
+By default the DHCPv6 relay agent forwards relay-forward messages to the DHCPv6 servers using the default (global) routing table. When the relay VLAN or its DHCPv6 servers are reachable only in a non-default VRF, the relay must send and receive the server-facing traffic in that VRF. The relay agent binds its upstream (server-facing) socket to the appropriate VRF using `SO_BINDTODEVICE`, so that relay-forward messages are routed through the VRF's routing table and the corresponding relay-reply messages are received from it. The downstream (client-facing) socket is unaffected; only the server-facing path is VRF aware.
+
+Two deployment models are supported.
+
+## VLAN in a non-default VRF
+
+When the downstream relay VLAN is itself placed in a non-default VRF (its `VLAN_INTERFACE` carries a `vrf_name`), the DHCPv6 servers are reachable in that same VRF. The relay binds the per-VLAN upstream (server-facing) socket to the VLAN's VRF with `SO_BINDTODEVICE`. The VLAN's `vrf_name` is read from the `VLAN_INTERFACE` table; when it is unset the socket remains in the default routing table exactly as before. On success the relay logs `Bound upstream socket for <vlan> to VRF <vrf>`.
+
+## Servers in a different VRF (`server_vrf`)
+
+When the DHCPv6 servers are reachable in a VRF different from the VLAN's own routing table, an explicit `server_vrf` can be configured on the VLAN's `DHCP_RELAY` row. Because several VLANs may share the same `server_vrf`, the relay opens one shared upstream socket per `server_vrf`, bound to `in6addr_any` on port 547 and `SO_BINDTODEVICE`'d to that VRF (logged as `Created shared upstream socket for server VRF <vrf>`). Relay-forward messages for any VLAN whose `server_vrf` matches are sent on that shared socket, and relay-reply messages received on it are demultiplexed back to the originating VLAN using the link-address that the relay placed in the relay-forward message — the same shared-socket / link-address demultiplexing already used for the dual-ToR loopback socket. A `server_vrf` equal to the VLAN's own VRF is treated as "no separate server VRF", and the per-VLAN socket is used.
+
+## CONFIG DB schema
+
+<pre>
+DHCP_RELAY|Vlan&lt;id&gt;|dhcpv6_servers: ["dhcp-server-0", ...]
+DHCP_RELAY|Vlan&lt;id&gt;|server_vrf: "&lt;vrf-name&gt;"    # optional; servers reachable in this VRF
+
+VLAN_INTERFACE|Vlan&lt;id&gt;|vrf_name: "&lt;vrf-name&gt;"  # existing; places the VLAN (and its relay) in a VRF
+</pre>
+
+`server_vrf` is optional and accepts a VRF name (a user-defined `Vrf*` instance, `mgmt`, or `default` for the global table). When it is absent the relay forwards in the VLAN's own routing table.
+
+## YANG model
+
+A `server_vrf` leaf is added to the `DHCP_RELAY` list in `sonic-dhcpv6-relay.yang`:
+
+<pre>
+leaf server_vrf {
+    type string {
+        length "1..15";
+    }
+    description "VRF in which the DHCPv6 servers are reachable.";
+}
+</pre>
+
+It is modeled as a string (length 1..15, the `SO_BINDTODEVICE` `IFNAMSIZ` limit) rather than a leafref so that the reserved names `default` (global table) and `mgmt` are accepted in addition to user-defined `Vrf*` instances.
+
+## Runtime behavior
+
+VRF binding is applied at runtime by the Config Manager described in [Dynamic Configuration (no container restart)](#dynamic-configuration-no-container-restart), without restarting the `dhcp_relay` container. Adding, changing, or removing a VLAN's `vrf_name` or a `DHCP_RELAY` `server_vrf` re-binds (or tears down and re-opens) the affected upstream socket in place; the relay process PID is unchanged.
+
+## Backward compatibility
+
+VRF support is opt-in. When neither a VLAN `vrf_name` nor a `server_vrf` is configured, the relay binds its upstream socket in the default routing table exactly as before, and the on-the-wire behavior is unchanged. No existing CONFIG_DB row needs to be modified to retain the previous behavior.
+
 # Performance
 
 SONiC DHCP relay agent is currently not relaying many DHCP requests. Frequency arrival rate of DHCP packets is not high so it is not going to affect performance.
@@ -274,3 +323,9 @@ Validate runtime reconfiguration without restarting the `dhcp_relay` container:
 - Toggle the option 79 (`rfc6939_support`) and interface-id options and confirm the relayed packets reflect the change
 - Add and remove a VLAN (and its IPv6 address) and confirm relay instances are created and torn down while other VLANs continue relaying uninterrupted
 - Confirm the `need restart container to take effect` log is no longer emitted for the above changes
+
+Validate VRF support:
+
+- Place a relay VLAN in a non-default VRF and confirm the relay binds its upstream socket to that VRF and relays DHCPv6 messages to servers reachable in it
+- Configure a `server_vrf` and confirm the relay opens a shared upstream socket in that VRF and relays and receives messages for the servers reachable there
+- Add, change, and remove a VLAN's VRF or `server_vrf` at runtime and confirm the upstream socket is re-bound without restarting the `dhcp_relay` container, and that DHCPv6 traffic is relayed over the correct VRF socket and received back at the client
