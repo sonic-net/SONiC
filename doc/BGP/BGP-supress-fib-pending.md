@@ -105,7 +105,6 @@ High level requirements:
 - Provide an end to end ASIC hardware to BGP route programming feedback mechanism
 - BGP must not advertise routes which aren't yet offloaded if this feature is enabled
 - BGP route suppression is optional and disabled by default
-- Route suppression can be turned on or off at runtime
 - Offloaded routes consistency monitoring and automatic mitigation
 
 Restrictions/Limitations:
@@ -157,11 +156,7 @@ Sample of CONFIG DB snippet given below:
 
 This configuration is backward compatible. Upgrade from a SONiC version that does not support this feature does not change the user's expected behavior as this flag is set to be disabled by default.
 
-This setting can be turned on or off at runtime. When this feature is turned off *fpmsyncd* sends an offload status reply immediately when a route is received from zebra. *fpmsyncd* listens to the changes
-in *DEVICE_METADATA* and the new added field and when it gets enabled starts replying to zebra only after a reply from orchagent for all newly added prefixes. This design will make it possible to control
-this feature at runtime. When user turns the feature off, newly received routes from zebra will get immediate answer back.
-
-In case user detects an issue with a feature (i.e routes aren't marked as offloaded in zebra and thus BGP does not announce them), it can be turned off.
+This setting can be turned on or off. A config reload is required for the change to take effect. When this feature is disabled, *fpmsyncd* sends an offload status reply immediately when a route is received from zebra. When enabled, *fpmsyncd* replies to zebra only after receiving a response from orchagent for each newly added prefix.
 
 <!-- omit in toc -->
 ##### 6.1.2. Minigraph
@@ -229,12 +224,18 @@ A new CLI command is added to control this feature:
 Command to enable feature:
 ```
 admin@sonic:~$ sudo config suppress-fib-pending enabled
+admin@sonic:~$ sudo config save -y
+admin@sonic:~$ sudo config reload -y
 ```
 
 Command to disable feature:
 ```
 admin@sonic:~$ sudo config suppress-fib-pending disabled
+admin@sonic:~$ sudo config save -y
+admin@sonic:~$ sudo config reload -y
 ```
+
+**Note:** A config reload is required for the change to take effect.
 
 ### 7. High-Level Design
 
