@@ -28,8 +28,7 @@
     * [5.3 Card-state handling](#53-card-state-handling)
     * [5.4 Producer-event handling](#54-producer-event-handling)
     * [5.5 Concurrency model](#55-concurrency-model)
-  * [6. Lifecycle (systemd)](#6-lifecycle-systemd)
-  * [7. Open Questions for Community Review](#7-open-questions-for-community-review)
+  * [6. Open Questions for Community Review](#6-open-questions-for-community-review)
 
 ### Revision ###
 
@@ -115,7 +114,7 @@ its own container)
 ### Non-Goals
 - Per-process death/ready tracking inside a container. The initial proposal
   observes container-level events only; finer-grained signals are a follow-up
-  (§7).
+  (§6).
 - Cross-supervisor leader election. The proposal relies on the standard SONiC
   active-supervisor behavior provided by `database.service` and the placement
   of `CHASSIS_STATE_DB` on the active RP.
@@ -392,7 +391,7 @@ Concretely:
 The Docker events stream is the only source that satisfies all four columns
 for `swss`/`syncd`, which is why the monitor consumes it directly. The
 `sonic-events-host` channel may be added later as a defense-in-depth
-**down** corroboration without changing the primary path (§7).
+**down** corroboration without changing the primary path (§6).
 
 ---
 
@@ -464,45 +463,8 @@ before the initial `CHASSIS_MODULE_TABLE` replay completes.
 
 ---
 
-## 6. Lifecycle (systemd)
 
-Both units are normal SONiC host services:
-
-```ini
-[Unit]
-Description="…"
-After=database.service config-setup.service
-Requires=database.service config-setup.service
-DefaultDependencies=no
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/{ack_producer_aggregator|ack_producer_monitor}.sh
-StandardOutput=journal
-StandardError=journal
-SuccessExitStatus=0
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-- `Restart=on-failure`: systemd respawns either daemon if its Python process
-  exits non-zero. The aggregator does this gracefully — on restart it
-  replays existing `ACK_PROD_INFO` rows before subscribing for deltas.
-- `After=database.service`: ensures local Redis is up before either daemon
-  tries `daemon_base.db_connect`.
-- The wrapper `.sh` scripts exist for two reasons:
-  1. **Per-host applicability gating** — exit `0` cleanly on hosts where
-     the daemon should not run (e.g. monitor on a supervisor, aggregator on
-     a line card). This lets the unit be enabled identically on every host
-     without host-class-specific installers.
-  2. **Single point** to add interpreter env, ulimits, etc.
-
----
-
-
-## 7. Open Questions for Community Review
+## 6. Open Questions for Community Review
 
 - **Process-level tracking** — The monitor today observes container-level
   events only. A container-alive producer whose `orchagent` has wedged still
