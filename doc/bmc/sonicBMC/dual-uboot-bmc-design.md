@@ -2,32 +2,38 @@
 
 ## Table of Contents
 
-- [Revision](#revision)
+- [Aspeed SONiC-BMC Dual U-Boot HLD](#aspeed-sonic-bmc-dual-u-boot-hld)
+  - [Table of Contents](#table-of-contents)
+  - [Revision](#revision)
 - [Scope](#scope)
-- [Acronyms](#acronyms)
-- [1. Overview](#1-overview)
-  - [1.1 Background](#11-background)
-  - [1.2 Functional Requirements](#12-functional-requirements)
-- [2. Detailed Design](#2-detailed-design)
-  - [2.1 Current Design](#21-current-design)
-  - [2.2 Problem Statement](#22-problem-statement)
-  - [2.3 Proposed Design](#23-proposed-design)
-    - [2.3.1 Dual Environment Detection](#231-dual-environment-detection)
-    - [2.3.2 Synchronization Flow](#232-synchronization-flow)
-    - [2.3.3 Integration Points in Aspeed Framework](#233-integration-points-in-aspeed-framework)
-    - [2.3.4 Failure Handling](#234-failure-handling)
-    - [2.3.5 Unchanged Components](#235-unchanged-components)
-  - [2.4 Workflow](#24-workflow)
-    - [2.4.1 Single Flash Platform](#241-single-flash-platform)
-    - [2.4.2 Dual Flash Platform](#242-dual-flash-platform)
-  - [2.5 System Impact](#25-system-impact)
-- [3. Testing Plan](#3-testing-plan)
+  - [1. Overview](#1-overview)
+    - [1.1 Background](#11-background)
+    - [1.2 Functional Requirements](#12-functional-requirements)
+  - [2. Detailed Design](#2-detailed-design)
+    - [2.1 Current Design](#21-current-design)
+    - [2.2 Problem Statement](#22-problem-statement)
+      - [Image Install or Upgrade](#image-install-or-upgrade)
+      - [Image Remove](#image-remove)
+      - [Next Boot or Boot Once Selection](#next-boot-or-boot-once-selection)
+    - [2.3 Proposed Design](#23-proposed-design)
+      - [2.3.1 Dual Environment Detection](#231-dual-environment-detection)
+      - [2.3.2 Synchronization Flow](#232-synchronization-flow)
+      - [2.3.3 Integration Points in Aspeed Framework](#233-integration-points-in-aspeed-framework)
+      - [2.3.4 Failure Handling](#234-failure-handling)
+  - [3. Testing Plan](#3-testing-plan)
+    - [Test 1: Single U-Boot Environment](#test-1-single-u-boot-environment)
+    - [Test 2: Dual U-Boot Environment Init](#test-2-dual-u-boot-environment-init)
+    - [Test 3: Dual U-Boot Environment Install](#test-3-dual-u-boot-environment-install)
+    - [Test 4: Dual U-Boot Environment Remove](#test-4-dual-u-boot-environment-remove)
+    - [Test 5: Dual U-Boot Environment Next Boot](#test-5-dual-u-boot-environment-next-boot)
+    - [Test 6: Error Handling](#test-6-error-handling)
 
 ## Revision
 
 | Rev | Date | Author | Change Description |
 |:---:|:-----------:|:------:|--------------------|
 | 0.1 | 2026-06-23 | Micas | Initial version |
+
 
 # Scope
 
@@ -55,21 +61,7 @@ Some platforms use a dual SPI flash architecture.
 
 The high-level storage relationship is shown below:
 
-```text
-                 +----------------------+
-                 |        eMMC          |
-                 |----------------------|
-                 | SONiC-BMC images     |
-                 | root filesystem      |
-                 +----------------------+
-
-      +----------------------+    +----------------------+
-      |     SPI Flash A      |    |     SPI Flash B      |
-      |----------------------|    |----------------------|
-      | U-Boot               |    | U-Boot               |
-      | u-boot-env           |    | u-boot-env-alt       |
-      +----------------------+    +----------------------+
-```
+![picture](images/storage_relationship.png)
 
 The Aspeed SONiC-BMC framework updates U-Boot environment variables through `fw_setenv` during image install, image removal, boot target changes, and initial U-Boot environment programming.
 
@@ -83,7 +75,7 @@ General requirements
 
 - The Aspeed SONiC-BMC common framework shall detect whether both `u-boot-env` and `u-boot-env-alt` are present.
 - If both environment partitions are present, the framework shall keep them synchronized.
-- The synchronization shall happen as part of the bootenv update path itself.
+- The synchronization shall happen at the completion of a framework-managed bootenv update operation.
 - The design shall cover Aspeed framework flows that update bootenv through `fw_setenv`.
 - The design shall not add a new systemd service.
 - The design shall not add periodic synchronization logic.
@@ -113,35 +105,13 @@ These flows update variables such as:
 - `linuxargs`
 - `bootcmd`
 
-Current behavior on a dual-flash platform is:
+Current behavior on sonic-bmc is:
 
-```mermaid
-flowchart TB
-    A[Aspeed common code] --> B[fw_setenv]
-    B --> C[Primary environment updated]
-    C --> D[Alternate environment unchanged]
-```
-
-An existing downstream workaround uses a platform-specific post-boot synchronization service. This is not desirable as a framework solution because it is platform-private and operates after the actual update already happened.
+![picture](images/current_behavior.png)
 
 ### 2.2 Problem Statement
 
 When only the primary environment is updated, the alternate environment may retain stale boot metadata.
-
-This is the core inconsistency introduced by the current flow:
-
-```mermaid
-flowchart LR
-    subgraph After_Primary_Only_Update
-        A2[SPI Flash A<br/>u-boot-env<br/>new metadata]
-        B2[SPI Flash B<br/>u-boot-env-alt<br/>old metadata]
-    end
-
-    subgraph Before_Update
-        A1[SPI Flash A<br/>u-boot-env<br/>old metadata]
-        B1[SPI Flash B<br/>u-boot-env-alt<br/>old metadata]
-    end
-```
 
 Examples:
 
@@ -183,42 +153,28 @@ This inconsistency becomes visible after flash switchover or recovery scenarios.
 
 ### 2.3 Proposed Design
 
-The proposed design introduces a common Aspeed-side bootenv synchronization helper and routes bootenv update flows through it.
+The proposed design introduces a common Aspeed-side bootenv synchronization helper.
 
-The helper will:
+Framework-managed bootenv operations continue to update the primary environment through existing `fw_setenv` calls.
 
-1. perform the normal update to the primary environment
-2. detect whether an alternate environment exists
-3. if dual environment is present, copy the updated primary environment content to the alternate environment partition
-4. verify that both copies are identical
+At operation completion, the helper will:
+
+1. detect whether an alternate environment exists
+2. if dual environment is present, copy the updated primary environment content to the alternate environment partition
+3. verify that both copies are identical
 
 This keeps the primary environment as the source of truth and eliminates the need for platform-private post-boot sync services.
 
-The core change is a single synchronization step inserted after the existing primary environment update:
+In this design, an operation is a logically complete bootenv update action whose resulting state is intended to be consumed by a future boot flow.
 
-```mermaid
-flowchart TB
-    subgraph Proposed
-        D[install / remove / set-next-boot / init] --> E[fw_setenv]
-        E --> F[detect dual environment]
-        F --> G[sync alternate environment]
-        G --> H[Done]
-    end
+Representative operations include:
 
-    subgraph Current
-        A[install / remove / set-next-boot / init] --> B[fw_setenv]
-        B --> C[Done]
-    end
-```
-
-The result after synchronization is:
-
-```mermaid
-flowchart LR
-    A[SPI Flash A<br/>u-boot-env<br/>new metadata]
-    B[SPI Flash B<br/>u-boot-env-alt<br/>new metadata]
-    A --- B
-```
+- image install
+- image remove
+- set default image
+- set next boot image
+- first boot environment programming
+- boot menu preparation as part of install or upgrade flow
 
 #### 2.3.1 Dual Environment Detection
 
@@ -245,187 +201,116 @@ Detection behavior:
 
 #### 2.3.2 Synchronization Flow
 
-The synchronization model is copy-after-update.
+The synchronization model is copy-after-update, once per completed framework-managed operation.
 
-```mermaid
-flowchart TB
-    A[Primary env update]
-    B[Read primary environment partition]
-    C[Write copied content to alternate environment partition]
-    D[Verify both environment partitions are identical]
-    A --> B --> C --> D
-```
+![picture](images/synchronization_flow.png)
 
-The synchronization is performed on raw environment partition content rather than reconstructing variables one by one. This preserves the exact serialized state produced by the primary environment update path.
+The synchronization is performed on raw environment partition content rather than reconstructing variables one by one. This preserves the exact serialized state produced by `fw_setenv`, including CRC and on-flash environment layout, without requiring variable-by-variable replay.
+
+Before copy, the helper validates that the primary and alternate environment partitions have the same partition size and erase size.
+
+After copy, the helper performs byte-to-byte verification between the two environment partitions.
+
+The helper serializes synchronization with a file lock so concurrent framework-managed operations do not interleave alternate environment copy and verification.
 
 #### 2.3.3 Integration Points in Aspeed Framework
 
 The synchronization helper is intended for Aspeed common paths that currently update bootenv.
 
-The main integration points are expected to be:
+The current integration points are:
+
+- `platform/aspeed/aspeed-platform-services/scripts/sonic-program-uboot-env.sh`
+- `platform/aspeed/install-sonic-to-emmc.sh`
+- `platform/aspeed/platform_arm64.conf`
+- `src/sonic-utilities/sonic_installer/bootloader/uboot.py`
+- `platform/aspeed/aspeed-platform-services/scripts/sonic-sync-uboot-env.sh`
+
+These integration points cover:
 
 - bootenv programming during install and upgrade
-- first-boot environment initialization
+- first-boot environment programming
 - image slot metadata updates
 - default boot target updates
 - next-boot and boot-once updates
-- boot menu preparation paths
 
 The design goal is:
 
 ```text
-Any Aspeed common framework path that successfully updates the primary U-Boot environment
-shall synchronize the alternate environment when dual-env layout is present.
+Any Aspeed common framework-managed operation that successfully updates
+the primary U-Boot environment shall synchronize the alternate
+environment when dual-env layout is present.
 ```
 
 #### 2.3.4 Failure Handling
 
-Failure handling rules are as follows:
+The current helper behavior is as follows:
 
-- If the primary environment update fails, alternate synchronization is not attempted.
-- If the primary update succeeds but alternate synchronization fails, the overall operation reports failure.
-- If alternate environment is absent, the operation succeeds with existing single-env behavior.
-- If copy verification fails, the operation reports failure.
-- Logs shall clearly distinguish:
-  - primary update failure
-  - alternate environment not present
-  - alternate synchronization failure
-  - verification failure
+- If `u-boot-env` cannot be found in `/proc/mtd`, synchronization returns failure.
+- If `u-boot-env-alt` is not present, synchronization is skipped and the helper returns success.
+- If primary and alternate environment partitions do not have the same partition size or erase size, synchronization returns failure.
+- If `flashcp` is unavailable, synchronization returns failure.
+- If raw copy to the alternate environment fails, synchronization returns failure.
+- If byte-to-byte verification fails, synchronization returns failure.
+- If synchronization completes successfully, the helper returns success.
 
-#### 2.3.5 Unchanged Components
+Framework-managed shell paths treat synchronization failure as operation failure.
 
-The following components remain unchanged:
+In the current `uboot.py` implementation, synchronization is attempted only when `sonic-sync-uboot-env.sh` exists on the target system. If the helper is absent, the generic U-Boot path continues without synchronization.
 
-- U-Boot implementation
-- `fw_setenv`
-- `fw_printenv`
-- boot flow semantics
-- SONiC-BMC image placement on eMMC
-- flash layout definition itself
-
-### 2.4 Workflow
-
-#### 2.4.1 Single Flash Platform
-
-For platforms without `u-boot-env-alt`, behavior remains unchanged.
-
-```mermaid
-flowchart TB
-    A[Aspeed framework]
-    B[Primary env update]
-    C[Done]
-    A --> B --> C
-```
-
-#### 2.4.2 Dual Flash Platform
-
-For platforms with both `u-boot-env` and `u-boot-env-alt`:
-
-```mermaid
-flowchart TB
-    A[Aspeed framework]
-    B[Primary env update]
-    C[Detect alternate env]
-    D[Copy primary env content]
-    E[Program alternate env]
-    F[Verify equality]
-    G[Done]
-    A --> B --> C --> D --> E --> F --> G
-```
-
-### 2.5 System Impact
-
-Modified components are expected to include:
-
-- `platform/aspeed/platform_arm64.conf`
-- `platform/aspeed/aspeed-platform-services/scripts/sonic-uboot-env-init.sh`
-- `platform/aspeed/aspeed-platform-services/scripts/sonic-program-uboot-env.sh`
-- a new common bootenv synchronization helper under `platform/aspeed`
-
-The existing platform-private post-boot synchronization workaround becomes unnecessary once the common Aspeed framework path owns synchronization.
+This design is not transactional. If primary environment updates succeed and alternate synchronization later fails, the primary environment result is kept and the operation reports failure in the framework-managed shell paths.
 
 ## 3. Testing Plan
 
-### Test 1: Single Flash Platform
+### Test 1: Single U-Boot Environment
 
-Verify that:
+Description: Verify that bootenv update behavior remains unchanged when only the primary U-Boot environment exists.
 
-- bootenv update behavior remains unchanged
-- no alternate sync is attempted
-- no regression is introduced
+Check:
 
-### Test 2: Dual Flash Image Install
+- synchronization is skipped when `u-boot-env-alt` is absent
+- primary environment update remains successful
 
-Install a new SONiC-BMC image.
+### Test 2: Dual U-Boot Environment Init
 
-Verify that:
+Description: Verify that first-time framework-managed environment initialization synchronizes the alternate U-Boot environment.
 
-- primary environment is updated
+Check:
+
+- init operation completes successfully
 - alternate environment is synchronized
-- both partitions contain identical content after update
 
-### Test 3: Dual Flash Image Remove
+### Test 3: Dual U-Boot Environment Install
 
-Remove an image.
+Description: Verify that install flow synchronizes the alternate U-Boot environment at operation completion.
 
-Verify that variables such as:
+Check:
 
-- `boot_next`
-- `sonic_version_1`
-- `sonic_version_2`
+- install operation completes successfully
+- alternate environment is synchronized
 
-remain consistent across both environment copies.
+### Test 4: Dual U-Boot Environment Remove
 
-### Test 4: Default and Next Boot Selection
+Description: Verify that remove flow synchronizes bootenv updates to the alternate U-Boot environment.
 
-Run boot target changes through framework-managed paths.
+Check:
 
-Verify that:
+- remove operation completes successfully
+- alternate environment is synchronized
 
-- `boot_next`
-- `boot_once`
+### Test 5: Dual U-Boot Environment Next Boot
 
-are synchronized across both environment copies.
+Description: Verify that next-boot update synchronizes the alternate U-Boot environment.
 
-### Test 5: First-Boot Environment Programming
+Check:
 
-Validate first-time U-Boot environment programming through Aspeed common scripts.
+- next-boot operation completes successfully
+- alternate environment is synchronized
 
-Verify that:
+### Test 6: Error Handling
 
-- `u-boot-env`
-- `u-boot-env-alt`
+Description: Verify that synchronization failure is reported when the alternate environment update path encounters an error.
 
-are identical after initialization.
+Check:
 
-### Test 6: Install or Upgrade Flow in Aspeed Framework
-
-Run the Aspeed install or upgrade flow that programs boot variables such as:
-
-- `image_dir`
-- `fit_name`
-- `sonic_version_1`
-- `linuxargs`
-- `bootcmd`
-
-Verify that the alternate environment is synchronized immediately after the primary update flow succeeds.
-
-### Test 7: Flash Switchover
-
-After a successful update, switch to the alternate SPI flash.
-
-Verify that:
-
-- boot succeeds
-- the expected image metadata is used
-- no stale image state is observed
-
-### Test 8: Negative Test
-
-Inject alternate synchronization failure.
-
-Verify that:
-
-- failure is reported
+- operation reports synchronization failure
 - failure is logged
-- no false success is returned
