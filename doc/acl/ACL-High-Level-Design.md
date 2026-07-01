@@ -1,6 +1,6 @@
 # ACL in SONiC
 # High Level Design Document
-### Rev 1.1
+### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -88,6 +88,7 @@
 | 0.3 | 10-Nov-2016 | Andriy Moroz       | Updated according to the comments   |
 | 0.4 | 20-Dec-2016 | Oleksandr Ivantsiv | Update data structures              |
 | 1.1 | 08-Apr-2025 | Anish Narsian      | VXLAN inner src mac rewrite support |
+| 1.2 | 01-Jul-2026 | Anant Kishor Sharma | TC_ACTION (set traffic class) ACL rule action |
 # About this Manual
 This document provides general information about the ACL feature implementation in SONiC.
 # Scope
@@ -568,6 +569,14 @@ to class AclRuleMirror to indicate the stage the ACL mirror rule, according to t
 action, "SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS" for ingress ACL rule, "SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS"
 for egress ACL rule.  
 Add possibility to receive updates about mirror sessions state change and perform mirroring rules state change accordingly.
+
+To set the traffic class (Class-of-Service) of ACL-matched traffic, the traffic class action (keyword "TC_ACTION") is
+realized by class "AclRulePacket", which parses the configured 8-bit value (0-255) and programs it as
+"SAI_ACL_ENTRY_ATTR_ACTION_SET_TC" on the ACL entry. The action is gated by the per-stage ASIC action capability that
+is queried at startup and published in STATE_DB "ACL_STAGE_CAPABILITY_TABLE": it is available on any stage (ingress
+and/or egress) whose SAI advertises "SAI_ACL_ACTION_TYPE_SET_TC", and a table or rule that uses it is rejected on
+platforms that do not advertise it, so there is no behavior change for existing platforms. The action is handled in the
+generic CONFIG_DB ACL pipeline (previously "SAI_ACL_ENTRY_ATTR_ACTION_SET_TC" was only reachable via the P4Orch/P4RT path).
 # 4 Flows
 ## 4.1 Creating of ACL Objects
 ![](acl_create.png)
@@ -629,6 +638,7 @@ Ansible + PTF
 |packet_action | ACL Rule property. Packet actions "forward" or "drop". Valid for rules in "L3" tables only
 |mirror_action | Action "mirror". Valid for rules in "mirror" tables only
 |inner_src_mac_rewrite_action | Action to rewrite the inner src mac rewrite field.
+|tc_action | Action to set the traffic class (Class-of-Service), an 8-bit value 0-255, on matching packets. Maps to SAI_ACL_ENTRY_ATTR_ACTION_SET_TC
 *Keywords derived from the SAI ACL attributes.*
 # Appendix B: Sample input json file
 ```
