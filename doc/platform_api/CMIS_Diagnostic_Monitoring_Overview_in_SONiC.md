@@ -1913,47 +1913,51 @@ Ethernet1    Laser            False/                     False/                 
 #### 4.2.1 `show interfaces transceiver vdm PORT`
 
 This CLI shows the transceiver VDM and threshold values for a given port.
-The CLI will show VDM data for observables which are supported by the module vendor. If the module vendor does not support a particular observable, the CLI will not show data for that observable.
+The CLI will show VDM data for observables which are supported by the module vendor. If the module vendor does not support a particular observable, the CLI will not show data for that observable. Both VDM basic and statistic type observables will be displayed, and corresponding basic and statistic observables of the same field will be displayed in the same row (curr, min, max, avg).
+For unsupported observables, the CLI will show `--` for the data.
+
 
 ```plaintext
 CLI output format:
 Current System Time: Day Mon DD HH:MM:SS YYYY
 Update interval: SS seconds
 Last updated: Day Mon DD HH:MM:SS YYYY
-                              High Alarm   High Warning   Low Warning   Low Alarm
-             Observable_Name  Threshold    Threshold      Threshold     Threshold
-Port         (Unit)           (Unit)       (Unit)         (Unit)        (Unit)
------------  ---------------  --------     --------       --------      --------
+
+<IFNAME>:
+    Parameter                   Unit    Lane    Current    Min        Avg        Max        Threshold    Threshold    Threshold    Threshold
+                                                Value                                       High         High         Low          Low
+                                                                                            Alarm        Warning      Warning      Alarm
+    --------------------------  ------  ------  ---------  ---------  ---------  ---------  -----------  -----------  -----------  -----------
 
 Example:
-admin@sonic#show interfaces transceiver vdm Ethernet1
-Current System Time: Wed Oct 17 03:46:41 2024
-Update interval: 10 seconds
-Last updated: Wed Oct 17 03:46:41 2024
-                    eSNR Media       High Alarm   High Warning   Low Warning   Low Alarm
-                    Input            Threshold    Threshold      Threshold     Threshold
-Port         Lane   (dB)             (dB)         (dB)           (dB)          (dB)
------------  -----  ---------------  --------     --------       --------      --------
-Ethernet1    1      23.480468        0            0              0             0
-             2      23.480468        0            0              0             0
-             3      23.480468        0            0              0             0
-             4      23.480468        0            0              0             0
-             5      23.480468        0            0              0             0
-             6      23.480468        0            0              0             0
-             7      23.480468        0            0              0             0
-             8      23.480468        0            0              0             0
-                    eSNR Media       High Alarm   High Warning   Low Warning   Low Alarm
-                    Output           Threshold    Threshold      Threshold     Threshold
-Port         Lane   (dB)             (dB)         (dB)           (dB)          (dB)
------------  -----  ---------------  --------     --------       --------      --------
-Ethernet1    1      23.480468        0            0              0             0
-             2      23.480468        0            0              0             0
-             3      23.480468        0            0              0             0
-             4      23.480468        0            0              0             0
-             5      23.480468        0            0              0             0
-             6      23.480468        0            0              0             0
-             7      23.480468        0            0              0             0
-             8      23.480468        0            0              0             0
+admin@sonic# show interfaces transceiver vdm Ethernet1
+Current System Time: Wed Jul 01 16:41:40 2026
+Update interval: 60 seconds
+Last updated: Wed Jul 01 16:41:16 2026
+
+Ethernet1:
+    Parameter                   Unit    Lane    Current    Min        Avg        Max        Threshold    Threshold    Threshold    Threshold
+                                                Value                                       High         High         Low          Low
+                                                                                            Alarm        Warning      Warning      Alarm
+    --------------------------  ------  ------  ---------  ---------  ---------  ---------  -----------  -----------  -----------  -----------
+    CD Long                     ps/nm   1       0.0        --         --         --         655340.0     655340.0     -655360.0    -655360.0
+    Errored Frames Media Input  N/A     1       0.0        0.0        0.0        0.0        1000.0       1.0          0.0          0.0
+    Errored Frames Host Input   N/A     1       0.0        0.0        0.0        0.0        1000.0       1.0          0.0          0.0
+    Errored Frames Host Input   N/A     2       0.0        0.0        0.0        0.0        1000.0       1.0          0.0          0.0
+    Errored Frames Host Input   N/A     3       0.0        0.0        0.0        0.0        1000.0       1.0          0.0          0.0
+    Errored Frames Host Input   N/A     4       0.0        0.0        0.0        0.0        1000.0       1.0          0.0          0.0
+    Laser Temperature           C       1       37.141     --         --         --         80.0         75.0         0.0          -5.0
+    Modulator Bias XI           %       1       42.843     --         --         --         99.001       95.0         5.0          0.999
+    Modulator Bias XP           %       1       68.826     --         --         --         99.001       95.0         5.0          0.999
+    Modulator Bias XQ           %       1       86.902     --         --         --         99.001       95.0         5.0          0.999
+    Modulator Bias YI           %       1       27.466     --         --         --         99.001       95.0         5.0          0.999
+    Modulator Bias YP           %       1       71.037     --         --         --         99.001       95.0         5.0          0.999
+    Modulator Bias YQ           %       1       48.985     --         --         --         99.001       95.0         5.0          0.999
+    Pre-FEC BER Media Input     N/A     1       1.250E-04  7.700E-05  1.230E-04  1.460E-04  1.250E-02    1.100E-02    0.0          0.0
+    Pre-FEC BER Host Input      N/A     1       0.0        0.0        0.0        2.340E-11  1.000E-05    1.000E-06    0.0          0.0
+    Pre-FEC BER Host Input      N/A     2       1.000E+00  1.000E+00  1.000E+00  1.000E+00  1.000E-05    1.000E-06    0.0          0.0
+    Pre-FEC BER Host Input      N/A     3       1.000E+00  1.000E+00  1.000E+00  1.000E+00  1.000E-05    1.000E-06    0.0          0.0
+    Pre-FEC BER Host Input      N/A     4       1.000E+00  1.000E+00  1.000E+00  1.000E+00  1.000E-05    1.000E-06    0.0          0.0
 .
 .
 .
@@ -1963,97 +1967,103 @@ Upto all observables supported by the module vendor
 #### 4.2.2 `show interfaces transceiver vdm flag PORT`
 
 This CLI shows the transceiver VDM flags for a given port.
-For a given observable, the CLI will show data only for only 1 lane if one or more lanes has a flag set to true. If none of the lanes have a flag set to true, no data will be shown for that observable.
-The `--detail` option can be used to show the data for all lanes and observables irrespective of the flag status. Please refer to the next section for the details on the usage of this option.
 
 ```plaintext
 CLI output format:
 Current System Time: Day Mon DD HH:MM:SS YYYY
 Update interval: SS seconds
 Last updated: Day Mon DD HH:MM:SS YYYY
-                              High Alarm                 High Warning               Low Warning                Low Alarm
-                              Flag/                      Flag/                      Flag/                      Flag/
-                              Change Count/              Change Count/              Change Count/              Change Count/
-                              Last Set Time/             Last Set Time/             Last Set Time/             Last Set Time/
-Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
------------  ---------------  ---------------  ---------------  ---------------  ---------------
+
+<IFNAME>:
+    Parameter                   Lane    High Alarm    High Warning    Low Warning    Low Alarm
+                                        Flag          Flag            Flag           Flag
+    --------------------------  ------  ------------  --------------  -------------  -----------
 
 Example:
-admin@sonic#show interfaces transceiver vdm flag Ethernet1
-Current System Time: Wed Oct 17 03:46:41 2024
-Update interval: 10 seconds
-Last updated: Wed Oct 17 03:46:41 2024
-                              High Alarm                 High Warning               Low Warning                Low Alarm
-                              Flag/                      Flag/                      Flag/                      Flag/
-                              Change Count/              Change Count/              Change Count/              Change Count/
-                              Last Set Time/             Last Set Time/             Last Set Time/             Last Set Time/
-Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
------------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
-Ethernet1    Laser Temp Media True/                      False/                     False/                     False/
-             Lane 1           1/                         0/                         2/                         0/
-                              Wed Oct 16 03:46:41 2024/  never/                     Wed Oct 16 02:46:41 2024   never/
-                              never                      never/                     Wed Oct 16 03:46:41 2024   never
-Ethernet1   PAM4 Level        False                      True                       False/                     False/
-            Transition        0/                         1/                         0/                         0/
-            Media Input       never/                     Wed Oct 16 03:46:41 2024/  never/                     never/
-            Lane 2            never                      never                      never                      never
+admin@sonic# show interfaces transceiver vdm flag Ethernet1
+Current System Time: Wed Jul 01 16:48:14 2026
+Update interval: 60 seconds
+Last updated: Wed Jul 01 16:47:46 2026
+
+Ethernet1:
+    Parameter                   Lane    High Alarm    High Warning    Low Warning    Low Alarm
+                                        Flag          Flag            Flag           Flag
+    --------------------------  ------  ------------  --------------  -------------  -----------
+    CD Long                     1       False         False           False          False
+    Errored Frames Media Input  1       False         False           False          False
+    Errored Frames Host Input   1       False         False           False          False
+    Errored Frames Host Input   2       False         False           False          False
+    Errored Frames Host Input   3       False         False           False          False
+    Errored Frames Host Input   4       False         False           False          False
+    Laser Temperature           1       False         False           False          False
+    Modulator Bias XI           1       False         False           False          False
+    Modulator Bias XP           1       False         False           False          False
+    Modulator Bias XQ           1       False         False           False          False
+    Modulator Bias YI           1       False         False           False          False
+    Modulator Bias YP           1       False         False           False          False
+    Modulator Bias YQ           1       False         False           False          False
+    Pre-FEC BER Media Input     1       False         False           False          False
+    Pre-FEC BER Host Input      1       False         False           False          False
+    Pre-FEC BER Host Input      2       False         False           False          False
+    Pre-FEC BER Host Input      3       False         False           False          False
+    Pre-FEC BER Host Input      4       False         False           False          False
 .
 .
 .
-Upto all observables with at least one lane having a flag set to true
+Upto all observables supported by the module vendor
 ```
 
 ##### 4.2.2.1 VDM flags dump using the `--detail` option
 
-With the `--detail` option, the VDM data for all types of observables will be displayed. With this option, the CLI will show data for all lanes and supported observables (irrespective of the flag status). For unsupported observables, the CLI will show `N/A` for the data.
+The `--detail` option can be used to show the flag, Change Count, Last Set Time and Last Clear Time for all observables supported by the module.
 
 ```plaintext
-admin@sonic#show interfaces transceiver vdm flag Ethernet1 --detail
-Current System Time: Wed Oct 17 03:46:41 2024
-Update interval: 10 seconds
-Last updated: Wed Oct 17 03:46:41 2024
-                              High Alarm                 High Warning               Low Warning                Low Alarm
-                              Flag/                      Flag/                      Flag/                      Flag/
-                              Change Count/              Change Count/              Change Count/              Change Count/
-                              Last Set Time/             Last Set Time/             Last Set Time/             Last Set Time/
-Port         Observable_Name  Last Clear Time            Last Clear Time            Last Clear Time            Last Clear Time
------------  ---------------  -------------------------  -------------------------  -------------------------  -------------------------
-Ethernet1    Laser Temp Media True/                      False/                     False/                     False/
-             Lane 1           1/                         0/                         2/                         0/
-                              Wed Oct 16 03:46:41 2024/  never/                     Wed Oct 16 02:46:41 2024   never/
-                              never                      never/                     Wed Oct 16 03:46:41 2024   never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             Lane 2           0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             Lane 3           0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             Lane 4           0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             Lane 5           0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             Lane 6           0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             Lane 7           0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
-Ethernet1    Laser Temp Media False/                     False/                     False/                     False/
-             Lane 8           0/                         0/                         0/                         0/
-                              never/                     never/                     never/                     never/
-                              never                      never/                     never                      never
+admin@sonic# show interfaces transceiver vdm flag --detail Ethernet1
+Current System Time: Wed Jul 01 16:55:35 2026
+Update interval: 60 seconds
+Last updated: Wed Jul 01 16:55:16 2026
+
+Ethernet1:
+    Parameter       Lane    Detail        High Alarm        High Warning      Low Warning    Low Alarm
+    --------------  ------  ------------  ----------------  ----------------  -------------  -----------
+    CD Long         1       Flag          False             False             False          False
+                            Change Count  0                 0                 0              0
+                            Last Set      never             never             never          never
+                            Last Clear    never             never             never          never
+
+    Errored Frames  1       Flag          False             False             False          False
+    Media Input             Change Count  2                 2                 0              0
+                            Last Set      6 days, 23 hours  6 days, 23 hours  never          never
+                            Last Clear    6 days, 23 hours  6 days, 23 hours  never          never
+
+    Errored Frames  1       Flag          False             False             False          False
+    Host Input              Change Count  2                 2                 0              0
+                            Last Set      6 days, 23 hours  6 days, 23 hours  never          never
+                            Last Clear    6 days, 23 hours  6 days, 23 hours  never          never
+
+    Errored Frames  2       Flag          False             False             False          False
+    Host Input              Change Count  0                 0                 0              0
+                            Last Set      never             never             never          never
+                            Last Clear    never             never             never          never
+
+    Errored Frames  3       Flag          False             False             False          False
+    Host Input              Change Count  0                 0                 0              0
+                            Last Set      never             never             never          never
+                            Last Clear    never             never             never          never
+
+    Errored Frames  4       Flag          False             False             False          False
+    Host Input              Change Count  0                 0                 0              0
+                            Last Set      never             never             never          never
+                            Last Clear    never             never             never          never
+
+    Laser           1       Flag          False             False             False          False
+    Temperature             Change Count  0                 0                 0              0
+                            Last Set      never             never             never          never
+                            Last Clear    never             never             never          never
 .
 .
 .
-Upto all observables for all lanes
+Upto all observables supported by the module vendor
 ```
 
 ### 4.3 CLI Commands for transceiver status monitoring
