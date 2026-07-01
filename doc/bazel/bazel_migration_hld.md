@@ -30,12 +30,9 @@
 8. [SAI API](#8-sai-api)
 9. [Configuration and management](#9-configuration-and-management)
 10. [Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
-    - [Warmboot and Fastboot Performance Impact](#warmboot-and-fastboot-performance-impact)
 11. [Memory Consumption](#11-memory-consumption)
 12. [Restrictions/Limitations](#12-restrictionslimitations)
 13. [Testing Requirements/Design](#13-testing-requirementsdesign)
-    - [13.1. Unit Test cases](#131-unit-test-cases)
-    - [13.2. System Test cases](#132-system-test-cases)
 14. [Open/Action items - if any](#14-openaction-items---if-any)
 
 ### 1. Revision
