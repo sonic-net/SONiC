@@ -5,14 +5,16 @@
   - [Overview](#overview)
   - [Update Plan](#update-plan)
     - [Patches](#patches)
+    - [Process](#process)
     - [Testing](#testing)
   - [Maintainers/Point-of-Contact](#maintainers)
 
 ## Revision history
 
-| Rev        | Date       | Authors                           | Change Description   |
-|------------|------------|-----------------------------------|-----------------------
-| 0.1        | 01/26/2026 | Saikrishna Arcot                  | Initial version      |
+| Rev        | Date       | Authors                           | Change Description         |
+|------------|------------|-----------------------------------|----------------------------|
+| 0.1        | 01/26/2026 | Saikrishna Arcot                  | Initial version            |
+| 0.2        | 06/30/2026 | Saikrishna Arcot                  | Expand process and testing |
 
 ## Overview
 
@@ -24,13 +26,13 @@ minor kernel upgrades (where the z in x.y.z is changed) will be done.
 ## Update Plan
 
 For each branch in scope (described later), kernel updates will be done twice a
-year. The new target kernel version will be decided around mid-January and
-mid-July, and the update to that kernel version will be completed by the end of
-March and the end of September. This includes all necessary platform-specific
+year. The new target kernel version will be decided around the end of December and
+end of June, and the update to that kernel version will be completed by the end of
+April and the end of October. This includes all necessary platform-specific
 updates for that kernel version (kernel patches, SDKs, etc.). The
 platforms/ASICs considered here are those that are checked by the PR checker.
 In the years that we are doing a base image upgrade to a newer version of
-Debian, the July-September upgrade will be skipped on all branches, so as to be
+Debian, the June-October upgrade will be skipped on all branches, so as to be
 able to focus on the new kernel that will be coming in in that new Debian
 version.
 
@@ -52,17 +54,38 @@ Linux (minor or major update), some of these patches will need to be updated to
 resolve patch conflicts. Depending on patch/conflict complexity, this might
 require support from the platform vendor.
 
+### Process
+
+A branch will be created for the sonic-linux-kernel and sonic-buildimage repos
+in a personal fork, where all changes related to the new kernel version will go
+in. There, patches that apply with either no conflicts or with minor conflicts
+will get applied (and corrected, if needed, for clean application). Patches
+that have been backported will be commented out and removed. Patches that have
+major conflicts will be commented out, and will likely require help from the
+vendor to update it appropriately. Externally-built kernel modules in
+sonic-buildimage will also be updated as necessary for compilation purposes.
+Out-of-tree patches that get applied into the sonic-linux-kernel build from
+sonic-buildimage will not be tested here; it is the responsibility of the
+provider of the patches to update them as necessary.
+
+Once an image is built for all platforms checked by the PR checker, testing
+will begin as described in the next section.
+
 ### Testing
 
 Tests for the new kernel version will include, at minimum:
 
-1. Booting up on one (or multiple, if available) platforms of that ASIC type
+1. Booting up on one (or multiple, if available) platforms of each ASIC type.
+   All ASIC types covered by the PR checkers must be covered here.
 2. Verifying that BGP is up
 3. Verifying the transceiver types are detected and transceiver EEPROM is
    readable
 4. Verifying that the bootup time and runtime CPU usage (or alternatively, the
    load average) is not significantly different compared to before the upgrade
    on some given hardware
+5. Run tests/platform_tests on the device to cover some platform-specific code
+   paths
+6. Check the syslog for any errors from the kernel
 
 Additional tests (such as stress tests) can be incorporated into this test plan
 if there is a specific suggestion to do so.
