@@ -112,9 +112,9 @@ All components should still be buildable with the regular Make-based flow.
 
 When a component is built with Bazel, this will entail:
 
-- Eliminating system dependencies (e.g. from `apt` and `whl`), as well as other sonic-make injected deps. All dependencies will go through the hermetic Bazel build graph.
-- Removing `deb` packages as an intermediate format, instead relying on the Bazel dependency graph.
-- Removing `docker` as a dependency, instead building containers directly with Bazel.
+- Eliminating system dependencies for that component (e.g. from `apt` and `whl`), as well as other sonic-make injected deps. All dependencies will go through the hermetic Bazel build graph.
+- Removing `deb` packages as an intermediate format for that component, instead relying on the Bazel dependency graph.
+- Removing `docker` as a dependency for that component, instead building containers directly with Bazel.
 
 However, we will not attempt to:
 
@@ -141,13 +141,13 @@ This will signal to the community that we do intend to adopt Bazel, and that the
 
 By turning `BUILD_WITH_BAZEL_WHEN_AVAILABLE` on, we'll also be making the Bazel build **blocking in CI**. As a consequence, any changes that break the Bazel build will have to be fixed before they're merged.
 
-It is possible that, at this point, the need arises for a per-target toggle. This is left as an [open question](#14-openaction-items---if-any).
+It is possible that, at this point, the need arises for a per-component Bazel toggle. This is left as an [open question](#14-openaction-items---if-any).
 
 We expect to increase coverage of targets that build with Bazel. Specifically, we'll transition to building the base layers (`docker-base-*`, `docker-config-engine-*`, and `docker-swss-layer-*`) with Bazel by default.
 
 By the end of this phase, we expect most users to be able to build their components entirely in Bazel, without the need of a slave container.
 
-**This opt-out window will only exist for 1 release. After that, we will move into Phase 3.**
+**This opt-out window will only exist for 1 release after the Bazel build for a component has been introduced. After that, we will move into Phase 3.**
 
 ##### Phase 3: Bazel-only
 
@@ -161,8 +161,8 @@ One open question is when we will establish a blocking CI pipeline for Bazel bui
 
 We propose the following structure:
 
-- Phase 1: A nightly, post-merge job that tests the Bazel builds only. There are no expectations to keep this job green.
-- Phase 2: At the start of Phase 2, the components that are migrated to Bazell will now be blocking pre-merge, as we flip the default of `BUILD_WITH_BAZEL_WHEN_AVAILABLE`.
+- Phase 1: A nightly, post-merge job that tests the Bazel builds only. There are no expectations to keep this job green, but it will be useful in spotting regressions.
+- Phase 2: Bazel builds are blocking pre-submit. When we flip the default of `BUILD_WITH_BAZEL_WHEN_AVAILABLE`, the components that are migrated to Bazell will now be blocking the pre-submit checks.
 
 This phased approach allows us to establish critical infrastructure and let the build mature before we make it required for anyone.
 
