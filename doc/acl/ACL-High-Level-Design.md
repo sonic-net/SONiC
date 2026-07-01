@@ -1,6 +1,6 @@
 # ACL in SONiC
 # High Level Design Document
-### Rev 1.1
+### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -88,6 +88,7 @@
 | 0.3 | 10-Nov-2016 | Andriy Moroz       | Updated according to the comments   |
 | 0.4 | 20-Dec-2016 | Oleksandr Ivantsiv | Update data structures              |
 | 1.1 | 08-Apr-2025 | Anish Narsian      | VXLAN inner src mac rewrite support |
+| 1.2 | 01-Jul-2026 | Anant Kishor Sharma | PACKET_COLOR_ACTION (set packet color) ACL rule action |
 # About this Manual
 This document provides general information about the ACL feature implementation in SONiC.
 # Scope
@@ -568,6 +569,16 @@ to class AclRuleMirror to indicate the stage the ACL mirror rule, according to t
 action, "SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS" for ingress ACL rule, "SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_EGRESS"
 for egress ACL rule.  
 Add possibility to receive updates about mirror sessions state change and perform mirroring rules state change accordingly.
+
+To set the packet color of ACL-matched traffic, the packet color action (keyword "PACKET_COLOR_ACTION") is realized by
+class "AclRulePacket", which maps the configured color "GREEN"/"YELLOW"/"RED" to the SAI enum values
+"SAI_PACKET_COLOR_GREEN"/"SAI_PACKET_COLOR_YELLOW"/"SAI_PACKET_COLOR_RED" and programs
+"SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR" on the ACL entry. The action is gated by the per-stage ASIC action
+capability that is queried at startup and published in STATE_DB "ACL_STAGE_CAPABILITY_TABLE": it is available on any
+stage (ingress and/or egress) whose SAI advertises "SAI_ACL_ACTION_TYPE_SET_PACKET_COLOR", and a table or rule that
+uses it is rejected on platforms that do not advertise it, so there is no behavior change for existing platforms. The
+action is handled in the generic CONFIG_DB ACL pipeline (previously "SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR" was
+only reachable via the P4Orch/P4RT path).
 # 4 Flows
 ## 4.1 Creating of ACL Objects
 ![](acl_create.png)
@@ -629,6 +640,7 @@ Ansible + PTF
 |packet_action | ACL Rule property. Packet actions "forward" or "drop". Valid for rules in "L3" tables only
 |mirror_action | Action "mirror". Valid for rules in "mirror" tables only
 |inner_src_mac_rewrite_action | Action to rewrite the inner src mac rewrite field.
+|packet_color_action | Action to set the packet color ("GREEN"/"YELLOW"/"RED") on matching packets. Maps to SAI_ACL_ENTRY_ATTR_ACTION_SET_PACKET_COLOR
 *Keywords derived from the SAI ACL attributes.*
 # Appendix B: Sample input json file
 ```
