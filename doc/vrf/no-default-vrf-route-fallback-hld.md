@@ -24,6 +24,7 @@
 | 1.0 | 2025-09-04 | Sudharsan Rajagopalan | Initial draft for VRF route fallback control |
 | 2.0 | 2025-09-09 | Sudharsan Rajagopalan | Added default unreachable routes and the global fallback knob |
 | 3.0 | 2026-07-02 | Sudharsan Rajagopalan | Clarified the kernel-only scope and CONFIG_DB-only management; removed the CLI design |
+| 3.1 | 2026-07-02 | Sudharsan Rajagopalan | Clarified the Linux and prior downstream defaults, the intentional upstream default change, and upgrade mapping |
 
 ## 2. Scope
 
@@ -49,11 +50,24 @@ This HLD changes only Linux VRF route lookup for traffic processed by the host k
 
 ## 4. Overview
 
-Linux VRF devices use an `l3mdev` RPDB rule to select the routing table associated with the VRF. If that table has no matching route, lookup can continue to later RPDB rules and routing tables, including the default routing table. This legacy behavior can allow kernel-routed traffic to leave the intended VRF.
+Linux VRF devices use an `l3mdev` RPDB rule to select the routing table associated with the VRF. By default, vanilla Linux permits an unmatched lookup in that table to continue to later RPDB rules and routing tables, including the default routing table. This legacy fall-through can allow kernel-routed traffic to leave the intended VRF.
 
 The [Linux VRF documentation](https://docs.kernel.org/networking/vrf.html) recommends an unreachable default route with metric `4278198272`. The route makes an otherwise-unmatched lookup terminal while allowing more-specific routes, or a usable default route with a lower metric, to take precedence. FRR interprets the metric as administrative distance and priority `[255/8192]`.
 
+[sonic-swss PR #2943](https://github.com/sonic-net/sonic-swss/pull/2943) documents the same IPv4 kernel behavior and prototypes the mitigation by programming an unreachable default route when a VRF is created. PR #2943 is an IPv4-only, non-normative prototype; this HLD independently specifies managed IPv4 and IPv6 behavior.
+
 This feature changes Linux route lookup only. It neither enables nor disables fallback in an ASIC. Hardware behavior remains unchanged and is determined by the platform's existing SAI and ASIC implementation. On platforms whose hardware already terminates a route miss within the selected virtual router, this feature aligns the Linux route-miss result with that behavior.
+
+The historical defaults and the new compatibility setting must not be conflated:
+
+| Context | Default or control state | Unreachable sentinel | Effective Linux behavior |
+|---|---|---|---|
+| Vanilla Linux and SONiC deployments without sentinel routes | No fallback-suppression feature | Absent | RPDB fall-through is permitted |
+| Prior downstream implementation | Disable-fallback control is false or absent | Absent | RPDB fall-through is permitted |
+| This upstream design | `KERNEL_VRF_FALLBACK|GLOBAL` is absent or `status=disabled` | Present | RPDB fall-through is blocked |
+| This upstream compatibility mode | `KERNEL_VRF_FALLBACK|GLOBAL` with `status=enabled` | Absent | RPDB fall-through is permitted |
+
+The upstream default change is intentional: it aligns the kernel route-miss result on platforms whose existing ASIC behavior terminates a VRF miss, without changing ASIC programming. The prior downstream disable control blocked fallback when asserted, whereas the new temporary compatibility state restores fallback only when `status=enabled`. This HLD does not provide automatic conversion of a prior downstream control; any operator- or platform-provided migration must map the intended effective behavior rather than copy a disable-control boolean literally.
 
 The unreachable defaults are installed directly in the Linux kernel. FRR may observe kernel route notifications, so `fpmsyncd` must filter both add and delete notifications for `RTN_UNREACHABLE` routes before changing APP_DB. Consequently, the managed sentinel routes are not translated into ASIC_DB or SAI route objects and do not consume hardware FIB resources.
 
@@ -114,7 +128,7 @@ CONFIG_DB (KERNEL_VRF_FALLBACK|GLOBAL)
 
 ### 7.1. Effective State
 
-The default effective state is `disabled`, meaning that legacy Linux RPDB fall-through is disabled. Only the explicit value `enabled` selects the compatibility behavior.
+The upstream default effective state of the new compatibility setting is `disabled`, meaning that legacy Linux RPDB fall-through is disabled. This is an intentional change from vanilla Linux, SONiC deployments without sentinel routes, and a false or absent prior downstream disable-fallback control. Only the explicit value `enabled` temporarily restores the prior behavior.
 
 | CONFIG_DB state | `vrfmgrd` action | Linux route-lookup result | Hardware result |
 |---|---|---|---|
@@ -199,9 +213,9 @@ No feature-specific SONiC CLI, show command, or management API is introduced. Ke
 
 ### 9.2. Backward Compatibility
 
-- Default, with the entry absent or `status=disabled`: legacy fall-through is disabled in the kernel route-lookup path; ASIC programming and hardware lookup behavior are unchanged.
-- Knob enabled: fallback is restored in the kernel forwarding path only. In this HLD, that means the Linux kernel route-lookup path for VRF-bound local output and software-forwarded packets. The managed sentinels are removed, permitting legacy RPDB fall-through when a later matching route exists; ASIC programming and hardware lookup behavior are unchanged.
-- Existing deployments that temporarily require the prior kernel behavior can persist `status=enabled` during migration.
+- An upgrade from a fallback-allowed SONiC deployment or from the prior downstream false or absent disable-control state changes the effective kernel behavior when the new entry is absent: `vrfmgrd` installs the sentinels and disables legacy fall-through. This is the intentional upstream default; ASIC programming and hardware lookup behavior are unchanged.
+- This HLD provides no automatic conversion of a prior downstream configuration. If uninterrupted legacy fallback is required, `status=enabled` must be persisted before the new `vrfmgrd` starts reconciliation. The managed sentinels are then kept absent, permitting legacy RPDB fall-through for VRF-bound local output and software-forwarded packets when a later matching route exists; ASIC programming and hardware lookup behavior remain unchanged.
+- Any operator- or platform-provided migration from a prior disable-fallback control must map effective behavior rather than copy the old boolean literally. An inactive or absent prior disable control, which allowed fallback, maps to `status=enabled` only when preserving that behavior is required. An active prior disable control, which blocked fallback, maps to the new absent or `status=disabled` state.
 - New deployments must not rely on kernel VRF fallback.
 
 ## 10. Warmboot and Fastboot Design Impact
@@ -284,7 +298,7 @@ No feature-specific SONiC CLI, show command, or management API is introduced. Ke
 #### 13.2.1. Functional Tests
 
 - **ST-FUNC-1**: With the entry absent, verify that both sentinel routes are present and an otherwise-unmatched Linux VRF lookup is terminal.
-- **ST-FUNC-2**: With `status=enabled`, verify that both sentinel routes are absent and RPDB fall-through is permitted; verify successful fallback only when a later matching route exists.
+- **ST-FUNC-2**: With the temporary compatibility state `status=enabled`, verify that both sentinel routes are absent and RPDB fall-through is permitted; verify successful fallback only when a later matching route exists.
 - **ST-FUNC-3**: Verify the same global behavior for IPv4 and IPv6 across multiple non-default VRFs.
 - **ST-FUNC-4**: Verify that more-specific routes and real default routes with a lower metric take precedence over the sentinel routes.
 - **ST-FUNC-5**: Verify both VRF-bound locally originated traffic and packets forwarded in software.
@@ -299,11 +313,12 @@ No feature-specific SONiC CLI, show command, or management API is introduced. Ke
 
 #### 13.2.3. Upgrade and Downgrade Tests
 
-- **ST-UPG-1**: Upgrade with no compatibility entry and verify installation of the default sentinel routes.
-- **ST-UPG-2**: Upgrade with `status=enabled` and verify preservation of the legacy kernel behavior.
+- **ST-UPG-1**: Upgrade from a fallback-allowed SONiC deployment or a false or absent downstream disable-fallback control with no new compatibility entry; verify the intentional change from vanilla Linux behavior to the upstream default by confirming that both sentinel routes are installed and legacy fall-through is blocked.
+- **ST-UPG-2**: Upgrade from a fallback-allowed state with `status=enabled` persisted before the new `vrfmgrd` starts reconciliation; verify uninterrupted preservation of the legacy kernel behavior.
 - **ST-UPG-3**: Verify explicit sentinel and persisted CONFIG_DB-entry cleanup during a warm or in-service downgrade.
 - **ST-UPG-4**: Verify that a cold downgrade that recreates VRF devices leaves no stale sentinel route or unsupported CONFIG_DB entry.
 - **ST-UPG-5**: Verify adoption of an exact pre-existing sentinel when the feature starts in the default `disabled` state.
+- **ST-UPG-6**: Where operator- or platform-provided migration tooling translates a prior disable-fallback control, verify behavior-based mapping: inactive or absent maps to `status=enabled` only when legacy fallback must be preserved, while active maps to the new absent or `status=disabled` state. Verify that no automatic upstream conversion is assumed.
 
 #### 13.2.4. Performance and Scale Tests
 
