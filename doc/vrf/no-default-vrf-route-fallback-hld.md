@@ -25,6 +25,7 @@
 | 2.0 | 2025-09-09 | Sudharsan Rajagopalan | Added default unreachable routes and the global fallback knob |
 | 3.0 | 2026-07-02 | Sudharsan Rajagopalan | Clarified the kernel-only scope and CONFIG_DB-only management; removed the CLI design |
 | 3.1 | 2026-07-02 | Sudharsan Rajagopalan | Clarified the Linux and prior downstream defaults, the intentional upstream default change, and upgrade mapping |
+| 3.2 | 2026-07-02 | Sudharsan Rajagopalan | Clarified namespace-local multi-ASIC persistence, applicable VRFs, and rollback ordering |
 
 ## 2. Scope
 
@@ -76,12 +77,12 @@ The unreachable defaults are installed directly in the Linux kernel. FRR may obs
 ### 5.1. Functional Requirements
 
 - **FR-1**: When kernel fallback is not enabled, ensure that managed IPv4 and IPv6 unreachable default routes with metric `4278198272` are present in every applicable non-default Linux VRF table.
-- **FR-2**: Provide one global CONFIG_DB setting that controls both IPv4 and IPv6 behavior for all applicable non-default VRFs.
+- **FR-2**: Provide one logical global CONFIG_DB setting that controls both IPv4 and IPv6 behavior for all applicable non-default VRFs. Each `vrfmgrd` consumes its namespace-local copy; a multi-ASIC system persists the same value in every applicable data-ASIC CONFIG_DB.
 - **FR-3**: When `status` is `enabled`, remove only the managed sentinel routes from existing non-default VRFs and do not add them to newly created non-default VRFs.
 - **FR-4**: When `status` is `disabled`, the CONFIG_DB entry is deleted, or the entry is absent, ensure that the managed sentinel routes are present in existing and newly created non-default VRFs.
 - **FR-5**: Read the effective global state before processing VRF creation events and reconcile all existing non-default VRFs at startup, after a configuration change, and after `vrfmgrd` restarts.
 - **FR-6**: Keep the managed sentinel routes out of APP_DB, ASIC_DB, SAI, and the hardware FIB. `fpmsyncd` must ignore their add and delete notifications before mutating APP_DB, so removing a sentinel cannot remove or alter a real unicast default route.
-- **FR-7**: Preserve an explicitly configured compatibility setting across reboot and configuration reload through the standard persistent CONFIG_DB workflow.
+- **FR-7**: Preserve an explicitly configured compatibility setting across reboot and configuration reload through the standard persistent CONFIG_DB workflow, including every applicable data-ASIC namespace on a multi-ASIC system.
 - **FR-8**: Deprecate and remove the compatibility setting in a future release.
 
 ### 5.2. Non-Functional Requirements
@@ -92,15 +93,15 @@ The unreachable defaults are installed directly in the Linux kernel. FRR may obs
 
 ### 5.3. Exemptions and Limitations
 
-- **EX-1**: The setting is global; there is no per-VRF override.
+- **EX-1**: The setting is logically device-global; there is no per-VRF override. Multi-ASIC CONFIG_DB storage is namespace-local, so the persistent configuration must supply the same value to every applicable data-ASIC namespace.
 - **EX-2**: One setting controls both IPv4 and IPv6; the address families cannot be configured independently.
 - **EX-3**: A feature-specific CLI, show command, and management API are outside the scope of this HLD.
 - **EX-4**: SAI and hardware fallback behavior are outside the scope of this HLD.
-- **EX-5**: The feature applies to non-default Linux VRFs managed through the `vrfmgrd` lifecycle. Specialized VRF-like objects outside that lifecycle retain their existing handling.
+- **EX-5**: The feature applies to regular VRF and VNET Linux VRF devices managed through the `vrfmgrd` lifecycle. The management VRF device, which is created by `hostcfgd`, and specialized VRF-like objects outside that lifecycle retain their existing handling.
 
 ## 6. Architecture Design
 
-- **CONFIG_DB** stores the global compatibility setting.
+- **CONFIG_DB** stores the logical global compatibility setting. On multi-ASIC systems, each applicable data-ASIC CONFIG_DB stores an identical namespace-local copy.
 - **VRF Manager (`vrfmgrd`)** caches the effective setting and reconciles managed sentinel routes in the applicable Linux VRF tables.
 - **Linux Kernel** performs the affected route lookup and maintains the unreachable route entries.
 - **FRR zebra and `fpmsyncd`** may observe kernel route notifications. `fpmsyncd` filters `RTN_UNREACHABLE` additions and deletions before they can change APP_DB or the hardware programming pipeline.
@@ -181,6 +182,7 @@ For a VRF created while `status=enabled`, `vrfmgrd` does not add either managed 
 - `GLOBAL` is the only valid key in this table; the schema rejects additional keys.
 - Deleting the entry restores the default `disabled` state.
 - The CONFIG_DB schema rejects values other than `enabled` and `disabled`. As a defensive measure, `vrfmgrd` treats an unrecognized value as `disabled` and logs an error.
+- `GLOBAL` is a singleton row key, not a cross-namespace replication mechanism. On a multi-ASIC system, each `vrfmgrd` reads its namespace-local CONFIG_DB. The persistent configuration must place the same row and value in every applicable data-ASIC namespace; a host-only or `localhost` row does not control per-ASIC VRFs. If one namespace omits the row, that namespace uses the default `disabled` state.
 - The CONFIG_DB schema and validation updates are in scope. No feature-specific configuration CLI or show command is defined.
 
 ### 7.4. APP_DB and Hardware Isolation
@@ -195,7 +197,7 @@ No SAI object or ASIC route is created, changed, or removed by this feature.
 
 The global setting is a temporary compatibility mechanism. It will be documented as deprecated and removed in a future release. New deployments must not depend on Linux VRF fall-through.
 
-Before a warm or in-service rollback to software that does not implement this feature, the rollback procedure must remove the managed IPv4 and IPv6 sentinel routes from retained VRF tables and remove the persisted `KERNEL_VRF_FALLBACK|GLOBAL` entry. A cold rollback that deletes and recreates the VRF devices naturally removes their old routing tables, but the persisted CONFIG_DB entry must still be removed or migrated.
+Before a warm or in-service rollback to software that does not implement this feature, persist `status=enabled`, allow the current `vrfmgrd` instances to reconcile, and verify that both sentinels are absent from every retained applicable VRF. Then stop or quiesce the current `vrfmgrd` instances so they cannot consume another CONFIG_DB update, remove every persisted namespace copy of `KERNEL_VRF_FALLBACK|GLOBAL`, verify or manually clean up the exact routes, and only then start the older software. Deleting the row while the current daemon is running would restore the default `disabled` state and reinstall the sentinels. A cold rollback that deletes and recreates the VRF devices naturally removes their old routing tables, but every persisted CONFIG_DB copy must still be removed or migrated.
 
 ## 8. SAI API
 
@@ -208,6 +210,8 @@ Before a warm or in-service rollback to software that does not implement this fe
 ### 9.1. Persistent Configuration
 
 The setting is supplied through the standard persistent CONFIG_DB workflow, such as a persistent configuration patch or `config_db.json`, and is loaded during normal CONFIG_DB initialization. A direct in-memory Redis write alone is not considered persistent configuration.
+
+On a multi-ASIC system, CONFIG_DB and `vrfmgrd` are namespace-local. The standard single-file or patch workflow must explicitly persist an identical `KERNEL_VRF_FALLBACK|GLOBAL` row under every applicable `asicN` scope. A copy under only `localhost` does not reach the per-ASIC daemons, and the infrastructure does not automatically replicate or enforce consistency between scoped copies. The absent/default `disabled` state needs no row; preserving compatibility requires `status=enabled` in every applicable data-ASIC namespace.
 
 No feature-specific SONiC CLI, show command, or management API is introduced. Kernel state can be inspected with the existing Linux commands `ip route show vrf <VRF_NAME>` and `ip -6 route show vrf <VRF_NAME>`.
 
@@ -241,7 +245,7 @@ No feature-specific SONiC CLI, show command, or management API is introduced. Ke
 
 ## 11. Memory Consumption
 
-- CONFIG_DB stores one small global entry only when the compatibility setting is explicitly present.
+- CONFIG_DB stores one small entry only when the compatibility setting is explicitly present: one entry on a single-ASIC system or one identical entry per applicable data-ASIC namespace on a multi-ASIC system.
 - In the default `disabled` state, the Linux kernel stores one IPv4 and one IPv6 unreachable default per applicable non-default VRF.
 - Kernel route memory and transient reconciliation state scale linearly with the number of applicable VRFs.
 - The feature consumes no ASIC FIB resources.
@@ -255,6 +259,7 @@ No feature-specific SONiC CLI, show command, or management API is introduced. Ke
 - **L-3**: Removing the sentinel routes only permits later RPDB lookup. It does not guarantee that a later rule or route provides reachability.
 - **L-4**: There is no BGP configuration or routing-protocol code change. The kernel route visibility and FPM filtering behavior remain subject to the tests in Section 13.
 - **L-5**: The design relies on `fpmsyncd` filtering `RTN_UNREACHABLE` additions and deletions before APP_DB mutation and preserving any coexisting unicast default route.
+- **L-6**: Multi-ASIC CONFIG_DB persistence does not automatically replicate or enforce equality of the namespace-local copies. Configuration tooling or the operator must provide the same value to every applicable data-ASIC namespace.
 
 ### 12.2. Platform Dependencies
 
@@ -277,6 +282,7 @@ No feature-specific SONiC CLI, show command, or management API is introduced. Ke
 - **UT-DB-2**: Reject an invalid `status` value and a malformed entry.
 - **UT-DB-3**: Verify that an absent or deleted entry produces the default `disabled` state.
 - **UT-DB-4**: Verify serialization and reload of the persistent global entry.
+- **UT-DB-5**: On multi-ASIC systems, verify that each data-ASIC namespace is validated and persisted independently, and that a host-only entry is not treated as a per-ASIC setting.
 
 #### 13.1.2. VRF Manager Tests
 
@@ -310,6 +316,7 @@ No feature-specific SONiC CLI, show command, or management API is introduced. Ke
 - **ST-INT-3**: Verify coexistence with a real IPv4 and IPv6 default route while toggling the setting.
 - **ST-INT-4**: Verify a new VRF created while enabled, a VRF deleted during reconciliation, and multiple existing VRFs during a global transition.
 - **ST-INT-5**: Verify behavior after `vrfmgrd` restart, configuration reload, warmboot, and fastboot.
+- **ST-INT-6**: On a multi-ASIC system, verify identical explicit values across all applicable data-ASIC namespaces, host-only entry isolation, default `disabled` behavior when one namespace omits the row, and save/reload persistence of every scoped copy.
 
 #### 13.2.3. Upgrade and Downgrade Tests
 
