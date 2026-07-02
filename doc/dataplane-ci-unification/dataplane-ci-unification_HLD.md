@@ -140,7 +140,27 @@ This directory also contains files to help setup a local development environment
 
 ### 6.2 Per-repo `build-template.yaml`
 
-Each repo will contain a single `build-template.yaml` which serves as the single source of truth for how to build that specific repo. When an upstream repo needs to build a downstream repo, it will refer to the downstream repo's `build-template.yaml` instead of needing to maintain its own copy of the build steps. 
+Each repo will contain a single `build-template.yaml` which serves as the single source of truth for how to build that specific repo. When an upstream repo needs to build a downstream repo, it will refer to the downstream repo's `build-template.yaml` instead of needing to maintain its own copy of the build steps.
+
+Cross-repo references use Azure Pipelines **repository resources**. A repo that needs to build another declares the other repo under `resources.repositories` in its pipeline definition — giving it an alias, the repo name, and the service-connection `endpoint` — and then references that repo's template with an `@<alias>` suffix. A bare template path refers to the local repo; the `@<alias>` suffix tells Azure Pipelines to resolve the template from the declared resource repo instead. For example, sonic-sairedis declares sonic-swss as a resource and consumes its build template:
+
+```yaml
+resources:
+  repositories:
+    - repository: sonic_swss                 # alias, referenced via @sonic_swss below
+      type: github
+      name: sonic-net/sonic-swss
+      endpoint: <service connection>
+      ref: <branch/ref>                       # which version of the referenced templates to use
+
+stages:
+  - stage: BuildSwss
+    jobs:
+      - template: .azure-pipelines/build-template.yaml@sonic_swss   # @alias → resolve from sonic_swss
+        parameters: { ... }
+```
+
+The same `@sonic_swss` reference mechanism is how sonic-sairedis and sonic-swss-common consume the swss-owned VS test stack (§6.7). The resource's `ref` selects which branch of the referenced repo's templates to use.
 
 ### 6.3 Inherited dependency model
 
