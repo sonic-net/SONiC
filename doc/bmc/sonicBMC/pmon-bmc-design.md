@@ -351,7 +351,7 @@ On an Event
       - ==> GRACEFUL_SHUT_DOWN_SWITCH_HOST
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if CRITICAL_SYSTEM_LEAK (device_leak_status == CRITICAL_SYSTEM_LEAK in SYSTEM_LEAK_STATUS)
+  - if CRITICAL_SYSTEM_LEAK (device_leak_status == CRITICAL_SYSTEM_LEAK and test_leak != Enabled in SYSTEM_LEAK_STATUS)
       - SKIP if `system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Read system_critical_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(system_critical_leak_action)
       - update the HOST_STATE|switch-host with the device_power_state.
@@ -362,9 +362,14 @@ On an Event
       - Read rack_mgr_critical_alert_action from LEAK_CONTROL_POLICY; ==> dispatch_action(rack_mgr_critical_alert_action)
       - update the HOST_STATE|switch-host with the device_power_state.
 
-  - if MINOR_SYSTEM_LEAK (device_leak_status == MINOR_SYSTEM_LEAK in SYSTEM_LEAK_STATUS)
+  - if MINOR_SYSTEM_LEAK (device_leak_status == MINOR_SYSTEM_LEAK and test_leak != Enabled in SYSTEM_LEAK_STATUS)
       - SKIP if `system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Read system_minor_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(system_minor_leak_action)
+
+  - if TEST_SYSTEM_LEAK_EVENT ((device_leak_status == CRITICAL_SYSTEM_LEAK or device_leak_status == MINOR_SYSTEM_LEAK) and test_leak == Enabled in SYSTEM_LEAK_STATUS)
+      - Syslog/audit the policy outcome that would apply to an equivalent physical leak, including either the configured action or a policy-disabled skip.
+      - Do not dispatch an action and do not invoke GNOI, graceful shutdown, power-off, power-cycle, or a platform power-control API.
+      - Do not change `LEAK_CONTROL_POLICY`, `system_leak_policy`, or a configured leak action for test injection. These settings are neither required nor sufficient to make a test-only event safe, because `test_leak=Enabled` prevents `device_leak_status` from becoming an enforcement input.
 
   - if MINOR External-Rack-Mgr Alert event
       - SKIP if `rack_mgr_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
@@ -432,12 +437,16 @@ There is a thread to check the leak sensors and store it in the LIQUID_COOLING_I
 ```
 Loop on this logic 
   (i) Check system leak sensors using platform API
-         -- store the result in LIQUID_COOLING_INFO table
+         -- store physical leak state, optional test-leak state, and optional test-fault state separately in LIQUID_COOLING_INFO table
          -- Per-sensor leak_severity can be CRITICAL or MINOR (sensor-level assessment)
 
 ```
 
-The main thermalctld daemon will run the sonic thermal policy based on the number and severity of leak sensors with leak
+The main thermalctld daemon aggregates physical and test-injection leak states through the normal leak aggregation path. When the aggregate includes test injection, it sets `SYSTEM_LEAK_STATUS|system.test_leak=Enabled`; `bmcctld` uses that provenance to audit rather than enforce policy.
+
+For a test-injected leak, `thermalctld` publishes the generated severity in `test_leak_severity`, records `leak_source` as `test`, and includes the indication in `device_leak_status` through the normal aggregate path. It sets `SYSTEM_LEAK_STATUS|system.test_leak=Enabled` for that aggregate.
+
+For a test-injected sensor fault, `thermalctld` uses the normal per-sensor fault-reporting path: it writes `leak_sensor_status=Fault` with `leaking` and `leak_status` set to `N/A` and `leak_severity` set to `None`. `test_sensor_fault=Enabled` preserves its provenance for CLI and system health. The fault does not contribute to `device_leak_status` and is never an input to host control; no aggregate fault-status field is introduced.
 
 ```
     - Subscribe to LIQUID_COOLING_INFO to check if there is any change in leak sensor status 
@@ -455,7 +464,8 @@ The main thermalctld daemon will run the sonic thermal policy based on the numbe
     - Additional considerations, the timers can be configured per leak sensor profile.
        - MAX-T secs defined before which a MINOR leak can be considered CRITICAL.
 
-    - Update the system SYSTEM_LEAK_STATUS table with the severity of leak. This will be used in bmcctld process.
+    - Update `device_leak_status` with aggregate leak severity.
+    - Set `test_leak` to `Enabled` when the aggregate is test-injected; otherwise set it to `Disabled`.
 
 ```
  
@@ -467,6 +477,10 @@ key                       = LIQUID_COOLING_INFO|leakage_sensors{X}  ; leak data 
  ; field                  = value
 name                      = STR                                       ; sensor name
 leaking                   = STR                                       ; Yes or No to indicate leak status
+test_leak                 = STR                                       ; Enabled or Disabled
+test_leak_severity        = STR                                       ; MINOR, CRITICAL, or None
+leak_source               = STR                                       ; physical, test, or none
+test_sensor_fault         = STR                                       ; Enabled or Disabled
 leak_sensor_status        = STR                                       ; Is Leak sensor good or faulty.
 type                      = STR                                       ; leak sensor type
 location                  = STR                                       ; leak sensor location
@@ -480,6 +494,7 @@ max_minor_duration_sec    = integer                                   ; MAX-T se
 key                       = SYSTEM_LEAK_STATUS|system                  ; system bmc leak status in STATE DB
 ; field                   = value
 device_leak_status        = "status"                                  ; CRITICAL_SYSTEM_LEAK/MINOR_SYSTEM_LEAK (system aggregate level)
+test_leak                 = STR                                       ; Enabled when device_leak_status is test-injected; Disabled otherwise
 timestamp                 = STR                                       ; timestamp when this status is recorded.
 ```     
 
@@ -495,6 +510,8 @@ Listing down the platform APIs both already defined and newly planned for sonic 
 
 Reference doc:
 * [leak HLD](https://github.com/sonic-net/SONiC/blob/master/doc/bmc/leakage_detection_hld.md)
+
+The leak-test platform interface, supported-severity semantics, and hardware test-bit limitations are defined in the [Leak Detection HLD](../leakage_detection_hld.md). This document specifies how `thermalctld` and `bmcctld` consume the resulting test state.
 
 ####  LeakageSensorBase
 
