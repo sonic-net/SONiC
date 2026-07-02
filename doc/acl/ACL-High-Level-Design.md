@@ -570,9 +570,10 @@ action, "SAI_ACL_ENTRY_ATTR_ACTION_MIRROR_INGRESS" for ingress ACL rule, "SAI_AC
 for egress ACL rule.  
 Add possibility to receive updates about mirror sessions state change and perform mirroring rules state change accordingly.
 
-To meter/rate-limit ACL-matched traffic, the policer action (keyword "POLICER_ACTION") is realized by class "AclRulePolicer",
-which resolves the referenced POLICER table entry to its SAI policer object and programs "SAI_ACL_ENTRY_ATTR_ACTION_SET_POLICER"
-on the ACL entry. "AclRulePolicer" holds a reference on the bound policer for the lifetime of the rule: the reference is
+To meter/rate-limit ACL-matched traffic, the policer action (keyword "POLICER_ACTION") is handled on the L3 packet-rule
+path (class "AclRulePacket"), so it composes with a packet/redirect action on the same rule. It resolves the referenced
+POLICER table entry to its SAI policer object and programs "SAI_ACL_ENTRY_ATTR_ACTION_SET_POLICER"
+on the ACL entry. "AclRulePacket" holds a reference on the bound policer for the lifetime of the rule: the reference is
 acquired before the SAI ACL entry is created and released when the rule is removed (or if entry creation fails), so a
 POLICER cannot be deleted while an ACL rule binds it. If the referenced policer does not exist yet, rule creation is deferred
 and retried (via the Consumer m_toSync mechanism) until the policer appears, mirroring the existing "wait for ACL table" behavior.
