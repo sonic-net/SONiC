@@ -26,7 +26,7 @@
   * [6.1 Per-repo `build-env/`](#61-per-repo-build-env)
   * [6.2 Per-repo `build-template.yaml`](#62-per-repo-build-templateyaml)
   * [6.3 Inherited dependency model](#63-inherited-dependency-model)
-  * [6.4 `buildenv_setup` package hosted in sonic-dataplane-buildenv (NEW repo, narrow scope)](#64-buildenv_setup-package-hosted-in-sonic-dataplane-buildenv-new-repo-narrow-scope)
+  * [6.4 `buildenv_setup` package hosted in sonic-swss-common](#64-buildenv_setup-package-hosted-in-sonic-swss-common)
   * [6.5 Single setup mechanism — `buildenv_setup`](#65-single-setup-mechanism--buildenv_setup)
   * [6.6 Same-pipeline-run support](#66-same-pipeline-run-support)
   * [6.7 sonic-swss owns the entire VS test stack](#67-sonic-swss-owns-the-entire-vs-test-stack)
@@ -54,7 +54,7 @@ This proposal outlines CI infrastructure changes for sonic-swss, sonic-sairedis,
 
 ## 1. TL;DR
 
-The existing Azure DevOps CI pipelines for sonic-swss, sonic-swss-common, and sonic-sairedis contain several repo-specific copies of the same file (many of which have drifted apart over time). These three repos also manage their build dependencies separately, even though there is significant overlap/inheritance of dependencies. There is also no convenient way to setup a local development environment that matches the CI environment, making it harder to debug any build/test issue caught by CI. This document proposes consolidating shared CI infrastructure (with a new dedicated repository, `sonic-dataplane-buildenv`, hosting a shared environment-setup utility and sonic-swss owning the entire VS test stack) to remove redundancy and establish a single source of truth for building each component.
+The existing Azure DevOps CI pipelines for sonic-swss, sonic-swss-common, and sonic-sairedis contain several repo-specific copies of the same file (many of which have drifted apart over time). These three repos also manage their build dependencies separately, even though there is significant overlap/inheritance of dependencies. There is also no convenient way to setup a local development environment that matches the CI environment, making it harder to debug any build/test issue caught by CI. This document proposes consolidating shared CI infrastructure (with sonic-swss-common hosting a shared environment-setup utility and sonic-swss owning the entire VS test stack) to remove redundancy and establish a single source of truth for building each component.
 
 
 ## 2. Background
@@ -106,7 +106,7 @@ A given repository should automatically inherit the build dependencies of all of
   - Dependencies that need to be installed from `apt` or `pip` which are not already acquired from upstream repositories
   - A script to run the build commands for the repo
   - Files to setup a local development environment 
-- Create a new environment setup utility in a new repository `sonic-dataplane-buildenv`. This utility will recursively parse the dependencies listed in each repo's `build-env/` directory and install them as required. 
+- Create a new environment setup utility, hosted in `sonic-swss-common` (the foundational repo at the root of the dependency cascade, already available to every consumer's CI). This utility will recursively parse the dependencies listed in each repo's `build-env/` directory and install them as required. 
 
 ## 6. Detailed design
 
@@ -224,11 +224,11 @@ upstream:
       - libprotobuf*.deb
 ```
 
-### 6.4 `buildenv_setup` package hosted in sonic-dataplane-buildenv (NEW repo, narrow scope)
+### 6.4 `buildenv_setup` package hosted in sonic-swss-common
 
-A new `buildenv_setup` package will be created and live in a new `sonic-dataplane-buildenv` repository. This package will be responsible for executing the actual build environment setup steps (including dependency inheritance). It will be responsible for calculating required dependencies based on explicitly declared + inherited dependencies for each repository, actually downloading and installing the dependencies, and performing any post-install actions that may be required.
+The `buildenv_setup` utility is a self-contained, multi-module Python package hosted in `sonic-swss-common` (under `ci/buildenv_setup/`, with tests under `ci/tests/`). It is responsible for executing the actual build-environment setup: calculating the required dependencies from each repo's explicitly-declared + inherited dependencies, downloading and installing them, and performing any post-install configuration.
 
-This package lives in a new, dedicated repository rather than inside one of the existing repos for a few reasons: its scope is shared, generic infrastructure that does not belong to any single repo; a separate repo gives it an independent CI lifecycle (a change to `buildenv_setup` is validated by the comprehensive gate described in §6.8 instead of running inside a particular repo's pipeline); and it makes cross-team ownership and review explicit. Since the `buildenv_setup` package is meant to be shared/generic infrastructure, it will NOT have separate release branches — it lives only on `master`. All branch-specific concerns (e.g. a release branch pinning an older dependency version) are instead handled in each repo's `build-env/` files, which ARE branched.
+`sonic-swss-common` is the natural home: it is the foundational repo at the root of the dependency cascade, so it is already checked out (or cloned) by every consumer's CI — hosting the utility there adds no incremental clone cost and avoids the overhead of standing up and governing a separate repository. Because the utility is versioned alongside `sonic-swss-common`, each release branch automatically carries a matching-branch copy of `buildenv_setup`; consumers clone `sonic-swss-common` at their own branch (falling back to the default branch), so a change on `master` cannot silently break a release branch. Cross-consumer review is enforced via `CODEOWNERS` on `ci/**`, requiring sign-off from the sairedis and swss teams. The package remains self-contained, so it could be extracted into its own repository later if that ever becomes warranted.
 
 ### 6.5 Single setup mechanism — `buildenv_setup`
 
@@ -236,16 +236,19 @@ By moving all environment setup steps to the new `buildenv_setup` utility, we ca
 
 CI invocation (inside `container: sonic-slave-*`):
 ```bash
-git clone --depth 1 https://github.com/sonic-net/sonic-dataplane-buildenv /tmp/dataplane-buildenv
-cd /tmp/dataplane-buildenv && python3 -m buildenv_setup --repo-dir $(pwd) --scope build
+# Consumer CI (sonic-sairedis / sonic-swss): clone sonic-swss-common at the matching branch, then run the package.
+# (sonic-swss-common's own CI skips the clone — the package is already in its checkout under ci/.)
+git clone --depth 1 --branch $(BUILD_BRANCH) https://github.com/sonic-net/sonic-swss-common /tmp/sw-common \
+  || git clone --depth 1 https://github.com/sonic-net/sonic-swss-common /tmp/sw-common   # fall back to default branch
+PYTHONPATH=/tmp/sw-common/ci python3 -m buildenv_setup --repo-dir $(Build.SourcesDirectory) --scope build
 ```
 
 Local-dev invocation (in `build-env/Dockerfile`):
 ```dockerfile
 FROM sonic-slave-${DEBIAN_VERSION}:latest
-RUN git clone --depth 1 https://github.com/sonic-net/sonic-dataplane-buildenv /tmp/dataplane-buildenv
+RUN git clone --depth 1 https://github.com/sonic-net/sonic-swss-common /tmp/sw-common
 COPY . /workspace
-RUN cd /tmp/dataplane-buildenv && python3 -m buildenv_setup --repo-dir /workspace --scope build
+RUN PYTHONPATH=/tmp/sw-common/ci python3 -m buildenv_setup --repo-dir /workspace --scope build
 ```
 
 ### 6.6 Same-pipeline-run support
@@ -254,11 +257,11 @@ Some CI pipelines need to re-use artifacts from earlier stages in the run, e.g. 
 
 ### 6.7 sonic-swss owns the entire VS test stack
 
-All three repos (sonic-swss-common, sonic-sairedis, and sonic-swss) rely on VS tests as part of their PR validation pipeline. However, since these VS tests live entirely within sonic-swss, all of the related infra/setup files will stay within sonic-swss rather than moving to the new repo. This includes the AZP templates to build the DVS image and run the tests, setup scripts that are run before the tests, and files related to the DVS image construction. sonic-sairedis and sonic-swss-common consume this stack by referencing the swss-owned templates directly (via `@sonic_swss` template references) from their own BuildDocker and Test stages, so the VS test stack has a single source of truth even though all three repos run it.
+All three repos (sonic-swss-common, sonic-sairedis, and sonic-swss) rely on VS tests as part of their PR validation pipeline. However, since these VS tests live entirely within sonic-swss, all of the related infra/setup files will stay within sonic-swss rather than being moved into sonic-swss-common alongside `buildenv_setup`. This includes the AZP templates to build the DVS image and run the tests, setup scripts that are run before the tests, and files related to the DVS image construction. sonic-sairedis and sonic-swss-common consume this stack by referencing the swss-owned templates directly (via `@sonic_swss` template references) from their own BuildDocker and Test stages, so the VS test stack has a single source of truth even though all three repos run it.
 
 ### 6.8 Pre-merge CI for shared-infra changes
 
-Since the new `sonic-dataplane-buildenv` repo will be depended on by multiple repos, it's critical that we avoid breaking changes getting merged. To ensure this, the `sonic-dataplane-buildenv` PR checks will include building all three repos for all supported Debian version and architecture combinations, as well as running VS tests which should cover the entire CI pipeline for all three repos. Running all combinations will be expensive, but changes to `sonic-dataplane-buildenv` are expected infrequently and a breaking change slipping through would be quite costly/disruptive which justifies the added overhead.
+The shared infrastructure is depended on by all three repos, so it's critical to prevent breaking changes from merging. PRs that touch the shared infrastructure — the `buildenv_setup` utility in sonic-swss-common's `ci/`, or sonic-swss's shared VS-test templates — trigger a comprehensive check that builds all three repos for all supported Debian version and architecture combinations and runs the VS test suite, covering the entire CI pipeline for all three repos. Running all combinations will be expensive, but shared-infra changes are expected infrequently and a breaking change slipping through would be quite costly/disruptive which justifies the added overhead.
 
 ## 7. Migration plan
 
@@ -272,7 +275,7 @@ Guiding principles:
 
 | Phase | What | # of PRs |
 |-------|------|:--------:|
-| 1 | **Stand up the shared infra.** Create the `sonic-dataplane-buildenv` repo (the `buildenv_setup` package + tests) and add sonic-swss's shared VS-test templates + Docker image files. Add the cross-repo selfcheck pipeline in **informational** mode. Nothing in any repo's existing pipelines changes yet. | 9 |
+| 1 | **Stand up the shared infra.** Add the `buildenv_setup` package + tests to `sonic-swss-common` (under `ci/`) and add sonic-swss's shared VS-test templates + Docker image files. Add the cross-repo selfcheck pipelines in **informational** mode. Nothing in any repo's existing pipelines changes yet. | 9 |
 | 2 | **Stage-by-stage cutover.** Migrate each `(repo, stage)` combination to the new infra. | 12 |
 | 3 | **Lock the gate.** Promote the selfcheck pipelines from informational to required-to-merge, now that every stage runs on the new infra. | 2 |
 
@@ -281,8 +284,8 @@ Guiding principles:
 
 | # | Risk | Mitigation |
 |:-:|------|------------|
-| 1 | **Wide blast radius of shared infra.** `buildenv_setup` and the shared VS-test templates are depended on by all three repos across every active branch, so a single bad change can break everyone at once. | The comprehensive pre-merge gate (§6.8) exercises all three repos' full pipelines against the change before it can merge; the shared paths are CODEOWNERS-gated for cross-team review; the buildenv repo is master-only, so there is a single place to apply a fix. |
+| 1 | **Wide blast radius of shared infra.** `buildenv_setup` and the shared VS-test templates are depended on by all three repos, so a single bad change can break multiple repos at once. | The comprehensive pre-merge gate (§6.8) exercises all three repos' full pipelines against the change before it can merge; the shared paths are CODEOWNERS-gated for cross-team review; and because `buildenv_setup` is versioned with sonic-swss-common's branches, a bad change is scoped to that branch (release branches are unaffected) and is fixed with a normal sonic-swss-common revert. |
 | 2 | **CI now depends on the correctness of one Python package.** A bug in `buildenv_setup` that the old inline `apt-get` / artifact-download steps would have tolerated can now break every repo's environment setup. | The same package runs in both CI and local development, so defects surface quickly and visibly; it ships with a comprehensive unit-test suite; a `--dry-run` mode emits the resolved install plan for inspection and diffing against a known-good baseline. |
 | 3 | **Cross-repo dependency coupling.** Because dependencies are inherited (§6.3), a bad change to an upstream repo's dependency files can break a downstream repo's build environment. | The pre-merge gate runs on PRs that touch the shared dependency files, catching downstream breakage before merge; `--dry-run` makes the resolved dependency set diffable so unexpected changes are caught in review. |
-| 4 | **The comprehensive PR check for `sonic-dataplane-buildenv` is slow/expensive.** Building all three repos across every supported Debian/arch combination plus VS tests is costly. | Accepted by design (§6.8): buildenv changes are infrequent and the cost of a slipped breaking change is far higher. The comprehensive PR check only fires on PRs that touch the shared infra — not on routine PRs. |
+| 4 | **The comprehensive PR check for shared-infra changes is slow/expensive.** Building all three repos across every supported Debian/arch combination plus VS tests is costly. | Accepted by design (§6.8): shared-infra changes are infrequent and the cost of a slipped breaking change is far higher. The comprehensive PR check only fires on PRs that touch the shared infra (sonic-swss-common's `ci/` or sonic-swss's shared templates) — not on routine PRs. |
 | 5 | **Cross-repo template references couple repos to each other's interfaces.** A repo that references `build-template.yaml@<repo>` or the swss-owned VS-test templates (§6.2, §6.7) depends on the upstream's file paths and parameter contract. | Treat upstream template parameter changes as breaking changes requiring cross-team coordination; document the parameter contract in each template; the pre-merge gate exercises the repository-as-downstream path on every shared-infra PR. |
