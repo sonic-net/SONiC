@@ -1,4 +1,4 @@
-# No Default VRF Route Fallback
+# Linux VRF Route Lookup Fallback Control
 
 ## Table of Contents
 
@@ -26,10 +26,11 @@
 | 3.0 | 2026-07-02 | Sudharsan Rajagopalan | Clarified the kernel-only scope and CONFIG_DB-only management; removed the CLI design |
 | 3.1 | 2026-07-02 | Sudharsan Rajagopalan | Clarified the Linux and prior downstream defaults, the intentional upstream default change, and upgrade mapping |
 | 3.2 | 2026-07-02 | Sudharsan Rajagopalan | Clarified namespace-local multi-ASIC persistence, applicable VRFs, and rollback ordering |
+| 3.3 | 2026-07-02 | Sudharsan Rajagopalan | Renamed the feature to Linux VRF Route Lookup Fallback Control |
 
 ## 2. Scope
 
-This HLD changes only Linux VRF route lookup for traffic processed by the host kernel, including VRF-bound locally originated traffic and packets forwarded in software. It does not add or modify hardware routes, SAI objects, or ASIC forwarding behavior.
+Linux VRF Route Lookup Fallback Control changes only Linux VRF route lookup for traffic processed by the host kernel, including VRF-bound locally originated traffic and packets forwarded in software. It does not add or modify hardware routes, SAI objects, or ASIC forwarding behavior.
 
 - By default, `vrfmgrd` disables legacy Linux routing-policy database (RPDB) fall-through by installing managed IPv4 and IPv6 unreachable default routes in each applicable non-default Linux VRF table.
 - A temporary global CONFIG_DB setting can remove those routes, restoring fallback in the Linux kernel route-lookup path, including VRF-bound local output and software-forwarded packets, by permitting RPDB lookup to continue to later rules and tables.
