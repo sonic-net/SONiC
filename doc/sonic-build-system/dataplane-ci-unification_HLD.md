@@ -84,7 +84,9 @@ Currently, each repo owns its entire CI pipeline end-to-end. This causes signifi
 ## 3. Problems
 
 1. Build/dependency changes do not automatically propagate - separate PRs are needed for each affected repo which are extra painful when speed is needed (e.g. when approaching branch cut deadlines). E.g. if the name of an artifact required by sonic-sairedis changes, separate PRs to update the artifact name are required for both sonic-sairedis and sonic-swss (since it's dependent on sonic-sairedis).
-2. Multiple copies of the same step drift over time - changes made in one repo will remain isolated to that repo by default which can mask failures for downstream CI. E.g. a PR in sonic-swss-common may introduce a breaking dependency change, and will update the sonic-swss-common CI pipeline to account for this; however, sonic-sairedis and sonic-swss have separate CI pipeline definitions and will break once the swss-common change is merged.
+    - For example, this PR changes swss-common to depend on libyang3 instead of libyang1: https://github.com/sonic-net/sonic-swss-common/pull/973. Since sairedis and swss are both downstream of swss-common, CI pipelines for both broke and each repo required a separate PR to also move to libyang3 and fix the issue: https://github.com/sonic-net/sonic-swss/pull/4618 and https://github.com/sonic-net/sonic-sairedis/pull/1916
+2. Multiple copies of the same step drift over time - changes made in one repo will remain isolated to that repo by default which means any CI improvements made in one repo will be limited to that repo unless manually added to other repos as well.
+    - For example, this SWSS PR improved logs produced during VS test runs: https://github.com/sonic-net/sonic-swss/pull/4291. However, swss-common and sairedis do not get the benefit of this improvement because they each maintain their own copy of the VS test stage.
 3. No easy way to stand up a local dev environment that matches the CI environment. Increases friction for debugging build or test failures, discourages use of C++ unit tests which are faster and often less flaky than VS tests
 
 ## 4. Goals
