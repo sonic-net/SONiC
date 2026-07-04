@@ -63,16 +63,14 @@ schema_version: "0.0.1"
 **CRITICAL**: This header format is immutable and serves as the entry point for schema interpretation.
 
 ### Versioning and Compatibility with SONiC NOS
- 
-The schema version does not have explicit associated DLDD or SW version requirements. Schema versioning is independent of the software release cycle, allowing for:
 
-- Multiple schema versions supported by a single DLDD version
-- Backward compatibility across software releases
-- Independent evolution of schema structure and daemon implementation
+Schema versions evolve independently from SONiC releases. A DLDD release may support multiple schema versions, but runtime support is determined only through an exact-match registry of schema contracts packaged with the daemon.
 
-DLDD is responsible for handling schema version compatibility through its schema layout definitions.
+Semantic versioning describes how schema authors classify changes; it does not authorize runtime version-range matching. A rules source declaring `0.0.2` is accepted only when `0.0.2` has an explicit registry entry. A registry entry may deliberately reuse another version's validator or materializer, but DLDD must not infer compatibility or silently select the nearest major, minor, or patch version.
 
-Compatibility is evaluated against the daemon's supported schema versions and feature set. Unknown optional fields may be ignored. Unknown required fields, unknown event types, unknown evaluation types, unknown action types, or unknown enum values must fail validation because they can change execution behavior.
+An uploaded rules source selects a contract only through its scalar `schema_version`. It cannot supply a schema path, module name, URI, validator, or materializer. Schema layout definitions are extraction metadata and are not a support signal or compatibility mechanism.
+
+Unknown-field behavior is defined independently by each registered schema contract. An unknown field may be accepted only when that exact contract permits it. Unknown types, enum values, required fields, or behavior-bearing fields fail validation for the scope in which they occur.
 
 ## Rule Structure
 At the highest level, a rules source file contains a `schema_version`, an optional rules-source default for local action timeouts, and a non-empty `signatures` list. Each `signature` contains 3 primary sections: `metadata`, `conditions`, and `actions`. A breakdown of the content of each of these can be found below.
@@ -742,7 +740,7 @@ Schema layout definitions provide the NOS with instructions on how to extract co
 }
 ```
 
-The schema layout map is extraction metadata for consumers that need version-specific paths. It is not a substitute for schema validation. Validation still uses the normative field definitions, path schemas, evaluator definitions, and enum tables in this document.
+The schema layout map is optional extraction metadata for version-neutral external consumers. It is not a validation authority, does not determine whether a schema version is supported, and need not be used by DLDD's typed model builder. DLDD's exact-version contract binding pairs the static-schema registry entry with its code-side semantic validator and materializer. The registry may record an optional layout path for external consumers, but the layout is not loaded as a daemon-startup dependency.
 
 ## Rule Examples
 
@@ -857,40 +855,66 @@ signatures:
 
 ### Validation Contract
 
-Validation should be driven by versioned, machine-readable contracts rather than by prose examples. For each supported `schema_version`, the consuming NOS should provide:
-- A static schema artifact, such as JSON Schema, that defines required fields, field types, enum values, allowed additional fields, and type-specific object shapes for paths, evaluations, actions, and log collection.
-- Semantic validators for constraints that are not expressible cleanly in the static schema, including event ID uniqueness, `conditions.logic` parsing, `match_count`/`match_period` ranges, severity/priority ordering, and component/symptom applicability.
-- DSE validators that resolve path and evaluator references against the platform DSE file and fail unresolved references.
-- Evaluator validators that confirm every event produces deterministic comparison semantics.
-- Compatibility validators that check product and software version applicability using the platform/NOS matching contract.
+Validation is driven by trusted, versioned, machine-readable contracts rather than prose examples. For every exact supported `schema_version`, DLDD registers a contract containing a shallow file-envelope validator and an independently callable per-signature validator. The version-specific semantic validator and static validator run independently so both diagnostic forms can be retained; the typed model builder, DSE resolver, evaluator validator, compatibility matcher, and materializer run at their subsequent validation tiers.
+
+The static schema owns required fields, primitive types, enum values, ranges, allowed additional fields, and type-specific path, evaluation, action, and query shapes. Code-based semantic validation owns cross-field and cross-object constraints such as duplicate identities, condition-logic parsing, timeout inheritance, event references, and evaluator/operator compatibility. JSON Schema `default` annotations are descriptive and do not mutate input; DLDD applies defaults explicitly while constructing its immutable typed model.
 
 The examples in this document should be included as positive fixtures for the validator, but adding or changing examples must not be required to change validation behavior.
 
+#### Trusted Schema Registry and Validator Dependency
+
+Schema contracts and all referenced resources are shipped inside the installed DLDD Python package. DLDD never downloads a schema or reference over the network. A URI-valued JSON Schema `$id` is an identifier only and does not authorize retrieval. References must be local fragments in the installed schema artifact. Uploaded rules cannot override `$schema`, `$id`, `$ref`, a schema location, or implementation code.
+
+DLDD uses pinned `fastjsonschema` to compile the installed Draft-7 contracts and pinned `regex` for bounded regular-expression evaluation. These validator dependencies are part of the runtime contract. Schema version `0.0.1` declares Draft 7; interpreting it as Draft 4 or silently ignoring Draft-7 keywords is non-conforming. Schema compilation disables input mutation, including `default` insertion. Runtime regular-expression searches have a 100 ms deadline; exceeding it produces an evaluator error instead of indefinitely blocking a monitor worker.
+
+When constructing the registry, DLDD verifies that:
+
+- Every schema is an object and declares the supported Draft-7 dialect.
+- The schema's `schema_version` constant exactly matches its registry key.
+- Every `$id` and registry version is unique.
+- Every `$ref` is a local fragment and the complete installed schema compiles successfully.
+- The envelope and per-signature validators can be derived and compiled from the trusted schema.
+
+Registry corruption, a missing or invalid required schema resource, an unsupported validator dialect, or an internal compiler failure is a daemon/package failure. It is not attributed to an uploaded rule and must not be downgraded to a per-rule `BROKEN` result.
+
+#### Input Safety
+
+Across bounded parsing, the file envelope, static schema, and semantic validation, DLDD bounds the source text, rejects duplicate JSON and YAML mapping keys, rejects YAML aliases, uses the YAML safe loader, and bounds the parsed document's depth, node count, collection size, scalar size, signature count, per-signature event count, logic-expression size/nesting, and regular-expression size/nesting. The current document limits are a 4 MiB source, depth 64, 100,000 document nodes, 10,000 entries in any collection, 1 MiB per string scalar, 1,024 signatures, and 1,000 events per signature. Parsing preserves source line information for diagnostics. These structural bounds prevent parser recursion and unbounded validation work; they are not a proof that an arbitrary Python regular expression has linear runtime, so rule-delivery trust and authentication remain deployment requirements.
+
+Validation diagnostics include a stable issue code, validation scope, JSON-style field path containing the signature index, source line when available, and rule ID and name when identifiable. The existing semantic diagnostics are operator-facing API: DLDD may retain both a specific semantic diagnostic and the corresponding static-schema diagnostic for the same invalid signature. Static schema enforcement therefore adds contract coverage without replacing established issue codes or their more precise paths.
+
 #### Validation Model
 
-Validation has two tiers plus an aggregate activation guard:
+Validation uses a file-envelope pass followed by an independent pass for every signature. DLDD compiles the complete rules-document schema as a package-integrity check, but it does not apply that complete schema as the activation gate because doing so would turn one localized signature error into a file-level failure.
 
-1. **File-level activation gate**: Determines whether a candidate rules file is safe to parse and consider for activation. File-level failures include malformed YAML/JSON, missing or unsupported `schema_version`, invalid top-level `signatures` structure, duplicate rule IDs that make rule identity ambiguous, unsupported schema features, and any error that prevents deterministic parsing of the file. These are syntactic or file-structural failures. They reject the candidate generation and trigger rollback or retention of the previous active generation.
-2. **Rule-level materialization gate**: Determines whether each individual signature can be materialized into monitor work after the file-level gate passes. Rule-level failures include unresolved DSE references, unexposed paths for the current platform, invalid source path bindings, invalid event/action/query type contracts, invalid evaluator semantics, product/SW mismatch, or a source binding that is not available for that rule. These are rule resolution, path, binding, or per-signature contract failures. They do not require rollback of the entire generation when at least one usable rule remains; the affected rule is marked broken and omitted from monitor work, while valid rules in the same generation may run.
-3. **Usable-rule activation guard**: If rule-level materialization leaves zero usable rules for the current platform, activation fails even though the file-level gate passed. A no-rules execution plan is treated as a service activation failure because it would replace a working generation with no diagnostic coverage.
+1. **File-envelope activation gate**: Validates the root object, exact registered `schema_version`, top-level optional fields, non-empty `signatures` list, deterministic signature wrapper shape, configured input limits, and cross-signature identity uniqueness. Malformed input, unsupported versions, invalid top-level structure, duplicate rule IDs or names, and errors that prevent deterministic signature isolation reject the entire candidate and trigger rollback or retention of the previous active generation.
+2. **Per-signature static and semantic gate**: Applies the version's signature schema and semantic validator independently to every isolated signature. Missing per-rule fields, invalid types, paths, enums, condition expressions, action/query contracts, and other localized authoring errors mark only that rule broken. DLDD runs its established semantic checks as well as the static schema checks and may retain diagnostics from both.
+3. **Per-signature materialization gate**: Checks product/software applicability, DSE resolution, evaluator construction, trusted vendor-hook availability, and adapter configuration without sampling monitoring sources or executing actions. Localized failures mark only that rule broken.
+4. **Usable-rule activation guard**: Activation succeeds as `DEGRADED` when at least one rule is usable and one or more rules are broken. Activation fails when zero usable rules remain, preserving or restoring the previous valid generation or fallback.
 
-This split lets DLDD reject structurally unsafe candidate files while still surfacing vendor rule authoring or platform binding failures through `broken_rules` telemetry.
+Normal activation validates configuration and bindings only. DLDD core does not call adapter source-read or collection methods and does not run local actions. Trusted DSE and vendor extension hooks invoked for resolution or validation must honor the same side-effect-free contract and must not sample hardware or external source values. A currently absent key, file, device, component, or fault-only source is a runtime availability condition, not an activation failure. Invalid source configuration, an unresolved DSE binding, or a required trusted vendor hook that is not installed remains a per-rule materialization failure.
+
+Declared rule/materialization errors (`DSEError` or `ValueError`) are localized to the affected rule. Unexpected exceptions from trusted validator or vendor code indicate an implementation/package failure; they abort that candidate attempt and enter lifecycle fallback rather than being mislabeled as vendor-rule authoring errors.
+
+Where a version permits platform-specific action, query, source, or evaluator types, its static schema validates the extension envelope and the trusted platform validator must explicitly advertise and validate the concrete type. A type name in uploaded YAML never causes dynamic module import.
 
 ### Validation Process
-1. **Syntax Validation**: YAML/JSON structure verification
-2. **Schema Validation**: Conformance to version-specific schema, including required fields, path shapes, enum values, logic references, and type-specific action/query structures
-3. **DSE Validation**: Verifies that DSE paths and DSE evaluations resolve against the platform DSE configuration
-4. **Evaluator Contract Validation**: Verifies that each evaluation block can produce a deterministic evaluator, including DSE-provided comparator semantics when `evaluation.type` is `dse` and `operator` is omitted
-5. **Hardware Probe Validation**: Optional non-disruptive checks that concrete sources can be sampled on the target hardware
-6. **End-to-End Validation**: Optional platform qualification using controlled inputs to ensure that the rule can execute successfully without relying on live fault conditions
+1. **Bounded Syntax Validation**: Parse the immutable staged JSON/YAML copy using duplicate-safe, alias-free, bounded parsing.
+2. **Exact Contract Selection**: Read `schema_version` and require its exact trusted registry entry.
+3. **Envelope Validation**: Validate only the shallow file envelope and cross-rule identities at file scope.
+4. **Independent Rule Validation**: Run both static schema and version-specific semantic validation for each isolated signature, retaining localized diagnostics.
+5. **DSE and Evaluator Validation**: Resolve DSE references and verify that every event has deterministic evaluator semantics.
+6. **Materialization Preflight**: Check compatibility, trusted vendor hooks, and adapter configuration without collecting source values or executing actions.
+7. **Activation Guard**: Reject the candidate if no usable rules remain; otherwise activate the usable rules and publish localized failures as broken-rule diagnostics.
+8. **Qualification Modes**: Invoke configured source-read or collection paths only when an operator explicitly requests hardware-probe or end-to-end validation. These paths are vendor-selected and must be reviewed for their intended read-only qualification behavior.
 
-Remote activation requires file-level validation and rule-level materialization validation for steps 1 through 4. A file-level failure rejects the candidate generation. A rule-level failure marks the affected rule broken after promotion if the file-level gate passed and at least one usable rule remains. If no rules can be materialized for the current platform, activation fails and DLDD keeps or restores the previous active generation or fallback. Steps 5 and 6 are platform qualification modes and are not required for normal remote rule updates because some sources may exist only under certain component states or fault conditions.
-
-It is the responsibility of the consumer to validate the underlying content of the rules source and ensure that it is compatible with the expected schema version. This does not need to be every time the consumer reads the rules, only when the rules source changes. Depending on the underlying NOS implementation, this can be done as a standalone check or integrated into the final consumer of this content. File-level validation failures reject the candidate rules file. Rule-level validation failures result in failure of the affected rule to load, allowing valid rules in the same promoted generation to run and exposing the invalid rules through service telemetry. A candidate with zero usable rules after rule-level materialization is not considered a valid active generation.
+Validation occurs when a candidate generation changes. A generation remains tied to the exact schema contract and active-source checksum used to validate it. A file-level failure rejects the candidate generation. A per-rule failure omits only the affected rule when at least one usable rule remains. A zero-usable-rule result keeps or restores the previous active generation or fallback.
 
 ## Backward Compatibility
-- **Schema Layout**: Maintain parsing instructions for all supported versions
-- **Consumer Ignore**: Ensure that the consumer is able to ignore unknown fields (such as optional fields that can be added in a new minor version)
+- A daemon supports an older schema version by retaining an explicit registry entry for that exact version.
+- A new registry entry may intentionally reuse an existing validator or materializer, but compatibility is never inferred from semantic-version proximity.
+- Layouts should remain available for external consumers while their exact schema contract is supported.
+- Unknown-field handling is controlled by each exact schema contract; consumers must not apply a blanket ignore policy across versions.
 
 ---
 
