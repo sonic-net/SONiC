@@ -175,7 +175,7 @@ A major pain point of the existing CI model is that each repository's CI indepen
 | `packages/test.yaml` | swss only | N/A | packages required for VS tests |
 | `upstream-artifacts.yaml` | all 3 | yes | set of artifacts to download from other build pipelines; also the entrypoint for dependency cascading |
 
-`upstream-artifacts.yaml` in each repo is used to declare which artifacts/pipelines need to be downloaded for the repo's build environment. This is also how the upstream/downstream relationship is declared. If an artifact listed in this file provides its own `build-env/` dependency files, those dependencies are inherited and that artifact's `upstream-artifacts.yaml` is recursively parsed.
+`upstream-artifacts.yaml` in each repo is used to declare which artifacts/pipelines need to be downloaded for the repo's build environment. This is also how the upstream/downstream relationship is declared. If an artifact listed in this file provides its own `build-env/` dependency files, those dependencies are inherited and that artifact's `upstream-artifacts.yaml` is recursively parsed. Because a branch-versioned `buildenv_setup` can read bundles produced by other branches/commits during this cascade, the schema follows a strict **backward-compatibility policy**: fields are only ever added (never removed or repurposed), and the tool ignores unknown fields — so any tool version can safely parse any bundle it encounters. Breaking schema changes are avoided by policy, and the pre-merge gate (§6.8) validates it by running the PR's tool against the real, already-published upstream artifacts.
 
 As a concrete example, `upstream-artifact.yaml` in sonic-sairedis will list sonic-swss-common artifacts as a dependency. During the environment setup process, the swss-common artifacts are downloaded. As part of this proposal, these artifacts will now include a `build-env/` folder which declares dependencies for specific swss-common version that was used to build the artifact. The dependencies from the swss-common artifact's `base.yaml` will now be installed. Then the swss-common artifact's `upstream-artifacts.yaml` will be parsed, and those upstream artifacts will be downloaded and the entire process is repeated.
 
@@ -202,7 +202,7 @@ upstream:
   # Build-scoped entry (default — scopes: [build] if omitted)
   - name: sonic-swss-common
     pipeline: Azure.sonic-swss-common
-    artifact_name: sonic-swss-common-{debian_version}
+    artifact_name: sonic-swss-common-{debian_version}   # amd64; non-amd64 appends .{arch} (e.g. sonic-swss-common-{debian_version}.arm64)
     debs:
       - libswsscommon_1.0.0_{arch}.deb
       - { path: python3-swsscommon_1.0.0_{arch}.deb, scopes: [build, test] }  # per-DEB refinement
@@ -230,18 +230,19 @@ upstream:
 
 The `buildenv_setup` utility is a self-contained, multi-module Python package hosted in `sonic-swss-common` (under `ci/buildenv_setup/`, with tests under `ci/tests/`). It is responsible for executing the actual build-environment setup: calculating the required dependencies from each repo's explicitly-declared + inherited dependencies, downloading and installing them, and performing any post-install configuration.
 
-`sonic-swss-common` is the natural home: it is the foundational repo at the root of the dependency cascade, so it is already checked out (or cloned) by every consumer's CI — hosting the utility there adds no incremental clone cost and avoids the overhead of standing up and governing a separate repository. Because the utility is versioned alongside `sonic-swss-common`, each release branch automatically carries a matching-branch copy of `buildenv_setup`; consumers clone `sonic-swss-common` at their own branch (falling back to the default branch), so a change on `master` cannot silently break a release branch. Cross-consumer review is enforced via `CODEOWNERS` on `ci/**`, requiring sign-off from the sairedis and swss teams. The package remains self-contained, so it could be extracted into its own repository later if that ever becomes warranted.
+`sonic-swss-common` is the natural home: it is the foundational repo at the root of the dependency cascade, so it is already checked out (or cloned) by every consumer's CI — hosting the utility there adds no incremental clone cost and avoids the overhead of standing up and governing a separate repository. Because the utility is versioned alongside `sonic-swss-common`, each release branch automatically carries a matching-branch copy of `buildenv_setup`; a change on `master` therefore cannot alter a release-branch build. Consumers resolve the matching `sonic-swss-common` branch up front (a preflight step — Azure Pipelines resolves repository-resource refs at compile time, and a nonexistent ref fails the run, so a shell `||` fallback is not viable): release branches **fail closed** if no matching branch exists, and only explicitly-marked feature branches fall back to the default branch. The same preflighted-ref approach applies to the `@sonic_swss` VS-test template references (§6.2/§6.7). Cross-consumer review is enforced via `CODEOWNERS` on `ci/**`, requiring sign-off from the sairedis and swss teams. The package remains self-contained, so it could be extracted into its own repository later if that ever becomes warranted.
 
 ### 6.5 Single setup mechanism — `buildenv_setup`
 
-By moving all environment setup steps to the new `buildenv_setup` utility, we can easily setup local development environments. Sample invocations of the utility for both CI runs and local dev setup are shown below. Using `buildenv_setup` as a common entry point for both scenarios ensures parity between CI and local dev environments which will make it easier to debug and resolve any issues caught by the CI pipeline.
+By moving all environment setup steps to the new `buildenv_setup` utility, we can easily setup local development environments. Sample invocations of the utility for both CI runs and local dev setup are shown below. Using `buildenv_setup` as a common entry point for both scenarios ensures parity between CI and local dev for **building the repo and running its C++ unit tests** — the common debug loop. Full VS/DVS tests are a different matter: they require CI-like infrastructure (a `docker-sonic-vs` image, a host kernel-module install, libvirt/qemu, nested Docker, and typically privileged/KVM access) that a typical developer machine cannot provide, so local-dev parity is scoped to build + unit tests, not the VS suite.
 
 CI invocation (inside `container: sonic-slave-*`):
 ```bash
 # Consumer CI (sonic-sairedis / sonic-swss): clone sonic-swss-common at the matching branch, then run the package.
 # (sonic-swss-common's own CI skips the clone — the package is already in its checkout under ci/.)
-git clone --depth 1 --branch $(BUILD_BRANCH) https://github.com/sonic-net/sonic-swss-common /tmp/sw-common \
-  || git clone --depth 1 https://github.com/sonic-net/sonic-swss-common /tmp/sw-common   # fall back to default branch
+# BUILDENV_REF is resolved by a preflight step: the matching branch if it exists, else fail closed for
+# release branches (only feature branches fall back to the default branch) — see §6.4.
+git clone --depth 1 --branch $(BUILDENV_REF) https://github.com/sonic-net/sonic-swss-common /tmp/sw-common
 PYTHONPATH=/tmp/sw-common/ci python3 -m buildenv_setup --repo-dir $(Build.SourcesDirectory) --scope build
 ```
 
@@ -249,8 +250,11 @@ Local-dev invocation (in `build-env/Dockerfile`):
 ```dockerfile
 FROM sonic-slave-${DEBIAN_VERSION}:latest
 RUN git clone --depth 1 https://github.com/sonic-net/sonic-swss-common /tmp/sw-common
-COPY . /workspace
+# Copy ONLY the dependency declarations so the heavy setup layer stays cached across source edits.
+COPY build-env/ /workspace/build-env/
 RUN PYTHONPATH=/tmp/sw-common/ci python3 -m buildenv_setup --repo-dir /workspace --scope build
+# Source is intentionally NOT copied — compose.yaml mounts the working tree at /workspace at runtime,
+# so host edits are immediately live and never invalidate the setup layer above.
 ```
 
 ### 6.6 Same-pipeline-run support
@@ -265,14 +269,17 @@ All three repos (sonic-swss-common, sonic-sairedis, and sonic-swss) rely on VS t
 
 The shared infrastructure is depended on by all three repos, so it's critical to prevent breaking changes from merging. PRs that touch the shared infrastructure — the `buildenv_setup` utility in sonic-swss-common's `ci/`, or sonic-swss's shared VS-test templates — trigger a comprehensive check that builds all three repos for all supported Debian version and architecture combinations and runs the VS test suite, covering the entire CI pipeline for all three repos. Running all combinations will be expensive, but shared-infra changes are expected infrequently and a breaking change slipping through would be quite costly/disruptive which justifies the added overhead.
 
+Because Azure Pipelines resolves template and repository-resource references at compile time, the gate cannot simply "inject the PR's SHA" into an already-running consumer pipeline. Instead, the selfcheck pipeline lives in the infra repo (sonic-swss-common for `ci/` changes; sonic-swss for shared-template changes) and, for each consumer, **triggers that consumer's own PR-validation pipeline via the Azure Pipelines REST API**, passing an override so the consumer builds against the PR's code: for a `ci/**` change the consumers' `BUILDENV_REF` (the sonic-swss-common clone ref, §6.4) is set to the PR ref; for a shared-template change the consumer's `sonic_swss` resource `ref` is set to the PR ref. Results are aggregated back into the gate. This reuses each consumer's real pipeline — no duplicated stage graphs — while ensuring the PR's infrastructure is what actually gets exercised.
+
 ## 7. Migration plan
 
-The migration is **incremental and non-breaking**. Rather than a single large cutover, the changes land as a sequence of small PRs, each of which keeps every affected repo's CI green after merge and is revertable in isolation. Work proceeds **stage-by-stage in dependency order**: each repo's CI is a set of independent Azure Pipelines stages (Build, BuildDocker, Test, and the cross-repo build stages), so we can move one `(repo, stage)` combination at a time instead of rewriting a whole pipeline at once.
+The migration is **incremental and non-breaking**. Rather than a single large cutover, the changes land as a sequence of small PRs, each of which keeps every affected repo's CI green after merge. Most PRs are revertable in isolation; the exception is the dependency cascade — once a downstream repo begins inheriting configuration from an upstream (e.g. sairedis inheriting sw-common's redis setup), the upstream's cutover PR can no longer be reverted on its own, so reverts proceed **downstream-first** (see the guiding principles). Work proceeds **stage-by-stage in dependency order**: each repo's CI is a set of independent Azure Pipelines stages (Build, BuildDocker, Test, and the cross-repo build stages), so we can move one `(repo, stage)` combination at a time instead of rewriting a whole pipeline at once.
 
 Guiding principles:
 - **Always green:** every PR leaves the target repo's CI passing; nothing is half-migrated across a merge boundary.
 - **Additive artifact changes only:** the published artifacts gain a new `build-env/` subdirectory but the existing DEBs stay exactly where they are to avoid breaking existing consumers.
 - **Dependency-ordered cutover:** the build-dependency cascade (`sonic-swss-common` → `sonic-sairedis` → `sonic-swss`) dictates the order — an upstream repo must publish its `build-env/` bundle before a downstream repo can inherit from it.
+- **Downstream-first reverts:** once a downstream repo inherits config from an upstream via the cascade, reverting the upstream's cutover in isolation would silently strip that config from the downstream. Reverts therefore go downstream-first, and onboarded *core* upstreams treat a missing `build-env/` bundle as an error rather than silently skipping it (only genuine leaf artifacts may be optional).
 - **Gate last:** the cross-repo pre-merge gate (§6.8) runs in informational (non-blocking) mode while the cutover is in progress, and is promoted to required-to-merge only once every stage is migrated.
 
 | Phase | What | # of PRs |
@@ -291,3 +298,4 @@ Guiding principles:
 | 3 | **Cross-repo dependency coupling.** Because dependencies are inherited (§6.3), a bad change to an upstream repo's dependency files can break a downstream repo's build environment. | The pre-merge gate runs on PRs that touch the shared dependency files, catching downstream breakage before merge; `--dry-run` makes the resolved dependency set diffable so unexpected changes are caught in review. |
 | 4 | **The comprehensive PR check for shared-infra changes is slow/expensive.** Building all three repos across every supported Debian/arch combination plus VS tests is costly. | Accepted by design (§6.8): shared-infra changes are infrequent and the cost of a slipped breaking change is far higher. The comprehensive PR check only fires on PRs that touch the shared infra (sonic-swss-common's `ci/` or sonic-swss's shared templates) — not on routine PRs. |
 | 5 | **Cross-repo template references couple repos to each other's interfaces.** A repo that references `build-template.yaml@<repo>` or the swss-owned VS-test templates (§6.2, §6.7) depends on the upstream's file paths and parameter contract. | Treat upstream template parameter changes as breaking changes requiring cross-team coordination; document the parameter contract in each template; the pre-merge gate exercises the repository-as-downstream path on every shared-infra PR. |
+| 6 | **Cross-branch schema skew.** Because `buildenv_setup` is branch-versioned but its cascade reads `build-env/` bundles produced by other branches/commits, a schema change could make a tool misread a bundle (silently dropping deps/scripts) or fail to parse it. | Schema evolution follows a strict backward-compatibility policy (§6.3): fields are only ever added (never removed or repurposed) and the tool ignores unknown fields, so any tool version can parse any bundle it encounters. The pre-merge gate validates this by running the PR's tool against the real, already-published upstream artifacts. |
