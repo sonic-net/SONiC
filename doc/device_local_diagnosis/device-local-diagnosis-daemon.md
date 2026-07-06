@@ -61,7 +61,7 @@ This document describes the Device Local Diagnosis Daemon (DLDD) implementation 
 | **Action Worker** | Asynchronous worker context used for vendor local actions and log collection so long-running actions do not block the primary orchestration thread |
 | **Vendor-Defined Actions** | Local remediation actions supplied with the rules package and executed according to vendor-defined semantics |
 | **Vendor Rules Source** | YAML or JSON file conforming to the schema defined in `vendor-rules-schema-hld.md`, containing signatures, conditions, and actions |
-| **ACTION_\* Escalations** | Controller-driven remediation steps contained by the rules schema and defined in OpenConfig (for example `ACTION_RESEAT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, `ACTION_REPLACE`) |
+| **Remote-action escalations** | Controller-driven remediation identities defined by OpenConfig or an OpenConfig vendor extension. Standard examples include `ACTION_RESEAT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, and `ACTION_REPLACE`; DLDD does not maintain a closed identity allowlist. |
 
 ## Requirements
 
@@ -411,7 +411,7 @@ The primary thread is the single owner of signature-level state. Monitor threads
 - **Schema Compatibility**: DLDD requires the `schema_version` provided in the rules source to exactly match a trusted Pydantic contract packaged with the daemon. Generated JSON Schema and schema layouts are external tooling artifacts and do not determine runtime support.
 - **Signature Distribution**: Each signature's metadata drives monitor thread assignments (for example, events referencing DSE paths are dispatched to the thread that can resolve the DSE binding).
 - **Action Interface Enforcement**: Local actions are required to follow the type-specific structure defined in the rules schema. Supported executors include `dse`, `cli`, direct `i2c`, and explicit vendor-supported action types; CLI actions use `argv` instead of shell command strings, while direct I2C actions use the schema-defined target `path`. Local actions run with the same privilege as the DLDD service and are vendor-defined. The vendor rule package owns the requirement that local actions are non-disruptive to traffic.
-- **Escalation Handling**: Remote actions are propagated as ACTION_* enums defined by the rules schema and surfaced to the controller through Redis/UMF/gNMI fault telemetry only after any configured local actions have completed. They are controller-actionable only when the published fault status is `ACTIVE`; when DLDD recovers the condition locally, the fault is published as `INACTIVE` with local action metadata.
+- **Escalation Handling**: Remote actions are propagated as non-empty OpenConfig or vendor-extension identity strings and surfaced to the controller through Redis/UMF/gNMI fault telemetry only after any configured local actions have completed. DLDD preserves these identities rather than applying a closed allowlist. They are controller-actionable only when the published fault status is `ACTIVE`; when DLDD recovers the condition locally, the fault is published as `INACTIVE` with local action metadata.
 - **Log Collection Alignment**: DLDD triggers the `log_collection` queries specified in the rules schema at the normative action/log trigger point in [Vendor Action and Log Semantics](#vendor-action-and-log-semantics), obtains a Healthz artifact identifier, and lets artifact content collection complete asynchronously.
 
 ### Vendor Action and Log Semantics
@@ -1098,7 +1098,7 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
 - **`schema_version`**: Vendor rules schema version used to interpret the rule that produced this fault
 - **`active_rules_checksum`**: Local checksum of the active rules generation that produced this fault. DLDD uses this with rule identity during boot reconciliation to distinguish current-generation faults from stale records.
 - **`component_info`**: Object containing component identification details
-  - **`component`**: Component type (PSU, FAN, ASIC, TRANSCEIVER, etc.)
+  - **`component`**: Required vendor/platform component type. Values such as PSU, FAN, ASIC, and TRANSCEIVER are examples; DLDD accepts any non-empty vendor-defined component identity.
   - **`name`**: Canonical vendor/platform component name as reported by platform API or defined in the rule instance; UMF uses this value when translating the Redis structure into OpenConfig component paths
   - **`serial_number`**: Serial number of the associated component or parent component, lowest available in hierarchy
 - **`error_type`**: High-level error category from rule metadata, using OpenConfig-aligned fault category values where available and DLDD/vendor-defined categories where an OpenConfig identity is not available
@@ -1293,7 +1293,7 @@ sudo dldd validate-rules --file /path/to/dld_rules.yaml --json
 - **Two-Pass Schema Structure**: Applies the shallow Pydantic envelope model at file scope, then applies the exact-version strict Pydantic signature model and context-free semantic checks independently to each signature
 - **DSE Resolution**: Attempts to resolve all Data Source Extension references against the platform DSE configuration file (`dld_dse.yaml`)
 - **Field Type Validation**: Validates data types for all fields (strings, integers, enums, etc.)
-- **Enum Validation**: Checks that repair_actions use only supported ACTION_* values, evaluation types are valid (mask/comparison/string/boolean/dse), severity levels are recognized
+- **Enum and Identity Validation**: Checks closed DLDD fields such as evaluation type and severity against their defined values. `metadata.component` and remote remediation actions are instead required, strict, non-empty strings because vendor component types and OpenConfig remediation identities are extensible; DLDD does not apply value allowlists to them.
 - **Action and Log Schema Validation**: Checks that local actions, remote actions, and optional log collection use type-specific schemas, including per-action timeout overrides. CLI actions and CLI log queries must use `argv` and must not rely on shell parsing. Local action timeout defaults are validated from the active rules source `local_action_default_timeout`; log query timeouts are optional and are not defaulted by schema validation.
 - **Evaluator Contract Validation**: Confirms each event can produce a deterministic evaluator. DSE evaluations must resolve either an expected value plus operator or a complete comparator contract.
 - **Validation Tier Classification**: Classifies failures as file-level activation failures or localized rule-level Pydantic, semantic, or materialization failures. Raw Pydantic errors are normalized into stable DLDD-owned diagnostics.

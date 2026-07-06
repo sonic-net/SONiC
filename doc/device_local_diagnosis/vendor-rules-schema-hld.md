@@ -143,7 +143,7 @@ signature:
 | `description` | String | Yes | Multi-line human-readable explanation of the fault condition | Plain text, can use YAML literal block | See example above |
 | `product_ids` | List | Yes | Hardware products where this rule applies | Product ID (and HW version) are defined in vendor EEPROM, format dependent on that | `["8122-64EHF-O P1"]` |
 | `sw_versions` | List | Yes | SW versions where rule is validated | SW version formatting dependent on NOS, given example is for Cisco release identifier for SONiC NOS | `["202311.3.0.1"]` |
-| `component` | String | Yes | Primary component category affected | `PSU`, `FAN`, `CHASSIS`, `SSD`, `CPU`, `MEMORY`, `ASIC`, `TRANSCEIVER` | `"PSU"` |
+| `component` | String | Yes | Primary vendor/platform component type affected. DLDD preserves the identity and does not maintain a component-type allowlist. | Any non-empty vendor-defined component type string | `"PSU"`, `"VENDOR_FABRIC_MODULE"` |
 | `symptom` | String | Yes | OpenConfig Healthz fault symptom enumeration for telemetry | OpenConfig Healthz fault symptoms | `"SYMPTOM_OVER_THRESHOLD"` |
 | `error_type` | String | Yes | High-level fault category published to `FAULT_INFO.error_type`. Values should use OpenConfig-defined or OpenConfig-aligned identities where available; otherwise vendors must use a stable DLDD/vendor category that UMF can translate or preserve consistently. | OpenConfig-aligned fault categories or stable vendor category strings | `"POWER"` |
 | `severity` | String | Yes | DLDD rule severity used for deterministic precedence and optional SONiC/alarm metadata | `CRITICAL`, `MAJOR`, `WARNING`, `MINOR`, `UNKNOWN` | `"CRITICAL"` |
@@ -228,7 +228,7 @@ event:
 | Field | Type | Required | Description | Valid Values | Example |
 |-------|------|----------|-------------|--------------|----------|
 | `id` | Integer | Yes | Unique identifier within the signature | 1-999 (unique per signature) | `1` |
-| `type` | String | Yes | Data source type determining path structure. The authoritative enum set is defined in Canonical Enum Values. | See Canonical Enum Values | `"i2c"` |
+| `type` | String | Yes | Data source type determining path structure. The authoritative enum set is defined in Canonical Values and Extensible Identities. | See Canonical Values and Extensible Identities | `"i2c"` |
 | `instances` | List | No | Device instances used for per-instance correlation and optional source binding | Format: `"DeviceName:PathIdentifier"` (if `PathIdentifier` is empty, the whole event applies to `DeviceName`) | `["PSU0:IO-MUX-6"]` |
 | `path` | Object or String | Yes | Data source specification (structure varies by type) | See Path Specifications below | See examples below |
 | `evaluation` | Object | Yes | Criteria for determining if fault condition is met | See Evaluation Specifications | See examples below |
@@ -246,7 +246,7 @@ Every eligible work item is immediately due when a new DLDD process or monitor p
 
 #### Path Specifications by Type
 
-Any change to the schema that results in the structure of the path content changing must update this section accordingly. A running history of older schemas and their layouts can be maintained elsewhere. Currently the below examples are for schema version: "0.0.1". The authoritative `event.type` set is defined in Canonical Enum Values; this table defines the path shape for each supported type:
+Any change to the schema that results in the structure of the path content changing must update this section accordingly. A running history of older schemas and their layouts can be maintained elsewhere. Currently the below examples are for schema version: "0.0.1". The authoritative `event.type` set is defined in Canonical Values and Extensible Identities; this table defines the path shape for each supported type:
 
 | `event.type` | `path` shape | Notes |
 |--------------|--------------|-------|
@@ -414,7 +414,7 @@ value_configs:
 
 | Field | Type | Required | Description | Example |
 |-------|------|----------|-------------|---------|
-| `type` | String | Yes | Representation type used for telemetry and optional value parsing. Values are defined in Canonical Enum Values. | `"binary"`, `"int"`, `"float"` |
+| `type` | String | Yes | Representation type used for telemetry and optional value parsing. Values are defined in Canonical Values and Extensible Identities. | `"binary"`, `"int"`, `"float"` |
 | `unit` | String | Yes | Measurement unit or `"N/A"` when no unit applies | `"celsius"`, `"rpm"`, `"N/A"` |
 | `scaling` | Number or String | No | Scaling factor applied to raw values, or `"N/A"` | `0.001`, `"N/A"` |
 | `encoding` | String | No | Encoding hint for string or byte values, or `"N/A"` | `"utf-8"`, `"N/A"` |
@@ -537,7 +537,7 @@ Vendors may add implementation-specific action/query types only when the platfor
 For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, validation fails for that rule. For log queries, `timeout` is optional and is not defaulted by the schema; if omitted, DLDD does not impose a schema-level query timeout, while Healthz artifact retention and storage policies still bound stored output.
 
 **Remote Actions (Required):**
-The action list uses OpenConfig Healthz fault remediation identities. `time_window` defines how long, in seconds, the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the controller may progress to the next action in `action_list` according to controller policy.
+The action list uses OpenConfig Healthz fault remediation identities. OpenConfig identity values are extensible, so DLDD requires each entry to be a non-empty string but does not restrict it to a locally maintained enum. Standard or vendor-defined identities are preserved unchanged for the controller. `time_window` defines how long, in seconds, the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the controller may progress to the next action in `action_list` according to controller policy.
 ```yaml
 remote_actions:
   action_list:                            # Required: Escalating sequence of controller actions
@@ -551,21 +551,22 @@ remote_actions:
 
 | Field | Type | Required | Description | Valid Values | Example |
 |-------|------|----------|-------------|--------------|----------|
-| `action_list` | List | Yes | Ordered sequence of OpenConfig Healthz remediation action identities. List position becomes the remediation index published to `FAULT_INFO`. | Values listed in Canonical Enum Values | `["ACTION_RESEAT", "ACTION_COLD_REBOOT"]` |
+| `action_list` | List | Yes | Ordered sequence of OpenConfig Healthz remediation action identities. List position becomes the remediation index published to `FAULT_INFO`. DLDD preserves each identity unchanged. | Non-empty list of non-empty standard or vendor-defined OpenConfig identity strings | `["ACTION_RESEAT", "vendor-healthz:ACTION_REPAIR_FABRIC_MODULE"]` |
 | `time_window` | Integer | Yes | Fault history window, in seconds, used by the controller for escalation decisions. DLDD publishes the value; controller policy decides whether and when to execute actions. | Strict integer 1-4294967295 seconds | `86400` |
 
 For the comprehensive list of OpenConfig fault actions and symptoms, refer to the [OpenConfig platform healthz fault model](https://openconfig.net/projects/models/schemadocs/yangdoc/openconfig-platform.html).
 
 Remote action list order is the remediation index used when DLDD publishes `FAULT_INFO`. In schema version `0.0.1`, `remote_actions.action_list` is a list of action identities only. The OpenConfig remediation target defaults to the affected component instance resolved at runtime. A future schema version may add an explicit per-action target override if the remediation target and affected component need to differ.
 
-#### Canonical Enum Values
+#### Canonical Values and Extensible Identities
 
 | Field | Values | Notes |
 |-------|--------|-------|
 | `metadata.severity` | `CRITICAL`, `MAJOR`, `WARNING`, `MINOR`, `UNKNOWN` | Rule-derived severity used by DLDD for deterministic ordering and optional SONiC/alarm metadata. It is not a native OpenConfig Healthz fault leaf. |
 | `metadata.symptom` | OpenConfig `SYMPTOM_*` identities | Must map to the OpenConfig Healthz fault `symptom` identity. |
 | `metadata.error_type` | OpenConfig-aligned fault category strings or stable vendor category strings | Published to `FAULT_INFO.error_type`. UMF owns any mapping from this value into OpenConfig or SONiC extensions. |
-| `remote_actions.action_list[]` | `ACTION_RESEAT`, `ACTION_WARM_REBOOT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, `ACTION_REPLACE` | OpenConfig Healthz remediation action identities. |
+| `metadata.component` | Any non-empty string | Vendor/platform-defined component type identity. Examples such as `PSU`, `FAN`, and `TRANSCEIVER` are conventional, not an allowlist. |
+| `remote_actions.action_list[]` | Any non-empty string | Extensible OpenConfig Healthz remediation identity. Standard examples include `ACTION_RESEAT`, `ACTION_WARM_REBOOT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, and `ACTION_REPLACE`; vendor-defined identities are also accepted and preserved. |
 | `event.type` | `i2c`, `redis`, `dse`, `cli`, `file`, `sysfs`, `platform_api` | Type-specific `path` schema is defined above. |
 | `evaluation.type` | `mask`, `comparison`, `string`, `boolean`, `dse` | Type-specific evaluation schema is defined above. |
 | `value_configs.type` | `binary`, `hex`, `int`, `float`, `string`, `boolean`, `json`, `bytes`, `N/A` | Representation metadata for values in rules and DLDD telemetry. `N/A` is used when neither the rule nor DSE supplies more specific metadata. |
