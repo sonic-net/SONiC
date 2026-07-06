@@ -79,7 +79,7 @@ On platforms with dual SPI flash, active boot source switchover is performed by 
 General requirements
 
 - The Aspeed SONiC-BMC common framework shall detect whether both `u-boot-env` and `u-boot-env-alt` are present.
-- The framework shall support a user-selected bootenv synchronization policy with the values `current-only` and `sync-both`.
+- The framework shall support a configurable bootenv synchronization policy with the values `current-only` and `sync-both`.
 - If both environment partitions are present and the synchronization policy is `sync-both`, the framework shall synchronize the alternate environment.
 - The synchronization shall happen at the completion of a framework-managed bootenv update operation.
 - The design shall cover Aspeed framework flows that update bootenv through `fw_setenv`.
@@ -171,7 +171,7 @@ The design distinguishes hardware capability from synchronization policy:
   - `current-only`
   - `sync-both`
 
-If the platform is not dual-env capable, or if the policy is `current-only`, the operation updates only the primary environment.
+If the platform is not dual-env capable, or if the policy is `current-only`, the operation follows `current-only` behavior.
 
 At operation completion, the helper will:
 
@@ -218,7 +218,7 @@ Detection behavior:
 Synchronization enablement is determined separately from hardware capability:
 
 - If the platform is dual-env capable and the policy is `sync-both`, alternate environment synchronization is enabled.
-- If the platform is dual-env capable and the policy is `current-only`, only the primary environment is updated.
+- If the platform is dual-env capable and the policy is `current-only`, the operation follows `current-only` behavior.
 - If the policy is not specified, the default is `current-only`.
 
 #### 2.3.2 Synchronization Flow
@@ -237,9 +237,9 @@ The helper serializes synchronization with a file lock so concurrent framework-m
 
 #### 2.3.3 Integration Points in Aspeed Framework
 
-The synchronization helper is intended for Aspeed common paths that currently update bootenv.
+The synchronization helper shall be used by framework-managed bootenv update paths.
 
-The current integration points are:
+Representative integration points include:
 
 - `platform/aspeed/aspeed-platform-services/scripts/sonic-program-uboot-env.sh`
 - `platform/aspeed/install-sonic-to-emmc.sh`
@@ -273,14 +273,13 @@ The current helper behavior is as follows:
 - If `u-boot-env` cannot be found in `/proc/mtd`, synchronization returns failure.
 - If `u-boot-env-alt` is not present, synchronization is skipped and the helper returns success.
 - If primary and alternate environment partitions do not have the same partition size or erase size, synchronization returns failure.
-- If `flashcp` is unavailable, synchronization returns failure.
-- If raw copy to the alternate environment fails, synchronization returns failure.
+- If raw environment copy cannot be completed, synchronization returns failure.
 - If byte-to-byte verification fails, synchronization returns failure.
 - If synchronization completes successfully, the helper returns success.
 
 Framework-managed shell paths treat synchronization failure as operation failure.
 
-In the current `uboot.py` implementation, synchronization is attempted only when `sonic-sync-uboot-env.sh` exists on the target system. If the helper is absent, the generic U-Boot path continues without synchronization.
+Python-based framework integration may invoke synchronization only when the synchronization helper is available.
 
 This design is not transactional. If primary environment updates succeed and alternate synchronization later fails, the primary environment result is kept and the operation reports failure in the framework-managed shell paths.
 
