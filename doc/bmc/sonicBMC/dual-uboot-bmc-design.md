@@ -48,8 +48,11 @@ This HLD is limited to Aspeed SONiC-BMC platforms where:
 - SONiC-BMC image content is stored on eMMC
 - U-Boot and U-Boot environment are stored on SPI flash
 - a dual SPI flash layout may expose both primary and alternate U-Boot environment partitions
+- bootenv updates are performed through framework-managed community installation and management flows
 
 This document does not define a generic solution for all SONiC platforms outside the Aspeed SONiC-BMC framework.
+
+This document does not define factory production flashing or manufacturing burn flows unless those flows explicitly adopt the same framework-managed bootenv update mechanism.
 
 ## 1. Overview
 
@@ -69,18 +72,22 @@ Today only the primary environment is updated. The alternate environment is not 
 
 As a result, `u-boot-env` and `u-boot-env-alt` may diverge over time.
 
+On platforms with dual SPI flash, active boot source switchover is performed by the SoC watchdog mechanism. This HLD does not change the watchdog-based switchover mechanism itself. The purpose of this design is to keep bootenv metadata consistent across both flash copies so that switchover does not consume stale environment state.
+
 ### 1.2 Functional Requirements
 
 General requirements
 
 - The Aspeed SONiC-BMC common framework shall detect whether both `u-boot-env` and `u-boot-env-alt` are present.
-- If both environment partitions are present, the framework shall keep them synchronized.
+- The framework shall support a user-selected bootenv synchronization policy with the values `current-only` and `sync-both`.
+- If both environment partitions are present and the synchronization policy is `sync-both`, the framework shall synchronize the alternate environment.
 - The synchronization shall happen at the completion of a framework-managed bootenv update operation.
 - The design shall cover Aspeed framework flows that update bootenv through `fw_setenv`.
 - The design shall not add a new systemd service.
 - The design shall not add periodic synchronization logic.
 - The design shall not change behavior for single-flash platforms.
 - The design shall not require changes to U-Boot, `fw_setenv`, or `fw_printenv`.
+- If the synchronization policy is not specified, the default behavior shall be `current-only`.
 
 ## 2. Detailed Design
 
@@ -157,13 +164,20 @@ The proposed design introduces a common Aspeed-side bootenv synchronization help
 
 Framework-managed bootenv operations continue to update the primary environment through existing `fw_setenv` calls.
 
+The design distinguishes hardware capability from synchronization policy:
+
+- A platform is considered dual-env capable when both `u-boot-env` and `u-boot-env-alt` are present.
+- A framework-managed operation selects a bootenv synchronization policy:
+  - `current-only`
+  - `sync-both`
+
+If the platform is not dual-env capable, or if the policy is `current-only`, the operation updates only the primary environment.
+
 At operation completion, the helper will:
 
 1. detect whether an alternate environment exists
-2. if dual environment is present, copy the updated primary environment content to the alternate environment partition
+2. if dual environment is present and the policy is `sync-both`, copy the updated primary environment content to the alternate environment partition
 3. verify that both copies are identical
-
-This keeps the primary environment as the source of truth and eliminates the need for platform-private post-boot sync services.
 
 In this design, an operation is a logically complete bootenv update action whose resulting state is intended to be consumed by a future boot flow.
 
@@ -192,12 +206,20 @@ mtd1: 00020000 00010000 "u-boot-env"
 mtd6: 00020000 00010000 "u-boot-env-alt"
 ```
 
+For the scope of this HLD, `u-boot-env` and `u-boot-env-alt` are required layout labels for the primary and alternate U-Boot environment partitions. The dual-env detection mechanism relies on these exact labels. Platforms using different label definitions are outside the current auto-detection scope of this design.
+
 Detection behavior:
 
-- If both labels exist, dual-env synchronization is enabled.
+- If both labels exist, the platform is treated as dual-env capable.
 - If only `u-boot-env` exists, the framework keeps current behavior.
 - Absence of `u-boot-env-alt` is not treated as an error.
 - Failure to access the primary environment remains an update failure.
+
+Synchronization enablement is determined separately from hardware capability:
+
+- If the platform is dual-env capable and the policy is `sync-both`, alternate environment synchronization is enabled.
+- If the platform is dual-env capable and the policy is `current-only`, only the primary environment is updated.
+- If the policy is not specified, the default is `current-only`.
 
 #### 2.3.2 Synchronization Flow
 
@@ -233,12 +255,15 @@ These integration points cover:
 - default boot target updates
 - next-boot and boot-once updates
 
+Factory production flashing and manufacturing burn flows are outside the current integration scope.
+
 The design goal is:
 
 ```text
 Any Aspeed common framework-managed operation that successfully updates
 the primary U-Boot environment shall synchronize the alternate
-environment when dual-env layout is present.
+environment only when the platform is dual-env capable and the
+synchronization policy is set to `sync-both`.
 ```
 
 #### 2.3.4 Failure Handling
@@ -272,7 +297,7 @@ Check:
 
 ### Test 2: Dual U-Boot Environment Init
 
-Description: Verify that first-time framework-managed environment initialization synchronizes the alternate U-Boot environment.
+Description: Verify that first-time framework-managed environment initialization synchronizes the alternate U-Boot environment when policy is `sync-both`.
 
 Check:
 
@@ -281,7 +306,7 @@ Check:
 
 ### Test 3: Dual U-Boot Environment Install
 
-Description: Verify that install flow synchronizes the alternate U-Boot environment at operation completion.
+Description: Verify that install flow synchronizes the alternate U-Boot environment at operation completion when policy is `sync-both`.
 
 Check:
 
@@ -290,7 +315,7 @@ Check:
 
 ### Test 4: Dual U-Boot Environment Remove
 
-Description: Verify that remove flow synchronizes bootenv updates to the alternate U-Boot environment.
+Description: Verify that remove flow synchronizes bootenv updates to the alternate U-Boot environment when policy is `sync-both`.
 
 Check:
 
@@ -299,7 +324,7 @@ Check:
 
 ### Test 5: Dual U-Boot Environment Next Boot
 
-Description: Verify that next-boot update synchronizes the alternate U-Boot environment.
+Description: Verify that next-boot update synchronizes the alternate U-Boot environment when policy is `sync-both`.
 
 Check:
 
