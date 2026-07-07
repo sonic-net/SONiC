@@ -4,6 +4,7 @@
 
 - [Document History](#document-history)
 - [Scope](#scope)
+- [Document Authority](#document-authority)
 - [Terminology](#terminology)
 - [Requirements](#requirements)
 - [High-Level Design](#high-level-design)
@@ -12,6 +13,7 @@
 - [Service Configuration](#service-configuration)
 - [File Management and Rule Updates](#file-management-and-rule-updates)
 - [Integration Points](#integration-points)
+- [Implementation File Map](#implementation-file-map)
 - [Testing and Validation](#testing-and-validation)
 - [Restrictions and Limitations](#restrictions-and-limitations)
 - [References](#references)
@@ -31,10 +33,15 @@ The service provides:
 | Revision | Date | Author | Description |
 |----------|------|--------|-------------|
 | 0.1 | 2025-09-24 | Gregory Boudreau | Initial draft of DLDD HLD |
+| 0.2 | 2026-07-06 | Gregory Boudreau | Consolidated the implemented runtime, Pydantic validation boundary, per-event cadence, asynchronous collection, priority rechecks, rule/fault CLI telemetry, and cross-repository implementation map |
 
 ## Scope
 
 This document describes the Device Local Diagnosis Daemon (DLDD) implementation on SONiC platforms. It covers how vendor-provided rules are ingested, evaluated, and converted into telemetry for remote controllers. The following items are **not** covered: individual vendor rule authoring, OpenConfig schema specifications, or controller-side workflows.
+
+## Document Authority
+
+This document is the sole DLDD runtime and SONiC-integration HLD. It owns process placement, rule activation, scheduling and concurrency, monitor/orchestrator ownership, fault lifecycle, actions and artifacts, Redis/CLI/OpenConfig integration, persistence, operational behavior, implementation locations, and runtime testing. The companion `vendor-rules-schema-hld.md` is the sole authority for the vendor rules wire contract and its versioned validation semantics. Generated JSON Schema and schema-layout files are derived tooling artifacts, not additional HLDs or runtime validation authorities.
 
 ## Terminology
 
@@ -78,9 +85,9 @@ This section describes the SONiC requirements for the Device Local Diagnosis Dae
 
 ## High-Level Design
 
-![Device Local Diagnosis Architecture](./images/dldd-graphic-design-2.jpg)
+![Device Local Diagnosis System Context](./images/dldd-graphic-design-2.jpg)
 
-*Figure 1. DLDD logical runtime architecture. Monitor threads emit fault evidence and state-change notifications; the primary thread owns signature correlation, fault lifecycle, action scheduling, and telemetry publication.*
+*Figure 1. DLDD system context and external interfaces. Figure 2 is the authoritative logical runtime architecture for the implemented service.*
 
 DLDD is a multithreaded SONiC host service that implements vendor-agnostic, rule-driven hardware fault detection and remediation. The service operates as a polling-based monitoring engine that ingests vendor-provided fault signatures, evaluates hardware health against defined conditions, and publishes actionable telemetry to remote controllers.
 
@@ -93,6 +100,80 @@ During runtime, the **primary orchestration thread** manages specialized monitor
 Confirmed faults are published to the Redis `FAULT_INFO` table for UMF/gNMI subscription by the controller. If a rule defines local actions, DLDD holds the candidate fault, runs the vendor-defined local action sequence, waits the configured `wait_period`, rechecks the affected signature, and then publishes `FAULT_INFO`. If the recheck clears, DLDD publishes the fault as `INACTIVE` with local action metadata so the controller can observe that DLDD recovered the condition. If the fault remains active, DLDD publishes the fault as `ACTIVE` with its `ACTION_*` remote remediation recommendations (RESEAT, COLD_REBOOT, REPLACE, and so on). When a rule defines log collection, DLDD triggers Healthz artifact generation and publishes the artifact identifier with the fault; artifact content collection may continue asynchronously and does not block the fault report. The service maintains a heartbeat via `DLDD_STATUS|process_state` with a 120-second TTL, publishing both service health and broken rule diagnostics to provide full observability.
 
 Operators control the service through standard SONiC mechanisms: the `FEATURE` table in CONFIG_DB enables or disables DLDD (`config feature state dldd enabled/disabled`), while the `DLDD_CONFIG` table allows dynamic threshold tuning without service restart. Controllers _can_ push updated rules via gNOI File service into a staging location, with a systemd timer monitoring for stable file changes and gracefully restarting DLDD. The restarted DLDD process validates candidates, promotes a versioned active copy when appropriate, or falls back to the previous active/golden generation before monitor work starts. Non-database container crashes are treated as data-source availability events, not DLDD lifecycle events. The design prioritizes graceful degradation: when individual rules fail, the service continues operating with the remaining functional rules, and catastrophic errors or zero-rule activation results trigger fallback to the last known good active copy or golden backup.
+
+### Logical Runtime Architecture
+
+```mermaid
+flowchart LR
+  subgraph RulePlane["Rule and configuration plane"]
+    Sources["Rule generations<br/>inbox / active / packaged / golden"]
+    Watcher["Stable-file watcher and lifecycle<br/>watcher.py / lifecycle.py"]
+    Contract["Bounded parser and exact Pydantic contract<br/>validation.py / rule_schema/*"]
+    Plan["DSE materialization and immutable plans<br/>dse.py / planner.py / runtime.py"]
+    Config["CONFIG_DB<br/>FEATURE / DLDD_CONFIG"]
+    Sources --> Watcher
+  end
+
+  subgraph Runtime["dldd.service host process"]
+    Service["Service composition and lifecycle<br/>service.py"]
+
+    subgraph MonitorPlane["Monitor ownership and collection"]
+      Monitors["Redis / File / Common monitor threads<br/>per-key state, cadence, and control mailbox<br/>monitor.py"]
+      Inline["Inline single-item collect and evaluate<br/>typed adapters / trusted hooks"]
+      Priority["Bounded priority queue<br/>recheck priority before normal FIFO<br/>256 waiting jobs; 8 reserved for rechecks"]
+      Workers["8 daemon collection workers<br/>typed adapter / trusted hook collect and evaluate<br/>one outstanding job per correlation key"]
+      Completion["Owning-monitor completion queue"]
+
+      Monitors -->|"async false"| Inline -->|"EvaluationResult"| Monitors
+      Monitors -->|"async true; mark COLLECTING"| Priority --> Workers
+      Workers --> Completion -->|"immutable result"| Monitors
+    end
+
+    Evidence["Bounded shared fault-evidence FIFO"]
+    Primary["Primary orchestration thread<br/>signature correlation and fault lifecycle<br/>orchestrator.py"]
+    Actions["Local action workers<br/>actions.py"]
+    Artifacts["Healthz artifact work<br/>artifacts.py"]
+    Telemetry["Telemetry publication<br/>telemetry.py / rule_status.py"]
+
+    Sources -->|"candidate generations"| Service
+    Watcher -->|"stable change; graceful restart"| Service
+    Config --> Service
+    Service -->|"select and activate"| Contract --> Plan --> Monitors
+    Monitors -->|"match / clear / source or evaluator state"| Evidence --> Primary
+    Primary -->|"RESUME / HOLD / RECHECK_ONCE / SUSPEND"| Monitors
+    Monitors -->|"async RECHECK_ONCE enters priority 0"| Priority
+    Primary --> Actions
+    Primary --> Artifacts
+    Primary --> Telemetry
+  end
+
+  subgraph DataPlane["Data and platform plane"]
+    Redis["Redis sources"]
+    Host["Files / sysfs / CLI / I2C"]
+    Platform["Platform API and vendor DSE hooks"]
+    Redis --> Inline
+    Redis --> Workers
+    Host --> Inline
+    Host --> Workers
+    Platform --> Inline
+    Platform --> Workers
+  end
+
+  subgraph Northbound["Operational and northbound plane"]
+    StateDB["STATE_DB<br/>DLDD_STATUS<br/>per-rule status/detail<br/>FAULT_INFO"]
+    Show["show dldd status / rules / faults<br/>sonic-utilities/show/dldd.py"]
+    UMF["UMF/translib OpenConfig mapping<br/>sonic-mgmt-common/translib/pfm_fault.go"]
+    Gnoi["gNOI Healthz artifact retrieval<br/>sonic-gnmi/gnmi_server/gnoi_healthz_artifact*.go"]
+    Controller["Remote controller"]
+
+    Telemetry --> StateDB
+    StateDB --> Show
+    StateDB --> UMF --> Controller
+    Artifacts --> Gnoi --> Controller
+  end
+```
+
+*Figure 2. Logical runtime architecture. A monitor remains the only writer of its per-key work state. Inline and asynchronous events converge on the same monitor result path; asynchronous workers never publish evidence or mutate monitor state. A primary-requested asynchronous `RECHECK_ONCE` bypasses normal cadence and enters the waiting queue ahead of normal jobs, but never preempts a running call.*
 
 ### Example End-to-End Rule Flow
 
@@ -133,7 +214,7 @@ sequenceDiagram
   M->>M: Apply command to state_by_key
 ```
 
-*Figure 2. Example lifecycle for one Redis-backed rule. The primary thread decides the next lifecycle state and sends a `MonitorControlCommand`; the monitor thread applies that command to its own `state_by_key`. The primary thread does not directly mutate monitor-local dictionaries during runtime.*
+*Figure 3. Example lifecycle for one Redis-backed rule. The primary thread decides the next lifecycle state and sends a `MonitorControlCommand`; the monitor thread applies that command to its own `state_by_key`. The primary thread does not directly mutate monitor-local dictionaries during runtime.*
 
 ## Detailed Design
 
@@ -302,7 +383,7 @@ These structures maintain type consistency across the service. The orchestrator 
 
 #### Monitor Thread Architecture
 
-- **Shared Interface**: Every monitor inherits the common `MonitorThread` contract (`get_query_path()`, `get_path_value()`, `generate_queue_object()`, `push_queue_object()`), guaranteeing uniform behavior regardless of underlying transport.
+- **Shared Interface**: Every monitor uses the common `MonitorThread` scheduler/state machine and composes `DataSourceAdapter` implementations. The adapter contract is `validate()`, `get_value()`, `get_evaluator()`, `run_evaluation()`, and `collect()`; transport-specific behavior does not leak into monitor ownership or orchestration.
 - **Typed Adapters**: Each monitor thread composes the appropriate `DataSourceAdapter` (Redis, Platform API, CLI, I2C, sysfs, File, etc.) which implements `validate()`, `get_value()`, `get_evaluator()`, `run_evaluation()`, and `collect()`.
 - **Plan Ownership**: Each monitor owns exactly one `MonitorExecutionPlan`. The primary thread may replace the whole plan only during service startup or rule activation restart; at runtime it sends commands through the plan's control mailbox.
 - **Event Evaluation**: Inline events execute collection and evaluation in the owning monitor thread. Events with `async: true` submit exactly one materialized work item to the shared bounded collection pool; the job performs collection, normalization, and evaluation and returns an immutable `EvaluationResult` to the owning monitor's completion queue.
@@ -1057,7 +1138,7 @@ DLDD subscribes to `DLDD_CONFIG` changes via Redis SUBSCRIBE and applies runtime
 - **Non-Interference**: DLDD monitoring should not disrupt existing PMON daemons
 - **Data Sharing Preference**: DLDD should prefer already-published Redis/platform state where it accurately represents the vendor rule requirement. This is a recommendation for rule authors, not a DLDD validation rule; vendors may choose direct platform APIs, sysfs, CLI, I2C, or DSE paths when required for their hardware.
 - **Source Failure Isolation**: PMON or non-database Docker failures are treated as data-source availability events. DLDD remains running and suspends, retries, or degrades only the rules that depend on the affected sources.
-- **Resource Sharing**: DLDD executes operations within a monitor thread serially. Underlying resource contention should be handled by platform APIs, lower-level drivers, or vendor DSE hooks. Vendors are responsible for defining source paths and action semantics that are safe for their hardware.
+- **Resource Sharing**: Inline operations execute serially in their owning monitor thread. Events that explicitly set `async: true` may execute concurrently with work from other correlation keys in the shared eight-worker pool. Underlying resource contention must be handled by platform APIs, lower-level drivers, adapters, or vendor DSE hooks; vendors may opt in only when the single-item operation is concurrency-safe and has an appropriate bounded timeout.
 
 ### Additional Vendor Log Collection Location
 - **Fault Storage**: Beyond Healthz artifacts, vendor log hooks may write to vendor-defined locations required for their hardware or field diagnostics.
@@ -1082,6 +1163,30 @@ DLDD treats vendor-provided rules and DSE mappings as trusted vendor diagnostic 
 - **Log collection bounds**: DLDD follows the schema and declared query timeout rules for log collection. Query timeouts are optional; if omitted, DLDD does not synthesize a schema-level timeout. Healthz owns artifact retention and storage bounds for generated diagnostic artifacts. Long-running or failed artifact generation is reflected in artifact/audit status and does not block fault telemetry publication.
 - **Remote ACTION_* handling**: DLDD publishes remote remediation actions as controller-visible recommendations. Controller policy decides whether to execute disruptive actions such as reboot, power cycle, factory reset, or replacement workflow.
 - **Audit**: Rule activation, validation failure, rollback, local action execution result, Healthz artifact creation, and service state changes should be recorded in syslog and reflected in DLDD status/audit telemetry where practical.
+
+## Implementation File Map
+
+The runtime is intentionally split along the ownership boundaries shown in Figure 2. The paths below are the authoritative implementation locations; test files are listed with the component they protect.
+
+| Repository | Files | Responsibility |
+|------------|-------|----------------|
+| `sonic-host-services` | `dldd/rule_schema/base.py`, `v0_0_1.py`, `registry.py`, `errors.py`, `generate.py` | Strict Pydantic `0.0.1` contract, exact installed registry, stable diagnostics, DTO-to-domain conversion, and generated JSON Schema |
+| `sonic-host-services` | `dldd/validation.py`, `models.py`, `dse.py`, `platform.py` | Bounded JSON/YAML parsing, file/rule isolation, immutable domain objects, DSE loading, platform compatibility, and side-effect-free materialization preflight |
+| `sonic-host-services` | `dldd/planner.py`, `runtime.py`, `monitor.py` | Immutable monitor plans, correlation-key state, per-event cadence, inline collection, eight-worker bounded async pool, reserved priority rechecks, and monitor control mailboxes |
+| `sonic-host-services` | `dldd/adapters.py`, `evaluators.py`, `hooks.py` | Redis/file/sysfs/CLI/I2C/platform collection, event evaluation, and explicit trusted vendor extension points |
+| `sonic-host-services` | `dldd/orchestrator.py`, `correlation.py`, `logic.py` | Primary-thread signature correlation, fault lifecycle, active-fault rechecks, and monitor command decisions |
+| `sonic-host-services` | `dldd/actions.py`, `artifacts.py` | Bounded asynchronous local actions and Healthz artifact request/collection integration |
+| `sonic-host-services` | `dldd/service.py`, `config.py`, `telemetry.py`, `rule_status.py`, `timestamps.py` | Process composition, CONFIG_DB updates, lifecycle reconciliation, floored external timestamps, `DLDD_STATUS`, per-rule status/detail hashes, and `FAULT_INFO` |
+| `sonic-host-services` | `dldd/watcher.py`, `lifecycle.py`, `cli.py`, `scripts/dldd*`, `data/debian/*dldd*` | Stable inbox detection, generation promotion/fallback, validation CLI, systemd service, watcher service, and timer |
+| `sonic-host-services` | `tests/dldd/` | Contract/security, lifecycle, cadence/async, orchestration, telemetry, timestamps, action/artifact, and service tests |
+| `sonic-utilities` | `show/dldd.py`, `config/dldd.py`, `tests/dldd_test.py` | `show dldd status/rules/faults`, health/component/fault filters, `--detail`, fault `--json`, and DLDD configuration CLI |
+| `sonic-buildimage` | `src/sonic-yang-models/yang-models/sonic-dldd.yang`, `src/sonic-yang-models/tests/yang_model_tests/tests_config/dldd.json` | CONFIG_DB `DLDD_CONFIG` YANG model and validation fixture |
+| `sonic-buildimage` and Cisco integration build | `files/build/versions-public/**/versions-py3`, `files/build_templates/sonic_debian_extension.j2` | Exact Pydantic/pydantic-core dependency locks and host-image wheel installation |
+| `sonic-mgmt-common` | `models/yang/common/openconfig-platform-healthz*.yang`, `translib/pfm_fault.go`, `translib/pfm_fault_test.go` | OpenConfig Healthz models and `FAULT_INFO` to OpenConfig/UMF translation |
+| `sonic-gnmi` | `gnmi_server/gnoi_healthz.go`, `gnoi_healthz_artifact.go`, `gnoi_healthz_artifact_resolver.go` and tests | gNOI Healthz service and safe DLDD artifact lookup/streaming |
+| `SONiC` | `doc/device_local_diagnosis/device-local-diagnosis-daemon.md`, `vendor-rules-schema-hld.md` | The two authoritative DLDD HLDs: runtime/integration and vendor wire contract/validation respectively |
+
+The Pydantic dependency is a host runtime dependency, not an optional authoring tool. The current integration pins `pydantic==2.13.4` and `pydantic_core==2.46.4`; every supported SONiC Python/architecture target must provide compatible binary wheels and pass import, packaging, license/SBOM, and full service-test qualification. A dependency import or registry-integrity failure is an image/package failure, never a broken vendor rule.
 
 ## Telemetry and Diagnostics
 

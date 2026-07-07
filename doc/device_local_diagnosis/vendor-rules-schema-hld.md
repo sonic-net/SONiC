@@ -3,15 +3,16 @@
 ## Table of Contents
 
 1. [Introduction](#introduction)
-2. [Definitions](#definitions)
-3. [Requirements](#requirements)
-4. [Schema Versioning](#schema-versioning)
-5. [Rule Structure](#rule-structure)
-6. [Abstract Rule Data Source Extensions](#abstract-rule-data-source-extensions---vendor-extensible)
-7. [Schema Layout Definitions](#schema-layout-definitions)
-8. [Rule Examples](#rule-examples)
-9. [Schema Validation](#schema-validation)
-10. [Backward Compatibility](#backward-compatibility)
+2. [Document Authority](#document-authority)
+3. [Definitions](#definitions)
+4. [Requirements](#requirements)
+5. [Schema Versioning](#schema-versioning)
+6. [Rule Structure](#rule-structure)
+7. [Abstract Rule Data Source Extensions](#abstract-rule-data-source-extensions---vendor-extensible)
+8. [Schema Layout Definitions](#schema-layout-definitions)
+9. [Rule Examples](#rule-examples)
+10. [Schema Validation](#schema-validation)
+11. [Backward Compatibility](#backward-compatibility)
 
 ## Introduction
 
@@ -23,6 +24,10 @@ The schema is designed to be:
 - **Extensible**: Allow for new fault types and detection methods
 - **Standardized**: Provide a common format for rule definitions regardless of underlying SW
 - **Hardware-agnostic**: Allow for hardware abstraction through data source extension (DSE) layers
+
+## Document Authority
+
+This document is the sole HLD authority for the DLDD vendor rules wire contract, schema versioning, Pydantic validation and error isolation, DSE authoring contract, generated authoring artifacts, and schema-to-runtime translation semantics. The companion `device-local-diagnosis-daemon.md` is the sole authority for SONiC runtime architecture, scheduling, fault lifecycle, telemetry storage, operations, and implementation locations. The generated Draft 2020-12 JSON Schema and schema-layout JSON are derivative tooling artifacts; neither is an HLD or a runtime validation authority.
 
 ## Definitions
 
@@ -72,7 +77,7 @@ An uploaded rules source selects a contract only through its scalar `schema_vers
 
 Unknown-field behavior is defined independently by each registered schema contract. Core DLDD objects reject unknown fields. Explicit vendor extension envelopes may accept and preserve bounded JSON-compatible vendor fields after the installed platform advertises the extension type. Unknown types, enum values, required fields, or behavior-bearing fields outside those extension points fail validation for the scope in which they occur.
 
-Schema `0.0.1` is a pre-release contract and may incorporate the Pydantic authority and optional event sampling field described below before its first release. After release, behavior for an exact version is immutable; a behavioral change requires a new explicit schema version and registry entry.
+Schema `0.0.1` is a pre-release contract and already incorporates the authoritative Pydantic model, optional per-event `sampling_interval`, and optional bounded `async` collection behavior described below. Those changes do not require compatibility shims before the first release. After release, behavior for an exact version is immutable; a behavioral change requires a new explicit schema version and registry entry.
 
 ## Rule Structure
 At the highest level, a rules source file contains a `schema_version`, an optional rules-source default for local action timeouts, and a non-empty `signatures` list. Each `signature` contains 3 primary sections: `metadata`, `conditions`, and `actions`. A breakdown of the content of each of these can be found below.
@@ -909,11 +914,23 @@ Omission, explicit `null`, zero/false, and empty values are distinct input state
 
 The examples in this document should be included as positive fixtures for the validator, but adding or changing examples must not be required to change validation behavior.
 
+#### Strict Base Model and Domain Boundary
+
+All core versioned models inherit one closed contract policy equivalent to `strict=True`, `extra="forbid"`, `validate_default=True`, `allow_inf_nan=False`, `frozen=True`, `hide_input_in_errors=True`, `loc_by_alias=True`, and `revalidate_instances="always"`. Consequently, numeric strings are not coerced, booleans are not accepted as integers, unknown core fields are not silently discarded, defaults are validated, non-finite numbers are rejected, input values are hidden from dependency error rendering, and wire aliases are used in error locations. Explicit vendor extension objects are the only places where additional bounded fields may be admitted.
+
+Pydantic receives the already parsed and bounded Python object graph; it never receives untrusted file bytes directly, and DLDD does not use `model_validate_json()` as a parser shortcut. This preserves duplicate-key rejection, YAML alias/tag rejection, source-line mapping, and uniform JSON/YAML resource limits before model construction.
+
+Pydantic DTOs are short-lived validation objects. `frozen=True` prevents assignment but is not deep immutability, so each exact-version contract has an explicit converter that creates the version-neutral domain dataclasses, converts collections to tuples, recursively freezes mappings and vendor options, applies only documented defaults/inheritance, and never attaches a callable selected by uploaded data. Planning, DSE materialization, correlation, actions, and telemetry consume only these immutable domain objects; they do not consume Pydantic models or unreviewed `model_dump()` output.
+
+Built-in event, evaluator, action, and query types use explicit typed dispatch. A reserved built-in name must validate against its exact built-in model and cannot fall through to a generic vendor extension after malformed input. Vendor extensions use a bounded JSON-compatible envelope and are accepted only when trusted installed platform code explicitly advertises that type. Uploaded rules cannot select a Python module, class, callable, URL, or filesystem schema.
+
 #### Trusted Model Registry and Validator Dependency
 
 The contract registry is Python code installed with DLDD and is immutable after initialization. Lookup is exact; a rule declaring `0.0.2` never falls back to `0.0.1`. Uploaded rules cannot provide a schema URI, filesystem path, module, class, callable, model name, or validator. A newer exact version receives an explicit registry entry even when it intentionally reuses an existing implementation.
 
-DLDD uses pinned Pydantic v2 and its compatible pinned `pydantic-core` as the runtime structural validation dependency. Registry construction verifies that each entry's version matches the envelope and publication models' literal `schema_version`, that envelope/signature/publication adapters can be constructed, and that every entry supplies its DTO-to-domain converter. An import failure, registry/model mismatch, adapter construction failure, or unexpected validator exception is a daemon/package failure; it is not attributed to uploaded rule content and must not be downgraded to a per-rule `BROKEN` result.
+DLDD uses pinned Pydantic v2 and its compatible pinned `pydantic-core` as the runtime structural validation dependency. `sonic-host-services` declares Python `>=3.9`; the current deployed target is CPython 3.13 and has been exercised on Python 3.13.5. The current integration pins `pydantic==2.13.4` and `pydantic_core==2.46.4` in both build and host-image dependency locks. Registry construction verifies that each entry's version matches the envelope and publication models' literal `schema_version`, that envelope/signature/publication adapters can be constructed, and that every entry supplies its DTO-to-domain converter. An import failure, registry/model mismatch, adapter construction failure, or unexpected validator exception is a daemon/package failure; it is not attributed to uploaded rule content and must not be downgraded to a per-rule `BROKEN` result.
+
+Every supported SONiC Python version and architecture must qualify the exact dependency set with binary-wheel availability, deterministic hashes, native-extension import/linkage checks, `pip check`, complete `sonic-host-services` tests, image construction, license/SBOM/vulnerability review, and startup/resource regression checks. Floating ranges, prereleases, runtime downloads, and an unexpected Rust/source build in the image path are not acceptable. Failure to import the compatible `pydantic-core` is an image construction/package defect rather than a rule-file validation result.
 
 Pinned `regex` remains the bounded regular-expression evaluation dependency. Runtime regular-expression searches have a 100 ms deadline; exceeding it produces an evaluator error instead of indefinitely blocking a monitor worker.
 
@@ -936,12 +953,30 @@ Before Pydantic validation, DLDD bounds the source text, rejects duplicate JSON 
 
 Raw Pydantic errors are never published directly. DLDD normalizes them and custom semantic failures into stable issue codes, file/rule scope, canonical JSON-style paths containing the signature index, source lines when available, and rule ID/name when identifiable. Diagnostics are deterministically ordered, redact raw input, and are bounded per rule and per candidate so dependency-specific error formatting cannot become an operator-facing API or an unbounded telemetry payload.
 
+Representative normalization is owned by DLDD rather than by Pydantic message text:
+
+| Pydantic error type | Stable DLDD issue code |
+|---------------------|------------------------|
+| `missing` | `missing_field` |
+| `dict_type`, `list_type`, `string_type`, `int_type`, `bool_type`, `float_type` | `invalid_type` |
+| `extra_forbidden` | `unknown_field` |
+| `literal_error`, `enum` | `unsupported_value` |
+| `greater_than*`, `less_than*` | `out_of_range` |
+| `too_short`, `too_long` | `invalid_length` |
+| `string_pattern_mismatch` | `invalid_format` |
+| `union_tag_not_found`, `union_tag_invalid` | `unsupported_type` |
+| DLDD `PydanticCustomError` | Its explicit stable DLDD semantic code |
+
+The normalizer removes model and union-branch implementation names, uses wire aliases, prepends the signature index, and emits canonical paths such as `$.signatures[2].signature.conditions.events[0].event.sampling_interval`. It excludes raw input and dependency documentation URLs from the published result.
+
 Schema `0.0.1` returns at most 64 Pydantic issues per rule and 4,096 issues
 per candidate, bounds each message to 1,024 bytes and each published path to
 2,048 bytes, and keeps compact serialized candidate diagnostics within 1 MiB.
 Long paths and diagnostic identities include a short SHA-256 suffix so
 distinct fields remain distinct after truncation. When detail is omitted,
 each affected rule retains a stable `validation_issues_truncated` marker.
+
+The complete safety contract therefore requires: no network schema retrieval; no rule-selected schema/module/class/callable; no duplicate-key ambiguity or YAML object construction; no silent core-field dropping; no lax scalar coercion or non-finite values; bounded source, document, logic, regular-expression, vendor-payload, and diagnostic complexity; no hardware/source reads or side effects during normal activation; no raw rule payload in diagnostics; no mutable vendor data in runtime structures; no malformed built-in accepted through vendor fallback; and no version accepted by semantic-version proximity.
 
 #### Validation Model
 
@@ -957,6 +992,18 @@ Normal activation validates configuration and bindings only. DLDD core does not 
 Declared rule/materialization errors (`DSEError` or `ValueError`) are localized to the affected rule. Unexpected exceptions from trusted validator or vendor code indicate an implementation/package failure; they abort that candidate attempt and enter lifecycle fallback rather than being mislabeled as vendor-rule authoring errors.
 
 Where a version permits platform-specific action, query, source, or evaluator types, its Pydantic contract validates a bounded generic extension envelope and the trusted platform registry must explicitly advertise and validate the concrete type. An installed vendor may supply a Pydantic adapter or side-effect-free validation hook. A type name in uploaded YAML never causes dynamic module import, and reserved built-in type names are always dispatched to their exact built-in models.
+
+#### Validation Modes
+
+The validation CLI exposes progressively stronger, explicit modes:
+
+| Mode | Behavior |
+|------|----------|
+| `static-schema` | Bounded safe parsing, exact contract selection, shallow envelope validation, independent strict per-signature Pydantic validation, and context-free semantics. The historical name is retained, but no runtime JSON Schema is loaded. No platform extension discovery or source access occurs. |
+| `dse-resolve` | Adds DSE and trusted vendor-extension resolution plus evaluator construction without sampling sources. |
+| `activation-dry-run` | Adds product/software compatibility, complete materialization, trusted hook discovery, and side-effect-free adapter configuration validation. This is the normal promotion gate. |
+| `hardware-probe` | Explicit operator qualification that may invoke vendor-selected read-only source access. It is not part of normal activation. |
+| `e2e-execute` | Explicit controlled end-to-end platform qualification. It is not part of normal activation. |
 
 ### Validation Process
 1. **Bounded Syntax Validation**: Parse the immutable staged JSON/YAML copy using duplicate-safe, alias-free, bounded parsing.
