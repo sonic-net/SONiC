@@ -124,31 +124,15 @@ Boolean flags → [key=True]
   -client_crt <path_to_client_crt> \
   -client_key <path_to_client_key> \
   -t OTHERS -logtostderr \
-  -qt p -pi 10s -q show/reboot_cause/history
+  -qt p -pi 10s -q show/switch-trimming/global
 ```
 
 ```json
 {
-  "reboot_cause": {
-    "history": {
-      "Name": "2025_06_30_05_20_10",
-      "Cause": "reboot",
-      "Time": "Mon Jun 30 05:18:35 AM UTC 2025",
-      "User": "admin",
-      "Comment": "N/A"
-    }
-  }
-}
-{
-  "reboot_cause": {
-    "history": {
-      "Name": "2025_05_14_19_33_09",
-      "Cause": "Power Loss",
-      "Time": "Wed May 14 07:30:02 PM UTC 2025",
-      "User": "admin",
-      "Comment": "Unknown"
-    }
-  }
+  "size": "128",
+  "dscp_value": "32",
+  "tc_value": "5",
+  "queue_index": "3"
 }
 ```
 
