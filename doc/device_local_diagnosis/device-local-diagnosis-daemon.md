@@ -61,7 +61,7 @@ This document describes the Device Local Diagnosis Daemon (DLDD) implementation 
 | **Action Worker** | Asynchronous worker context used for vendor local actions and log collection so long-running actions do not block the primary orchestration thread |
 | **Vendor-Defined Actions** | Local remediation actions supplied with the rules package and executed according to vendor-defined semantics |
 | **Vendor Rules Source** | YAML or JSON file conforming to the schema defined in `vendor-rules-schema-hld.md`, containing signatures, conditions, and actions |
-| **Remote-action escalations** | Controller-driven remediation identities defined by OpenConfig or an OpenConfig vendor extension. Standard examples include `ACTION_RESEAT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, and `ACTION_REPLACE`; DLDD does not maintain a closed identity allowlist. |
+| **Remote-action escalations** | Controller-driven remediation identities defined by OpenConfig or an OpenConfig vendor extension. Standard examples include `ACTION_RESEAT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, and `ACTION_REPLACE`; DLDD does not maintain a closed identity allowlist. Vendor identities use `<yang-module>:<identity>` and must be present in the platform's compiled YANG model for UMF export. |
 
 ## Requirements
 
@@ -802,18 +802,34 @@ calculations also retain full precision.
 
 ### Active Rule Status Snapshot
 
-DLDD publishes `DLDD_RULE_STATUS|active` in STATE_DB with the same 120-second
-heartbeat TTL as `DLDD_STATUS|process_state`. The snapshot carries the active
-rules checksum and is valid only when that checksum matches
-`DLDD_STATUS|process_state.active_rules_checksum`. This prevents an operator
-from confusing a stale snapshot with the current generation during restart or
-activation.
+DLDD publishes a generation-bound rule index and one hash per rule in STATE_DB,
+all with the same 120-second heartbeat TTL as `DLDD_STATUS|process_state`:
 
-The `rules` field contains one aggregate record per rule, including rules that
-failed ingestion and never entered a monitor plan. Each record contains the
-rule name, ID, version, component type, health, healthy/total work-item counts,
-active-fault count, most recent attempt and success timestamps, maximum
-consecutive failure count, current reason, and optional work-item detail.
+- `DLDD_RULE_STATUS|active` is a small index containing
+  `active_rules_checksum`, `rule_keys`, `rule_count`, `detail_truncated`, and
+  `published_at`.
+- `DLDD_RULE_STATUS|rule|<url-escaped-rule-name>` contains the aggregate status used
+  by the default `show dldd rules` table and a `detail_key` reference.
+- `DLDD_RULE_DETAIL|rule|<url-escaped-rule-name>` contains that rule's bounded
+  `work_items` array.
+
+Every index, summary, and detail hash carries the active rules checksum and is
+valid only when it matches
+`DLDD_STATUS|process_state.active_rules_checksum`. Publication writes the new
+per-rule hashes before replacing the index, and checksum validation prevents a
+reader from combining generations during restart or activation. Hash
+replacement removes obsolete fields, and rule keys not present in the new
+index are deleted.
+
+Each summary includes the rule name, ID, version, component type, health,
+healthy/total work-item counts, active-fault count, most recent attempt and
+success timestamps, largest current consecutive failure streak across its work
+items, and current reason. A successful sample resets that work item's streak
+to zero; this value is not a lifetime high-water mark or the configured failure
+threshold.
+Rules that failed ingestion and never entered a monitor plan are included. The
+default CLI reads only these compact summaries; it loads `DLDD_RULE_DETAIL`
+only for `--detail` or component-instance filtering.
 
 Rule health is separate from fault state:
 
@@ -830,9 +846,9 @@ monitor state, effective sampling interval and whether it came from the event
 or monitor default, active-fault indication, attempt/success/next-due times,
 failure count, correlation key, and failure reason. To keep heartbeat
 publication bounded, DLDD publishes at most 256 detailed work items per rule
-and 4,096 per snapshot. Aggregate rule rows are always retained; omitted detail
-is counted in `work_items_omitted`, and `detail_truncated` marks a bounded
-snapshot.
+and 4,096 per generation. Aggregate rule summaries are always retained;
+omitted detail is counted in `work_items_omitted`, and `detail_truncated` in the
+index marks a bounded generation.
 
 ### Service Configuration
 
@@ -993,6 +1009,8 @@ show dldd rules --detail
 # Active and retained inactive hardware faults
 show dldd faults
 show dldd faults --status ACTIVE --component PSU0
+show dldd faults --detail
+show dldd faults --json
 ```
 
 `show dldd rules` reads only the daemon-owned STATE_DB snapshot; it does not
@@ -1002,6 +1020,12 @@ view is one row per rule. `--health`, `--component`, and
 matches either the rule's component type or a resolved component instance.
 `--detail` adds the bounded per-work-item table and reports when detail was
 truncated.
+
+`show dldd faults` reads DLDD-owned `FAULT_INFO` rows. `--detail` renders all
+scalar metadata and pretty-prints decoded JSON array/object fields. `--json`
+emits the selected rows as structured JSON with those fields decoded rather
+than exposing Redis hash string encodings. Status and component filters apply
+to both output forms.
 
 DLDD subscribes to `DLDD_CONFIG` changes via Redis SUBSCRIBE and applies runtime-safe updates dynamically without requiring a service restart. Thresholds, monitor-default polling intervals, source grace periods, inactive fault retention periods, fault evidence ack timeout, and active fault recheck interval are runtime-safe. A monitor-default interval update affects only work items whose event omitted `sampling_interval`; explicit event intervals do not change. When a default becomes shorter, DLDD may pull an inherited item's next due time forward. When it becomes longer, an already nearer due attempt remains scheduled and the longer interval applies after that attempt. `rules_inbox_settle_time` is consumed by the rules watcher and takes effect on the next watcher cycle. The active rules source owns `local_action_default_timeout`; changing that default requires rules activation so action validation and timeout behavior stay tied to the same rule generation. The currently active configuration and rules-source timeout default are published in the `DLDD_STATUS|process_state` telemetry, allowing the controller to understand the service's failure tolerance, source-availability policy, and local action timeout policy.
 
@@ -1071,11 +1095,9 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
       "rule_version": "1.0.0",
       "schema_version": "0.0.1",
       "active_rules_checksum": "sha256:3d235f8e...",
-      "component_info": {
-        "component": "PSU",
-        "name": "PSU0",
-        "serial_number": "<serial of associated component or parent, lowest available>"
-      },
+      "component_type": "PSU",
+      "component_name": "PSU0",
+      "component_serial_number": "<serial of associated component or parent, lowest available>",
       "error_type": "POWER",
       "events": [
         {
@@ -1159,10 +1181,9 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
 - **`rule_version`**: Rule version from the vendor rules schema
 - **`schema_version`**: Vendor rules schema version used to interpret the rule that produced this fault
 - **`active_rules_checksum`**: Local checksum of the active rules generation that produced this fault. DLDD uses this with rule identity during boot reconciliation to distinguish current-generation faults from stale records.
-- **`component_info`**: Object containing component identification details
-  - **`component`**: Required vendor/platform component type. Values such as PSU, FAN, ASIC, and TRANSCEIVER are examples; DLDD accepts any non-empty vendor-defined component identity.
-  - **`name`**: Canonical vendor/platform component name as reported by platform API or defined in the rule instance; UMF uses this value when translating the Redis structure into OpenConfig component paths
-  - **`serial_number`**: Serial number of the associated component or parent component, lowest available in hierarchy
+- **`component_type`**: Required vendor/platform component type. Values such as PSU, FAN, ASIC, and TRANSCEIVER are examples; DLDD accepts any non-empty vendor-defined component identity.
+- **`component_name`**: Required canonical vendor/platform component name as reported by the platform API or defined in the rule instance. UMF uses this value when translating the Redis structure into OpenConfig component paths.
+- **`component_serial_number`**: Serial number of the associated component or parent component, lowest available in hierarchy. An empty string is published when no serial number is available.
 - **`error_type`**: High-level error category from rule metadata, using OpenConfig-aligned fault category values where available and DLDD/vendor-defined categories where an OpenConfig identity is not available
 - **`events`**: Array of event objects representing the data points and conditions evaluated for this fault (only includes events that triggered the fault)
   - **`id`**: ID taken from the rule schema associated with the originating event
@@ -1177,7 +1198,7 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
     - **`value`**: Expected/threshold value that triggered the fault
     - **`value_configs`**: Format metadata for the condition value. If the rule and DSE do not supply metadata, DLDD publishes `N/A` defaults.
 - **`remote_action_time_window`**: Time window in seconds from the rule used by the controller for remote escalation decisions
-- **`repair_actions`**: Ordered list of controller-visible remediation recommendations from the rule. List position is the remediation index for OpenConfig translation. In schema version `0.0.1`, rule entries contain only an `action`; UMF uses `component_info.name` as the OpenConfig remediation target. A later schema revision may add an explicit target override if remediation target and affected component need to differ.
+- **`repair_actions`**: Ordered list of controller-visible remediation recommendations from the rule. List position is the remediation index for OpenConfig translation. In schema version `0.0.1`, rule entries contain only an `action`; UMF uses `component_name` as the OpenConfig remediation target. A later schema revision may add an explicit target override if remediation target and affected component need to differ.
 - **`actions_taken`**: Local actions already executed by DLDD according to vendor rule definitions; empty array if no local actions were taken
 - **`local_action_state`**: Final DLDD-local action state at the time `FAULT_INFO` is published. Values include `IDLE`, `COMPLETED`, `FAILED`, and `SUPPRESSED`. In-progress states such as `RUNNING` or `WAITING_FOR_RECHECK` are published through `DLDD_STATUS|process_state` while the candidate fault is held and are not controller-visible `FAULT_INFO` states. When a fault is active and actions have already been scheduled, `action_suppressed: true` indicates that repeated matches for the same active lifetime will not start another identical local action sequence. This metadata is also present on recovered `INACTIVE` records when DLDD local action clears the condition. It is DLDD diagnostic metadata and is not a native Healthz leaf.
 - **`healthz_artifact`**: Optional Healthz artifact request metadata for rule-defined `log_collection`. `artifact_id` is published once DLDD successfully triggers artifact generation, even if the artifact content is still being collected asynchronously. `state` tracks the artifact request lifecycle (`REQUESTED`, `RUNNING`, `COMPLETED`, or `FAILED`) when DLDD has that status available. Artifact state does not gate local action result, post-action recheck, or `FAULT_INFO` publication.
@@ -1195,7 +1216,7 @@ UMF translates `FAULT_INFO` into the OpenConfig platform Healthz fault model. Th
 
 | DLDD field | OpenConfig path |
 |------------|-----------------|
-| `component_info.name` | `/components/component[name]` |
+| `component_name` | `/components/component[name]` |
 | `symptom` | `/components/component/healthz/faults/fault[symptom]/state/symptom` |
 | `status` | `/components/component/healthz/faults/fault/state/status` |
 | `origin_time` | `/components/component/healthz/faults/fault/state/origin-time` after seconds-to-nanoseconds conversion |
@@ -1204,7 +1225,7 @@ UMF translates `FAULT_INFO` into the OpenConfig platform Healthz fault model. Th
 | `description` | `/components/component/healthz/faults/fault/state/description` |
 | `repair_actions[*]` list position | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/index` |
 | `repair_actions[*].action` | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/action` |
-| `component_info.name` default target | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/target` |
+| `component_name` default target | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/target` |
 
 The following fields are DLDD/SONiC diagnostic metadata and are not native Healthz leaves unless a SONiC extension, OpenConfig identity mapping, or separate OpenConfig alarms mapping is added: `rule`, `rule_id`, `rule_version`, `schema_version`, `active_rules_checksum`, `error_type`, `events`, `actions_taken`, `local_action_state`, `healthz_artifact`, `severity`, and `remote_action_time_window`.
 
@@ -1405,7 +1426,7 @@ Integration tests validate the complete rule execution pipeline from ingestion t
 
 **Healthy System Testing**: Load a rules file with multiple rules across different data sources (Redis, Platform API, I2C, CLI, sysfs, File) and inject synthetic data that does not violate any conditions. Verify that `DLDD_STATUS|process_state` shows `state: OK` with empty `broken_rules` array, no fault entries are published to the `FAULT_INFO` table, and the heartbeat TTL refreshes comfortably before the 120-second expiry window.
 
-**Fault Detection Testing**: Deploy rules that detect actual faults, such as temperature threshold violations or power supply anomalies. When synthetic data is injected that satisfies event predicates, verify that `FaultEvidenceEvent` objects are correctly enqueued, the primary thread correlates the evidence into a candidate or active `FaultRecord`, and faults are published to `FAULT_INFO` with complete telemetry payloads (including rule, component_info, events array with value_read/condition pairs, severity, symptom) only when the fault reaches its controller-visible publication point. For rules without local actions, publication may happen after signature confirmation. For rules with local actions, verify that `FAULT_INFO` is not published until local action completion and post-action recheck complete. Verify that configured Healthz artifact collection is triggered but does not block recheck or `FAULT_INFO` publication. If recheck clears, verify the record is published as `INACTIVE` with local action metadata; if recheck still matches, verify the record is published as `ACTIVE` with remote remediation recommendations. Also verify that normal non-matching samples do not enqueue FIFO payloads and that clear samples enqueue clear notifications only after prior fault evidence was reported. Confirm that once a monitor enqueues evidence for a correlation key, duplicate match/clear evidence for that same key is suppressed until the primary thread returns `RESUME`, `HOLD`, `RECHECK_ONCE`, or `SUSPEND`; unrelated keys in the same monitor continue polling. Confirm that `process_state` remains in `state: OK` since the service itself is healthy despite detecting hardware faults.
+**Fault Detection Testing**: Deploy rules that detect actual faults, such as temperature threshold violations or power supply anomalies. When synthetic data is injected that satisfies event predicates, verify that `FaultEvidenceEvent` objects are correctly enqueued, the primary thread correlates the evidence into a candidate or active `FaultRecord`, and faults are published to `FAULT_INFO` with complete telemetry payloads (including rule, flattened component fields, events array with value_read/condition pairs, severity, symptom) only when the fault reaches its controller-visible publication point. For rules without local actions, publication may happen after signature confirmation. For rules with local actions, verify that `FAULT_INFO` is not published until local action completion and post-action recheck complete. Verify that configured Healthz artifact collection is triggered but does not block recheck or `FAULT_INFO` publication. If recheck clears, verify the record is published as `INACTIVE` with local action metadata; if recheck still matches, verify the record is published as `ACTIVE` with remote remediation recommendations. Also verify that normal non-matching samples do not enqueue FIFO payloads and that clear samples enqueue clear notifications only after prior fault evidence was reported. Confirm that once a monitor enqueues evidence for a correlation key, duplicate match/clear evidence for that same key is suppressed until the primary thread returns `RESUME`, `HOLD`, `RECHECK_ONCE`, or `SUSPEND`; unrelated keys in the same monitor continue polling. Confirm that `process_state` remains in `state: OK` since the service itself is healthy despite detecting hardware faults.
 
 **Monitor Plan Testing**: Build a monitor plan with multiple correlation keys assigned to the same monitor. Verify that `items_by_key` is not mutated when one key transitions through `READY`, `IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, and back to `READY`; only `state_by_key` changes. Verify that control commands with stale `plan_generation` or stale work-state generation are rejected and acknowledged without changing the current key state.
 
