@@ -2,6 +2,7 @@
 
 ## Table of Contents
 
+- [Introduction](#introduction)
 - [Document History](#document-history)
 - [Scope](#scope)
 - [Document Authority](#document-authority)
@@ -9,11 +10,11 @@
 - [Requirements](#requirements)
 - [High-Level Design](#high-level-design)
 - [Detailed Design](#detailed-design)
-- [Telemetry and Diagnostics](#telemetry-and-diagnostics)
 - [Service Configuration](#service-configuration)
-- [File Management and Rule Updates](#file-management-and-rule-updates)
 - [Integration Points](#integration-points)
 - [Implementation File Map](#implementation-file-map)
+- [Telemetry and Diagnostics](#telemetry-and-diagnostics)
+- [File Management and Rule Updates](#file-management-and-rule-updates)
 - [Testing and Validation](#testing-and-validation)
 - [Restrictions and Limitations](#restrictions-and-limitations)
 - [References](#references)
@@ -34,6 +35,7 @@ The service provides:
 |----------|------|--------|-------------|
 | 0.1 | 2025-09-24 | Gregory Boudreau | Initial draft of DLDD HLD |
 | 0.2 | 2026-07-06 | Gregory Boudreau | Consolidated the implemented runtime, Pydantic validation boundary, per-event cadence, asynchronous collection, priority rechecks, rule/fault CLI telemetry, and cross-repository implementation map |
+| 0.3 | 2026-07-06 | Gregory Boudreau | Removed superseded validation/image material and reconciled the normative architecture, vendor hooks, artifacts, telemetry, lifecycle, and exact schema `0.0.1` contract |
 
 ## Scope
 
@@ -41,7 +43,7 @@ This document describes the Device Local Diagnosis Daemon (DLDD) implementation 
 
 ## Document Authority
 
-This document is the sole DLDD runtime and SONiC-integration HLD. It owns process placement, rule activation, scheduling and concurrency, monitor/orchestrator ownership, fault lifecycle, actions and artifacts, Redis/CLI/OpenConfig integration, persistence, operational behavior, implementation locations, and runtime testing. The companion `vendor-rules-schema-hld.md` is the sole authority for the vendor rules wire contract and its versioned validation semantics. Generated JSON Schema and schema-layout files are derived tooling artifacts, not additional HLDs or runtime validation authorities.
+This document is the sole DLDD runtime and SONiC-integration HLD. It owns process placement, rule activation, scheduling and concurrency, monitor/orchestrator ownership, fault lifecycle, actions and artifacts, Redis/CLI/OpenConfig integration, persistence, operational behavior, implementation locations, and runtime testing. The companion `vendor-rules-schema-hld.md` is the sole authority for the vendor rules wire contract and its versioned validation semantics. Generated JSON Schema files are derivative authoring artifacts, not additional HLDs or runtime validation authorities.
 
 ## Terminology
 
@@ -85,15 +87,11 @@ This section describes the SONiC requirements for the Device Local Diagnosis Dae
 
 ## High-Level Design
 
-![Device Local Diagnosis System Context](./images/dldd-graphic-design-2.jpg)
-
-*Figure 1. DLDD system context and external interfaces. Figure 2 is the authoritative logical runtime architecture for the implemented service.*
-
 DLDD is a multithreaded SONiC host service that implements vendor-agnostic, rule-driven hardware fault detection and remediation. The service operates as a polling-based monitoring engine that ingests vendor-provided fault signatures, evaluates hardware health against defined conditions, and publishes actionable telemetry to remote controllers.
 
 DLDD runs directly on the host as a systemd-managed service, not inside PMON and not inside any SONiC Docker container. This placement is intentional: crashes or restarts of PMON, swss, syncd, or other non-database SONiC containers must not directly stop the DLDD process. The database Docker is an explicit dependency because DLDD uses Redis for configuration, Redis-backed source data, service status, and local fault publication. gNMI and gNOI are remote export/artifact dependencies: when Redis is available, DLDD can still publish local `FAULT_INFO` and `DLDD_STATUS` telemetry even if remote gNMI export or gNOI Healthz artifact retrieval is unavailable.
 
-At startup, DLDD selects a rules generation before loading monitor work. It first checks for a stable remotely delivered inbox candidate and the current packaged platform rules/DSE pair, then compares those candidates against the existing active copy. The daemon does not blindly prefer `/var/lib/sonic/dldd/rules/dld_rules.active.yaml` if a stable inbox update is pending, if the packaged platform rules supersede the active copy after an image/platform update, or if the active copy is incompatible with the current schema or DSE configuration. The rules watcher only detects stable inbox changes and restarts DLDD gracefully; DLDD itself owns candidate selection, validation, active-copy promotion, golden fallback, and rollback decisions. After selecting and validating the generation, DLDD resolves Data Source Extensions (DSE) into concrete data collection paths and builds execution plans that map rules to appropriate monitor threads based on transport type (Redis, Platform API, I2C, CLI, sysfs, file). Rules that fail localized Pydantic, semantic, or materialization validation are tracked as broken during ingestion, are not materialized into monitor `items_by_key`, and have diagnostics published to the controller. If no usable rules remain after materialization for the current platform, activation fails and DLDD keeps or restores the previous active generation or fallback.
+At startup, DLDD selects a rules generation before loading monitor work. Candidate order is deterministic: a newly accepted stable inbox generation first; packaged rules before active only when platform identity changed; then active; then the previous active generation recorded in the activation manifest; packaged rules after those when platform identity did not change; and golden rules last. Duplicate paths are removed. Each candidate is validated in order until one activates; DLDD does not compare semantic versions or infer that one source is newer. The rules watcher only detects stable inbox changes and restarts DLDD gracefully; DLDD itself owns candidate selection, validation, active-copy promotion, golden fallback, and rollback decisions. After selecting and validating the generation, DLDD resolves Data Source Extensions (DSE) into concrete data collection paths and builds execution plans that map rules to appropriate monitor threads based on transport type (Redis, Platform API, I2C, CLI, sysfs, file). Rules that fail localized Pydantic, semantic, or materialization validation are tracked as broken during ingestion, are not materialized into monitor `items_by_key`, and have diagnostics published to the controller. If no usable rules remain after materialization for the current platform, that candidate fails and selection continues to the next candidate.
 
 During runtime, the **primary orchestration thread** manages specialized monitor threads and consumes `FaultEvidenceEvent` objects from a shared FIFO buffer. The **monitor threads** (Redis, File, Common) periodically sample their assigned data sources using standardized adapters that abstract transport differences through a uniform interface (`validate()`, `get_value()`, `get_evaluator()`, `run_evaluation()`, `collect()`). Monitor threads evaluate individual positive fault predicates on-thread and do not enqueue normal non-matching samples. They enqueue only fault evidence, clear notifications, source availability transitions, collection errors, or evaluator errors. After a monitor enqueues a `FaultEvidenceEvent`, it marks that correlation key as in-flight and stops normal polling for that key until the primary thread returns a `MonitorControlCommand`. This single-flight ownership prevents duplicate match/clear races while allowing unrelated rules, events, and component instances to keep running. The primary thread owns signature-level correlation, multi-event logic, action scheduling, target-state decisions, recheck requests, and telemetry publication. The monitor thread owns writes to `state_by_key` during runtime and applies primary decisions from its control queue. In case of a source failure or unevaluable event, DLDD records source availability state separately from hardware fault state.
 
@@ -120,7 +118,7 @@ flowchart LR
     subgraph MonitorPlane["Monitor ownership and collection"]
       Monitors["Redis / File / Common monitor threads<br/>per-key state, cadence, and control mailbox<br/>monitor.py"]
       Inline["Inline single-item collect and evaluate<br/>typed adapters / trusted hooks"]
-      Priority["Bounded priority queue<br/>recheck priority before normal FIFO<br/>256 waiting jobs; 8 reserved for rechecks"]
+      Priority["Bounded priority queue<br/>recheck priority before normal FIFO<br/>256 normal pending slots; 8 additional recheck slots"]
       Workers["8 daemon collection workers<br/>typed adapter / trusted hook collect and evaluate<br/>one outstanding job per correlation key"]
       Completion["Owning-monitor completion queue"]
 
@@ -173,7 +171,7 @@ flowchart LR
   end
 ```
 
-*Figure 2. Logical runtime architecture. A monitor remains the only writer of its per-key work state. Inline and asynchronous events converge on the same monitor result path; asynchronous workers never publish evidence or mutate monitor state. A primary-requested asynchronous `RECHECK_ONCE` bypasses normal cadence and enters the waiting queue ahead of normal jobs, but never preempts a running call.*
+*Figure 1. Logical runtime architecture. A monitor remains the only writer of its per-key work state. Inline and asynchronous events converge on the same monitor result path; asynchronous workers never publish evidence or mutate monitor state. A primary-requested asynchronous `RECHECK_ONCE` bypasses normal cadence and enters the waiting queue ahead of normal jobs, but never preempts a running call.*
 
 ### Example End-to-End Rule Flow
 
@@ -201,8 +199,9 @@ sequenceDiagram
   Q-->>P: FIFO batch available
   P->>P: Correlate signature and create candidate FaultRecord
   P->>M: MonitorControlCommand HOLD
-  P->>A: Run local actions and trigger Healthz artifacts if configured
-  A-->>P: Action result with artifact continuing async
+  P->>A: Run local action sequence if configured
+  A-->>P: Action result or deadline
+  P->>A: Request asynchronous artifact if configured
   P->>P: Wait configured wait_period
   P->>M: MonitorControlCommand RECHECK_ONCE
   M->>Q: Enqueue post-action recheck result
@@ -214,7 +213,7 @@ sequenceDiagram
   M->>M: Apply command to state_by_key
 ```
 
-*Figure 3. Example lifecycle for one Redis-backed rule. The primary thread decides the next lifecycle state and sends a `MonitorControlCommand`; the monitor thread applies that command to its own `state_by_key`. The primary thread does not directly mutate monitor-local dictionaries during runtime.*
+*Figure 2. Example lifecycle for one Redis-backed rule. The primary thread decides the next lifecycle state and sends a `MonitorControlCommand`; the monitor thread applies that command to its own `state_by_key`. The primary thread does not directly mutate monitor-local dictionaries during runtime.*
 
 ## Detailed Design
 
@@ -224,17 +223,18 @@ sequenceDiagram
 - **Rule Management Pipeline**: Parses signatures from `vendor-rules-schema-hld.md`, validates schema compatibility, resolves DSE references into concrete transport specifications (determining whether an event becomes I2C, Redis, Platform API, CLI, sysfs, or file-based), and materializes execution plans that map events to monitor thread capabilities.
 - **Thread Coordinator**: Owns the lifecycle of all monitor threads, instantiating them from a common `MonitorThread` base class, injecting the resolved event plan, distributing work items to the appropriate monitor based on transport type, and sending `MonitorControlCommand` objects to monitor-owned control queues for in-flight work.
 - **Fault Processing & Actions**: Consumes `FaultEvidenceEvent` objects already evaluated by monitor threads, tracks per-rule failure counts, evaluates signature-level logic, schedules vendor local actions asynchronously, suppresses duplicate action execution for an active fault lifetime, and raises ACTION_* escalations to the controller.
-- **Telemetry Publisher**: Emits confirmed fault and service-state records into Redis STATE_DB for UMF/gNMI export, and orchestrates gNOI Healthz artifact creation.
+- **Telemetry Publisher**: Emits confirmed fault and service-state records into Redis STATE_DB for UMF/gNMI export. DLDD's artifact client creates and retains diagnostic archives; gNOI Healthz authenticates, resolves, and streams completed archives.
 
 #### Internal Data Structures
 
 DLDD uses the following primary runtime structures. The distinction between monitor-level fault evidence and primary-thread fault state is intentional: monitor threads never decide that a multi-event signature is active, never enqueue routine healthy samples, and never preformat a `FAULT_INFO` record.
 
 **MonitorExecutionPlan** - Per-monitor runtime container built by the primary thread and owned by one monitor thread
-- **Monitor Identity**: Stable `monitor_id`, monitor type (`redis`, `file`, or `common`), default polling interval, and adapter set. The monitor interval is the fallback for work items whose event omits `sampling_interval`; it is not a forced common cadence for explicitly timed events.
+- **Monitor Identity**: Stable `monitor_id`, monitor type (`redis`, `file`, or `common`), and default polling interval. The monitor interval is the fallback for work items whose event omits `sampling_interval`; it is not a forced common cadence for explicitly timed events. Adapter instances are composed by the monitor, not stored in the plan.
 - **Work Items**: `items_by_key`, an immutable dictionary keyed by correlation key with `MonitorWorkItem` values. The monitor does not pop items out of this dictionary during fault handling.
 - **Work State**: `state_by_key`, a monitor-owned mutable dictionary keyed by the same correlation keys with `MonitorWorkStateRecord` values.
 - **Control Mailbox**: The thread-safe queue where the primary thread sends `MonitorControlCommand` objects for keys owned by this monitor.
+- **Interval-update Mailbox**: The thread-safe queue through which CONFIG_DB changes update the owning monitor's inherited default without replacing work items.
 - **Plan Generation**: Active rules checksum or generation ID used to discard stale control commands after rule activation or service restart.
 
 The plan is intentionally simple: no separate ready queue, no shared mutable rule list, and no primary-thread mutation of monitor-local state. During a scheduling cycle, the monitor iterates `items_by_key` in stable order and checks both `state_by_key[correlation_key]` and that key's monotonic due time to decide whether it is eligible to collect.
@@ -246,13 +246,13 @@ The plan is intentionally simple: no separate ready queue, no shared mutable rul
 - **Adapter Binding**: Transport classification determining which monitor thread handles the work (Redis, File, Common) and which `DataSourceAdapter` instance is used.
 - **Evaluator Specification**: Normalized evaluator definition, including type, operator, expected value, units/value formatting, `match_count`, and `match_period`.
 - **Sampling Policy**: Effective normal sampling interval, whether it came from an explicit event `sampling_interval` or the assigned monitor's current default, and whether this event opted into bounded asynchronous collection.
-- **Source Policy**: Source identifier, retry behavior, and graceful-maintenance handling used when the source is unavailable or intentionally suspended.
+- **Source Identity**: Stable `source_id`, source type, and immutable source binding. Retry and maintenance policy is owned by monitor/orchestrator configuration and trusted lifecycle hooks rather than duplicated in the work item.
 
 **MonitorWorkState** - Monitor-local runtime state for one correlation key
 - **State**: `READY`, `COLLECTING`, `IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, `DEGRADED`, `BROKEN`, or `SUSPENDED`. `COLLECTING` means one opted-in source collection/evaluation job is outstanding in the shared worker pool; it is healthy and is not controller-visible fault evidence.
-- **In-Flight Metadata**: Last enqueued FIFO sequence number, enqueue timestamp, work-state generation, primary command generation, and lease deadline.
+- **In-Flight Metadata**: Last enqueued FIFO sequence number, enqueue timestamp, work-state generation, acknowledgement deadline, hold deadline, and one-shot `recheck_not_before` deadline.
 - **Cadence Metadata**: Per-key monotonic `next_sample_due`. Cadence state is process-local and is not restored across restart.
-- **Last Sample State**: Last successful `MATCH`/`NO_MATCH`/source status observed by the monitor before the key was held.
+- **Last Sample State**: Last `MATCH`/`NO_MATCH` state, last attempt/success timestamps, source status, consecutive failure count, and recovery-success count.
 - **Suppression Policy**: Duplicate match, clear, and source-status notifications for this key are not emitted while the key is `IN_FLIGHT` or `HELD_BY_PRIMARY`; the monitor either skips normal polling for the key or performs a primary-requested one-shot recheck.
 - **Recovery Policy**: If the primary thread does not acknowledge or command the key before the lease expires, the monitor reports a service diagnostic and returns the key to `READY`. The next normal poll samples current state. A key marked `BROKEN` is excluded from polling until a fresh process/rule generation fully reevaluates the rule.
 
@@ -270,17 +270,16 @@ The plan is intentionally simple: no separate ready queue, no shared mutable rul
 | `SUSPENDED` | Monitor applying primary `SUSPEND` with `target_state=SUSPENDED` | Intentional maintenance, feature disablement, config reload, service stop, or operator/controller suspension | Skipped until primary sends `RESUME` |
 
 **RuleRuntimeStatus** - Monitor-produced rule/key status update consumed by the primary thread
-- **Status State**: `OK`, `DEGRADED`, or `BROKEN` for the affected rule/key.
+- **Status State**: `DEGRADED` or `BROKEN` for the affected rule/key; routine healthy samples do not need a status payload.
 - **Correlation Fields**: Rule identity, event identity, component instance, source identifier, and correlation key.
 - **Failure Details**: Error category, human-readable reason, failure count, last success timestamp, last attempt timestamp, and whether the failure is retryable.
-- **Telemetry Intent**: Indicates whether the primary thread should update only process/rule status telemetry, send a monitor control command, or both.
 
 **EvaluationResult** - Output of adapter evaluation within monitor threads
 - **Result Type**: `MATCH`, `NO_MATCH`, `SOURCE_UNAVAILABLE`, `SOURCE_RECOVERED`, `COLLECTION_ERROR`, or `EVALUATION_ERROR`.
 - **Collected Value**: Raw and normalized value retrieved from the data source, formatted according to `value_configs` when applicable.
 - **Evaluator Outcome**: Evaluator type, operator, expected value, comparison result, and any type conversion details needed for diagnostics.
 - **Timestamps**: Collection start time, evaluation completion time, and source timestamp if provided by the underlying data source.
-- **Source Status**: Available/suspended/unavailable state and graceful-maintenance metadata when collection could not produce a valid value.
+- **Source Status**: `AVAILABLE`, `UNAVAILABLE`, `SUSPENDED`, or `RECOVERED`. Expected-maintenance classification is applied by the orchestrator's trusted lifecycle policy rather than embedded in `EvaluationResult`.
 - **Exception Details**: Structured error information if collection or evaluation failed, including failure classification and whether the error is retryable.
 
 **FaultEvidenceEvent** - Message enqueued to FIFO by monitor threads
@@ -293,11 +292,10 @@ The plan is intentionally simple: no separate ready queue, no shared mutable rul
 - **Queue Metadata**: Monotonic enqueue sequence number and enqueue timestamp. FIFO order is useful for processing, but signature correlation is based on event timestamps.
 
 **FaultRecord** - Primary-thread-owned correlated fault state
-- **Fault Identity**: `FAULT_INFO|<component>|<symptom>` key, signature identity, component identity, and current OpenConfig Healthz status.
-- **Event History**: Per-event match/clear history for the affected component instance, including `match_count`, `match_period`, and `logic_lookback_time` evaluation state.
+- **Fault Identity**: Percent-encoded `FAULT_INFO|<component>|<symptom>` key, signature identity, component identity, and current OpenConfig Healthz status.
+- **Event Snapshot**: The event values and conditions selected by the correlation decision. Match-window history remains owned by `CorrelationEngine`, not duplicated in the record.
 - **Lifecycle State**: `ACTIVE` or `INACTIVE`, origin time, last detection time, occurrence count, inactive retention deadline, and stale-source annotations.
-- **Action State**: Local action/log collection execution state, action worker status, wait-period timer, action suppression state for the current active lifetime, and controller-visible remediation list.
-- **Publication State**: Last published checksum/version so DLDD can avoid unnecessary Redis churn while still refreshing service liveness telemetry.
+- **Action and Artifact State**: Final actions taken, final local action details, suppression flag, artifact metadata, and controller-visible remediation list. In-progress action/wait/recheck state remains in the primary thread's `PendingFault` object.
 
 **MonitorControlCommand** - Immutable in-memory Python message sent by the primary thread to one monitor thread
 - **Delivery Path**: Written by the primary thread to the owning monitor's `queue.Queue[MonitorControlCommand]`; drained and applied by the monitor thread.
@@ -305,71 +303,16 @@ The plan is intentionally simple: no separate ready queue, no shared mutable rul
 - **Decision Ownership**: The primary thread chooses `command` and `target_state`; the monitor thread validates generation/key ownership and then applies `target_state` to `state_by_key`.
 - **Not Shared State**: The command is not a Redis object, not a callback, and not direct mutation of the monitor's dictionary.
 
-```python
-from dataclasses import dataclass, field
-from enum import Enum
-from queue import Queue
-import time
+The queue-facing contracts intentionally remain plain dataclasses. Their authoritative field groups are:
 
+| Contract | Fields |
+|----------|--------|
+| `MonitorControlCommand` | `command_id`, `monitor_id`, `plan_generation`, `correlation_key`, `command`, `target_state`, `reason`, optional expected generation/evidence sequence/recheck and hold deadlines, `created_at` |
+| `MonitorWorkStateRecord` | `state`, work-state generation, last evidence/enqueue metadata, acknowledgement/hold/recheck deadlines, last sample/attempt/success metadata, failure/recovery counts, source status, `next_sample_due` |
+| `MonitorExecutionPlan` | `monitor_id`, `monitor_type`, current default `polling_interval`, `plan_generation`, immutable `items_by_key`, monitor-owned `state_by_key`, `control_queue`, `interval_update_queue` |
+| `FaultEvidenceEvent` | rule/event/component/source identities, correlation/monitor/plan/work-state identities, FIFO sequence and timestamps, typed `EvaluationResult`, recheck flag, optional `RuleRuntimeStatus` |
 
-class MonitorCommandType(str, Enum):
-    RESUME = "RESUME"
-    HOLD = "HOLD"
-    RECHECK_ONCE = "RECHECK_ONCE"
-    SUSPEND = "SUSPEND"
-
-
-class MonitorWorkState(str, Enum):
-    READY = "READY"
-    COLLECTING = "COLLECTING"
-    IN_FLIGHT = "IN_FLIGHT"
-    HELD_BY_PRIMARY = "HELD_BY_PRIMARY"
-    RECHECK_REQUESTED = "RECHECK_REQUESTED"
-    DEGRADED = "DEGRADED"
-    BROKEN = "BROKEN"
-    SUSPENDED = "SUSPENDED"
-
-
-@dataclass(frozen=True, slots=True)
-class MonitorControlCommand:
-    command_id: str
-    monitor_id: str
-    plan_generation: str
-    correlation_key: str
-    command: MonitorCommandType
-    target_state: MonitorWorkState
-    reason: str
-    expected_work_state_generation: int | None = None
-    evidence_sequence: int | None = None
-    recheck_not_before: float | None = None
-    hold_deadline: float | None = None
-    created_at: float = field(default_factory=time.time)
-
-
-@dataclass(slots=True)
-class MonitorWorkStateRecord:
-    state: MonitorWorkState
-    work_state_generation: int = 0
-    last_evidence_sequence: int | None = None
-    last_enqueue_timestamp: float | None = None
-    ack_deadline: float | None = None
-    hold_deadline: float | None = None
-    next_sample_due: float | None = None
-    last_sample_state: str | None = None
-    last_success_timestamp: float | None = None
-    consecutive_failure_count: int = 0
-
-
-@dataclass
-class MonitorExecutionPlan:
-    monitor_id: str
-    monitor_type: str
-    polling_interval: float
-    plan_generation: str
-    items_by_key: dict[str, "MonitorWorkItem"]
-    state_by_key: dict[str, MonitorWorkStateRecord]
-    control_queue: Queue[MonitorControlCommand]
-```
+The implementation definitions live in `sonic-host-services/dldd/runtime.py`; this HLD defines their ownership and semantics without duplicating executable class definitions that can drift.
 
 These structures maintain type consistency across the service. The orchestrator creates one `MonitorExecutionPlan` per monitor thread, each plan contains immutable `MonitorWorkItem` objects and monitor-owned `MonitorWorkStateRecord` objects, monitors produce `EvaluationResult` objects via adapters, package fault evidence or `RuleRuntimeStatus` updates into `FaultEvidenceEvent` objects for the FIFO, and the primary thread consumes those events to update `FaultRecord`, process/rule telemetry, and service-status state before returning `MonitorControlCommand` objects.
 
@@ -390,7 +333,7 @@ These structures maintain type consistency across the service. The orchestrator 
 - **Async State Ownership**: The monitor transitions an async key to `COLLECTING`, which prevents overlapping jobs for that correlation key. Worker threads do not mutate `state_by_key` and do not enqueue `FaultEvidenceEvent` objects. The owning monitor consumes completions and runs the same success, failure, recovery, and evidence logic used by inline events.
 - **Structured Output**: When an event predicate is satisfied, clears, recovers, or fails, monitors emit a normalized `FaultEvidenceEvent` that encapsulates the rule, event metadata, value, evaluator outcome, source state, and timestamps before enqueuing to the shared FIFO. A successful non-matching sample updates monitor-local state but is not enqueued unless it clears a previously reported match or recovers a previously unavailable source.
 - **Single-Flight Ownership**: After enqueueing a `FaultEvidenceEvent`, the monitor transitions that correlation key to `IN_FLIGHT`. The immutable `MonitorWorkItem` remains in the monitor's assignment set, but the key is skipped during normal polling until the primary thread commands `RESUME`, `HOLD`, `RECHECK_ONCE`, or `SUSPEND`.
-- **Primary-Requested Recheck**: A `RECHECK_ONCE` command temporarily makes a held key eligible for exactly one collection/evaluation cycle. For `async: true`, the job is inserted ahead of all waiting normal async jobs and is FIFO with other rechecks; it begins when one of the eight workers is available because running calls are not preempted. The resulting `MATCH`, `CLEAR`, source-status, or evaluator-error evidence is enqueued with the command generation and the key returns to `IN_FLIGHT` until the primary thread processes the result.
+- **Primary-Requested Recheck**: A `RECHECK_ONCE` command temporarily makes a held key eligible for exactly one collection/evaluation cycle. For `async: true`, the job is inserted ahead of all waiting normal async jobs and is FIFO with other rechecks; it begins when one of the eight workers is available because running calls are not preempted. The resulting `MATCH`, `NO_MATCH`, source-status, or evaluator-error evidence is enqueued with the command generation and the key returns to `IN_FLIGHT` until the primary thread processes the result.
 
 **Data Collection Strategy**:
 - **Redis Monitor**: Polls eligible Redis-based work keys. An event with no `sampling_interval` inherits `redis_monitor_polling_interval` (default: 60 seconds).
@@ -398,7 +341,7 @@ These structures maintain type consistency across the service. The orchestrator 
 - **Common Monitor**: Polls eligible Platform API/I2C/CLI/sysfs and vendor-source work keys. An event with no `sampling_interval` inherits `common_monitor_polling_interval` (default: 60 seconds). Sysfs is handled by the common monitor because it is a host-local platform data source with the same scheduling and error-handling model as Platform API, I2C, and CLI collection.
 - An explicit positive event `sampling_interval` overrides the monitor default for every work item materialized from that event. Two events assigned to the same monitor may therefore run at different cadences.
 - Omitted intervals are resolved only after DSE expansion and monitor assignment. CONFIG_DB updates affect inherited work items only; explicitly timed events keep their rule-defined cadence.
-- `async: true` changes only where one event's collection/evaluation runs. It does not change sampling cadence, correlation, match windows, or fault semantics. The process-wide pool has eight daemon workers and 256 queued-job slots. Eight waiting slots are reserved from normal work for primary-requested rechecks. Priority rechecks jump ahead of normal queued jobs but do not preempt running calls. Normal-capacity exhaustion leaves work due for retry rather than blocking the monitor or counting a failed attempt.
+- `async: true` changes only where one event's collection/evaluation runs. It does not change sampling cadence, correlation, match windows, or fault semantics. The process-wide pool has eight daemon workers, a 256-job normal pending allowance, and eight additional total-capacity slots reserved for primary-requested rechecks. Priority rechecks jump ahead of normal queued jobs but do not preempt running calls. Normal-capacity exhaustion leaves work due for retry rather than blocking the monitor or counting a failed attempt.
 
 **Minimal Monitor Plan Shape**:
 
@@ -440,7 +383,7 @@ Every eligible work item is initialized as immediately due when a new daemon pro
 #### Shared Data Contracts
 - **Execution Plan Artifacts**: Orchestrator and monitors exchange immutable `MonitorExecutionPlan` and `MonitorWorkItem` descriptors (rule ID, resolved event definition with concrete transport details, adapter binding, and effective explicit/inherited sampling interval). Rules file changes are activated through a controlled service restart, so in-memory monitor queues and cadence deadlines are ephemeral process state and are not preserved across rule changes. Within a running process, each monitor owns its plan and mutable per-key state; the primary thread does not mutate monitor-local dictionaries.
 - **Correlation Key Scope**: The correlation key must distinguish one independently held work item without becoming broader than necessary. At minimum it includes signature/rule identity, event identity, resolved component instance, symptom, and source identity when the same event can resolve to multiple sources. It must not include volatile timestamps, FIFO sequence numbers, or collected values.
-- **FaultEvidenceEvent Queue Objects**: The FIFO carries serialized `FaultEvidenceEvent` dataclasses between threads with consistent schema including correlation fields, evaluation results, source state, timestamps, and exception details for rule/source tracking.
+- **FaultEvidenceEvent Queue Objects**: The FIFO carries in-memory `FaultEvidenceEvent` dataclass objects between threads with consistent fields for correlation, evaluation result, source state, timestamps, and exception details. Serialization occurs only at persistence/telemetry boundaries.
 - **MonitorControlCommand Objects**: The primary thread returns per-key commands to the owning monitor through a thread-safe command mailbox (`queue.Queue`). Commands include the correlation key, plan generation, expected work-state generation when applicable, target state, optional recheck deadline, and reason. The primary thread decides the target state; the monitor thread applies it to `state_by_key` only after generation/key validation.
 - **Primary-Owned Fault Records**: Only the primary thread constructs and mutates `FaultRecord` objects. `FAULT_INFO` publication, fault clear behavior, occurrence counting, action scheduling, and Healthz translation inputs are derived from these records, not directly from monitor-thread payloads.
 
@@ -469,6 +412,10 @@ DLDD Process (PID: main)
 
 - **Monitor Thread Interface Enforcement**: All monitors are instantiated from the same base class, guaranteeing consistent callback signatures for value retrieval, evaluation, and queueing.
 - **Inter-Thread Payloads**: Communication between threads relies on `MonitorWorkItem` descriptors (orchestrator to monitor), `FaultEvidenceEvent` objects (monitor to orchestrator), and `MonitorControlCommand` objects (orchestrator to monitor), keeping the data flow self-describing and serialization-friendly. Runtime `state_by_key` changes are applied by the owning monitor thread after it drains its command queue.
+- **Bounded Primary Intake**: The shared evidence FIFO holds at most 4,096 objects. The primary drains at most 128 per processing batch before running timers and lifecycle work, preventing a busy source from starving actions, rechecks, and telemetry.
+- **Worker Separation**: Async event collection uses the dedicated eight-worker priority pool. Local action sequences use four sequence workers and four bounded call slots. Artifact construction uses its own two-worker pool. These pools do not execute signature correlation or publish monitor evidence.
+- **Supervision and Configuration**: A daemon config-listener thread forwards complete `DLDD_CONFIG|global` snapshots to the primary owner. The service supervises monitor threads and restarts a monitor that exits unexpectedly, recording a service diagnostic.
+- **Heartbeat**: The primary refreshes process/rule status every 30 seconds; the published keys use a 120-second TTL.
 - **Deterministic Ordering**: The FIFO buffer preserves enqueue ordering of `FaultEvidenceEvent` payloads. Signature correlation uses event timestamps, not enqueue order. OpenConfig requires a singular fault instance per component/symptom, so DLDD publishes at most one `FAULT_INFO|<component>|<symptom>` record. If multiple signatures are active for the same component and symptom, the published fault is determined first by rule severity and then by priority (lower numeric priority takes precedence). If component instance, symptom, severity, and priority are the same, the published fault is based on first detected fault. Non-winning active signatures remain in DLDD internal event history and may become the published record if the current winning signature clears while they remain active.
 
 ### Rule Evaluation Workflow
@@ -497,7 +444,7 @@ The primary thread is the single owner of signature-level state. Monitor threads
 
 ### Vendor Rule Lifecycle Coordination
 
-- **Schema Compatibility**: DLDD requires the `schema_version` provided in the rules source to exactly match a trusted Pydantic contract packaged with the daemon. Generated JSON Schema and schema layouts are external tooling artifacts and do not determine runtime support.
+- **Schema Compatibility**: DLDD requires the `schema_version` provided in the rules source to exactly match a trusted Pydantic contract packaged with the daemon. Generated JSON Schema is an external authoring artifact and does not determine runtime support.
 - **Signature Distribution**: Each signature's metadata drives monitor thread assignments (for example, events referencing DSE paths are dispatched to the thread that can resolve the DSE binding).
 - **Action Interface Enforcement**: Local actions are required to follow the type-specific structure defined in the rules schema. Supported executors include `dse`, `cli`, direct `i2c`, and explicit vendor-supported action types; CLI actions use `argv` instead of shell command strings, while direct I2C actions use the schema-defined target `path`. Local actions run with the same privilege as the DLDD service and are vendor-defined. The vendor rule package owns the requirement that local actions are non-disruptive to traffic.
 - **Escalation Handling**: Remote actions are propagated as non-empty OpenConfig or vendor-extension identity strings and surfaced to the controller through Redis/UMF/gNMI fault telemetry only after any configured local actions have completed. DLDD preserves these identities rather than applying a closed allowlist. They are controller-actionable only when the published fault status is `ACTIVE`; when DLDD recovers the condition locally, the fault is published as `INACTIVE` with local action metadata.
@@ -516,7 +463,7 @@ Normative publication order:
 6. DLDD returns monitor control commands to resume, hold for a follow-up recheck, or suspend affected keys according to the final lifecycle decision.
 
 - **Async execution**: Local actions and log collection run on asynchronous worker context. A long `wait_period` is represented as action state or a timer and must not block the primary thread from processing fault evidence, updating telemetry, or monitoring unaffected rules.
-- **Action timeouts**: Each local action may override the default timeout from the rules source. If omitted, DLDD applies the top-level `local_action_default_timeout` from the active rules source. A timeout marks the action failed, records the result in DLDD status/audit telemetry, releases the worker, triggers Healthz artifact collection when configured, and allows the primary thread to continue to the post-action recheck path without waiting for artifact completion.
+- **Action timeouts**: Each local action may override the default timeout from the rules source. If omitted, DLDD applies the top-level `local_action_default_timeout` from the active rules source. A timeout marks the action failed, records the result in DLDD status/audit telemetry, releases the action-sequence worker, triggers Healthz artifact collection when configured, and allows the primary thread to continue to the post-action recheck path without waiting for artifact completion. The underlying timed-out vendor call may continue and retain one of the four bounded call slots until it returns; after all four slots are occupied, later calls fail fast with capacity exhaustion.
 - **Wait periods**: A long `wait_period` is a vendor diagnostic/remediation choice, not a DLDD error. DLDD should expose action state in telemetry so operators can distinguish an intentional vendor wait from a hung service.
 - **Single execution per active fault**: Once local actions are scheduled for an active `FaultRecord`, DLDD suppresses duplicate local action runs for that same rule/component/symptom lifetime. A new local action run is allowed only after the record has cleared to `INACTIVE` and later becomes `ACTIVE` again, unless a later schema version adds explicit retry semantics.
 - **Post-action recheck**: The primary thread owns post-action rechecks. It sends `RECHECK_ONCE` after the vendor `wait_period` to the contributing keys needed to evaluate the complete per-instance signature.
@@ -564,58 +511,54 @@ Every rule references a `DataSourceAdapter` that implements a common contract. T
 
 ```python
 class DataSourceAdapter(Protocol):
-    def validate(self, event: RuleEvent) -> None:
+    def validate(self, item: MonitorWorkItem) -> None:
         """Raise on unsupported configuration prior to activation."""
 
-    def get_value(self, event: RuleEvent) -> CollectedValue:
+    def get_value(self, item: MonitorWorkItem) -> Any:
         """Fetch the raw value from the underlying transport."""
 
-    def get_evaluator(self, event: RuleEvent) -> Evaluator:
-        """Produce a callable or structure that encapsulates the evaluation logic."""
+    def get_evaluator(self, item: MonitorWorkItem) -> Mapping[str, Any]:
+        """Return the already-materialized evaluation definition."""
 
-    def run_evaluation(self, value: CollectedValue, evaluator: Evaluator) -> EvaluationResult:
-        """Return the boolean outcome plus any metadata (timestamps, values, etc.)."""
+    def run_evaluation(self, value: CollectedValue, evaluator: Mapping[str, Any]) -> bool:
+        """Apply the evaluator and return whether the fault predicate matched."""
 
-    def collect(self, event: RuleEvent) -> EvaluationResult:
-        """Convenience wrapper that orchestrates value retrieval and evaluation."""
+    def collect(self, item: MonitorWorkItem) -> EvaluationResult:
+        """Fetch, normalize, evaluate, and return the typed result."""
 ```
 
 #### Method Responsibilities
 The below is provided to help provide a better idea of where functionality takes place in the common data source adapter interface.
 
-**`validate(event: RuleEvent) -> None`**
+**`validate(item: MonitorWorkItem) -> None`**
 - **Purpose**: Pre-flight check executed once during rule ingestion, before any monitor thread starts sampling.
 - **Behavior**: Inspects the event configuration (path structure, evaluation type, DSE references) and raises an exception if the adapter cannot support it.
-- **Example**: An I2CAdapter would verify that the bus/chip addresses are syntactically valid and that direct monitoring uses the read-only `get` operation. Direct I2C local actions use the rules-schema action path contract and are validated as local actions, not as monitoring events. A RedisAdapter would confirm the database name exists in the SONiC schema.
+- **Example**: An I2CAdapter verifies that bus/chip addresses are syntactically valid and that direct monitoring uses the read-only `get` operation. Direct I2C local actions use the rules-schema action path contract and are validated as local actions, not as monitoring events. A RedisAdapter validates non-empty database/table/key values and path shape; activation does not contact Redis to prove that the key exists.
 - **Failure Impact**: If validation fails, the rule is marked as broken during ingestion and is not materialized into any monitor `items_by_key`; the service continues with remaining valid rules.
 
-**`get_value(event: RuleEvent) -> CollectedValue`**
+**`get_value(item: MonitorWorkItem) -> Any`**
 - **Purpose**: Fetch the raw data from the underlying transport (I2C register, Redis key, CLI stdout, file content, etc.).
 - **Behavior**: Executes the transport operation using the already-resolved event specification and returns the unprocessed value (bytes, string, integer, JSON blob, etc.). DSE resolution has already occurred in the primary thread.
-- **Example**: For an I2C event with resolved bus/chip addresses, this reads the chip register and returns the raw byte/word. For Redis with a concrete database/table/key path, it performs `HGET` and returns the field value. For CLI with the final `argv`, it executes the command without a shell and returns stdout.
+- **Example**: For an I2C event with resolved bus/chip addresses, this reads the chip register and returns the raw byte/word. For Redis, it reads the configured hash and extracts the declared nested path. For CLI with the final `argv`, it executes the command without a shell and returns stdout.
 
-**`get_evaluator(event: RuleEvent) -> Evaluator`**
-- **Purpose**: Build the evaluation logic based on the `evaluation` block from the rules schema.
-- **Behavior**: Parses the evaluation type (`mask`, `comparison`, `string`, `boolean`, `dse`) and constructs a callable or data structure that can be applied to the collected value. When `evaluation.type` is `dse`, DLDD uses the vendor DSE hook to resolve either an expected value used by a DLDD operator or a complete vendor-defined comparator contract.
-- **Example**: For a mask evaluation with `logic: '&'` and `value: "0b10000000"`, returns an evaluator that performs bitwise AND. For a comparison evaluation with `operator: '>'` and `value: 50.0`, returns a greater-than checker.
-- **Reusability**: The evaluator can be cached and reused across multiple `get_value()` calls if the evaluator is static and not dynamically generated (a DSE reference as the value would require a new evaluator each time as the underlying may change/is not hardcoded).
+**`get_evaluator(item: MonitorWorkItem) -> Mapping[str, Any]`**
+- **Purpose**: Return the immutable evaluation definition materialized during activation.
+- **Behavior**: DSE evaluation resolution and evaluator-contract validation already occurred before monitor startup. The runtime adapter returns the resolved mapping for `mask`, `comparison`, `string`, `boolean`, or DSE-provided comparison semantics.
 
-**`run_evaluation(value: CollectedValue, evaluator: Evaluator) -> EvaluationResult`**
-- **Purpose**: Execute the evaluation logic and return the boolean outcome plus any metadata (actual value read, expected threshold, etc.).
-- **Behavior**: Applies the evaluator to the value and packages the result into an `EvaluationResult` object that includes violation status, timestamps, and diagnostic information.
-- **Example**: For a temperature threshold check, returns `EvaluationResult(violated=True, value=55.2, threshold=50.0, unit='celsius')` if the sensor reads above the limit.
-- **Usage**: This is typically called by `collect()` but can be invoked independently for testing or batch evaluation scenarios.
+**`run_evaluation(value: CollectedValue, evaluator: Mapping[str, Any]) -> bool`**
+- **Purpose**: Apply the resolved evaluator to the normalized value.
+- **Behavior**: Returns only the match boolean. `collect()` owns construction of the complete `EvaluationResult`, including timestamps, values, expected condition, source status, and normalized errors.
 
-**`collect(event: RuleEvent) -> EvaluationResult`**
+**`collect(item: MonitorWorkItem) -> EvaluationResult`**
 - **Purpose**: Convenience method that chains the full evaluation workflow in a single call.
-- **Behavior**: Internally calls `get_value(event)`, `get_evaluator(event)` (if necessary), and `run_evaluation(value, evaluator)`, then returns the final `EvaluationResult`.
+- **Behavior**: Internally calls `get_value(item)`, normalizes the raw value, obtains the materialized evaluator, calls `run_evaluation(value, evaluator)`, and returns the final `EvaluationResult`.
 - **Usage**: Monitor threads call this method in their main sampling loop. It simplifies the common case where the thread wants a complete evaluation without needing to manage intermediate steps.
-- **Example**: `result = adapter.collect(event)` → fetches I2C register, applies mask, returns violation status in one operation.
+- **Example**: `result = adapter.collect(item)` fetches an I2C register, applies the mask, and returns `MATCH`, `NO_MATCH`, or a normalized source/collection/evaluation error.
 
 #### Type-Specific Adapter Expectations
 Below are some examples of how type specific adapters will function:
-- **RedisAdapter**: Resolves database/table/key/path (or DSE aliases) and performs `HGET`/`JSON` extraction using the shared `collect()` entry point.
-- **PlatformAPIAdapter**: Uses the platform chassis object obtained from the DSE resolver, executes the requested method on the component, and returns structured results.
+- **RedisAdapter**: Uses the already-materialized database/table/key/path, reads the Redis hash, and performs deterministic nested-path extraction through `collect()`.
+- **PlatformAPIAdapter**: Requires an explicitly registered trusted hook name, calls that hook's side-effect-free `validate_source()` during materialization, and calls `collect()` only at sampling time. Uploaded rules never select an arbitrary module or reflect over a chassis object.
 - **I2CAdapter**: Converts logical bus/chip identifiers provided by the rule (or DSE) into physical addresses. Direct `event.type: i2c` monitoring is read-only and supports `get` operations only. I2C writes belong in vendor DSE operations or explicitly defined local actions where the vendor owns the side-effect contract.
 - **CLIAdapter**: Executes vendor CLI commands through the schema-defined `argv` structure without invoking a shell, normalizes stdout to the expected format, and returns parsed content.
 - **SysfsAdapter**: Reads sysfs paths exposed by the host kernel and normalizes numeric or text values according to the rule's path and `value_configs` metadata. Sysfs work is scheduled by the common monitor.
@@ -650,7 +593,7 @@ Source availability is tracked independently from hardware fault state. A missin
 | `UNAVAILABLE` | Source could not be sampled and no active graceful suspension is known, or the graceful window expired | Increment source failure counters according to `individual_max_failure_threshold` after `source_unavailable_grace_period` expires | Do not create a new active fault solely from unavailability; existing active faults remain active until a valid sample clears or reasserts |
 | `RECOVERED` | Source transitioned from `SUSPENDED` or `UNAVAILABLE` to successful sampling | Reset source failure counters after successful collection | Primary thread reevaluates signature logic using the recovered sample and publishes clear or active state as appropriate |
 
-DLDD determines graceful source handling from local service context, not from the vendor rule file:
+DLDD determines graceful source handling from trusted local service context, never from uploaded rule fields. Generic SONiC lifecycle observation and the optional installed `source_lifecycle` vendor hook feed the same policy. The hook receives the resolved source binding and may classify it as expected maintenance; it cannot be selected by uploaded YAML. If neither generic service context nor the hook identifies expected maintenance, the source is `UNAVAILABLE`, not `SUSPENDED`, and normal grace/failure thresholds apply:
 - During `config reload`, `FEATURE|dldd` disablement, host service stop, or planned reboot sequencing, DLDD marks affected sources `SUSPENDED` before stopping monitor work where possible.
 - During database Docker/Redis unavailability, Redis-backed collection, CONFIG_DB subscription, local status publication, and `FAULT_INFO` publication are unavailable. DLDD preserves local in-memory state where possible and records diagnostics to syslog until Redis returns, but Redis remains the required local publication boundary for controller-visible telemetry.
 - During producer container restart, missing Redis keys or stale Redis tables are treated as source availability events for rules that depend on those keys. DLDD should use SONiC service state when available; otherwise it falls back to the configured grace period and consecutive failure thresholds.
@@ -710,7 +653,7 @@ This per-key tracking ensures that one failing rule/component/source instance do
 During each sampling cycle, the monitor thread drains its control mailbox, validates command generation and correlation key ownership, updates `state_by_key`, and then iterates through `items_by_key`. For each correlation key:
 
 1. **Ownership Check**: Skip work keys in `IN_FLIGHT`, `HELD_BY_PRIMARY`, `BROKEN`, or `SUSPENDED` state. A `READY`, `DEGRADED`, or `RECHECK_REQUESTED` key is eligible for collection/evaluation.
-2. **Collection Attempt**: Invoke `adapter.collect(event)` which may raise exceptions.
+2. **Collection Attempt**: Invoke `adapter.collect(item)`; adapter-boundary exceptions are normalized into an `EvaluationResult`.
 3. **Success Path**: If collection succeeds, set internal tracker to the new state and update last success timestamp. Enqueue a `FaultEvidenceEvent` only when the event predicate matches, clears a previously reported match, or recovers from unavailable/broken state.
 4. **Single-Flight Transition**: After enqueueing a `FaultEvidenceEvent`, transition the key to `IN_FLIGHT` and start the acknowledgement deadline from `fault_evidence_ack_timeout`. Do not enqueue another match, clear, or source-status event for that key until the primary thread commands the next state.
 5. **Exception Path**: If collection raises an exception, handle based on exception type. Push a source-status or broken-rule `FaultEvidenceEvent` containing `RuleRuntimeStatus` details so the primary thread can decide whether to keep the key `DEGRADED`, mark it `BROKEN`, publish process/rule telemetry, or command `SUSPEND`.
@@ -743,7 +686,7 @@ Evaluation failures are considered fatal for the rule only when they indicate a 
 
 Rule health failures are published to the service state telemetry:
 
-The Redis examples in this document use a `redis-dump` style representation. The `expireat`, `ttl`, and `type` attributes describe Redis key metadata around the hash value and are not fields written into the hash by `HSET`. DLDD writes hash fields and manages key expiration separately, for example by issuing `EXPIRE`/`EXPIREAT` after `HSET` or by wrapping `HSET` and `EXPIRE` in a Redis transaction when atomic publication with a TTL is required.
+The Redis examples in this document are decoded logical views in a `redis-dump`-like envelope. The `expireat`, `ttl`, and `type` attributes describe Redis key metadata and are not fields written by `HSET`. Within the actual Redis hash, nested objects and arrays are compact JSON strings; the decoded form below is used only for readability. DLDD publishes the hash and TTL atomically where the backend supports transactions.
 
 ```json
 {
@@ -756,19 +699,27 @@ The Redis examples in this document use a `redis-dump` style representation. The
       "running_schema": "0.0.1",
       "active_rules_file": "/var/lib/sonic/dldd/rules/dld_rules.active.yaml",
       "active_rules_checksum": "sha256:3d235f8e...",
+      "active_rules_source": "inbox",
+      "activation_result": "DEGRADED",
+      "activation_fallback_used": false,
+      "previous_active_rules_checksum": "sha256:9f102ac1...",
       "individual_max_failure_threshold": 4,
       "broken_rules_max_threshold": 5,
+      "redis_monitor_polling_interval": 60,
+      "file_monitor_polling_interval": 60,
+      "common_monitor_polling_interval": 60,
       "source_unavailable_grace_period": 300,
       "source_recovery_samples": 1,
       "inactive_fault_retention_period": 3600,
       "fault_evidence_ack_timeout": 120,
       "active_fault_recheck_interval": 60,
+      "rules_inbox_settle_time": 30,
       "local_action_default_timeout": 300,
       "broken_rules": [
         {
           "rule": "PSU_OV_FAULT",
           "version": "1.0.0",
-          "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD",
+          "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD:<source-id>",
           "reason": "query_error: I2C bus 6 unavailable outside maintenance window",
           "failure_count": 3,
           "state": "DEGRADED",
@@ -777,7 +728,7 @@ The Redis examples in this document use a `redis-dump` style representation. The
         {
           "rule": "TEMP_THRESHOLD_CHECK",
           "version": "1.0.2",
-          "correlation_key": "1000002:1:ASIC 0:SYMPTOM_OVER_THRESHOLD",
+          "correlation_key": "1000002:1:ASIC 0:SYMPTOM_OVER_THRESHOLD:<source-id>",
           "reason": "evaluation_error: evaluator type mismatch",
           "failure_count": 1,
           "state": "BROKEN",
@@ -800,7 +751,7 @@ The Redis examples in this document use a `redis-dump` style representation. The
       ],
       "inflight_fault_evidence": [
         {
-          "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD",
+          "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD:<source-id>",
           "state": "HELD_BY_PRIMARY",
           "reason": "local_action_wait",
           "since": 1745614206,
@@ -808,13 +759,14 @@ The Redis examples in this document use a `redis-dump` style representation. The
           "owning_monitor": "common",
           "local_action_state": {
             "state": "WAITING_FOR_RECHECK",
-            "worker_id": "action-PSU_OV_FAULT-1735678901",
+            "worker_id": "action-PSU_OV_FAULT-a1b2c3d4e5f6",
             "started_at": 1745614206,
             "wait_until": 1745614266,
             "last_error": ""
           }
         }
       ],
+      "service_diagnostics": [],
       "reason": "1 rule(s) [PSU_OV_FAULT] degraded, 1 rule(s) [TEMP_THRESHOLD_CHECK] broken"
     }
   }
@@ -844,23 +796,31 @@ calculations also retain full precision.
 - **`running_schema`**: Version of the vendor rules schema currently loaded (e.g., `"0.0.1"`).
 - **`active_rules_file`**: Active rules file loaded by this process.
 - **`active_rules_checksum`**: Local checksum of the active rules file. This identifies the rule generation used for state recovery and controller audit; it is not a remote trust guarantee.
+- **`active_rules_source`**: Candidate class that supplied the active generation, such as `inbox`, `active`, `previous_active`, `packaged`, or `golden`.
+- **`activation_result`**: Result of selecting and validating the active generation, including a degraded activation when localized broken rules coexist with usable rules.
+- **`activation_fallback_used`**: Boolean indicating that selection advanced past a preferred candidate to a fallback generation.
+- **`previous_active_rules_checksum`**: Checksum of the previously active generation when known, used for activation audit and rollback visibility.
 - **`individual_max_failure_threshold`**: Configurable threshold for how many consecutive runtime failures a single rule/key can experience before being marked `"BROKEN"` in rule telemetry and in monitor `state_by_key`.
 - **`broken_rules_max_threshold`**: Configurable threshold for how many total broken rules will trigger the service `state` to become `"BROKEN|FATAL"`.
+- **`redis_monitor_polling_interval`**, **`file_monitor_polling_interval`**, **`common_monitor_polling_interval`**: Effective per-monitor defaults used by events that omit `sampling_interval`.
 - **`source_unavailable_grace_period`**: Seconds of unexpected source unavailability tolerated before source failures contribute to broken-rule counters.
 - **`source_recovery_samples`**: Number of consecutive successful samples required before a source transitions from unavailable/suspended to recovered.
 - **`inactive_fault_retention_period`**: Seconds to retain an inactive `FAULT_INFO` record before deleting it.
 - **`fault_evidence_ack_timeout`**: Seconds a monitor may keep a key `IN_FLIGHT` while waiting for the first primary acknowledgement or command before publishing stale ownership diagnostics and returning the key to `READY`. Intentional primary holds use an explicit `hold_deadline` supplied by `MonitorControlCommand` rather than this generic acknowledgement timeout.
 - **`active_fault_recheck_interval`**: Default interval in seconds for primary-owned rechecks of active or held faults when no local action `wait_period` is currently driving a more specific recheck time.
+- **`rules_inbox_settle_time`**: Required stable size/mtime duration before the watcher treats a directly written inbox file as complete.
 - **`local_action_default_timeout`**: Default timeout in seconds loaded from the active rules source for local actions that do not specify a per-action timeout. Omitted or empty when the rules source does not define a default and every local action declares its own timeout.
 - **`broken_rules`**: Array of rules or rule keys that failed ingestion validation, are currently degraded, or exceeded runtime failure thresholds. The field name is retained for compatibility and operator clarity, but the array intentionally includes both `DEGRADED` and `BROKEN` rule health records. Empty array when `state` is `"OK"`.
-- **`source_status`**: Array of source availability records for Redis, platform, I2C, CLI, sysfs, file, or DSE sources that are currently unavailable or suspended. These records are separate from `broken_rules` so graceful service transitions do not look like hardware faults or invalid rules.
+- **`source_status`**: Array of source availability records for Redis, platform, I2C, CLI, sysfs, file, or DSE sources that are unavailable, suspended, or in the bounded recovered-observation period. These records are separate from `broken_rules` so graceful service transitions do not look like hardware faults or invalid rules.
 - **`inflight_fault_evidence`**: Array of correlation keys currently owned by the primary thread or waiting for a primary command. Empty array when there are no held or in-flight keys.
+- **`service_diagnostics`**: Bounded array of service-level diagnostics such as stale command, queue, monitor, or lifecycle errors that are not rule authoring failures.
 - **`reason`**: Human-readable explanation of the current state. Empty when `state` is `"OK"`.
 
 **Broken Rule Object Fields**:
 - **`rule`**: Rule identifier from the signature metadata.
 - **`version`**: Rule version from the signature metadata.
 - **`correlation_key`**: Present for runtime failures when the degraded/broken state applies to a specific rule/event/component/source key. Omitted for ingestion-time validation failures that never entered a monitor plan.
+- Correlation keys use `rule_id:event_id:component_name:symptom:source_id`. `source_id` is `<source-type>:<canonical-json(binding)>`, so it can contain additional colons; the placeholder in the decoded example avoids embedding a large binding object.
 - **`reason`**: Detailed failure cause with error type prefix (`"query_error:"`, `"evaluation_error:"`, `"schema_error:"`, `"dse_error:"`, `"validation_error:"`).
 - **`failure_count`**: Number of consecutive failures observed for this rule.
 - **`state`**: Rule-level health status. Values:
@@ -882,7 +842,7 @@ calculations also retain full precision.
 
 **In-Flight Fault Evidence Object Fields**:
 - **`correlation_key`**: Stable key for the held rule/event/component/symptom/source instance.
-- **`state`**: Monitor work state (`IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, `BROKEN`, or `SUSPENDED`; `READY` and `DEGRADED` keys are normally omitted from this array unless included for diagnostics).
+- **`state`**: Monitor work state (`COLLECTING`, `IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, `BROKEN`, or `SUSPENDED`). `READY` and `DEGRADED` are omitted.
 - **`reason`**: Human-readable reason the key is held, such as `fifo_pending`, `signature_candidate`, `local_action_running`, `local_action_wait`, `post_action_recheck`, or `broken_rule`.
 - **`since`**: Unix timestamp in seconds when the key entered the current state.
 - **`hold_deadline`**: Unix timestamp in seconds when an intentional primary hold should be treated as stale. For local-action holds, this deadline is derived from the action timeout, `wait_period`, recheck budget, and an implementation safety margin.
@@ -940,21 +900,22 @@ and 4,096 per generation. Aggregate rule summaries are always retained;
 omitted detail is counted in `work_items_omitted`, and `detail_truncated` in the
 index marks a bounded generation.
 
-### Service Configuration
+## Service Configuration
 
-#### Host Service Placement
+### Host Service Placement
 
 DLDD is deployed as a host-level systemd service (`dldd.service`). It is not a PMON daemon and is not supervised inside any SONiC Docker container. This separation is required so failures, restarts, or reloads of PMON and other SONiC containers do not directly terminate DLDD.
 
 The service should be integrated with SONiC service management as a host service:
-- `dldd.service` is started and stopped by systemd on the host.
-- The database Docker/Redis service is a required dependency because DLDD uses Redis for `FEATURE`/`DLDD_CONFIG`, Redis-sourced rule data, service status, and `FAULT_INFO` publication. `dldd.service` should start after and require the SONiC database service, using the appropriate host systemd dependency for the platform. If Redis is unavailable after startup, DLDD cannot publish controller-visible local telemetry and should report through syslog until the dependency recovers.
+- `dldd.service` is started and stopped by systemd on the host. The package is installed with `--no-start --no-enable`; the standard SONiC `FEATURE`/`featured` path owns enablement.
+- The unit declares `Requires=database.service config-setup.service`, orders itself `After=` both units, binds/orders to `sonic.target`, and wants `dldd-rules-watch.timer`. It uses `Restart=on-failure` with `RestartSec=10`.
+- The database Docker/Redis service is a required dependency because DLDD uses Redis for `FEATURE`/`DLDD_CONFIG`, Redis-sourced rule data, service status, and `FAULT_INFO` publication. If an in-process Redis operation fails while the required service remains up, DLDD reports through syslog/status where possible and retries according to the relevant source/publication policy.
 - gNMI/UMF and gNOI Healthz are remote export and artifact dependencies. A gNMI/gNOI outage should not prevent DLDD from publishing local Redis telemetry when Redis is available, but it prevents remote subscription/artifact retrieval until those services recover.
 - `FEATURE|dldd` controls whether the service is enabled.
 - Non-database peer service or container failures are treated as source-specific runtime failures. For example, if a Redis table is temporarily unavailable because a producer container restarted, only rules that depend on that Redis source should enter unavailable/degraded state according to DLDD thresholds.
 - A deliberate `config reload`, feature disable, reboot, or operator service action may stop or restart DLDD according to the lifecycle matrix below; peer container crashes must not.
 
-#### Enable/Disable Service
+### Enable/Disable Service
 
 DLDD follows the standard SONiC pattern for service management using the `FEATURE` table in CONFIG_DB. This ensures consistent enable/disable behavior with other SONiC services while keeping DLDD outside Docker and PMON process supervision.
 
@@ -991,7 +952,7 @@ sudo config feature state dldd disabled
 show feature status dldd
 ```
 
-#### Threshold Configuration
+### Threshold Configuration
 
 The failure thresholds (`individual_max_failure_threshold` and `broken_rules_max_threshold`) control when rules and the service transition between health states. Source grace and retention settings control how DLDD handles temporary source loss and inactive fault records. Monitor polling intervals are the effective defaults for materialized events that omit `sampling_interval`; an explicit event interval takes precedence for that work item. These settings are stored in CONFIG_DB under the `DLDD_CONFIG` table.
 
@@ -1019,7 +980,7 @@ The failure thresholds (`individual_max_failure_threshold` and `broken_rules_max
 
 **Vendor Defaults**:
 
-Vendors can provide platform-specific defaults in `/usr/share/sonic/device/<platform>/dldd-config.yaml`. This file is an on-disk fallback. On service start, DLDD reads it when no `DLDD_CONFIG` entry exists or when explicit fallback behavior is needed. DLDD applies the values to the running process but does not write vendor defaults into CONFIG_DB at runtime; persistent operator configuration remains in CONFIG_DB.
+Vendors can provide platform-specific defaults in `/usr/share/sonic/device/<platform>/dldd-config.yaml`. On service start, DLDD loads these defaults first and then overlays non-empty `DLDD_CONFIG|global` values from CONFIG_DB. Hardcoded defaults supply fields absent from both sources. DLDD does not write vendor defaults into CONFIG_DB at runtime; persistent operator configuration remains in CONFIG_DB.
 
 ```yaml
 dldd_config:
@@ -1081,7 +1042,7 @@ sudo config dldd rules-inbox-settle-time 30
 show dldd config
 ```
 
-#### Operational Show Commands
+### Operational Show Commands
 
 ```bash
 # Effective configuration and service health
@@ -1125,7 +1086,7 @@ DLDD subscribes to `DLDD_CONFIG` changes via Redis SUBSCRIBE and applies runtime
 2. Vendor platform defaults (`/usr/share/sonic/device/<platform>/dldd-config.yaml`)
 3. Hardcoded service defaults (fallback)
 
-#### Controller Actions
+### Controller Actions
 
 - **Key expired or missing**: Check `FEATURE|dldd` first. If DLDD is disabled, absence of `DLDD_STATUS` is expected configuration state. If enabled, DLDD likely crashed or cannot reach Redis; attempt service restart or more aggressive restart
 - **`state: "DEGRADED"`**: Review `broken_rules`, consider pushing updated rule definitions or adjusting thresholds via CONFIG_DB. Can be considered a NO-OP
@@ -1147,9 +1108,9 @@ DLDD subscribes to `DLDD_CONFIG` changes via Redis SUBSCRIBE and applies runtime
 
 ### gNOI Healthz Integration
 - **Artifact Generation**: At the normative trigger point defined in [Vendor Action and Log Semantics](#vendor-action-and-log-semantics), if the triggered rule defines `log_collection`, DLDD schedules the configured logs and queries on async worker context, obtains or creates a Healthz artifact identifier, and publishes that identifier with the fault metadata. Artifact content collection and packaging continue asynchronously and are not part of the local action result; they do not block post-action recheck or final controller-visible `FAULT_INFO` publication. If `log_collection` is omitted, DLDD still publishes `FAULT_INFO` without rule-defined artifacts once the fault reaches the normal controller-visible publication point.
-- **Artifact Lifecycle**: Healthz maintains these artifacts with configurable retention and size policies, ensuring recent fault diagnostics are available for controller `get` operations while managing storage limits
-- **Structured Bundling**: Artifacts include fault metadata (rule ID, timestamp, component info) alongside the collected diagnostic data, providing full context for post-mortem analysis
-- **Remote Access**: Controllers retrieve artifacts via gNOI Healthz `get` operations, enabling centralized log aggregation without requiring direct device access or custom file transfer mechanisms
+- **Artifact Lifecycle**: DLDD's `FilesystemArtifactClient` owns generation, storage, and pruning under `/var/lib/sonic/dldd/artifacts`. Defaults are two artifact workers, a 20-artifact retention limit, a 50 MiB maximum artifact size, and a 20-job waiting queue.
+- **Structured Bundling**: Each archive includes `metadata.json`, bounded query outputs, and glob-expanded static logs. Static capture accepts regular files only, does not follow symlinks, and does not recurse through directories.
+- **Remote Access**: The authenticated gNOI Healthz `Artifact` RPC safely resolves and streams a completed DLDD artifact. It sends a size/SHA-256 header, bounded chunks, and a completion trailer; gNOI does not create or retain the archive.
 
 ### Security Assumptions and Trust Boundaries
 
@@ -1160,13 +1121,13 @@ DLDD treats vendor-provided rules and DSE mappings as trusted vendor diagnostic 
 - **Local action privilege**: Local actions run under the same privilege context as the DLDD service, which is root for the host service design. The rules schema and DSE binding identify vendor-defined actions; the vendor owns ensuring those actions are safe for the platform and non-disruptive to traffic.
 - **CLI execution**: CLI collection and CLI log queries use schema-defined `argv` objects and execute without a shell. Pipelines, redirection, command substitution, and shell parsing are not part of DLDD CLI execution. The vendor owns the safety and expected output of the selected executable and arguments.
 - **I2C execution**: Direct I2C monitoring events are read-only. I2C writes are allowed only through vendor DSE or explicit local action definitions where the vendor owns the side-effect contract.
-- **Log collection bounds**: DLDD follows the schema and declared query timeout rules for log collection. Query timeouts are optional; if omitted, DLDD does not synthesize a schema-level timeout. Healthz owns artifact retention and storage bounds for generated diagnostic artifacts. Long-running or failed artifact generation is reflected in artifact/audit status and does not block fault telemetry publication.
+- **Log collection bounds**: DLDD follows the schema and declared query timeout rules for log collection. Query timeouts are optional; if omitted, DLDD does not synthesize a schema-level timeout. The DLDD artifact client owns retention and storage bounds. Long-running or failed artifact generation is reflected in artifact/audit status and does not block fault telemetry publication.
 - **Remote ACTION_* handling**: DLDD publishes remote remediation actions as controller-visible recommendations. Controller policy decides whether to execute disruptive actions such as reboot, power cycle, factory reset, or replacement workflow.
 - **Audit**: Rule activation, validation failure, rollback, local action execution result, Healthz artifact creation, and service state changes should be recorded in syslog and reflected in DLDD status/audit telemetry where practical.
 
 ## Implementation File Map
 
-The runtime is intentionally split along the ownership boundaries shown in Figure 2. The paths below are the authoritative implementation locations; test files are listed with the component they protect.
+The runtime is intentionally split along the ownership boundaries shown in Figure 1. The paths below are the authoritative implementation locations; test files are listed with the component they protect.
 
 | Repository | Files | Responsibility |
 |------------|-------|----------------|
@@ -1193,7 +1154,7 @@ The Pydantic dependency is a host runtime dependency, not an optional authoring 
 ### Redis Fault Reporting
 Fault information is published to Redis `FAULT_INFO` table in the STATE_DB. Conversion into OpenConfig is handled by UMF. Redis field names are chosen to remain clear when operators inspect Redis directly; they are not required to match OpenConfig leaf names one-to-one.
 
-The following example is shown in `redis-dump` style. `expireat`, `ttl`, and `type` are Redis key metadata for the `FAULT_INFO|...` hash and are not part of the hash fields consumed by UMF.
+The following example is a decoded logical view in a `redis-dump`-style envelope. `expireat`, `ttl`, and `type` are Redis key metadata for the `FAULT_INFO|...` hash and are not part of the hash fields consumed by UMF.
 
 The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`. UMF owns translation from this Redis source structure into OpenConfig paths, but DLDD must keep the logical payload fields and nested object shape stable across vendors for a given schema version. If the implementation stores the payload as a Redis hash, nested objects and arrays are stored as JSON-encoded hash field values while preserving the logical structure shown here. Vendors should not publish different logical field shapes for the same schema version.
 
@@ -1262,15 +1223,15 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
       ],
       "local_action_state": {
         "state": "COMPLETED",
-        "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD",
-        "worker_id": "action-PSU_OV_FAULT-1735678901",
+        "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD:<source-id>",
+        "worker_id": "action-PSU_OV_FAULT-a1b2c3d4e5f6",
         "started_at": 1745614206,
         "completed_at": 1745614266,
         "action_suppressed": true,
         "last_error": ""
       },
       "healthz_artifact": {
-        "artifact_id": "dldd-PSU_OV_FAULT-PSU0-1745614266",
+        "artifact_id": "dldd-0123456789abcdef0123456789abcdef.tar.gz",
         "state": "REQUESTED",
         "requested_at": 1745614266,
         "completed_at": null,
@@ -1289,7 +1250,7 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
 ```
 
 **Field Descriptions**:
-- **Key Format**: `FAULT_INFO|<COMPONENT_NAME>|<SYMPTOM>` where `COMPONENT_NAME` is the canonical vendor/platform component name for the affected instance. If an implementation escapes separators or whitespace for Redis key safety, the mapping must be reversible and UMF must translate it back to the canonical component name.
+- **Key Format**: `FAULT_INFO|<percent-encoded-COMPONENT_NAME>|<percent-encoded-SYMPTOM>`. DLDD percent-encodes both components with no safe characters; UMF percent-decodes them and requires the decoded values to match the `component_name` and `symptom` hash fields.
 - **`rule`**: Rule identifier from the vendor rules schema that triggered this fault
 - **`rule_id`**: Numeric rule identifier from the vendor rules schema
 - **`rule_version`**: Rule version from the vendor rules schema
@@ -1314,11 +1275,12 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
 - **`remote_action_time_window`**: Time window in seconds from the rule used by the controller for remote escalation decisions
 - **`repair_actions`**: Ordered list of controller-visible remediation recommendations from the rule. List position is the remediation index for OpenConfig translation. In schema version `0.0.1`, rule entries contain only an `action`; UMF uses `component_name` as the OpenConfig remediation target. A later schema revision may add an explicit target override if remediation target and affected component need to differ.
 - **`actions_taken`**: Local actions already executed by DLDD according to vendor rule definitions; empty array if no local actions were taken
-- **`local_action_state`**: Final DLDD-local action state at the time `FAULT_INFO` is published. Values include `IDLE`, `COMPLETED`, `FAILED`, and `SUPPRESSED`. In-progress states such as `RUNNING` or `WAITING_FOR_RECHECK` are published through `DLDD_STATUS|process_state` while the candidate fault is held and are not controller-visible `FAULT_INFO` states. When a fault is active and actions have already been scheduled, `action_suppressed: true` indicates that repeated matches for the same active lifetime will not start another identical local action sequence. This metadata is also present on recovered `INACTIVE` records when DLDD local action clears the condition. It is DLDD diagnostic metadata and is not a native Healthz leaf.
+- **`local_action_state`**: Final DLDD-local action state at the time `FAULT_INFO` is published: `IDLE`, `COMPLETED`, or `FAILED`. In-progress states such as `RUNNING` or `WAITING_FOR_RECHECK` are published through `DLDD_STATUS|process_state` while the candidate fault is held and are not controller-visible `FAULT_INFO` states. Suppression is the separate `action_suppressed` boolean; it is not a state value. This metadata is also present on recovered `INACTIVE` records when a DLDD local action clears the condition. It is DLDD diagnostic metadata and is not a native Healthz leaf.
 - **`healthz_artifact`**: Optional Healthz artifact request metadata for rule-defined `log_collection`. `artifact_id` is published once DLDD successfully triggers artifact generation, even if the artifact content is still being collected asynchronously. `state` tracks the artifact request lifecycle (`REQUESTED`, `RUNNING`, `COMPLETED`, or `FAILED`) when DLDD has that status available. Artifact state does not gate local action result, post-action recheck, or `FAULT_INFO` publication.
+- **`source_stale`**: Optional boolean set when an already-published fault is retained while required source data is unavailable; source absence alone does not assert a new hardware fault.
 - **`severity`**: Fault severity level from rule metadata. This is rule-derived DLDD metadata and is not a native OpenConfig Healthz fault leaf.
 - **`symptom`**: OpenConfig-defined symptom enum that categorizes the fault for standardized controller processing
-- **`status`**: OpenConfig fault status (`ACTIVE`, `INACTIVE`, or `UNSPECIFIED`). A local-action rule that clears on post-action recheck is published as `INACTIVE`, not hidden, so controllers can observe that DLDD detected and recovered the condition.
+- **`status`**: DLDD publishes `ACTIVE` or `INACTIVE`. A local-action rule that clears on post-action recheck is published as `INACTIVE`, not hidden, so controllers can observe that DLDD detected and recovered the condition. `UNSPECIFIED` may exist in the OpenConfig/filter vocabulary but is not emitted by DLDD.
 - **`origin_time`**: Whole Unix epoch seconds, floored at publication, when the fault first became active for this fault lifetime. UMF converts this value to OpenConfig nanoseconds.
 - **`last_detection_time`**: Whole Unix epoch seconds, floored at publication, when DLDD last detected a fault state change for this record, including the assertion to `ACTIVE` or the clear observation to `INACTIVE`. UMF converts this value to OpenConfig nanoseconds.
 - **`occurrences`**: Count of `INACTIVE` to `ACTIVE` transitions for this fault; starts at 1 when the fault is first added
@@ -1341,7 +1303,7 @@ UMF translates `FAULT_INFO` into the OpenConfig platform Healthz fault model. Th
 | `repair_actions[*].action` | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/action` |
 | `component_name` default target | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/target` |
 
-The following fields are DLDD/SONiC diagnostic metadata and are not native Healthz leaves unless a SONiC extension, OpenConfig identity mapping, or separate OpenConfig alarms mapping is added: `rule`, `rule_id`, `rule_version`, `schema_version`, `active_rules_checksum`, `error_type`, `events`, `actions_taken`, `local_action_state`, `healthz_artifact`, `severity`, and `remote_action_time_window`.
+The following fields are DLDD/SONiC diagnostic metadata and are not native Healthz leaves unless a SONiC extension, OpenConfig identity mapping, or separate OpenConfig alarms mapping is added: `rule`, `rule_id`, `rule_version`, `schema_version`, `active_rules_checksum`, `error_type`, `events`, `actions_taken`, `local_action_state`, `healthz_artifact`, `source_stale`, `severity`, and `remote_action_time_window`.
 
 #### Fault Lifecycle and TTL
 
@@ -1357,18 +1319,24 @@ When the signature logic clears, DLDD updates the existing record with `status: 
 - **Rules Inbox**: `/var/lib/sonic/dldd/inbox/dld_rules.yaml` (runtime delivery path for remotely supplied rules via gNOI File service)
 - **Active Rules Copy**: `/var/lib/sonic/dldd/rules/dld_rules.active.yaml` (DLDD-owned, validated copy used at service start)
 - **Versioned Rules Copies**: `/var/lib/sonic/dldd/rules/dld_rules.<generation>.yaml` (validated historical copies used for rollback and audit; generation may be a timestamp plus checksum prefix)
+- **Activation Manifest**: `/var/lib/sonic/dldd/rules/activation.json` (active/previous generation paths, platform identity, and bounded activation history)
+- **Failed Candidates**: `/var/lib/sonic/dldd/rules/dld_rules.failed.<generation>-<source>-<checksum>.yaml` (bounded archives of rejected activation candidates)
 - **Golden Backup**: `/usr/share/sonic/device/<platform>/dld_rules_golden.yaml` (fallback configuration)
-- **DSE Configuration**: `/usr/share/sonic/device/<platform>/dld_dse.yaml` (platform-specific Data Source Extension mappings for abstract identifiers)
+- **DSE Configuration**: `/usr/share/sonic/device/<platform>/dld_dse.yaml` (optional opaque vendor input passed to installed `sonic_platform.dldd.create_dse_registry(...)`; generic DLDD defines no universal mapping format)
 - **State Data**: `/var/lib/sonic/dld_state.json` (persistent broken-rule execution tracking; does not store active fault records or in-memory queues)
+- **Watcher State**: `/var/lib/sonic/dldd/rules/.watch-state.json` (last accepted stable inbox identity/checksum)
+- **Artifacts**: `/var/lib/sonic/dldd/artifacts/` (DLDD-owned Healthz archives and state manifests)
 - **Update Lock**: `/var/lib/sonic/dldd/rules/.dldd-rules-update.lock` (advisory lock used to serialize watcher-triggered restarts, DLDD startup validation/promotion, and any manual activation command)
 
 **Startup Rule Selection**:
-1. DLDD first determines whether a stable rules inbox candidate exists. The watcher may have restarted DLDD because a stable inbox file appeared, but DLDD is the process that validates and decides whether that inbox file is usable.
-2. DLDD validates the packaged rules file and DSE configuration for the current image/platform when present. Candidate comparison uses local generation identity, including checksum and source class (`inbox`, `packaged`, `active`, or `golden`). If the selected candidate is not the same generation as the existing active copy, or if the active copy references an incompatible schema/DSE/platform generation, DLDD promotes the selected candidate into a versioned generation and updates `dld_rules.active.yaml` before service evaluation. If the selected candidate has the same checksum as the active copy, DLDD may reuse the active copy without moving files.
-3. If `dld_rules.active.yaml` exists after candidate comparison and passes activation validation against the current schema and DSE configuration, DLDD loads it.
-4. If no active copy exists, DLDD validates the packaged rules file and promotes it into the active rules path.
-5. If packaged rules are absent or invalid, DLDD validates and promotes the golden backup.
-6. If no valid rules file exists, or every candidate materializes zero usable rules for the current platform, DLDD starts in `BROKEN|FATAL` service state with an empty execution plan, publishes diagnostics when Redis is available, and continues running so operators/controllers can recover the device by supplying valid rules.
+1. Add a watcher-accepted stable inbox candidate when it has not already been attempted.
+2. If detected platform identity changed since the activation manifest, add packaged rules before the active copy so a new image/platform generation can replace an incompatible active generation.
+3. Add the current active copy.
+4. Add the previous active generation recorded in the activation manifest.
+5. If platform identity did not change, add packaged rules after active and previous-active candidates.
+6. Add the golden rules file last.
+7. Remove duplicate paths while preserving this order, then validate candidates sequentially. The first candidate that passes activation becomes the selected generation; failure or zero usable rules advances to the next candidate.
+8. If no candidate activates, DLDD starts in `BROKEN|FATAL` service state with an empty execution plan, publishes diagnostics when Redis is available, and continues running so operators/controllers can recover the device by supplying valid rules.
 
 The active copy is therefore a validated runtime generation, not an unconditional override of packaged platform rules or a pending gNOI-delivered candidate.
 
@@ -1394,7 +1362,7 @@ DLDD maintains persistent state in `/var/lib/sonic/dld_state.json` only for brok
 3. Re-applies restored `BROKEN` rule/key state by initializing `state_by_key` after plans are built, avoiding re-evaluation of known bad runtime keys without mutating `items_by_key`.
 4. Creates a new state file if none exists.
 
-Explicit clean starts, including `systemctl restart dldd`, `config reload`, and rule activation restart, clear the state file before evaluation. In-memory monitor queues and `next_sample_due` cadence state are not restored because they are process-local execution state. After a clean start, DLDD selects and validates the active rules generation, builds monitor plans with every eligible work item immediately due, reconciles existing DLDD-owned active `FAULT_INFO` records against that plan, and schedules bootstrap rechecks for records that still map to current monitor work before normal publication.
+Graceful shutdown writes `clean_shutdown: true` to the state file. On a clean start—including `systemctl restart dldd`, `config reload`, and rule activation restart—DLDD ignores persisted broken-rule state even if the file remains on disk. In-memory monitor queues and `next_sample_due` cadence state are never restored. DLDD selects and validates the active generation, builds every eligible work item as immediately due, reconciles existing DLDD-owned active `FAULT_INFO` records, and schedules bootstrap rechecks before normal publication. Only an unclean recovery may restore checksum- and identity-matching `BROKEN` records.
 
 **State Reset and Retention**:
 
@@ -1402,8 +1370,8 @@ Explicit clean starts, including `systemctl restart dldd`, `config reload`, and 
 |-----------------|-------------------|---------------------|
 | Non-database Docker/PMON crash or restart | Unchanged | Preserve state; affected sources enter unavailable/degraded handling per rule |
 | Database Docker/Redis unavailable | Unchanged | Preserve in-memory state if possible; record to syslog and suspend Redis-dependent collection/publication until Redis returns |
-| `systemctl restart dldd` | Revalidated against stable inbox, packaged rules, active copy, and current DSE | Clear state file, fully reevaluate broken rules, and reconcile existing active `FAULT_INFO` records through bootstrap recheck |
-| `config reload` | Usually unchanged | Restart host service through SONiC sequencing; clear state file and fully reevaluate |
+| `systemctl restart dldd` | Revalidated using the ordered candidate policy | Ignore state marked as clean shutdown, fully reevaluate broken rules, and reconcile existing active `FAULT_INFO` records through bootstrap recheck |
+| `config reload` | Usually unchanged | Restart host service through SONiC sequencing; ignore clean-shutdown broken state and fully reevaluate |
 | Rule update activation | Changed | Discard broken-rule state tied to the previous active rules checksum; start fresh for the new active rules copy and reconcile existing active `FAULT_INFO` records against the new execution plan |
 | Feature disable/enable | Unchanged | Feature state is switch configuration. If enable starts a fresh DLDD process, broken-rule state is reevaluated from current active rules and sources |
 | Cold/warm/fast reboot | Revalidated against stable inbox, packaged rules, active copy, and current DSE | Start from selected active rules and sources; stale broken-rule state is ignored if it does not match the active generation; existing active `FAULT_INFO` records are reconciled by bootstrap recheck or marked inactive if no longer mappable |
@@ -1461,7 +1429,7 @@ Remote file delivery and local promotion are separate concerns. DLDD does not as
 - **Schema Gate**: The validation model in `vendor-rules-schema-hld.md` is the authority for whether a staged rules file can be promoted. Parser, exact model-registry, and shallow envelope failures reject the candidate. Localized per-signature Pydantic, semantic, and materialization failures become broken-rule telemetry when at least one usable rule remains. Zero usable rules is an activation failure.
 - **Absent File Handling**: If the inbox file disappears, watcher leaves DLDD running on the existing active generation. If the active copy disappears or fails validation, DLDD startup chooses packaged rules or golden backup according to the startup rule selection policy.
 - **Golden Backup Maintenance**: The golden backup is the platform/vendor fallback and should be protected from normal generation retention cleanup. If a deployment allows updating it, update should happen only after successful activation and operator/controller acceptance, not merely after parsing validation.
-- **Generation Retention**: DLDD should retain a bounded number of previous valid generations and failed activation candidates for audit and rollback. Retention policy should be storage-aware and must not delete the active generation, the most recent previous valid generation, or the golden backup.
+- **Generation Retention**: By default DLDD retains five versioned valid generations while protecting active and previous-active paths, and keeps 20 activation-attempt history entries. Failed-candidate archives are bounded separately. The golden backup is outside the runtime rules directory and is never removed by generation pruning.
 
 
 
@@ -1508,8 +1476,8 @@ sudo dldd validate-rules --file /path/to/dld_rules.yaml --json
 Schema version: 0.0.1
 Rules parsed successfully: 43
 Rules failed validation: 2
-  - PSU_TEMP_THRESHOLD: Missing required field 'severity' in rule metadata
-  - FAN_SPEED_CHECK: DSE reference '{fan*}:{get_speed_fault()}' not found in platform config
+  - PSU_TEMP_THRESHOLD: $.signatures[3].signature.metadata.severity (line 148): field is required (missing_field)
+  - FAN_SPEED_CHECK: $.signatures[8].signature.conditions.events[0].event.path (line 327): DSE reference could not be resolved (dse_resolution_failed)
 File-level result: PASSED
 Rule-level result: DEGRADED
 ```
@@ -1517,7 +1485,7 @@ Rule-level result: DEGRADED
 **Implementation Notes**:
 - Activation validation runs in dry-run mode without starting monitor threads, calling adapter source-read/collection methods, or executing local remediation actions; trusted validation hooks are contractually required to remain side-effect-free
 - Activation validation verifies DSE resolution, evaluator construction, action/log schema contracts, and compatibility checks, but does not guarantee runtime data-source availability or vendor action safety
-- Installed exact-version Pydantic v2 models are the sole runtime structural authority. The immutable registry binds shallow-envelope, per-signature, and publication models to explicit DTO-to-domain conversion. Context-free semantics execute in model validators; generic DSE/platform materialization consumes only the converted immutable domain model
+- Installed exact-version Pydantic v2 models are the sole runtime structural authority. The immutable registry binds shallow-envelope, per-signature, and fully nested document models to explicit DTO-to-domain conversion. Context-free semantics execute in model validators; generic DSE/platform materialization consumes only the converted immutable domain model
 - Pydantic and compatible `pydantic-core` versions are pinned and qualified for every supported SONiC Python version and architecture. Registry/model mismatches or dependency import failures are image/package failures, not vendor-rule errors
 - String regular-expression evaluators use the pinned `regex` engine with a 100 ms search deadline; timeout is reported as an evaluator error
 - A deterministic Draft 2020-12 JSON Schema is generated from the fully nested Pydantic model for vendor/offline tooling. It is derivative, is not opened by the daemon, and is not a runtime fallback or second validation authority. Semantics that JSON Schema cannot express exactly, including Python integer-versus-float parsing and numeric bounds applied after parsing a mask string, are identified with `x-dldd-runtime-constraint`; the installed Pydantic model remains authoritative.
@@ -1532,7 +1500,7 @@ Rule-level result: DEGRADED
 
 Each adapter type (Redis, Platform API, I2C, CLI, sysfs, File) requires comprehensive unit tests with mocked underlying libraries to validate the adapter interface implementation without hardware dependencies.
 
-All adapters must pass conformance tests for the DataSourceAdapter interface using mock data sources to validate the underlying logic without hardware dependencies. Tests must verify that `validate()` correctly identifies invalid configurations, `get_value()` returns properly formatted values matching `value_configs` specifications, `get_evaluator()` constructs correct evaluation logic from rule definitions, `run_evaluation()` produces EvaluationResult objects with correct violation status, and `collect()` chains the full workflow while handling exceptions appropriately.
+All adapters must pass conformance tests for the `DataSourceAdapter` interface using mock data sources. Tests verify that `validate()` rejects invalid configuration without source access, `get_value()` returns the raw transport value, `get_evaluator()` returns the materialized evaluation mapping, `run_evaluation()` returns the correct boolean, and `collect()` performs normalization and returns a typed `EvaluationResult` while converting source, collection, and evaluation exceptions appropriately.
 
 ### Integration Testing
 
@@ -1575,7 +1543,7 @@ Platform testing validates DLDD behavior on actual hardware with vendor-provided
 
 **Rule Limitations**:
 - Rules must conform to the schema defined in `vendor-rules-schema-hld.md`
-- DSE references must be defined in the platform-specific DSE configuration file (`/usr/share/sonic/device/<platform>/dld_dse.yaml`)
+- DSE references must resolve through the trusted installed `DSERegistry`. A platform may use `/usr/share/sonic/device/<platform>/dld_dse.yaml` as opaque vendor input to its fixed `sonic_platform.dldd.create_dse_registry(...)` factory, but the generic daemon does not require or parse a universal mapping format.
 
 **Platform Dependencies**:
 - Requires the SONiC database Docker/Redis service for configuration, Redis-sourced data collection, service-status publication, and `FAULT_INFO` publication
