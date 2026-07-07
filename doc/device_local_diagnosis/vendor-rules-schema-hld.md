@@ -684,7 +684,7 @@ The resulting responsibilities are:
 | Function bank | Maps vendor configuration aliases to reviewed installed Python handlers and enforces permitted uses. It never imports a rule-selected module or evaluates a rule-selected expression. |
 | Backend handler | Implements Redis, Platform API, SDK, I2C, sysfs, file, or another vendor mechanism behind the abstract capability. |
 
-Core DLDD does not prescribe a YAML layout for this vendor-private mapping. The Cisco reference implementation uses the following shape solely as its own configuration contract:
+Core DLDD does not prescribe a YAML layout for this vendor-private mapping. The concrete reference files are identified in the daemon HLD's cross-repository implementation map. The included non-normative platform reference implementation uses the following shape solely as its own configuration contract:
 
 ```yaml
 function_bank:
@@ -727,7 +727,7 @@ selectors:
           unit: celsius
 ```
 
-Here `temperature*`, `get_value()`, and `get_high_threshold()` remain transport-neutral. Only Cisco's opaque mapping mentions STATE_DB. The expansion binding contains enough vendor-private identity for the chosen function handler, while another function under the same selector may instead use the instance name to call Platform API or an SDK. A function must be explicitly present under the selected selector; being registered in the global function bank does not expose it automatically.
+Here `temperature*`, `get_value()`, and `get_high_threshold()` remain transport-neutral. Only the opaque platform mapping mentions STATE_DB. The expansion binding contains enough vendor-private identity for the chosen function handler, while another function under the same selector may instead use the instance name to call Platform API or an SDK. A function must be explicitly present under the selected selector; being registered in the global function bank does not expose it automatically.
 
 #### DSE Reference Grammar
 
@@ -755,7 +755,7 @@ The monitor invokes the handles at runtime:
 - `DSEEvaluationHandle.get_evaluator(invocation_context)` runs at event sampling time and returns an expected value/operator mapping or a trusted complete comparator contract.
 - `DSEExpansionPolicy` supplies bootstrap scan count/spacing, warmup monitor-cycle count, and stable rescan interval. The common monitor owns and executes this policy; the primary orchestration thread never calls DSE source/evaluator functions.
 
-This split allows a vendor DSE source to discover instances periodically while reading fast-changing values and thresholds every event sample. For example, Cisco's abstract `current*` selector may use a private STATE_DB expansion handler every five minutes once stable, while `get_value()` rereads `current` and `get_high_threshold()` rereads `high_threshold` every five-second sample. Direct Redis paths likewise query the configured source on every sample; a direct value is never cached merely because its rule was materialized.
+This split allows a vendor DSE source to discover instances periodically while reading fast-changing values and thresholds every event sample. For example, a platform's abstract `current*` selector may use a private STATE_DB expansion handler every five minutes once stable, while `get_value()` rereads `current` and `get_high_threshold()` rereads `high_threshold` every five-second sample. Direct Redis paths likewise query the configured source on every sample; a direct value is never cached merely because its rule was materialized.
 
 In the rules source, the event path would be defined like so:
 ```yaml
@@ -763,7 +763,7 @@ In the rules source, the event path would be defined like so:
 path: "{psu*}:{get_output_voltage_fault_register()}"
 ```
 
-The Cisco reference sensor rules use the same single-event shape for all
+The platform reference sensor rules use the same single-event shape for all
 instances; discovery supplies one binding per matching STATE_DB key:
 
 ```yaml
@@ -801,9 +801,9 @@ A direct event with explicit `instances` is also an instanced source and may use
 
 Source inventory may be incomplete while SONiC producers are starting, and no generic API can prove it globally complete. DLDD therefore treats repeated unchanged scans as stable rather than claiming completeness. The monitor-owned state machine is:
 
-1. **BOOTSTRAP**: run the vendor-configured number of closely spaced expansion scans. The Cisco reference uses two scans five seconds apart. No source/evaluator value reads occur merely because expansion ran.
-2. **WARMUP**: sample every currently expanded child for one full monitor cycle, then rescan. Repeat for the configured number of unchanged cycles; the Cisco reference uses three. Any binding change resets the unchanged count.
-3. **STABLE**: rescan at the vendor stable interval; the Cisco reference uses 300 seconds. A changed fingerprint returns to WARMUP. Child `get_value()` and `get_evaluator()` still run at normal event cadence during this interval.
+1. **BOOTSTRAP**: run the vendor-configured number of closely spaced expansion scans. The included platform reference policy uses two scans five seconds apart. No source/evaluator value reads occur merely because expansion ran.
+2. **WARMUP**: sample every currently expanded child for one full monitor cycle, then rescan. Repeat for the configured number of unchanged cycles; the included platform reference policy uses three. Any binding change resets the unchanged count.
+3. **STABLE**: rescan at the vendor stable interval; the included platform reference policy uses 300 seconds. A changed fingerprint returns to WARMUP. Child `get_value()` and `get_evaluator()` still run at normal event cadence during this interval.
 
 The DSE layer owns the policy values and the meaning of `authoritative`; the common monitor owns timing, phase transitions, and child work state. A non-authoritative empty or reduced result does not delete established children, which avoids losing monitoring during transient producer startup/restart. An authoritative result may remove absent children only when they are not in-flight or held by the primary. Expansion failures retain existing children, degrade discovery status, and retry at the bootstrap interval.
 
