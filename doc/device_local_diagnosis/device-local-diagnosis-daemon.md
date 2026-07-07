@@ -164,11 +164,11 @@ The plan is intentionally simple: no separate ready queue, no shared mutable rul
 - **Resolved Source**: Concrete transport details after DSE resolution, such as Redis database/table/key/path, I2C bus/chip/register, file path, sysfs path, CLI `argv`, or platform API binding.
 - **Adapter Binding**: Transport classification determining which monitor thread handles the work (Redis, File, Common) and which `DataSourceAdapter` instance is used.
 - **Evaluator Specification**: Normalized evaluator definition, including type, operator, expected value, units/value formatting, `match_count`, and `match_period`.
-- **Sampling Policy**: Effective normal sampling interval and whether it came from an explicit event `sampling_interval` or the assigned monitor's current default.
+- **Sampling Policy**: Effective normal sampling interval, whether it came from an explicit event `sampling_interval` or the assigned monitor's current default, and whether this event opted into bounded asynchronous collection.
 - **Source Policy**: Source identifier, retry behavior, and graceful-maintenance handling used when the source is unavailable or intentionally suspended.
 
 **MonitorWorkState** - Monitor-local runtime state for one correlation key
-- **State**: `READY`, `IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, `DEGRADED`, `BROKEN`, or `SUSPENDED`.
+- **State**: `READY`, `COLLECTING`, `IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, `DEGRADED`, `BROKEN`, or `SUSPENDED`. `COLLECTING` means one opted-in source collection/evaluation job is outstanding in the shared worker pool; it is healthy and is not controller-visible fault evidence.
 - **In-Flight Metadata**: Last enqueued FIFO sequence number, enqueue timestamp, work-state generation, primary command generation, and lease deadline.
 - **Cadence Metadata**: Per-key monotonic `next_sample_due`. Cadence state is process-local and is not restored across restart.
 - **Last Sample State**: Last successful `MATCH`/`NO_MATCH`/source status observed by the monitor before the key was held.
@@ -180,6 +180,7 @@ The plan is intentionally simple: no separate ready queue, no shared mutable rul
 | Monitor Work State | Written By | Origin or Cause | Polling Behavior |
 |--------------------|------------|-----------------|------------------|
 | `READY` | Monitor initialization, monitor applying primary `RESUME`, or monitor lease recovery | New valid work item, processed evidence, recovered key, or stale ownership lease expiry | Eligible for normal polling |
+| `COLLECTING` | Monitor thread after successful async-pool submission | One `async: true` collection/evaluation job is outstanding for this correlation key | Not eligible for another job; unrelated monitor work continues |
 | `IN_FLIGHT` | Monitor thread | Monitor enqueued a `FaultEvidenceEvent` or one-shot recheck result and is waiting for the primary decision | Skipped until a command is applied |
 | `HELD_BY_PRIMARY` | Monitor applying primary `HOLD` | Primary is correlating candidate or active fault state, running/waiting for local actions, or preparing a controlled recheck | Skipped during normal polling |
 | `RECHECK_REQUESTED` | Monitor applying primary `RECHECK_ONCE` | Primary needs exactly one fresh sample after action wait, before clear, before escalation, or after source recovery | Eligible for one collection cycle, then returns to `IN_FLIGHT` when evidence is enqueued |
@@ -239,6 +240,7 @@ class MonitorCommandType(str, Enum):
 
 class MonitorWorkState(str, Enum):
     READY = "READY"
+    COLLECTING = "COLLECTING"
     IN_FLIGHT = "IN_FLIGHT"
     HELD_BY_PRIMARY = "HELD_BY_PRIMARY"
     RECHECK_REQUESTED = "RECHECK_REQUESTED"
@@ -295,7 +297,7 @@ These structures maintain type consistency across the service. The orchestrator 
 - `MonitorWorkStateRecord.work_state_generation` increments whenever the monitor changes state for the correlation key, including enqueueing evidence, applying a primary command, lease recovery, or marking the key `BROKEN`.
 - `MonitorControlCommand.expected_work_state_generation` is set when the primary is responding to a specific evidence event. If the monitor has already advanced the key generation, the command is stale and must be rejected without mutating `state_by_key`.
 - `MonitorExecutionPlan.items_by_key` is immutable for the lifetime of the process/rule generation. Rule updates and full reevaluation happen through a fresh process/rule generation, not by mutating the live plan.
-- Each immutable `MonitorWorkItem` carries an effective `sampling_interval` and whether that value was explicit or inherited. `MonitorWorkStateRecord.next_sample_due` is owned and updated by the monitor using monotonic time.
+- Each immutable `MonitorWorkItem` carries an effective `sampling_interval`, whether that value was explicit or inherited, and the event's `async` collection choice. `MonitorWorkStateRecord.next_sample_due` is owned and updated by the monitor using monotonic time.
 - The FIFO, monitor control queues, and cadence deadlines are in-memory process state. They are never persisted, restored, or replayed across `systemctl restart dldd`, `config reload`, process crash, or rule activation.
 
 #### Monitor Thread Architecture
@@ -303,7 +305,8 @@ These structures maintain type consistency across the service. The orchestrator 
 - **Shared Interface**: Every monitor inherits the common `MonitorThread` contract (`get_query_path()`, `get_path_value()`, `generate_queue_object()`, `push_queue_object()`), guaranteeing uniform behavior regardless of underlying transport.
 - **Typed Adapters**: Each monitor thread composes the appropriate `DataSourceAdapter` (Redis, Platform API, CLI, I2C, sysfs, File, etc.) which implements `validate()`, `get_value()`, `get_evaluator()`, `run_evaluation()`, and `collect()`.
 - **Plan Ownership**: Each monitor owns exactly one `MonitorExecutionPlan`. The primary thread may replace the whole plan only during service startup or rule activation restart; at runtime it sends commands through the plan's control mailbox.
-- **On-Thread Event Evaluation**: Event-level data collection and evaluation are executed inside the monitor threads; each `collect()` call resolves the value, evaluator, and produces an `EvaluationResult` for a single event.
+- **Event Evaluation**: Inline events execute collection and evaluation in the owning monitor thread. Events with `async: true` submit exactly one materialized work item to the shared bounded collection pool; the job performs collection, normalization, and evaluation and returns an immutable `EvaluationResult` to the owning monitor's completion queue.
+- **Async State Ownership**: The monitor transitions an async key to `COLLECTING`, which prevents overlapping jobs for that correlation key. Worker threads do not mutate `state_by_key` and do not enqueue `FaultEvidenceEvent` objects. The owning monitor consumes completions and runs the same success, failure, recovery, and evidence logic used by inline events.
 - **Structured Output**: When an event predicate is satisfied, clears, recovers, or fails, monitors emit a normalized `FaultEvidenceEvent` that encapsulates the rule, event metadata, value, evaluator outcome, source state, and timestamps before enqueuing to the shared FIFO. A successful non-matching sample updates monitor-local state but is not enqueued unless it clears a previously reported match or recovers a previously unavailable source.
 - **Single-Flight Ownership**: After enqueueing a `FaultEvidenceEvent`, the monitor transitions that correlation key to `IN_FLIGHT`. The immutable `MonitorWorkItem` remains in the monitor's assignment set, but the key is skipped during normal polling until the primary thread commands `RESUME`, `HOLD`, `RECHECK_ONCE`, or `SUSPEND`.
 - **Primary-Requested Recheck**: A `RECHECK_ONCE` command temporarily makes a held key eligible for exactly one collection/evaluation cycle. The resulting `MATCH`, `CLEAR`, source-status, or evaluator-error evidence is enqueued with the command generation and the key returns to `IN_FLIGHT` until the primary thread processes the result.
@@ -314,6 +317,7 @@ These structures maintain type consistency across the service. The orchestrator 
 - **Common Monitor**: Polls eligible Platform API/I2C/CLI/sysfs and vendor-source work keys. An event with no `sampling_interval` inherits `common_monitor_polling_interval` (default: 60 seconds). Sysfs is handled by the common monitor because it is a host-local platform data source with the same scheduling and error-handling model as Platform API, I2C, and CLI collection.
 - An explicit positive event `sampling_interval` overrides the monitor default for every work item materialized from that event. Two events assigned to the same monitor may therefore run at different cadences.
 - Omitted intervals are resolved only after DSE expansion and monitor assignment. CONFIG_DB updates affect inherited work items only; explicitly timed events keep their rule-defined cadence.
+- `async: true` changes only where one event's collection/evaluation runs. It does not change sampling cadence, correlation, match windows, or fault semantics. The process-wide pool has four daemon workers and 256 queued-job slots; capacity exhaustion leaves work due for retry rather than blocking the monitor or counting a failed attempt.
 
 **Minimal Monitor Plan Shape**:
 
@@ -332,15 +336,19 @@ The monitor loop uses the plan directly:
 
 ```text
 while running:
+  drain async completion queue and apply results on the monitor thread
   drain control_queue and update state_by_key
   now = monotonic clock
   for correlation_key, work_item in items_by_key:
     state = state_by_key[correlation_key]
     if state is RECHECK_REQUESTED and its not-before time has elapsed:
-      collect and evaluate once, bypassing normal cadence
+      submit or run collection/evaluation once, bypassing normal cadence
     else if state is READY or DEGRADED and now >= next_sample_due:
-      collect and evaluate work_item
-      set next_sample_due = now + effective sampling interval
+      if work_item.async:
+        submit one bounded worker-pool job and set state to COLLECTING
+      else:
+        collect and evaluate work_item inline
+      after a successful attempt/submission, set next_sample_due from now
     if stateful evidence is produced:
       set state_by_key[correlation_key] to IN_FLIGHT
       enqueue FaultEvidenceEvent
@@ -386,7 +394,7 @@ DLDD Process (PID: main)
 
 1. **Rule ingestion**: Primary thread loads the active rules copy, validates schema versions, resolves DSE references, and stores the resulting execution plans.
 2. **Monitor thread provisioning**: Based on the rule metadata, the primary thread spawns monitor threads to cover the necessary data sources and DSE bindings.
-3. **Event sampling**: Monitor threads collect data from Redis, platform APIs, sysfs, CLI, I2C, and file sources for eligible work keys in `READY`, `DEGRADED`, or `RECHECK_REQUESTED` state, applying per-event evaluations defined in the rules schema.
+3. **Event sampling**: Monitor threads schedule data from Redis, platform APIs, sysfs, CLI, I2C, and file sources for eligible work keys in `READY`, `DEGRADED`, or `RECHECK_REQUESTED` state, applying per-event evaluations defined in the rules schema. Inline events run on the monitor; `async: true` events run one single-item collection/evaluation job in the bounded shared pool and return through the monitor completion queue.
 4. **Fault evidence buffering**: Predicate matches, clear notifications, source availability transitions, degraded/broken runtime status, and rule execution errors are enqueued as `FaultEvidenceEvent` objects into the thread-safe shared FIFO fault evidence buffer with event timestamps and source status. Routine successful non-matching samples are not enqueued.
 5. **Single-flight hold**: After enqueueing evidence, the monitor marks that correlation key `IN_FLIGHT` and excludes it from normal polling. Other keys in the same monitor continue running.
 6. **Fault correlation and actions**: The primary thread consumes buffered evidence in batches, updates per-signature event history, evaluates signature logic, tracks failure counts, and creates or updates candidate `FaultRecord` state. If local actions are configured, the primary sends `HOLD`, schedules the local action sequence, waits the configured `wait_period`, and requests recheck before controller-visible fault publication.
@@ -842,8 +850,9 @@ Rule health is separate from fault state:
 - `SUSPENDED`: every work item is intentionally suspended.
 
 Work-item detail includes event ID, resolved component, source and monitor,
-monitor state, effective sampling interval and whether it came from the event
-or monitor default, active-fault indication, attempt/success/next-due times,
+inline/async collection mode, monitor state, effective sampling interval and
+whether it came from the event or monitor default, active-fault indication,
+attempt/success/next-due times,
 failure count, correlation key, and failure reason. To keep heartbeat
 publication bounded, DLDD publishes at most 256 detailed work items per rule
 and 4,096 per generation. Aggregate rule summaries are always retained;
@@ -1428,7 +1437,9 @@ Integration tests validate the complete rule execution pipeline from ingestion t
 
 **Fault Detection Testing**: Deploy rules that detect actual faults, such as temperature threshold violations or power supply anomalies. When synthetic data is injected that satisfies event predicates, verify that `FaultEvidenceEvent` objects are correctly enqueued, the primary thread correlates the evidence into a candidate or active `FaultRecord`, and faults are published to `FAULT_INFO` with complete telemetry payloads (including rule, flattened component fields, events array with value_read/condition pairs, severity, symptom) only when the fault reaches its controller-visible publication point. For rules without local actions, publication may happen after signature confirmation. For rules with local actions, verify that `FAULT_INFO` is not published until local action completion and post-action recheck complete. Verify that configured Healthz artifact collection is triggered but does not block recheck or `FAULT_INFO` publication. If recheck clears, verify the record is published as `INACTIVE` with local action metadata; if recheck still matches, verify the record is published as `ACTIVE` with remote remediation recommendations. Also verify that normal non-matching samples do not enqueue FIFO payloads and that clear samples enqueue clear notifications only after prior fault evidence was reported. Confirm that once a monitor enqueues evidence for a correlation key, duplicate match/clear evidence for that same key is suppressed until the primary thread returns `RESUME`, `HOLD`, `RECHECK_ONCE`, or `SUSPEND`; unrelated keys in the same monitor continue polling. Confirm that `process_state` remains in `state: OK` since the service itself is healthy despite detecting hardware faults.
 
-**Monitor Plan Testing**: Build a monitor plan with multiple correlation keys assigned to the same monitor. Verify that `items_by_key` is not mutated when one key transitions through `READY`, `IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, and back to `READY`; only `state_by_key` changes. Verify that control commands with stale `plan_generation` or stale work-state generation are rejected and acknowledged without changing the current key state.
+**Monitor Plan Testing**: Build a monitor plan with multiple correlation keys assigned to the same monitor. Verify that `items_by_key` is not mutated when one key transitions through `READY`, `COLLECTING`, `IN_FLIGHT`, `HELD_BY_PRIMARY`, `RECHECK_REQUESTED`, and back to `READY`; only `state_by_key` changes. Verify that control commands with stale `plan_generation` or stale work-state generation are rejected and acknowledged without changing the current key state.
+
+**Async Event Collection Testing**: Verify that a blocking `async: true` event does not delay inline or other asynchronous work items, only one job per correlation key can be outstanding, and worker threads never mutate monitor state or enqueue primary evidence directly. Exercise shared pool saturation and confirm rejected submissions remain due without incrementing attempts or failures. Verify async match, no-match, source recovery, collection error, evaluation error, and `RECHECK_ONCE` results use the same evidence and command path as inline collection. Confirm a delayed job coalesces missed cadence intervals, pool shutdown cannot block service exit, and vendor adapters/hooks are opted in only when concurrent single-item calls are safe and their underlying operations are time-bounded.
 
 **Action Lifecycle Testing**: Deploy a rule with `local_actions.wait_period` and hold the fault condition active across multiple monitor polling intervals. Verify that DLDD runs the local action sequence once for the candidate fault lifetime, sets `local_action_state` to `RUNNING` and then `WAITING_FOR_RECHECK` in `DLDD_STATUS|process_state.inflight_fault_evidence`, holds the affected correlation key or multi-event contributing keys out of normal polling with explicit `hold_deadline` values, and does not publish `FAULT_INFO` while local action state is in progress. Verify that rule-defined Healthz logs and queries are triggered from the local action path, that a Healthz artifact identifier is attached to `FAULT_INFO` when log collection is requested, and that artifact completion or failure does not block action result, recheck, or `FAULT_INFO` publication. After `wait_period`, verify that the primary thread sends the required `RECHECK_ONCE` requests to evaluate the full per-instance signature, the monitor returns match or clear results, and repeated matches do not start another identical local action sequence unless the fault first transitions to `INACTIVE` and then becomes `ACTIVE` again. If the recheck clears, verify that `FAULT_INFO` is published as `INACTIVE` with final local action state (`COMPLETED` or `FAILED`) and recovery metadata. If the recheck still matches, verify that `FAULT_INFO` is published as `ACTIVE` with final local action state and remote remediation recommendations. Also verify generic lease recovery by withholding the first primary command past `fault_evidence_ack_timeout`, and separately verify intentional hold recovery by allowing an explicit `hold_deadline` to expire.
 

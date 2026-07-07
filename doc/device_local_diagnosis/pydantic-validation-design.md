@@ -38,6 +38,7 @@ Schema `0.0.1` may be changed in place during this implementation because it has
 - Replacing Draft-7 runtime authority with Pydantic authority.
 - Tightening unknown-field behavior for core objects.
 - Adding optional event-level `sampling_interval`.
+- Adding optional event-level `async` collection.
 - Correcting inconsistent or ambiguous validation behavior.
 
 After the first release, exact-version behavior is immutable. A behavioral contract change then requires an appropriate new schema version and explicit registry entry.
@@ -63,6 +64,8 @@ All available vendor rules and fixtures must be audited before cutover so that a
 - DLDD does not persist cadence across restart. Every eligible work item starts due, then resumes normal cadence.
 
 `sampling_interval` is independent of `match_period`, `logic_lookback_time`, action `wait_period`, operation `timeout`, and `active_fault_recheck_interval`.
+
+The optional event field `async` is a strict boolean with a default of `false`. When true, the planner marks each materialized work item for single-item collection and evaluation in the shared bounded worker pool. It changes execution placement only; it does not change cadence or correlation semantics. Explicit `null`, integers, floats, and strings are invalid.
 
 ## Goals
 
@@ -493,6 +496,7 @@ class MonitorWorkItem:
     # existing fields...
     sampling_interval: float
     sampling_interval_is_explicit: bool
+    async_collection: bool
 
 
 @dataclass
@@ -537,6 +541,7 @@ The conversion function:
 - Converts lists to tuples.
 - Recursively freezes mappings and vendor options.
 - Preserves `sampling_interval` as an optional event field.
+- Maps the optional wire field `async` to the domain/runtime field `async_collection`.
 - Does not use `model_dump()` as an unreviewed catch-all conversion.
 - Does not attach callables from rule data.
 - Produces the existing `Metadata`, `Evaluation`, `Event`, `Operation`, `Actions`, and `Signature` domain objects.
