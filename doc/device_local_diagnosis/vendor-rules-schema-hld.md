@@ -668,7 +668,66 @@ The fixed trusted platform extension surface is:
 | `component_metadata` named hook | Supplies optional component metadata such as serial number for fault publication. |
 | `i2c` named hook | Validates/resolves vendor logical I2C bus identifiers. |
 
-These factories are discovered only from the installed `sonic_platform.dldd` module. Rule YAML can provide bounded hook parameters, but cannot change the discovery module or attach executable code. A vendor implementation should expose a small reviewed function bank rather than import or evaluate a function name supplied by a rule. One bank may contain source, evaluator, action, and query handlers; each registration declares the uses it permits so the implementation stays extensible without duplicating registries.
+These factories are discovered only from the installed `sonic_platform.dldd` module. Rule YAML can provide bounded hook parameters, but cannot change the discovery module or attach executable code. A vendor implementation should expose a small reviewed function bank rather than import or evaluate a function name supplied by a rule. One bank may contain expansion, source, evaluator, action, and query handlers; each registration declares the uses it permits so the implementation stays extensible without duplicating registries.
+
+#### Selector, Expansion, and Function Separation
+
+A selector is an abstract component family, not a transport declaration. For example, `temperature*` means the platform's temperature-sensor instance space; it does not mean Redis, Platform API, I2C, or any other backend. The vendor DSE implementation supplies one canonical expansion hook for that selector and separately maps each rule-facing function to a trusted handler. Expansion and function handlers may use different backends.
+
+The resulting responsibilities are:
+
+| Layer | Responsibility |
+|-------|----------------|
+| Rule reference | Names only an abstract selector and capability, such as `{temperature*}:{get_value()}`. |
+| Selector expansion | Discovers current component instances and returns opaque `DSEBinding` objects with stable instance/source identities. |
+| Selector function | Uses one binding to perform `get_value`, `get_high_threshold`, another source/evaluator capability, or a future vendor operation. |
+| Function bank | Maps vendor configuration aliases to reviewed installed Python handlers and enforces permitted uses. It never imports a rule-selected module or evaluates a rule-selected expression. |
+| Backend handler | Implements Redis, Platform API, SDK, I2C, sysfs, file, or another vendor mechanism behind the abstract capability. |
+
+Core DLDD does not prescribe a YAML layout for this vendor-private mapping. The Cisco reference implementation uses the following shape solely as its own configuration contract:
+
+```yaml
+function_bank:
+  state_db_hash_expand:
+    handler: redis_hash_expand
+    uses: [expansion]
+  state_db_hash_read:
+    handler: redis_hash_read
+    uses: [source, evaluation]
+
+selectors:
+  "temperature*":
+    expansion:
+      hook: state_db_hash_expand
+      authoritative: false
+      parameters:
+        database: STATE_DB
+        table: TEMPERATURE_INFO
+        key_pattern: "TEMPERATURE_INFO|*"
+      policy:
+        bootstrap_scans: 2
+        bootstrap_interval: 5
+        warmup_cycles: 3
+        stable_interval: 300
+    functions:
+      get_value:
+        use: source
+        hook: state_db_hash_read
+        parameters:
+          field: temperature
+          value_type: float
+          unit: celsius
+      get_high_threshold:
+        use: evaluation
+        hook: state_db_hash_read
+        parameters:
+          field: high_threshold
+          operator: ">="
+          value_type: float
+          unit: celsius
+```
+
+Here `temperature*`, `get_value()`, and `get_high_threshold()` remain transport-neutral. Only Cisco's opaque mapping mentions STATE_DB. The expansion binding contains enough vendor-private identity for the chosen function handler, while another function under the same selector may instead use the instance name to call Platform API or an SDK. A function must be explicitly present under the selected selector; being registered in the global function bank does not expose it automatically.
 
 #### DSE Reference Grammar
 
@@ -696,7 +755,7 @@ The monitor invokes the handles at runtime:
 - `DSEEvaluationHandle.get_evaluator(invocation_context)` runs at event sampling time and returns an expected value/operator mapping or a trusted complete comparator contract.
 - `DSEExpansionPolicy` supplies bootstrap scan count/spacing, warmup monitor-cycle count, and stable rescan interval. The common monitor owns and executes this policy; the primary orchestration thread never calls DSE source/evaluator functions.
 
-This split allows a vendor DSE source to discover instances periodically while reading fast-changing values and thresholds every event sample. For example, a Redis sensor DSE may rescan `CURRENT_INFO|*` every five minutes once stable, while `get_value()` rereads `current` and `get_evaluator()` rereads `high_threshold` every five-second sample. Direct Redis paths likewise query the configured source on every sample; a direct value is never cached merely because its rule was materialized.
+This split allows a vendor DSE source to discover instances periodically while reading fast-changing values and thresholds every event sample. For example, Cisco's abstract `current*` selector may use a private STATE_DB expansion handler every five minutes once stable, while `get_value()` rereads `current` and `get_high_threshold()` rereads `high_threshold` every five-second sample. Direct Redis paths likewise query the configured source on every sample; a direct value is never cached merely because its rule was materialized.
 
 In the rules source, the event path would be defined like so:
 ```yaml
@@ -711,10 +770,10 @@ instances; discovery supplies one binding per matching STATE_DB key:
 event:
   id: 1
   type: dse
-  path: "{current*}:{redis_sensor_value()}"
+  path: "{current*}:{get_value()}"
   evaluation:
     type: dse
-    value: "{current*}:{redis_high_threshold()}"
+    value: "{current*}:{get_high_threshold()}"
   sampling_interval: 5
 ```
 
