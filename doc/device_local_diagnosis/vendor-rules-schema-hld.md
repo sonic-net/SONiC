@@ -9,10 +9,9 @@
 5. [Schema Versioning](#schema-versioning)
 6. [Rule Structure](#rule-structure)
 7. [Abstract Rule Data Source Extensions](#abstract-rule-data-source-extensions---vendor-extensible)
-8. [Schema Layout Definitions](#schema-layout-definitions)
-9. [Rule Examples](#rule-examples)
-10. [Schema Validation](#schema-validation)
-11. [Backward Compatibility](#backward-compatibility)
+8. [Rule Examples](#rule-examples)
+9. [Schema Validation](#schema-validation)
+10. [Backward Compatibility](#backward-compatibility)
 
 ## Introduction
 
@@ -27,7 +26,7 @@ The schema is designed to be:
 
 ## Document Authority
 
-This document is the sole HLD authority for the DLDD vendor rules wire contract, schema versioning, Pydantic validation and error isolation, DSE authoring contract, generated authoring artifacts, and schema-to-runtime translation semantics. The companion `device-local-diagnosis-daemon.md` is the sole authority for SONiC runtime architecture, scheduling, fault lifecycle, telemetry storage, operations, and implementation locations. The generated Draft 2020-12 JSON Schema and schema-layout JSON are derivative tooling artifacts; neither is an HLD or a runtime validation authority.
+This document is the sole HLD authority for the DLDD vendor rules wire contract, schema versioning, Pydantic validation and error isolation, DSE authoring contract, generated authoring artifacts, and schema-to-runtime translation semantics. The companion `device-local-diagnosis-daemon.md` is the sole authority for SONiC runtime architecture, scheduling, fault lifecycle, telemetry storage, operations, and implementation locations. The generated Draft 2020-12 JSON Schema is a derivative authoring artifact; it is neither an HLD nor a runtime validation authority.
 
 ## Definitions
 
@@ -37,7 +36,7 @@ This document is the sole HLD authority for the DLDD vendor rules wire contract,
 | **Signature** | A complete fault detection rule with metadata, conditions, and actions |
 | **Event** | A specific data collection and evaluation point within a signature |
 | **Data Source Extension (DSE)** | Translation layer between abstract rule definitions and hardware/software specific implementation |
-| **Abstract Rule** | Rule using DSE identifiers that are resolved through data source extension files |
+| **Abstract Rule** | Rule using DSE identifiers resolved by the trusted installed `DSERegistry`; any backing data file is vendor-owned and optional |
 | **Direct Rule** | Rule with explicit hardware-specific paths, bypassing the DSE layer |
 
 ## Requirements
@@ -59,13 +58,13 @@ The schema version follows semantic versioning: `MAJOR.MINOR.PATCH`
 - **PATCH**: Minor corrections and clarifications
 
 ### Version Header
-Every rules source file must begin with a schema version declaration:
+Every rules source root object must contain a scalar schema version declaration (mapping-key order is not significant):
 
 ```yaml
 schema_version: "0.0.1"
 ```
 
-**CRITICAL**: This header format is immutable and serves as the entry point for schema interpretation.
+**CRITICAL**: The field name and scalar value form are immutable entry points for schema interpretation.
 
 ### Versioning and Compatibility with SONiC NOS
 
@@ -73,7 +72,7 @@ Schema versions evolve independently from SONiC releases. A DLDD release may sup
 
 Semantic versioning describes how schema authors classify changes; it does not authorize runtime version-range matching. A rules source declaring `0.0.2` is accepted only when `0.0.2` has an explicit registry entry. A registry entry may deliberately reuse another version's models or DTO-to-domain converter, but DLDD must not infer compatibility or silently select the nearest major, minor, or patch version.
 
-An uploaded rules source selects a contract only through its scalar `schema_version`. It cannot supply a schema path, module name, URI, validator, or materializer. Schema layout definitions are extraction metadata and are not a support signal or compatibility mechanism.
+An uploaded rules source selects a contract only through its scalar `schema_version`. It cannot supply a schema path, module name, URI, validator, or materializer. The exact-version Pydantic contract and its explicit DTO-to-domain converter define extraction and interpretation.
 
 Unknown-field behavior is defined independently by each registered schema contract. Core DLDD objects reject unknown fields. Explicit vendor extension envelopes may accept and preserve bounded JSON-compatible vendor fields after the installed platform advertises the extension type. Unknown types, enum values, required fields, or behavior-bearing fields outside those extension points fail validation for the scope in which they occur.
 
@@ -102,7 +101,7 @@ signatures:
 |-------|------|----------|-------------|
 | `schema_version` | String | Yes | Schema version used to interpret the rules file |
 | `local_action_default_timeout` | Integer | Conditional | Rules-source default timeout in seconds for local actions that omit per-action `timeout`. Required when any local action omits `timeout`; optional when every local action declares its own timeout. Strict integer 1-4294967295; explicit `null` is invalid. |
-| `signatures` | List | Yes | Non-empty list of signature objects |
+| `signatures` | List | Yes | 1-1024 signature objects |
 | `signatures[*].signature.metadata` | Object | Yes | Rule metadata |
 | `signatures[*].signature.conditions` | Object | Yes | Rule condition logic and events |
 | `signatures[*].signature.actions` | Object | Yes | Repair actions and optional diagnostic log collection |
@@ -111,7 +110,7 @@ signatures:
 Each signature contains comprehensive metadata for identification and applicability. Every field serves a specific purpose in rule processing and system integration:
 
 - **Severity Ordering**: The `severity` field encodes DLDD rule severity (`CRITICAL`, `MAJOR`, `WARNING`, `MINOR`, `UNKNOWN`). Higher severity signatures always take precedence when multiple rules target the same component/symptom pair. This field is DLDD/SONiC diagnostic metadata; it is not a native OpenConfig Healthz fault leaf.
-- **Priority Tiebreaker**: The optional `priority` field provides deterministic ordering for rules that share the same severity and symptom. Lower numeric values indicate higher priority; when omitted, adapters treat the priority as `5`.
+- **Priority Tiebreaker**: The optional `priority` field provides deterministic ordering for rules that share the same severity and symptom. Lower numeric values indicate higher priority; when omitted, Pydantic validation/domain conversion applies `5`.
 
 ```yaml
 signature:
@@ -129,7 +128,7 @@ signature:
       - "202311.3.0.1"                      # Specific software version where rule is validated
       - "202311.3.0.2"                      # Additional compatible versions
     component: "PSU"                        # Required: Component type affected by fault
-    symptom: "<OC symptom>"                 # Required: OpenConfig Healthz fault symptom enumeration
+    symptom: "SYMPTOM_OVER_THRESHOLD"       # Required: Supported OpenConfig Healthz symptom
     error_type: "POWER"                     # Required: High-level OpenConfig-aligned error category where available
     severity: "CRITICAL"                    # Required: DLDD rule severity enumeration
     priority: 1                             # Optional: Numeric priority to account for rule ordering (default is 5 when omitted)
@@ -142,18 +141,18 @@ signature:
 
 | Field | Type | Required | Description | Valid Values | Example |
 |-------|------|----------|-------------|--------------|----------|
-| `name` | String | Yes | Unique human-readable identifier for the rule | Alphanumeric with underscores | `"PSU_OV_FAULT"` |
+| `name` | String | Yes | Unique, non-empty human-readable identifier for the rule | `^[A-Za-z0-9_]+$` | `"PSU_OV_FAULT"` |
 | `id` | Integer | Yes | Unique numeric identifier for programmatic reference | 1000000-9999999 | `1000001` |
-| `version` | String | Yes | Semantic version following MAJOR.MINOR.PATCH format | Semantic versioning | `"1.0.0"` |
-| `description` | String | Yes | Multi-line human-readable explanation of the fault condition | Plain text, can use YAML literal block | See example above |
-| `product_ids` | List | Yes | Hardware products where this rule applies | Product ID (and HW version) are defined in vendor EEPROM, format dependent on that | `["8122-64EHF-O P1"]` |
-| `sw_versions` | List | Yes | SW versions where rule is validated | SW version formatting dependent on NOS, given example is for Cisco release identifier for SONiC NOS | `["202311.3.0.1"]` |
+| `version` | String | Yes | Decimal `MAJOR.MINOR.PATCH` triplet; prerelease/build suffixes are not accepted in schema `0.0.1` | `^[0-9]+\.[0-9]+\.[0-9]+$` | `"1.0.0"` |
+| `description` | String | Yes | Non-empty, human-readable explanation of the fault condition | Plain text; may use a YAML literal block | See example above |
+| `product_ids` | List | Yes | Non-empty list of non-empty hardware product identifiers where this rule applies | Product/revision formatting is vendor EEPROM dependent | `["8122-64EHF-O P1"]` |
+| `sw_versions` | List | Yes | Non-empty list of non-empty software version identifiers where this rule is validated | Formatting is NOS/vendor dependent | `["202311.3.0.1"]` |
 | `component` | String | Yes | Primary vendor/platform component type affected. DLDD preserves the identity and does not maintain a component-type allowlist. | Any non-empty vendor-defined component type string | `"PSU"`, `"VENDOR_FABRIC_MODULE"` |
-| `symptom` | String | Yes | OpenConfig Healthz fault symptom enumeration for telemetry | OpenConfig Healthz fault symptoms | `"SYMPTOM_OVER_THRESHOLD"` |
-| `error_type` | String | Yes | High-level fault category published to `FAULT_INFO.error_type`. Values should use OpenConfig-defined or OpenConfig-aligned identities where available; otherwise vendors must use a stable DLDD/vendor category that UMF can translate or preserve consistently. | OpenConfig-aligned fault categories or stable vendor category strings | `"POWER"` |
+| `symptom` | String | Yes | Supported OpenConfig Healthz fault symptom published to telemetry | `SYMPTOM_OVER_THRESHOLD`, `SYMPTOM_UNDER_THRESHOLD`, `SYMPTOM_MEMORY_ERRORS`, `SYMPTOM_MISSING_COMPONENT`, `SYMPTOM_COMM_ERROR`, `SYMPTOM_UNKNOWN` | `"SYMPTOM_OVER_THRESHOLD"` |
+| `error_type` | String | Yes | Non-empty high-level fault category published to `FAULT_INFO.error_type`. Values should be OpenConfig-aligned where available; otherwise vendors use a stable category that UMF can translate or preserve consistently. | Any non-empty string | `"POWER"` |
 | `severity` | String | Yes | DLDD rule severity used for deterministic precedence and optional SONiC/alarm metadata | `CRITICAL`, `MAJOR`, `WARNING`, `MINOR`, `UNKNOWN` | `"CRITICAL"` |
 | `priority` | Integer | No | Numeric priority for rules with matching severity and symptom (lower value = higher priority, default = 5 when omitted) | Strict integer 0-4294967295 | `5` |
-| `tags` | List | No | Categorization tags for filtering and organization | Arbitrary strings | `["power", "voltage"]` |
+| `tags` | List | No | Categorization tags for filtering and organization; omission defaults to an empty list | List of non-empty strings | `["power", "voltage"]` |
 
 ### Condition Logic
 Conditions define the logical evaluation framework for determining when a fault has occurred. This section controls how multiple positive fault events are correlated and evaluated. Each event is expected to describe an active failing behavior; the signature logic combines those active event matches.
@@ -175,14 +174,14 @@ conditions:
 
 | Field | Type | Required | Description | Valid Values | Example |
 |-------|------|----------|-------------|--------------|----------|
-| `logic` | String | Yes | Boolean expression defining how active fault events are combined | Boolean operators: `AND`, `OR` with event IDs | `"1 AND 2"`, `"1 OR (2 AND 3)"` |
+| `logic` | String | Yes | Boolean expression defining how active fault events are combined; bounded to 16,384 characters, 4,096 tokens, and nesting depth 64 | Boolean operators: `AND`, `OR` with event IDs | `"1 AND 2"`, `"1 OR (2 AND 3)"` |
 | `logic_lookback_time` | Integer | Yes | Time window in seconds for correlating events | 0-86400 (0=instant, 86400=24 hours) | `60` (1 minute window) |
-| `events` | List | Yes | Array of event definitions that can trigger the fault | Must contain at least 1 event | See Event Definition below |
+| `events` | List | Yes | Array of event definitions that can trigger the fault | 1-1000 events | See Event Definition below |
 
 #### Logic Expression Rules
 - **Event References**: Use numeric IDs that match event `id` fields. Each referenced event represents a positive fault predicate.
 - **Operators**: `AND`, `OR` (case sensitive)
-- **Precedence**: Use parentheses for complex expressions: `"(1 OR 2) AND 3"`
+- **Precedence**: `AND` binds more tightly than `OR`; parentheses override precedence. For example, `"1 OR 2 AND 3"` means `"1 OR (2 AND 3)"`.
 - **Simple Cases**: Single event: `"1"`, Multiple events: `"1 AND 2"`
 - **Time Correlation**: The events that make the boolean expression true must have active matches within `logic_lookback_time` seconds. For `OR`, only the satisfied branch must meet the window; unsatisfied branches are not required to produce matches.
 - **No Negated Events**: `NOT` is not part of schema version `0.0.1`. If an absent, inactive, or false component state is itself a fault, model that as an explicit event whose evaluator positively matches the failing state.
@@ -235,13 +234,13 @@ event:
 |-------|------|----------|-------------|--------------|----------|
 | `id` | Integer | Yes | Unique identifier within the signature | 1-999 (unique per signature) | `1` |
 | `type` | String | Yes | Data source type determining path structure. The authoritative enum set is defined in Canonical Values and Extensible Identities. | See Canonical Values and Extensible Identities | `"i2c"` |
-| `instances` | List | No | Device instances used for per-instance correlation and optional source binding | Format: `"DeviceName:PathIdentifier"` (if `PathIdentifier` is empty, the whole event applies to `DeviceName`) | `["PSU0:IO-MUX-6"]` |
+| `instances` | List | No | Non-empty list of device instances used for per-instance correlation and optional source binding. Component prefixes before `:` must be unique within the event; explicit `null` is invalid. | Each entry matches `^[^:]+:.*$`; an empty `PathIdentifier` means the event applies to the whole named component | `["PSU0:IO-MUX-6"]` |
 | `path` | Object or String | Yes | Data source specification (structure varies by type) | See Path Specifications below | See examples below |
 | `evaluation` | Object | Yes | Criteria for determining if fault condition is met | See Evaluation Specifications | See examples below |
 | `sampling_interval` | Integer | No | Target interval in seconds between normal collection attempts while the materialized work item is eligible for polling. When omitted, each materialized source inherits the effective polling interval of its assigned monitor. | Strict integer 1-4294967295; explicit `null`, zero, booleans, floats, and numeric strings are invalid | `60` |
 | `async` | Boolean | No | When `true`, submit this event's single materialized source collection and evaluation to the shared bounded asynchronous collection pool so a slow operation does not block other due work in the owning monitor. Defaults to `false`. | Strict boolean; explicit `null`, integers, floats, and strings are invalid | `true` |
 | `match_count` | Integer | Yes | Number of positive evaluations needed to trigger event | 1-1000 | `1` |
-| `match_period` | Integer | Yes | Time window in seconds for accumulating matches | 0-3600 (0=instant) | `0` |
+| `match_period` | Integer | Yes | Time window in seconds for accumulating matches. `0` means current-sample state and requires `match_count: 1`. | 0-3600 | `0` |
 
 #### Event Sampling Semantics
 
@@ -257,7 +256,7 @@ Async cadence is scheduled from successful job submission. A job that waits or r
 
 #### Path Specifications by Type
 
-Any change to the schema that results in the structure of the path content changing must update this section accordingly. A running history of older schemas and their layouts can be maintained elsewhere. Currently the below examples are for schema version: "0.0.1". The authoritative `event.type` set is defined in Canonical Values and Extensible Identities; this table defines the path shape for each supported type:
+These path shapes are the wire contract for schema `0.0.1`. A different shape requires a new exact schema contract and registry entry. The authoritative `event.type` set is defined in Canonical Values and Extensible Identities:
 
 | `event.type` | `path` shape | Notes |
 |--------------|--------------|-------|
@@ -326,6 +325,8 @@ path:
   format: "text"
 ```
 
+The Pydantic path contract requires `file` and `format` to be non-empty strings and permits optional `scaling` and `unit`. During materialization, the built-in file/sysfs adapter supports `text`, `string`, `raw`, `json`, `yaml`, `integer`, `int`, `float`, and `boolean`; another format fails adapter validation for that rule.
+
 **Sysfs Path Structure:**
 ```yaml
 path:
@@ -339,6 +340,17 @@ path:
 ```yaml
 path: "{psu*}:{get_output_voltage_fault_register()}"
 ```
+
+Schema `0.0.1` also accepts a hook object for direct platform sources:
+
+```yaml
+path:
+  hook: "read_vendor_sensor"       # Required non-empty installed hook name
+  sensor_class: "power"            # Bounded JSON-compatible vendor option
+  channel: ["rail0", "rail1"]     # Positional when instances are declared
+```
+
+The object requires `hook`; other members are bounded JSON-compatible vendor options. With `instances`, every list-valued option except `argv` is positional and must have the same length as the instance list.
 
 When an event declares `instances`, any list-valued path field other than an
 `argv` command list is positional and must have exactly one element per
@@ -375,6 +387,8 @@ evaluation:
   value: 'error'                         # Search string or regex pattern
   case_sensitive: false                   # Optional: Case sensitivity
 ```
+
+`case_sensitive` defaults to `true` when omitted.
 
 **Boolean Evaluation:**
 ```yaml
@@ -413,7 +427,7 @@ Binary values should be represented as quoted strings such as `"0b10000000"` to 
 
 #### Value Configuration Metadata
 
-`value_configs` is required in published DLDD telemetry and may also appear in rules anywhere a rule defines, reads, compares, or reports a value. It describes how a collected value or configured condition value should be represented for diagnostics and UMF translation. DSE-backed sources and evaluators may supply this metadata implicitly. If neither the rule nor DSE supplies metadata, DLDD uses default `N/A` metadata in telemetry rather than omitting the field.
+In schema `0.0.1`, `value_configs` is an optional member of an `evaluation` object; it is not valid on arbitrary rule fields. It describes how the evaluated value should be represented in diagnostics and UMF translation. DLDD always publishes value metadata for fault events. If the rule and resolved source do not supply more specific metadata, runtime telemetry uses the `N/A` defaults below.
 
 ```yaml
 value_configs:
@@ -519,7 +533,7 @@ Schema version `0.0.1` validates local actions and log queries through type-spec
 |------|----------------|-----------------|-----------------|-------|
 | `dse` | local action, log query | `type`, `command` | `timeout` | `command` is a vendor DSE reference or command understood by the installed vendor DSE hook. DSE code and side effects are vendor-owned. |
 | `cli` | local action, log query | `type`, `argv` | `timeout`, `max_output_bytes` | `argv` is executed without a shell. Shell pipelines, redirects, command substitution, and glob expansion are not valid. |
-| `i2c` | local action only unless vendor explicitly enables query use | `type`, `path` | `timeout` | Direct monitoring events are read-only. Direct I2C local actions use the same target path fields as I2C event paths; write actions add a value to write. |
+| `i2c` | local action; accepted as a query shape for a vendor executor | `type`, `path` | `timeout` | Direct monitoring events are read-only. Direct I2C local actions use the same target path fields as I2C event paths; write actions add a value to write. The default artifact query runner does not execute direct I2C queries, so a platform that wants that query form must advertise `i2c` in its query types and register the matching runtime hook; otherwise use `dse` or another vendor query type. |
 
 Operation `timeout` fields are strict integers from 1 through 4294967295
 seconds. CLI `max_output_bytes`, when present, is a strict integer from 1
@@ -545,7 +559,7 @@ For `type: i2c` local actions, `path.bus`, `path.chip_addr`, `path.command`, and
 
 Vendors may add implementation-specific action/query types only when the platform validator advertises support for those types. Unknown action/query types fail validation for the affected rule.
 
-For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, validation fails for that rule. For log queries, `timeout` is optional and is not defaulted by the schema; if omitted, DLDD does not impose a schema-level query timeout, while Healthz artifact retention and storage policies still bound stored output.
+For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, validation fails for that rule. For log queries, `timeout` is optional and is not defaulted by the schema; if omitted, DLDD does not impose a schema-level query timeout, while the DLDD artifact client's retention and storage policies still bound stored output.
 
 **Remote Actions (Required):**
 The action list uses OpenConfig Healthz fault remediation identities. OpenConfig identity values are extensible, so DLDD requires each entry to be a non-empty string but does not restrict it to a locally maintained enum. Standard or vendor-defined identities are preserved unchanged for the controller. Vendor identities use `<yang-module>:<identity>` and must be present in the platform's compiled YANG model for UMF export. `time_window` defines how long, in seconds, the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the controller may progress to the next action in `action_list` according to controller policy.
@@ -574,7 +588,7 @@ Remote action list order is the remediation index used when DLDD publishes `FAUL
 | Field | Values | Notes |
 |-------|--------|-------|
 | `metadata.severity` | `CRITICAL`, `MAJOR`, `WARNING`, `MINOR`, `UNKNOWN` | Rule-derived severity used by DLDD for deterministic ordering and optional SONiC/alarm metadata. It is not a native OpenConfig Healthz fault leaf. |
-| `metadata.symptom` | OpenConfig `SYMPTOM_*` identities | Must map to the OpenConfig Healthz fault `symptom` identity. |
+| `metadata.symptom` | `SYMPTOM_OVER_THRESHOLD`, `SYMPTOM_UNDER_THRESHOLD`, `SYMPTOM_MEMORY_ERRORS`, `SYMPTOM_MISSING_COMPONENT`, `SYMPTOM_COMM_ERROR`, `SYMPTOM_UNKNOWN` | Closed schema `0.0.1` set accepted by Pydantic and the current UMF translator. |
 | `metadata.error_type` | OpenConfig-aligned fault category strings or stable vendor category strings | Published to `FAULT_INFO.error_type`. UMF owns any mapping from this value into OpenConfig or SONiC extensions. |
 | `metadata.component` | Any non-empty string | Vendor/platform-defined component type identity. Examples such as `PSU`, `FAN`, and `TRANSCEIVER` are conventional, not an allowlist. |
 | `remote_actions.action_list[]` | Any non-empty string | Extensible OpenConfig Healthz remediation identity. Standard examples include `ACTION_RESEAT`, `ACTION_WARM_REBOOT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, and `ACTION_REPLACE`. Vendor-defined identities are accepted and preserved; they use `<yang-module>:<identity>` and require that identity in the platform's compiled YANG model for UMF export. |
@@ -627,7 +641,7 @@ queries:
 | `queries` | List | Conditional | Ordered sequence of diagnostic data collection commands triggered after local recovery actions complete, or after signature confirmation when no local actions are configured. Each query wrapper contains a `query` object with a type field specifying the execution method and type-specific fields for the operation. Queries are executed sequentially in the artifact worker context. DLDD can publish the Healthz artifact identifier before the query output is complete; outputs/content are added to the artifact when generation completes. Required only when `log_collection` omits `logs`; if `logs` is also omitted, at least one `query` is required. | List of `query` wrapper objects. Supported wrapped query types are defined by the Local Action and Query Validation Model. CLI queries use `argv`. DSE queries use `command`. | See example above |
 | `logs` | List | Conditional | Static files or glob patterns collected by the artifact worker after local recovery actions complete, or after signature confirmation when no local actions are configured. Required only when `log_collection` omits `queries`; if `queries` is also omitted, at least one `log` is required. | List of log objects | See example above |
 
-Healthz owns artifact lifecycle and storage retention. DLDD validation confirms the log/query schema and applies query timeouts only when a query declares `timeout`; Healthz retention controls bound the stored artifact set. Artifact generation is asynchronous with respect to local action result, post-action recheck, and `FAULT_INFO` publication.
+DLDD owns artifact generation, local storage, and retention under `/var/lib/sonic/dldd/artifacts`; the default client uses two artifact workers, retains at most 20 artifacts, and limits an artifact to 50 MiB. Static log collection expands globs but accepts only regular non-symlink files and does not recurse. The gNOI Healthz `Artifact` RPC exposes completed files to authenticated controllers. DLDD validation confirms the log/query schema and applies query timeouts only when a query declares `timeout`. Artifact generation is asynchronous with respect to local action result, post-action recheck, and `FAULT_INFO` publication.
 
 ## Abstract Rule Data Source Extensions - Vendor Extensible
 
@@ -638,22 +652,37 @@ Abstract data source extensions (DSE) provide a way for vendors to extend the sc
 Data source extensions also allow for the ability to hook into NOS specific APIs and methods. A good example of this would be defining a DSE that resolves to a method to call on the SONiC platform chassis object to retrieve the PSU object, and then using that object to retrieve the PSU output voltage fault register. This allows for the reuse of existing infrastructure the NOS provides wherever possible.
 
 ### Data Source Extension Architecture
-Abstract rules use symbolic references that are resolved through device-specific DSE files:
+
+Abstract rules use symbolic references resolved by trusted platform Python loaded from the fixed `sonic_platform.dldd` module. Uploaded rule data cannot select a module, class, or callable. A platform can provide `create_dse_registry(dse_path, product_id, software_version)`, which returns a `DSERegistry`; the generic daemon passes the packaged `dld_dse.yaml` path to that factory but does not parse or prescribe the file's contents. The DSE file is therefore an opaque, vendor-owned implementation detail rather than a second generic schema.
+
+The fixed trusted platform extension surface is:
+
+| Factory or hook | Contract |
+|-----------------|----------|
+| `create_dse_registry(dse_path, product_id, software_version)` | Returns the `DSERegistry` that resolves source, evaluation, action, and query references. `dse_path` may be absent; its format is vendor-owned. |
+| `create_vendor_hooks()` | Returns a `VendorHookRegistry` advertising vendor source/action/query types and their validation/execution hooks. |
+| `create_compatibility_matcher(...)` | Optionally replaces exact product/software membership matching with a vendor compatibility policy. |
+| `create_artifact_client(identity, artifact_directory, query_runner)` | Optionally replaces the default filesystem artifact client while retaining the asynchronous artifact contract. |
+| `source_lifecycle` named hook | Classifies vendor-specific source outages as expected maintenance. Without it, only generic trusted SONiC lifecycle context can classify a suspension; otherwise absence is unexpected `UNAVAILABLE` and normal grace/failure policy applies. |
+| `component_metadata` named hook | Supplies optional component metadata such as serial number for fault publication. |
+| `i2c` named hook | Validates/resolves vendor logical I2C bus identifiers. |
+
+These factories are discovered only from the installed `sonic_platform.dldd` module. Rule YAML can provide bounded hook parameters, but cannot change the discovery module or attach executable code.
 
 #### DSE Reference Grammar
 
-DSE references use a single canonical form:
+DSE references use one of two canonical forms:
 
 ```text
 <selector>:<function>()
 {<selector>}:{<function>()}
 ```
 
-The braced form is recommended when wildcards or template expansion are used. The unbraced form is accepted for simple component references.
+The braced form supports `*` and `?` wildcard selectors. The unbraced form is accepted only for a simple selector without wildcards. Both sides of a reference must use matching brace style.
 
 | Element | Description | Examples |
 |---------|-------------|----------|
-| `selector` | Component selector or instance selector understood by the vendor DSE hook | `PSU`, `psu*`, `PSU0` |
+| `selector` | Component selector or instance selector understood by the vendor DSE hook; wildcard selector content is valid only inside the braced reference form | `PSU`, `{psu*}`, `PSU0` |
 | `function` | Vendor-defined DSE function name | `get_output_voltage_fault_register`, `get_output_voltage_failure_value` |
 | `()` | Function-call marker. Arguments are not part of schema version `0.0.1`; vendors may extend through DSE data if needed. | `get_status()` |
 
@@ -665,119 +694,19 @@ In the rules source, the event path would be defined like so:
 path: "{psu*}:{get_output_voltage_fault_register()}"
 ```
 
-A separate datafile on the NOS would include the information needed to convert this to a queryable source of information. This translation layer is vendor specific and consumption is handled by the on-device service through a vendor implemented hook. For example, the above abstract rule could be resolved with the following:
-```json
-{
-  "8122_64ehf-o": {
-    "p1": [
-      {
-        "component": "psu",
-        "functions": [
-          {
-            "name": "get_output_voltage_fault_register",
-            "operation": [
-              {
-                "sw_versions": ["202311.3.0.1", "202311.3.0.2"],
-                "platform_object": "{chassis:psu}",
-                "type": "i2c",
-                "bus": "{platform_object}:get_bus_addr()[0]",
-                "chip_addr": "{platform_object}:get_bus_addr()[1]",
-                "i2c_type": "get",
-                "command": "0x7A",
-                "size": "b",
-                "scaling": "N/A"
-              }
-            ]
-          },
-          {
-            "name": "get_output_voltage_failure_value",
-            "operation": [
-              {
-                "sw_versions": ["202311.3.0.1", "202311.3.0.2"],
-                "type": "constant",
-                "value": "0b10000000"
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+For each reference, the registry returns typed, side-effect-free planning data:
 
-The example fields represent:
-- Product ID: `8122_64ehf-o`
-- Hardware revision: `p1`
-- Component: `psu`
-- Function names: `get_output_voltage_fault_register`, `get_output_voltage_failure_value`
-- Operation binding: the first function resolves to an I2C read and derives bus/chip address from the platform object
+- one or more `ResolvedSource` objects for an event path, each including concrete source type, binding, and component instance when a wildcard expands;
+- a `ResolvedEvaluation` for a DSE evaluator, including either an expected value/operator pair or a trusted callable comparator; or
+- a `ResolvedCommand` for a DSE action/query.
 
-This is defining that, for this DSE, the process will be running an i2c read operation, deriving the target bus and chip address from the PSU object that is retrieved from the platform chassis, and using the command 0x7A to read the output voltage fault register.
+Resolution occurs during rule materialization and must not read live hardware or execute the operation. The returned source can bind to Redis, file, sysfs, CLI, I2C, platform API, or another source type explicitly advertised by installed vendor hooks. The default compatibility matcher requires exact product and software-version membership; a platform may install `create_compatibility_matcher(...)` when its version/product matching rules differ.
 
 ### DSE Benefits
 - **Hardware Abstraction**: Rules remain independent of hardware implementation details
 - **SW Version Support**: Single rule supports multiple SW versions
 - **Maintainability**: Hardware changes require only DSE updates
 - **Reusability**: Common patterns can be shared across rules
-
-## Schema Layout Definitions
-
-Schema layout definitions provide the NOS with instructions on how to extract common fields from different schema versions. At its simplest, the layout is a consistently formatted JSON object that defines the underlying YAML/JSON paths used to locate the signature, event, and action objects. This is defined to simplify consumption and allow the rules source to be parsed in a consistent manner. The example below is for SONiC usage, but the same concept can be applied to any NOS. It is the responsibility of the NOS to remove unsupported schema versions from this list because specific software version identifiers can differ from vendor to vendor on the same NOS.
-
-```json
-{
-  "schemas": [
-    {
-      "major_0": {
-        "schema_data": [
-          {
-            "0.0.1": {
-              "base_paths": {
-                "rules_file": "$",
-                "signature_object": "$.signatures[*].signature",
-                "event_object": "$.signatures[*].signature.conditions.events[*].event",
-                "actions_object": "$.signatures[*].signature.actions"
-              },
-              "schema_version": "$.schema_version",
-              "local_action_default_timeout": "$.local_action_default_timeout",
-              "signature_name": "$.signatures[*].signature.metadata.name",
-              "signature_id": "$.signatures[*].signature.metadata.id",
-              "signature_version": "$.signatures[*].signature.metadata.version",
-              "fault_description": "$.signatures[*].signature.metadata.description",
-              "fault_severity": "$.signatures[*].signature.metadata.severity",
-              "fault_symptom": "$.signatures[*].signature.metadata.symptom",
-              "fault_error_type": "$.signatures[*].signature.metadata.error_type",
-              "rule_priority": "$.signatures[*].signature.metadata.priority",
-              "supported_product_ids": "$.signatures[*].signature.metadata.product_ids",
-              "supported_sw_versions": "$.signatures[*].signature.metadata.sw_versions",
-              "affected_component": "$.signatures[*].signature.metadata.component",
-              "tags": "$.signatures[*].signature.metadata.tags",
-              "fault_logic": "$.signatures[*].signature.conditions.logic",
-              "logic_lookback_time": "$.signatures[*].signature.conditions.logic_lookback_time",
-              "event_id": "$.signatures[*].signature.conditions.events[*].event.id",
-              "event_type": "$.signatures[*].signature.conditions.events[*].event.type",
-              "event_instances": "$.signatures[*].signature.conditions.events[*].event.instances",
-              "event_path": "$.signatures[*].signature.conditions.events[*].event.path",
-              "event_evaluation": "$.signatures[*].signature.conditions.events[*].event.evaluation",
-              "event_sampling_interval": "$.signatures[*].signature.conditions.events[*].event.sampling_interval",
-              "event_async": "$.signatures[*].signature.conditions.events[*].event.async",
-              "event_match_count": "$.signatures[*].signature.conditions.events[*].event.match_count",
-              "event_match_period": "$.signatures[*].signature.conditions.events[*].event.match_period",
-              "local_actions": "$.signatures[*].signature.actions.repair_actions.local_actions",
-              "remote_actions": "$.signatures[*].signature.actions.repair_actions.remote_actions",
-              "log_collection_logs": "$.signatures[*].signature.actions.log_collection.logs",
-              "log_collection_queries": "$.signatures[*].signature.actions.log_collection.queries"
-            }
-          }
-        ]
-      }
-    }
-  ]
-}
-```
-
-The schema layout map is optional extraction metadata for version-neutral external consumers. It is not a validation authority, does not determine whether a schema version is supported, and need not be used by DLDD's typed model builder. DLDD's exact-version contract binding pairs the versioned Pydantic envelope and signature models with their DTO-to-domain converter. Context-free version semantics live in those models; version-neutral materialization consumes the converted immutable domain rule. The registry may record an optional layout path for external consumers, but the layout is not loaded as a daemon-startup dependency.
 
 ## Rule Examples
 
@@ -896,7 +825,7 @@ signatures:
 
 ### Validation Contract
 
-Validation is driven by trusted, exact-version Pydantic v2 contracts rather than prose examples or a runtime-loaded JSON Schema. For every supported `schema_version`, DLDD registers an immutable contract containing a shallow file-envelope `TypeAdapter`, an independently callable per-signature `TypeAdapter`, the corresponding fully nested publication model, and an explicit DTO-to-domain converter. Context-free, version-specific semantic checks are Pydantic model validators. DSE, platform, and vendor materialization follows conversion and consumes only the immutable, version-neutral domain model.
+Validation is driven by trusted, exact-version Pydantic v2 contracts rather than prose examples or a runtime-loaded JSON Schema. For every supported `schema_version`, DLDD registers an immutable contract containing a shallow file-envelope `TypeAdapter`, an independently callable per-signature `TypeAdapter`, the corresponding fully nested document model used for schema generation/tests, and an explicit DTO-to-domain converter. Context-free, version-specific semantic checks are Pydantic model validators. DSE, platform, and vendor materialization follows conversion and consumes only the immutable, version-neutral domain model.
 
 The Pydantic models own required fields, strict primitive types, enum values, ranges, patterns, collection bounds, unknown-field policy, and type-specific path, evaluation, action, and query shapes. Bounded DLDD helpers and model validators own context-free cross-field constraints such as event ID uniqueness, condition-logic parsing, timeout inheritance eligibility, event references, and evaluator/operator compatibility. Product/software matching, DSE expansion, trusted vendor-hook discovery, and adapter configuration remain later materialization concerns.
 
@@ -928,7 +857,7 @@ Built-in event, evaluator, action, and query types use explicit typed dispatch. 
 
 The contract registry is Python code installed with DLDD and is immutable after initialization. Lookup is exact; a rule declaring `0.0.2` never falls back to `0.0.1`. Uploaded rules cannot provide a schema URI, filesystem path, module, class, callable, model name, or validator. A newer exact version receives an explicit registry entry even when it intentionally reuses an existing implementation.
 
-DLDD uses pinned Pydantic v2 and its compatible pinned `pydantic-core` as the runtime structural validation dependency. `sonic-host-services` declares Python `>=3.9`; the current deployed target is CPython 3.13 and has been exercised on Python 3.13.5. The current integration pins `pydantic==2.13.4` and `pydantic_core==2.46.4` in both build and host-image dependency locks. Registry construction verifies that each entry's version matches the envelope and publication models' literal `schema_version`, that envelope/signature/publication adapters can be constructed, and that every entry supplies its DTO-to-domain converter. An import failure, registry/model mismatch, adapter construction failure, or unexpected validator exception is a daemon/package failure; it is not attributed to uploaded rule content and must not be downgraded to a per-rule `BROKEN` result.
+DLDD uses pinned Pydantic v2 and its compatible pinned `pydantic-core` as the runtime structural validation dependency. `sonic-host-services` declares Python `>=3.9`; the current deployed target is CPython 3.13 and has been exercised on Python 3.13.5. The current integration pins `pydantic==2.13.4` and `pydantic_core==2.46.4` in both build and host-image dependency locks. Registry construction verifies that each entry's version matches the envelope and document models' literal `schema_version`, that envelope/signature/document adapters can be constructed, and that every entry supplies its DTO-to-domain converter. An import failure, registry/model mismatch, adapter construction failure, or unexpected validator exception is a daemon/package failure; it is not attributed to uploaded rule content and must not be downgraded to a per-rule `BROKEN` result.
 
 Every supported SONiC Python version and architecture must qualify the exact dependency set with binary-wheel availability, deterministic hashes, native-extension import/linkage checks, `pip check`, complete `sonic-host-services` tests, image construction, license/SBOM/vulnerability review, and startup/resource regression checks. Floating ranges, prereleases, runtime downloads, and an unexpected Rust/source build in the image path are not acceptable. Failure to import the compatible `pydantic-core` is an image construction/package defect rather than a rule-file validation result.
 
@@ -945,7 +874,7 @@ it cannot apply numeric bounds after parsing a mask value from a string. Those
 branches carry an `x-dldd-runtime-constraint` annotation describing the exact
 Pydantic check. The installed Pydantic contract remains authoritative.
 
-The generated JSON Schema is derivative, is not a second runtime authority, and is never loaded or executed by the daemon. Runtime validation must continue to work if the generated artifact is absent from an installed test environment. Schema layout JSON likewise remains optional external extraction metadata and is not part of runtime contract lookup.
+The generated JSON Schema is derivative, is not a second runtime authority, and is never loaded or executed by the daemon. Runtime validation must continue to work if the generated artifact is absent from an installed test environment.
 
 #### Input Safety
 
@@ -973,8 +902,9 @@ Schema `0.0.1` returns at most 64 Pydantic issues per rule and 4,096 issues
 per candidate, bounds each message to 1,024 bytes and each published path to
 2,048 bytes, and keeps compact serialized candidate diagnostics within 1 MiB.
 Long paths and diagnostic identities include a short SHA-256 suffix so
-distinct fields remain distinct after truncation. When detail is omitted,
-each affected rule retains a stable `validation_issues_truncated` marker.
+distinct fields remain distinct after truncation. When raw issues exceed a
+per-rule or per-candidate budget, each affected rule retains a stable
+`validation_issues_truncated` marker.
 
 The complete safety contract therefore requires: no network schema retrieval; no rule-selected schema/module/class/callable; no duplicate-key ambiguity or YAML object construction; no silent core-field dropping; no lax scalar coercion or non-finite values; bounded source, document, logic, regular-expression, vendor-payload, and diagnostic complexity; no hardware/source reads or side effects during normal activation; no raw rule payload in diagnostics; no mutable vendor data in runtime structures; no malformed built-in accepted through vendor fallback; and no version accepted by semantic-version proximity.
 
@@ -991,7 +921,7 @@ Normal activation validates configuration and bindings only. DLDD core does not 
 
 Declared rule/materialization errors (`DSEError` or `ValueError`) are localized to the affected rule. Unexpected exceptions from trusted validator or vendor code indicate an implementation/package failure; they abort that candidate attempt and enter lifecycle fallback rather than being mislabeled as vendor-rule authoring errors.
 
-Where a version permits platform-specific action, query, source, or evaluator types, its Pydantic contract validates a bounded generic extension envelope and the trusted platform registry must explicitly advertise and validate the concrete type. An installed vendor may supply a Pydantic adapter or side-effect-free validation hook. A type name in uploaded YAML never causes dynamic module import, and reserved built-in type names are always dispatched to their exact built-in models.
+Schema `0.0.1` keeps `event.type` and `evaluation.type` closed. Direct platform-source extension uses the bounded `platform_api` hook object, while DSE materialization may return a source type advertised by trusted installed hooks. Action and query operations have a bounded generic vendor envelope whose type must be advertised and validated by the trusted platform registry. Vendors may supply side-effect-free validation and execution hooks, but uploaded rules do not install or select a Pydantic model. A type name in uploaded YAML never causes dynamic module import, and reserved built-in type names are always dispatched to their exact built-in models.
 
 #### Validation Modes
 
@@ -1003,7 +933,7 @@ The validation CLI exposes progressively stronger, explicit modes:
 | `dse-resolve` | Adds DSE and trusted vendor-extension resolution plus evaluator construction without sampling sources. |
 | `activation-dry-run` | Adds product/software compatibility, complete materialization, trusted hook discovery, and side-effect-free adapter configuration validation. This is the normal promotion gate. |
 | `hardware-probe` | Explicit operator qualification that may invoke vendor-selected read-only source access. It is not part of normal activation. |
-| `e2e-execute` | Explicit controlled end-to-end platform qualification. It is not part of normal activation. |
+| `e2e-execute` | Explicit controlled monitoring-source qualification that calls each materialized adapter's `collect()` path (collection, normalization, and evaluation). It does not execute local actions or artifact queries and is not part of normal activation. |
 
 ### Validation Process
 1. **Bounded Syntax Validation**: Parse the immutable staged JSON/YAML copy using duplicate-safe, alias-free, bounded parsing.
@@ -1020,7 +950,7 @@ Validation occurs when a candidate generation changes. A generation remains tied
 ## Backward Compatibility
 - A daemon supports an older schema version by retaining an explicit Pydantic contract registry entry for that exact version.
 - A new registry entry may intentionally reuse existing models or a DTO-to-domain converter, and converted domain rules may share version-neutral materialization, but compatibility is never inferred from semantic-version proximity.
-- Generated schemas and layouts should remain available for external consumers while their exact schema contract is supported.
+- A generated JSON Schema should remain available for authoring tools while its exact schema contract is supported.
 - Unknown-field handling is controlled by each exact schema contract; consumers must not apply a blanket ignore policy across versions.
 
 ---
