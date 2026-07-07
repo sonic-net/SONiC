@@ -537,7 +537,7 @@ Vendors may add implementation-specific action/query types only when the platfor
 For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, validation fails for that rule. For log queries, `timeout` is optional and is not defaulted by the schema; if omitted, DLDD does not impose a schema-level query timeout, while Healthz artifact retention and storage policies still bound stored output.
 
 **Remote Actions (Required):**
-The action list uses OpenConfig Healthz fault remediation identities. OpenConfig identity values are extensible, so DLDD requires each entry to be a non-empty string but does not restrict it to a locally maintained enum. Standard or vendor-defined identities are preserved unchanged for the controller. `time_window` defines how long, in seconds, the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the controller may progress to the next action in `action_list` according to controller policy.
+The action list uses OpenConfig Healthz fault remediation identities. OpenConfig identity values are extensible, so DLDD requires each entry to be a non-empty string but does not restrict it to a locally maintained enum. Standard or vendor-defined identities are preserved unchanged for the controller. Vendor identities use `<yang-module>:<identity>` and must be present in the platform's compiled YANG model for UMF export. `time_window` defines how long, in seconds, the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the controller may progress to the next action in `action_list` according to controller policy.
 ```yaml
 remote_actions:
   action_list:                            # Required: Escalating sequence of controller actions
@@ -566,7 +566,7 @@ Remote action list order is the remediation index used when DLDD publishes `FAUL
 | `metadata.symptom` | OpenConfig `SYMPTOM_*` identities | Must map to the OpenConfig Healthz fault `symptom` identity. |
 | `metadata.error_type` | OpenConfig-aligned fault category strings or stable vendor category strings | Published to `FAULT_INFO.error_type`. UMF owns any mapping from this value into OpenConfig or SONiC extensions. |
 | `metadata.component` | Any non-empty string | Vendor/platform-defined component type identity. Examples such as `PSU`, `FAN`, and `TRANSCEIVER` are conventional, not an allowlist. |
-| `remote_actions.action_list[]` | Any non-empty string | Extensible OpenConfig Healthz remediation identity. Standard examples include `ACTION_RESEAT`, `ACTION_WARM_REBOOT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, and `ACTION_REPLACE`; vendor-defined identities are also accepted and preserved. |
+| `remote_actions.action_list[]` | Any non-empty string | Extensible OpenConfig Healthz remediation identity. Standard examples include `ACTION_RESEAT`, `ACTION_WARM_REBOOT`, `ACTION_COLD_REBOOT`, `ACTION_POWER_CYCLE`, `ACTION_FACTORY_RESET`, and `ACTION_REPLACE`. Vendor-defined identities are accepted and preserved; they use `<yang-module>:<identity>` and require that identity in the platform's compiled YANG model for UMF export. |
 | `event.type` | `i2c`, `redis`, `dse`, `cli`, `file`, `sysfs`, `platform_api` | Type-specific `path` schema is defined above. |
 | `evaluation.type` | `mask`, `comparison`, `string`, `boolean`, `dse` | Type-specific evaluation schema is defined above. |
 | `value_configs.type` | `binary`, `hex`, `int`, `float`, `string`, `boolean`, `json`, `bytes`, `N/A` | Representation metadata for values in rules and DLDD telemetry. `N/A` is used when neither the rule nor DSE supplies more specific metadata. |
@@ -577,7 +577,7 @@ Remote action list order is the remediation index used when DLDD publishes `FAUL
 
 DLDD translates vendor rules into the Redis `FAULT_INFO` payload before UMF exports OpenConfig Healthz telemetry:
 
-- `metadata.component` plus the resolved event instance identifies the affected component. The published `component_info.name` is the canonical vendor/platform component name for the affected instance.
+- `metadata.component` plus the resolved event instance identifies the affected component. `FAULT_INFO.component_type` carries the vendor-defined component type, `component_name` carries the canonical vendor/platform component name for the affected instance, and `component_serial_number` carries the best available serial number or an empty string.
 - `metadata.symptom` maps to the OpenConfig fault symptom. `metadata.severity` remains DLDD metadata used for ordering and diagnostics; it is not a native Healthz fault leaf.
 - `metadata.error_type` maps to `FAULT_INFO.error_type`. UMF owns the OpenConfig translation for this value; vendors must keep the category stable for a given rule version.
 - `remote_actions.action_list[]` maps to `repair_actions[]` in `FAULT_INFO`. List position is the remediation index, and the target defaults to the resolved affected component.
