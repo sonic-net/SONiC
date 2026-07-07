@@ -1,210 +1,208 @@
-# High-Level Design: RADIUS Authentication & Accounting on SONiC
+# High-Level Design: `auditlogd` — RADIUS Accounting for Command Auditing
 
-**Base assumptions**: This document describes the extensions layered on top of the existing upstream RADIUS user-authentication support in SONiC (PAM + NSS via `libnss-radius`, base `RADIUS` / `RADIUS_SERVER` CONFIG_DB tables rendered by `hostcfgd`). Upstream mechanics are not re-described here.
+## 1. Overview
 
----
+`auditlogd` is a new daemon in `sonic-host-services` that watches every command executed on a SONiC switch and reports each one to configured RADIUS servers as an **Accounting-Request** (per RFC 2866). It gives operators a central, tamper-resistant audit trail of privileged actions on the box.
 
-## 1. Motivation
+The daemon is a pure consumer: it does not authenticate users, does not modify how SONiC does RADIUS auth today, and has no dependency on 802.1x/PAC. It reads:
 
-Upstream SONiC supports RADIUS-based login authentication but has three gaps that this design closes:
-
-1. **AAA vs. 802.1x server segregation** — no way to say "this RADIUS server is only for admin login, that one is only for host authentication."
-2. **VRF binding for RADIUS accounting** — RADIUS traffic on the management network requires the daemon speaking RADIUS to bind its socket into the `mgmt` VRF.
-3. **Command / audit accounting** — there is no daemon that streams a switch's audit trail (privileged commands, `auditd` records) to a central RADIUS server as Accounting-Requests.
-
-This design adds the three capabilities above while reusing all of the upstream RADIUS scaffolding for user login.
+- Linux kernel audit events (via a netlink socket).
+- Existing RADIUS server configuration from `CONFIG_DB`.
 
 ---
 
-## 2. Scope
+## 2. What Ships
 
-**In-scope (this design)**:
-
-- New per-server `usage_scope` field (`all` / `aaa_only` / `dot1x_only`) in `RADIUS_SERVER`, and its consumers in `hostcfgd` and `auditlogd`.
-- New per-server `vrf` field in `RADIUS_SERVER`, plus a global RADIUS passkey, and their consumers in the accounting path.
-- New `auditlogd` daemon in `sonic-host-services` that streams `auditd` events to RADIUS servers as Accounting-Requests.
-- `hostcfgd` extensions for AAA authentication policy (order, fail-through, local fallback) so login and accounting share coherent policy.
-
-**Out-of-scope (untouched or upstream)**:
-
-- Base RADIUS login authentication via PAM / NSS (upstream behavior, reused as-is).
-- Existing `RADIUS` global fields (`auth_type`, `passkey`, `timeout`, `retransmit`, `nas_ip`, `src_intf`) — described here only where new consumers reference them.
-- 802.1x / PAC / hostapd / `wpa_supplicant` integration.
-- TACACS+ integration.
-- TLS transport for RADIUS (RADSEC / RADIUS-over-DTLS).
+| Path                                                     | Purpose                                                             |
+|----------------------------------------------------------|---------------------------------------------------------------------|
+| `scripts/auditlogd`                                      | The daemon itself.                                                  |
+| `data/debian/sonic-host-services-data.auditlogd.service` | Systemd unit for the daemon.                                        |
+| `data/debian/rules`                                      | Registers the systemd unit at package build time.                   |
+| `setup.py`                                               | Installs the daemon as `/usr/local/bin/auditlogd`.                  |
+| `tests/auditlogd/`                                       | Unit-test suite (packet formatting, netlink, mgmt-IP, filtering).   |
 
 ---
 
-## 3. Feature Overview
+## 3. Architecture
 
-Two new consumers read the shared RADIUS configuration model and speak to the RADIUS infrastructure:
+`auditlogd` is a single process with two long-running threads:
+
+- **Main thread** — connects to CONFIG_DB, subscribes to the tables it cares about, and processes configuration changes as they arrive.
+- **Monitor thread** — receives audit events from the kernel, assembles them into complete records, and hands each one off to be sent as a RADIUS Accounting-Request.
+
+Internally the code is organized around four roles:
+
+| Role                       | Responsibility                                                                                                                              |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| **Daemon controller**      | Process bootstrap. Owns the CONFIG_DB subscription and spawns the monitor thread.                                                            |
+| **Audit-event monitor**    | Owns the kernel audit socket. Buffers and reassembles multi-record events, applies filters, and hands each command up.                       |
+| **Audit logger**           | Loads configuration, installs kernel audit rules, and fans a command out to every configured RADIUS server.                                  |
+| **RADIUS accounting client** | Builds and sends one Accounting-Request per server, tracks per-server health, and verifies responses.                                     |
+
+RADIUS delivery for a given event runs in short-lived worker threads (one per server) so a slow server can never block audit-event consumption.
 
 ```
-                        +---------------------------+
-   SSH / console  --->  |  hostcfgd renders PAM/NSS |  <---> RADIUS server(s)  (Auth)
-   (admin login)        |  filtered by usage_scope  |        usage_scope in {all, aaa_only}
-                        +---------------------------+
+   kernel audit         audit-event monitor            audit logger          RADIUS accounting client        RADIUS server(s)
+   (execve rules)  --netlink-->  reassemble  --command-->   fan-out  --thread-per-server-->  UDP  ------->
 
-                        +---------------------------+
-   audit events  --->   |  auditlogd (new daemon)   |  <---> RADIUS server(s)  (Acct)
-   (auditd -> netlink)  |  RADIUS Accounting client |        usage_scope in {all, aaa_only}
-                        +---------------------------+
-
-                Configuration source: CONFIG_DB::RADIUS + RADIUS_SERVER
-                (existing tables, extended with `usage_scope` and `vrf`)
+                                        ^
+                                        | reload / update
+                                        |
+                           daemon controller (main thread)
+                                        ^
+                                        |
+                                     CONFIG_DB
+                                (RADIUS_SERVER, MGMT_INTERFACE, DEVICE_METADATA)
 ```
-
-`hostcfgd` is the sole renderer of RADIUS-related on-disk configuration. `auditlogd` is a new systemd service supplied by `sonic-host-services-data`.
 
 ---
 
-## 4. Data Model (CONFIG_DB) — Additions Only
+## 4. Configuration
 
-Only the newly added fields are documented here. The existing `RADIUS` and `RADIUS_SERVER` schemas remain as upstream.
+The daemon does **not** introduce new CONFIG_DB tables or fields. It reads three existing tables:
 
-### 4.1 `RADIUS` (global) — new consumers of the existing `passkey`
+- **`RADIUS_SERVER`** — one entry per server. From each entry the daemon uses:
+  - the server IP (the table key),
+  - the accounting port (falls back to the auth port, then to 1813),
+  - the shared secret (`passkey`),
+  - an optional explicit source IP (`src_ip`),
+  - the request `timeout` in seconds (defaults to 5),
+  - the number of `retransmit` retries (defaults to 0 — send once, no retry).
+- **`MGMT_INTERFACE`** — used to discover the management IP of `eth0`. This becomes the default source IP for any RADIUS server that does not have an explicit `src_ip`.
+- **`DEVICE_METADATA`** — the hostname of the switch (`localhost.hostname`) is used as the RADIUS `NAS-Identifier` in every accounting packet.
 
-The upstream global `passkey` is now also consumed by `auditlogd` as the RADIUS shared secret when a server has not defined its own per-server passkey.
+### Reacting to configuration changes
 
-### 4.2 `RADIUS_SERVER|<host>` — new fields
+| Change                          | What the daemon does                                                                            |
+|---------------------------------|-------------------------------------------------------------------------------------------------|
+| Any `RADIUS_SERVER` change      | Closes all existing RADIUS clients and re-reads the full server list.                           |
+| `eth0` management IP change     | Rebuilds only those RADIUS clients whose current source IP was the old management IP. The rebuilt client inherits the server's existing `timeout` and `retransmit` settings so behavior is unchanged across the mgmt-IP swap. |
 
-| Field           | Type   | Notes                                                                                                                            |
-|-----------------|--------|----------------------------------------------------------------------------------------------------------------------------------|
-| **`vrf`**       | string | VRF name (typically `mgmt`) that RADIUS traffic is sourced from. Consumed by `auditlogd` to bind its accounting socket.          |
-| **`usage_scope`** | enum | `all` / `aaa_only` / `dot1x_only`. Selects which subsystem(s) may use this server. Consumed by both `hostcfgd` and `auditlogd`. |
-
-`usage_scope` semantics used by this design:
-
-- Login AAA (via `hostcfgd`-rendered PAM/NSS) uses servers with `all` or `aaa_only`.
-- Accounting (`auditlogd`) uses servers with `all` or `aaa_only` — dot1x-only servers are excluded so that administrator command audit trails are never sent to end-host RADIUS servers.
-- `dot1x_only` servers are ignored by both consumers described in this design.
-
-The upstream per-server `timeout` and `retransmit` fields, previously used only by the PAM login path, are now also honored by `auditlogd` (see §5.2).
-
----
-
-## 5. Component Design
-
-### 5.1 `hostcfgd` extensions
-
-`hostcfgd` already renders `/etc/pam.d/*` and `/etc/nsswitch.conf` from `RADIUS` / `RADIUS_SERVER`. This design adds three new behaviors:
-
-- **`usage_scope`-aware rendering** — when rendering the login (PAM/NSS) configuration, `hostcfgd` filters `RADIUS_SERVER` entries to those with `usage_scope ∈ {all, aaa_only}`.
-- **VRF normalization** — when a server declares a `vrf`, that value is surfaced to downstream consumers (`auditlogd`) via the shared configuration surface.
-- **AAA authentication policy** — a new authentication-policy configuration (order, fail-through, local fallback) is honored so that both the login path and `auditlogd` operate under coherent, explicit policy rather than implicit defaults.
-
-### 5.2 `auditlogd` — new RADIUS Accounting daemon
-
-`auditlogd` is a new daemon shipped by `sonic-host-services-data`. It subscribes to Linux `auditd` events over netlink, formats each event as a RADIUS Accounting-Request, and sends it to every enabled RADIUS server.
-
-```
-    auditd  --(netlink AUDIT)-->  auditlogd  --(RADIUS Acct-Request UDP)-->  radius_server
-                                     |
-                                     +-- reads RADIUS / RADIUS_SERVER from CONFIG_DB
-                                     +-- filters by usage_scope in {all, aaa_only}
-                                     +-- binds socket to `vrf` (e.g. mgmt)
-                                     +-- retransmit / timeout / throttling
-                                     +-- STATE_DB status
-```
-
-Packaging:
-
-- A systemd unit `auditlogd.service` shipped by `sonic-host-services-data`.
-- A Python daemon (`scripts/auditlogd`) with an internal `RadiusAccountingClient`.
-- A pytest suite covering netlink handling, RADIUS packet formatting, mgmt-IP / patterns, throttle behavior, and VRF/passkey behavior.
-
-Behaviors introduced by this design:
-
-- **`usage_scope` filter** — an accounting log fans out only to servers with `usage_scope ∈ {all, aaa_only}`. Prevents administrator audit records from being sent to dot1x-only servers.
-- **VRF binding + global passkey** — the RADIUS accounting socket is bound to the server's `vrf`; the global `RADIUS|global` `passkey` is used unless the server defines its own. A consecutive-failure threshold avoids false-positive server-down declarations.
-- **RFC-correct retransmit** — retries reuse the **same** RADIUS Identifier and packet contents, waiting `timeout` seconds between attempts (e.g. `retransmit=2` produces 3 total sends). Per-server `timeout` and `retransmit` from CONFIG_DB are honored; settings are preserved across management-IP updates.
-- **Log throttling** — de-duplicates and rate-limits repeat WARN/ERR log lines (e.g. "Failed to send audit log to RADIUS server X (N consecutive failures)", "Failed to bind to VRF mgmt: [Errno 19]…") so syslog does not flood under sustained failures.
+No manual restart is required for either change.
 
 ---
 
-## 6. Configuration Example
+## 5. RADIUS Accounting
 
-Only the fields relevant to this design are shown; the rest of the base RADIUS configuration is unchanged from upstream.
+For every audited command the daemon sends an Accounting-Request (packet code 4, per RFC 2866) that carries the following information:
 
-```json
-{
-  "RADIUS": {
-    "global": {
-      "passkey": "sonic-shared-secret",
-      "timeout": "5",
-      "retransmit": "2"
-    }
-  },
-  "RADIUS_SERVER": {
-    "10.29.157.71": {
-      "auth_port": "1812",
-      "acct_port": "1813",
-      "priority": "1",
-      "vrf": "mgmt",
-      "usage_scope": "aaa_only",
-      "timeout": "10",
-      "retransmit": "2"
-    },
-    "10.29.157.72": {
-      "auth_port": "1812",
-      "acct_port": "1813",
-      "priority": "2",
-      "vrf": "mgmt",
-      "usage_scope": "dot1x_only"
-    }
-  }
-}
-```
+- **User-Name** — the resolved username, or `uid:<n>` if the user cannot be resolved.
+- **Acct-Status-Type** — `Start`. `Stop` / `Interim-Update` / `Accounting-On` / `Accounting-Off` are implemented for future use.
+- **Acct-Session-ID** — a unique per-command ID of the form `sonic-<epoch>-<counter>`.
+- **Called-Station-Id** — the command line itself, truncated to 250 bytes (RADIUS attribute limit is 253).
+- **Event-Timestamp** — seconds since epoch.
+- **NAS-Identifier** — the switch hostname from `DEVICE_METADATA`.
 
-In this configuration, `auditlogd` will send Accounting-Requests only to `10.29.157.71`, binding the socket into VRF `mgmt`, using the global passkey, with a 10-second timeout and two retransmits per event.
+The Request Authenticator is computed per RFC 2866 using the shared secret; the Response Authenticator on the reply is verified before the send is considered successful.
+
+### Timeout and retransmit
+
+Each server's `timeout` (default 5 s) is applied as the UDP socket receive timeout, and its `retransmit` (default 0) is the number of retries the daemon will attempt after the initial send. So `retransmit=2` yields up to 3 total transmissions per audit event; `retransmit=0` sends once.
+
+Retransmits follow RFC 2865 / 2866:
+
+- The **same** packet is sent on every attempt — the RADIUS Identifier, the attribute payload, and the Request Authenticator are all computed once and preserved across retries. This lets the RADIUS server correctly recognize retries as duplicates rather than distinct accounting events.
+- The daemon waits up to `timeout` seconds for a valid Accounting-Response between each attempt. A response received at any attempt short-circuits the loop and is treated as success.
+- Failures during socket setup (for example a VRF-bind error) fall through to the outer retry loop; a brief 100 ms sleep is inserted between exception retries to avoid tight loops.
+- Only if *all* attempts fail is the send counted as a failure for the per-server health state described in §7. A successful retry logs one INFO line noting how many attempts it took.
 
 ---
 
-## 7. Sequence Diagram — Command Audit via `auditlogd`
+## 6. Consuming Kernel Audit Events
 
-An operator logs into SONiC via SSH (authenticated by the upstream PAM/NSS RADIUS machinery, which `hostcfgd` renders with `usage_scope` filtering), executes a privileged command, and has that command streamed as a RADIUS Accounting-Request by `auditlogd`.
+`auditlogd` receives audit events directly from the Linux kernel over a `NETLINK_AUDIT` multicast socket, rather than reading `auditd` log files. This gives it real-time delivery, back-pressure signals, and lets it operate even if `auditd` is briefly restarted.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Admin
-    participant SSHD as sshd (+ PAM/NSS)
-    participant HC as hostcfgd
-    participant CDB as CONFIG_DB<br/>(RADIUS / RADIUS_SERVER)
-    participant AUD as auditd
-    participant ALD as auditlogd
-    participant AAAS as RADIUS server<br/>(usage_scope: aaa_only)
-    participant STDB as STATE_DB
+At startup the daemon installs two audit rules that key every `execve` syscall (on both 32-bit and 64-bit ABIs) as `sonic_commands`, and excludes its own PID to avoid self-audit. A few audit-tool executables (`auditctl`, `ausearch`, `auditd`) are keyed separately so they can be filtered out.
 
-    Note over HC,CDB: On boot and on any RADIUS config change
-    HC->>CDB: subscribe(RADIUS, RADIUS_SERVER)
-    CDB-->>HC: config snapshot
-    HC->>SSHD: render PAM / NSS<br/>(only usage_scope in {all, aaa_only})
-    HC->>ALD: expose auditlogd config<br/>(aaa-only servers, vrf, passkey, timeout/retransmit)
+The kernel produces multiple records per command (system-call record, exec arguments, working directory, path, process title, end-of-event marker). The monitor:
 
-    Admin->>SSHD: SSH login
-    SSHD->>AAAS: (upstream PAM/NSS) RADIUS Access-Request via VRF=mgmt
-    AAAS-->>SSHD: Access-Accept
-    SSHD-->>Admin: shell
+1. Starts tracking an event when it sees the `sonic_commands` key on any of its records.
+2. Merges subsequent records for the same event.
+3. Flushes the reassembled event as soon as an end-of-event marker arrives (the process-title record, an explicit end-of-event record, or any record type that the kernel emits as a single-record event).
+4. Also flushes any event that has been sitting in the buffer for more than two seconds without a marker, so the buffer never leaks.
 
-    Note over Admin,ALD: Admin runs a privileged command
-    Admin->>SSHD: sudo config vlan add 100
-    SSHD->>AUD: audit record (uid, cmd, exit)
-    AUD-->>ALD: netlink AUDIT event
+When flushed, the event is filtered and normalized:
 
-    ALD->>CDB: read RADIUS + RADIUS_SERVER (cached)
-    Note right of ALD: filter servers where<br/>usage_scope in {all, aaa_only}
-    ALD->>AAAS: Accounting-Request<br/>(Acct-Status-Type=Start/Interim/Stop,<br/>User-Name, NAS-Port-Id, ...)<br/>bound to VRF=mgmt
+- The username is resolved from the UID.
+- The command is derived preferentially from the process-title / exec-args record, joining up to the first ten arguments.
+- Empty, single-character, all-digit, hex-address-only, and audit-tool commands are discarded.
+- The daemon's own PID is filtered a second time as a safety net.
 
-    alt Ack received
-        AAAS-->>ALD: Accounting-Response
-        ALD->>STDB: update auditlogd state (last_ok, counters)
-    else No response within timeout
-        loop retransmit N times (same Identifier)
-            ALD->>AAAS: Accounting-Request (retry)
-        end
-        ALD->>STDB: increment consecutive_failures
-        Note over ALD: throttle repeated<br/>WARN/ERR log lines
-    end
+Whatever survives is handed to the audit logger.
+
+---
+
+## 7. RADIUS Server Health & Back-Pressure
+
+Because the daemon feeds off a kernel socket, it must consume events promptly or the kernel will start dropping (or, worse, will surface `ENOBUFS` errors). RADIUS servers are remote and can fail, so the daemon actively pauses instead of blocking:
+
+**Per-server state (tracked by the accounting client):**
+
+- A "failed send" here means all configured retransmit attempts have been exhausted for one audit event (see §5). Marked disconnected after **3 consecutive failed sends**.
+- Once disconnected, reconnect is retried at most every **30 seconds**.
+- A single log line reports each "disconnected" and "reconnected" transition; single, transient failures are only visible in DEBUG.
+
+**Global back-pressure loop (run by the monitor):**
+
+- Every **10 seconds** the monitor asks the logger whether *any* RADIUS server is currently connected or eligible for reconnect.
+- If **no** server is available, the monitor closes the netlink socket and enters a paused state. This stops userspace consumption; the kernel-side subscription is dropped, so no further events queue in the daemon's memory.
+- When at least one server is reachable again, the monitor reopens the netlink socket and resumes.
+- If the kernel ever returns `ENOBUFS` on a read, the monitor pauses immediately regardless of the 10-second cadence.
+
+The result: RADIUS outages degrade cleanly. The switch continues to operate normally; audit records that fell into the gap are dropped rather than causing memory pressure or blocking user commands.
+
+---
+
+## 8. Preventing Feedback Loops
+
+Auditing the daemon that talks about auditing would blow up quickly. Three defenses:
+
+1. **Audit rules exclude the daemon's own PID at the kernel level**, so its own `execve`s are never tagged `sonic_commands`.
+2. **Any command whose executable is `auditlogd`, `auditctl`, `ausearch`, or `auditd`** is dropped in user-space filtering, including compound invocations such as `sudo auditctl ...` or `python3 auditlogd`.
+3. **`Wants=auditd.service` (not `Requires=`)**, so a restart of `auditd` does not restart `auditlogd`.
+
+---
+
+## 9. Systemd Integration
+
+The daemon is installed as a normal SONiC host service:
+
 ```
+[Unit]
+Description=Audit Logging daemon for command tracking and RADIUS accounting
+Wants=auditd.service
+Requires=config-setup.service
+After=auditd.service config-setup.service hostcfgd.service
+BindsTo=sonic.target
+After=sonic.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/auditlogd
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=600
+TimeoutStopSec=5
+# Environment="AUDITLOGD_LOG_LEVEL=DEBUG"    # opt-in verbose logging
+
+[Install]
+WantedBy=sonic.target
+```
+
+Notes for operators:
+
+- Ordered after `config-setup.service` and `hostcfgd.service` so CONFIG_DB is populated before the daemon starts.
+- Bound to `sonic.target`, so it starts and stops with SONiC.
+- Restart is capped at 5 restarts per 10 minutes to prevent crash-loops.
+- Default log level is `WARNING`; set `AUDITLOGD_LOG_LEVEL=DEBUG` in the service environment to enable verbose logs without touching the code.
+
+---
+
+## 10. Operational Notes
+
+- The daemon must run as root; it manipulates kernel audit rules and reads from `NETLINK_AUDIT`.
+- Accounting is best-effort. RADIUS uses UDP; timeouts are treated as failures and drive the health state described in §7. There is no local persistence of unsent events by design — sustained RADIUS outages result in a paused daemon, not unbounded memory growth.
+- To increase visibility during troubleshooting, set `AUDITLOGD_LOG_LEVEL=DEBUG` in the service environment and restart the unit.
+- Health of each RADIUS server (connected / disconnected / consecutive failures) is available in memory and can be surfaced through future CLI/telemetry work; this document does not define a CLI schema for it.
 
