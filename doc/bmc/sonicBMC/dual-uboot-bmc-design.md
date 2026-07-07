@@ -11,7 +11,7 @@
     - [1.1 Background](#11-background)
   - [2. Requirements](#2-requirements)
   - [3. Detailed Design](#3-detailed-design)
-    - [3.1 Current Design](#31-current-design)
+    - [3.1 Existing Behavior](#31-existing-behavior)
     - [3.2 Problem Statement](#32-problem-statement)
       - [Image Install or Upgrade](#image-install-or-upgrade)
       - [Image Remove](#image-remove)
@@ -89,13 +89,7 @@ These variables determine which SONiC-BMC image is selected for boot and how the
 
 The Aspeed SONiC-BMC framework updates U-Boot environment variables through `fw_setenv` during image install, image removal, boot target changes, and initial U-Boot environment programming.
 
-Today only the primary environment is updated. The alternate environment is not synchronized automatically.
-
-As a result, bootenv-changing operations update only the active flash copy, while the alternate flash copy retains old boot metadata. This becomes a functional issue when the platform later boots from the alternate SPI flash, for example after watchdog-triggered switchover. This HLD focuses on the synchronization requirement for such dual-flash switchover scenarios.
-
-As a result, `u-boot-env` and `u-boot-env-alt` may diverge over time.
-
-On platforms with dual SPI flash, active boot source switchover is performed by the SoC watchdog mechanism. This HLD does not change the watchdog-based switchover mechanism itself. The purpose of this design is to keep bootenv metadata consistent across both flash copies so that switchover does not consume stale environment state.
+Today only the primary environment is updated, while the alternate environment is not synchronized automatically. As a result, bootenv-changing operations update only the active flash copy and the two environment copies can diverge over time. On dual SPI flash platforms, this becomes a functional issue when the system later boots from the alternate SPI flash, for example after SoC watchdog-triggered switchover. This HLD does not change the watchdog-based switchover mechanism itself; it focuses on keeping bootenv metadata consistent across both flash copies for such dual-flash switchover scenarios.
 
 ## 2. Requirements
 
@@ -114,7 +108,7 @@ General requirements
 
 ## 3. Detailed Design
 
-### 3.1 Current Design
+### 3.1 Existing Behavior
 
 In the current framework, multiple common paths update U-Boot environment directly through `fw_setenv`.
 
