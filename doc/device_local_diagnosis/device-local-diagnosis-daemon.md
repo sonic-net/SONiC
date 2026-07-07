@@ -659,7 +659,7 @@ The Redis examples in this document use a `redis-dump` style representation. The
 ```json
 {
   "DLDD_STATUS|process_state": {
-    "expireat": 1746122880.1234567,
+    "expireat": 1746122880,
     "ttl": 120,
     "type": "hash",
     "value": {
@@ -683,7 +683,7 @@ The Redis examples in this document use a `redis-dump` style representation. The
           "reason": "query_error: I2C bus 6 unavailable outside maintenance window",
           "failure_count": 3,
           "state": "DEGRADED",
-          "last_attempt": 1735678901.234
+          "last_attempt": 1735678901
         },
         {
           "rule": "TEMP_THRESHOLD_CHECK",
@@ -692,7 +692,7 @@ The Redis examples in this document use a `redis-dump` style representation. The
           "reason": "evaluation_error: evaluator type mismatch",
           "failure_count": 1,
           "state": "BROKEN",
-          "last_attempt": 1735678905.678
+          "last_attempt": 1735678905
         }
       ],
       "source_status": [
@@ -701,9 +701,9 @@ The Redis examples in this document use a `redis-dump` style representation. The
           "state": "UNAVAILABLE",
           "reason": "producer service restarting during config reload",
           "graceful": true,
-          "since": 1735678880.000,
-          "grace_deadline": 1735679180.000,
-          "last_success": 1735678840.000,
+          "since": 1735678880,
+          "grace_deadline": 1735679180,
+          "last_success": 1735678840,
           "failure_count": 1,
           "affected_rules": ["PSU_STATUS_CHECK"],
           "stale_faults": ["FAULT_INFO|PSU0|SYMPTOM_OVER_THRESHOLD"]
@@ -714,14 +714,14 @@ The Redis examples in this document use a `redis-dump` style representation. The
           "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD",
           "state": "HELD_BY_PRIMARY",
           "reason": "local_action_wait",
-          "since": 1745614206.1123456,
-          "hold_deadline": 1745614626.1123456,
+          "since": 1745614206,
+          "hold_deadline": 1745614626,
           "owning_monitor": "common",
           "local_action_state": {
             "state": "WAITING_FOR_RECHECK",
             "worker_id": "action-PSU_OV_FAULT-1735678901",
-            "started_at": 1745614206.1123456,
-            "wait_until": 1745614266.1123456,
+            "started_at": 1745614206,
+            "wait_until": 1745614266,
             "last_error": ""
           }
         }
@@ -733,6 +733,14 @@ The Redis examples in this document use a `redis-dump` style representation. The
 ```
 
 **Schema Fields**:
+
+All timestamps published by DLDD use whole Unix epoch seconds. DLDD applies
+mathematical floor at external boundaries, so `1745614206.987` is published as
+`1745614206`. This applies consistently to STATE_DB, rule status, fault and
+action metadata, Healthz artifact metadata, activation audit records, and
+persisted broken-rule diagnostics. Durations and intervals are not timestamps
+and retain their configured precision. Internal monotonic cadence and deadline
+calculations also retain full precision.
 
 **Top-Level Fields**:
 - **`expireat`**: Unix timestamp when the key expires. DLDD refreshes this before the 120-second TTL window expires.
@@ -1120,23 +1128,23 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
         "state": "COMPLETED",
         "correlation_key": "1000001:1:PSU0:SYMPTOM_OVER_THRESHOLD",
         "worker_id": "action-PSU_OV_FAULT-1735678901",
-        "started_at": 1745614206.1123456,
-        "completed_at": 1745614266.1123456,
+        "started_at": 1745614206,
+        "completed_at": 1745614266,
         "action_suppressed": true,
         "last_error": ""
       },
       "healthz_artifact": {
         "artifact_id": "dldd-PSU_OV_FAULT-PSU0-1745614266",
         "state": "REQUESTED",
-        "requested_at": 1745614266.1123456,
+        "requested_at": 1745614266,
         "completed_at": null,
         "last_error": ""
       },
       "severity": "CRITICAL",
       "symptom": "SYMPTOM_OVER_THRESHOLD",
       "status": "ACTIVE",
-      "origin_time": 1745614206.0123456,
-      "last_detection_time": 1745614206.0123456,
+      "origin_time": 1745614206,
+      "last_detection_time": 1745614206,
       "occurrences": 1,
       "description": "An over voltage fault has occurred on the output feed from the PSU to the chassis."
     }
@@ -1176,8 +1184,8 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
 - **`severity`**: Fault severity level from rule metadata. This is rule-derived DLDD metadata and is not a native OpenConfig Healthz fault leaf.
 - **`symptom`**: OpenConfig-defined symptom enum that categorizes the fault for standardized controller processing
 - **`status`**: OpenConfig fault status (`ACTIVE`, `INACTIVE`, or `UNSPECIFIED`). A local-action rule that clears on post-action recheck is published as `INACTIVE`, not hidden, so controllers can observe that DLDD detected and recovered the condition.
-- **`origin_time`**: Unix epoch timestamp in seconds, optionally fractional, when the fault first became active for this fault lifetime. UMF converts this value to OpenConfig nanoseconds.
-- **`last_detection_time`**: Unix epoch timestamp in seconds, optionally fractional, when DLDD last detected a fault state change for this record, including the assertion to `ACTIVE` or the clear observation to `INACTIVE`. UMF converts this value to OpenConfig nanoseconds.
+- **`origin_time`**: Whole Unix epoch seconds, floored at publication, when the fault first became active for this fault lifetime. UMF converts this value to OpenConfig nanoseconds.
+- **`last_detection_time`**: Whole Unix epoch seconds, floored at publication, when DLDD last detected a fault state change for this record, including the assertion to `ACTIVE` or the clear observation to `INACTIVE`. UMF converts this value to OpenConfig nanoseconds.
 - **`occurrences`**: Count of `INACTIVE` to `ACTIVE` transitions for this fault; starts at 1 when the fault is first added
 - **`description`**: Human-readable fault description from the rule metadata
 
