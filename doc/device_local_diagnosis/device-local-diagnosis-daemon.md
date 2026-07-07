@@ -792,6 +792,40 @@ The Redis examples in this document use a `redis-dump` style representation. The
 - **`owning_monitor`**: Monitor thread responsible for the key (`redis`, `file`, or `common`).
 - **`local_action_state`**: Optional in-progress local action or wait state for candidate faults held before `FAULT_INFO` publication. This is where `RUNNING` and `WAITING_FOR_RECHECK` are exposed.
 
+### Active Rule Status Snapshot
+
+DLDD publishes `DLDD_RULE_STATUS|active` in STATE_DB with the same 120-second
+heartbeat TTL as `DLDD_STATUS|process_state`. The snapshot carries the active
+rules checksum and is valid only when that checksum matches
+`DLDD_STATUS|process_state.active_rules_checksum`. This prevents an operator
+from confusing a stale snapshot with the current generation during restart or
+activation.
+
+The `rules` field contains one aggregate record per rule, including rules that
+failed ingestion and never entered a monitor plan. Each record contains the
+rule name, ID, version, component type, health, healthy/total work-item counts,
+active-fault count, most recent attempt and success timestamps, maximum
+consecutive failure count, current reason, and optional work-item detail.
+
+Rule health is separate from fault state:
+
+- `OK`: every work item is operational. The rule may still have one or more
+  active hardware faults.
+- `DEGRADED`: at least one work item is unavailable, suspended, degraded,
+  broken, or otherwise unhealthy while other work remains usable.
+- `BROKEN`: the rule failed ingestion/materialization or all of its work items
+  are broken.
+- `SUSPENDED`: every work item is intentionally suspended.
+
+Work-item detail includes event ID, resolved component, source and monitor,
+monitor state, effective sampling interval and whether it came from the event
+or monitor default, active-fault indication, attempt/success/next-due times,
+failure count, correlation key, and failure reason. To keep heartbeat
+publication bounded, DLDD publishes at most 256 detailed work items per rule
+and 4,096 per snapshot. Aggregate rule rows are always retained; omitted detail
+is counted in `work_items_omitted`, and `detail_truncated` marks a bounded
+snapshot.
+
 ### Service Configuration
 
 #### Host Service Placement
@@ -933,13 +967,33 @@ sudo config dldd rules-inbox-settle-time 30
 show dldd config
 ```
 
-#### TODO: Operational Show Commands
+#### Operational Show Commands
 
-DLDD should add dedicated show commands for service state and diagnostics. The exact CLI syntax is TBD, but the command surface should cover:
-- Service state and heartbeat age from `DLDD_STATUS|process_state`
-- Active rule generation, schema version, and active rules checksum
-- Broken rules and failure reasons
-- Active and inactive `FAULT_INFO` records by component/symptom
+```bash
+# Effective configuration and service health
+show dldd config
+show dldd status
+
+# Complete active rule inventory and runtime health
+show dldd rules
+show dldd rules --health degraded
+show dldd rules --component PSU
+show dldd rules --active-fault
+show dldd rules --no-active-fault
+show dldd rules --detail
+
+# Active and retained inactive hardware faults
+show dldd faults
+show dldd faults --status ACTIVE --component PSU0
+```
+
+`show dldd rules` reads only the daemon-owned STATE_DB snapshot; it does not
+reparse the active YAML or duplicate schema/materialization logic. The default
+view is one row per rule. `--health`, `--component`, and
+`--active-fault/--no-active-fault` may be combined. The component filter
+matches either the rule's component type or a resolved component instance.
+`--detail` adds the bounded per-work-item table and reports when detail was
+truncated.
 
 DLDD subscribes to `DLDD_CONFIG` changes via Redis SUBSCRIBE and applies runtime-safe updates dynamically without requiring a service restart. Thresholds, monitor-default polling intervals, source grace periods, inactive fault retention periods, fault evidence ack timeout, and active fault recheck interval are runtime-safe. A monitor-default interval update affects only work items whose event omitted `sampling_interval`; explicit event intervals do not change. When a default becomes shorter, DLDD may pull an inherited item's next due time forward. When it becomes longer, an already nearer due attempt remains scheduled and the longer interval applies after that attempt. `rules_inbox_settle_time` is consumed by the rules watcher and takes effect on the next watcher cycle. The active rules source owns `local_action_default_timeout`; changing that default requires rules activation so action validation and timeout behavior stay tied to the same rule generation. The currently active configuration and rules-source timeout default are published in the `DLDD_STATUS|process_state` telemetry, allowing the controller to understand the service's failure tolerance, source-availability policy, and local action timeout policy.
 
