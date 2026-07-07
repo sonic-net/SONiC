@@ -34,11 +34,7 @@ The service provides:
 | Revision | Date | Author | Description |
 |----------|------|--------|-------------|
 | 0.1 | 2025-09-24 | Gregory Boudreau | Initial draft of DLDD HLD |
-| 0.2 | 2026-07-06 | Gregory Boudreau | Consolidated the implemented runtime, Pydantic validation boundary, per-event cadence, asynchronous collection, priority rechecks, rule/fault CLI telemetry, and cross-repository implementation map |
-| 0.3 | 2026-07-06 | Gregory Boudreau | Removed superseded validation/image material and reconciled the normative architecture, vendor hooks, artifacts, telemetry, lifecycle, and exact schema `0.0.1` contract |
-| 0.4 | 2026-07-07 | Gregory Boudreau | Added monitor-owned runtime DSE handles, instance expansion, bootstrap/warmup/stable discovery, dynamic-fault restart reconciliation, and the Cisco reference function bank |
-| 0.5 | 2026-07-07 | Gregory Boudreau | Separated abstract DSE selectors from vendor-private expansion and per-capability backend hooks |
-| 0.6 | 2026-07-07 | Gregory Boudreau | Reserved service diagnostics for abnormal conditions by removing routine successful active-fault reconciliation completions |
+| 0.2 | 2026-07-07 | Gregory Boudreau | Consolidated DLDD design and implementation alignment: established the exact schema `0.0.1` Pydantic validation boundary; reconciled runtime architecture, lifecycle, vendor hooks, actions, artifacts, telemetry, CLI, and repository ownership; added per-event cadence, asynchronous collection, priority rechecks, monitor-owned DSE handles, runtime instance expansion with bootstrap/warmup/stable discovery, restart-safe dynamic-fault reconciliation, and the Cisco reference function bank; separated transport-neutral selectors from vendor-private expansion/backend hooks; removed superseded design material; and reserved service diagnostics for abnormal conditions. |
 
 ## Scope
 
