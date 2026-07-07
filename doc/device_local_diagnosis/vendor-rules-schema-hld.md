@@ -175,7 +175,7 @@ conditions:
 | Field | Type | Required | Description | Valid Values | Example |
 |-------|------|----------|-------------|--------------|----------|
 | `logic` | String | Yes | Boolean expression defining how active fault events are combined; bounded to 16,384 characters, 4,096 tokens, and nesting depth 64 | Boolean operators: `AND`, `OR` with event IDs | `"1 AND 2"`, `"1 OR (2 AND 3)"` |
-| `logic_lookback_time` | Integer | Yes | Time window in seconds for correlating events | 0-86400 (0=instant, 86400=24 hours) | `60` (1 minute window) |
+| `logic_lookback_time` | Integer | Yes | Maximum age in seconds between active event matches used for logic correlation. Zero disables match-age filtering and evaluates only the current active/clear state of each event. | 0-86400 (0=current active state, 86400=24 hours) | `60` (1 minute window) |
 | `events` | List | Yes | Array of event definitions that can trigger the fault | 1-1000 events | See Event Definition below |
 
 #### Logic Expression Rules
@@ -183,7 +183,7 @@ conditions:
 - **Operators**: `AND`, `OR` (case sensitive)
 - **Precedence**: `AND` binds more tightly than `OR`; parentheses override precedence. For example, `"1 OR 2 AND 3"` means `"1 OR (2 AND 3)"`.
 - **Simple Cases**: Single event: `"1"`, Multiple events: `"1 AND 2"`
-- **Time Correlation**: The events that make the boolean expression true must have active matches within `logic_lookback_time` seconds. For `OR`, only the satisfied branch must meet the window; unsatisfied branches are not required to produce matches.
+- **Time Correlation**: When `logic_lookback_time` is greater than zero, the events that make the boolean expression true must have active matches within that many seconds of the newest event time. For `OR`, only the satisfied branch must meet the window; unsatisfied branches are not required to produce matches. When `logic_lookback_time` is zero, DLDD applies no historical age window: every event that is currently in its active failing state remains true until valid clear evidence makes it false. Thus, if event 2 became active five minutes ago and remains active, event 1 becoming active now immediately satisfies `1 AND 2`. The events do not need matching transition timestamps. Each event's own `match_count` and `match_period` semantics still apply before its current truth value participates in signature logic.
 - **No Negated Events**: `NOT` is not part of schema version `0.0.1`. If an absent, inactive, or false component state is itself a fault, model that as an explicit event whose evaluator positively matches the failing state.
 - **Instance Correlation**: Signature logic is evaluated per resolved diagnosis instance. Explicit `instances` entries and DSE selectors that expand to component instances both create instanced events. Events that do not carry explicit or implicit instances are treated as common predicates that apply to every resolved instance of the signature.
 
@@ -602,6 +602,7 @@ Remote action list order is the remediation index used when DLDD publishes `FAUL
 
 DLDD translates vendor rules into the Redis `FAULT_INFO` payload before UMF exports OpenConfig Healthz telemetry:
 
+- DLDD adds the fixed `producer: dldd` ownership marker. This is daemon metadata, not a vendor-selectable rule field.
 - `metadata.component` plus the resolved event instance identifies the affected component. `FAULT_INFO.component_type` carries the vendor-defined component type, `component_name` carries the canonical vendor/platform component name for the affected instance, and `component_serial_number` carries the best available serial number or an empty string.
 - `metadata.symptom` maps to the OpenConfig fault symptom. `metadata.severity` remains DLDD metadata used for ordering and diagnostics; it is not a native Healthz fault leaf.
 - `metadata.error_type` maps to `FAULT_INFO.error_type`. UMF owns the OpenConfig translation for this value; vendors must keep the category stable for a given rule version.
@@ -663,7 +664,7 @@ The fixed trusted platform extension surface is:
 | `create_vendor_hooks()` | Returns a `VendorHookRegistry` advertising vendor source/action/query types and their validation/execution hooks. |
 | `create_compatibility_matcher(...)` | Optionally replaces exact product/software membership matching with a vendor compatibility policy. |
 | `create_artifact_client(identity, artifact_directory, query_runner)` | Optionally replaces the default filesystem artifact client while retaining the asynchronous artifact contract. |
-| `source_lifecycle` named hook | Classifies vendor-specific source outages as expected maintenance. Without it, only generic trusted SONiC lifecycle context can classify a suspension; otherwise absence is unexpected `UNAVAILABLE` and normal grace/failure policy applies. |
+| `source_lifecycle` named hook | Classifies vendor-specific peer-source outages as expected maintenance. SONiC has no generic mapping from an arbitrary rule path or Redis table to its producer service. Without this hook, peer-source absence is unexpected `UNAVAILABLE` and normal grace/failure policy applies. DLDD's own FEATURE/systemd lifecycle is managed separately and is not inferred from rule telemetry. |
 | `component_metadata` named hook | Supplies optional component metadata such as serial number for fault publication. |
 | `i2c` named hook | Validates/resolves vendor logical I2C bus identifiers. |
 

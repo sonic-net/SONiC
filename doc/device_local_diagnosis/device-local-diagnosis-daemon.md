@@ -105,7 +105,7 @@ Operators control the service through standard SONiC mechanisms: the `FEATURE` t
 flowchart LR
   subgraph RulePlane["Rule and configuration plane"]
     Sources["Rule generations<br/>inbox / active / packaged / golden"]
-    Watcher["Stable-file watcher and lifecycle<br/>watcher.py / lifecycle.py"]
+    Watcher["Stable inbox-file watcher<br/>watcher.py"]
     Contract["Bounded parser and exact Pydantic contract<br/>validation.py / rule_schema/*"]
     Plan["DSE materialization and immutable plans<br/>dse.py / planner.py / runtime.py"]
     Config["CONFIG_DB<br/>FEATURE / DLDD_CONFIG"]
@@ -133,7 +133,7 @@ flowchart LR
     Artifacts["Healthz artifact work<br/>artifacts.py"]
     Telemetry["Telemetry publication<br/>telemetry.py / rule_status.py"]
 
-    Sources -->|"candidate generations"| Service
+    Sources -->|"candidate generations<br/>lifecycle.py"| Service
     Watcher -->|"stable change; graceful restart"| Service
     Config --> Service
     Service -->|"select and activate"| Contract --> Plan --> Monitors
@@ -434,7 +434,7 @@ DLDD Process (PID: main)
 The primary thread is the single owner of signature-level state. Monitor threads own transport polling and per-event evaluation only. This split avoids divergent interpretations of multi-event logic and avoids shared mutable rule state between the primary thread and monitor threads.
 
 - **Execution plan updates**: Rules file changes are activated through a service restart, so the daemon starts with a clean in-memory execution plan and every eligible work item is immediately due. Runtime rule disablement, suspension, or recovery is decided by the primary thread and communicated through `MonitorControlCommand`; monitor threads do not mutate the shared plan directly.
-- **Event history**: The primary thread maintains per-signature, per-event, per-instance history keyed by event timestamp. `match_count` is evaluated within `match_period` for each event. The `conditions.logic` expression is evaluated per resolved diagnosis instance within `logic_lookback_time`: explicit `instances` and DSE selectors that expand to component instances are joined by matching component instance, while events without explicit or implicit instances are common predicates available to each instance group.
+- **Event history**: The primary thread maintains per-signature, per-event, per-instance history keyed by event timestamp. `match_count` is evaluated within `match_period` for each event. The `conditions.logic` expression is evaluated per resolved diagnosis instance. A positive `logic_lookback_time` rejects otherwise-active event matches older than its window relative to the newest event time. A zero value applies no match-age filter and correlates current event truth: an event that became active earlier remains true while it is still actively failing, so a later event can immediately complete an `AND` expression. Explicit `instances` and DSE selectors that expand to component instances are joined by matching component instance, while events without explicit or implicit instances are common predicates available to each instance group.
 - **Ordering**: FIFO order is used for processing efficiency, but correlation uses event timestamps rather than enqueue order. Late events outside their configured windows are discarded and counted in service diagnostics.
 - **Single-flight ownership**: A monitor never removes the immutable `MonitorWorkItem` from its plan; it marks the key ineligible for normal polling while the key is `IN_FLIGHT` or `HELD_BY_PRIMARY`. This prevents a clear notification from overtaking an unprocessed match and prevents repeated matches from flooding the FIFO while the primary thread owns the lifecycle.
 - **Clear behavior**: A fault is cleared only after the primary thread observes that the signature logic is no longer satisfied for the affected component/instance. Clear evidence can come from normal polling after `RESUME` or from a primary-requested `RECHECK_ONCE`. If match and clear evidence for the same key are already in the FIFO, they are processed in FIFO order; a clear never erases earlier unprocessed fault evidence.
@@ -577,10 +577,10 @@ DLDD uses exception-based error handling at both the primary orchestration threa
 DLDD distinguishes between a hardware fault, an unavailable data source, and a broken rule:
 
 - **Fault active**: The data source returned a valid value and the rule evaluator determined that the configured fault condition is satisfied.
-- **Source unavailable or unevaluable**: The source cannot currently be sampled, such as during a graceful service stop, config reload, Redis/database unavailability, missing transient key, or adapter timeout. This is not itself a hardware fault. DLDD should not create a new `ACTIVE` `FAULT_INFO` record solely because a source is unavailable. If a fault was already active, DLDD preserves the prior fault state and annotates the source as unavailable/stale until a valid sample clears or reasserts the condition.
-- **Broken rule**: The rule, DSE binding, adapter configuration, or evaluator contract is invalid or persistently fails outside an expected graceful-maintenance window. During ingestion, invalid rules are not materialized into monitor plans. At runtime, broken rules remain represented in the immutable monitor plan but affected keys are marked `BROKEN` in `state_by_key` and reported through `broken_rules` service telemetry. `SUSPENDED` is reserved for intentional maintenance, feature disablement, or controller/operator suspension.
+- **Source unavailable or unevaluable**: A source cannot currently be sampled because of Redis/database unavailability, a missing transient key, peer-producer maintenance, or an adapter timeout. This is not itself a hardware fault. DLDD should not create a new `ACTIVE` `FAULT_INFO` record solely because a source is unavailable. If a fault was already active, DLDD preserves the prior fault state and annotates the source as unavailable/stale until a valid sample clears or reasserts the condition.
+- **Broken rule**: The rule, DSE binding, adapter configuration, or evaluator contract is invalid or persistently fails outside an expected graceful-maintenance window. During ingestion, invalid rules are not materialized into monitor plans. At runtime, broken rules remain represented in the immutable monitor plan but affected keys are marked `BROKEN` in `state_by_key` and reported through `broken_rules` service telemetry. `SUSPENDED` is reserved for a trusted hook's intentional peer-source maintenance classification or a future explicit controller/operator per-source suspension; FEATURE disablement stops DLDD instead.
 
-Graceful shutdown and reload signals from SONiC service state, database state, config reload sequencing, or explicit feature disablement should put affected sources/rules into `SUSPENDED` or `UNAVAILABLE` service state. They should not increment broken-rule counters unless the source remains unavailable after the expected maintenance window.
+An expected peer-source outage identified by trusted platform lifecycle context should put affected sources/rules into `SUSPENDED`; otherwise collection failure produces `UNAVAILABLE`. Neither state is inferred from DLDD process-status telemetry. DLDD's own config reload, FEATURE disable, service stop, reboot, and rules-file restart are process lifecycle operations owned by `featured` and systemd, not source states synthesized by the watcher.
 
 #### Source Availability Policy
 
@@ -589,14 +589,14 @@ Source availability is tracked independently from hardware fault state. A missin
 | Source State | Meaning | Counter Behavior | Fault Behavior |
 |--------------|---------|------------------|----------------|
 | `AVAILABLE` | Source sampled successfully during the most recent attempt | Reset source-unavailable failure tracking for that work item | Event result may match or clear according to the evaluator |
-| `SUSPENDED` | Source is intentionally unavailable due to config reload, feature disable, service stop, reboot sequencing, or a controller/operator maintenance action | Do not increment broken-rule counters while the suspension is active | Do not create a new active fault solely from suspension; existing active faults remain active with stale-source annotation |
+| `SUSPENDED` | A trusted lifecycle hook classifies the peer source as intentionally unavailable, or an explicit per-source controller/operator suspension exists | Do not increment broken-rule counters while the suspension is active | Do not create a new active fault solely from suspension; existing active faults remain active with stale-source annotation |
 | `UNAVAILABLE` | Source could not be sampled and no active graceful suspension is known, or the graceful window expired | Increment source failure counters according to `individual_max_failure_threshold` after `source_unavailable_grace_period` expires | Do not create a new active fault solely from unavailability; existing active faults remain active until a valid sample clears or reasserts |
 | `RECOVERED` | Source transitioned from `SUSPENDED` or `UNAVAILABLE` to successful sampling | Reset source failure counters after successful collection | Primary thread reevaluates signature logic using the recovered sample and publishes clear or active state as appropriate |
 
-DLDD determines graceful source handling from trusted local service context, never from uploaded rule fields. Generic SONiC lifecycle observation and the optional installed `source_lifecycle` vendor hook feed the same policy. The hook receives the resolved source binding and may classify it as expected maintenance; it cannot be selected by uploaded YAML. If neither generic service context nor the hook identifies expected maintenance, the source is `UNAVAILABLE`, not `SUSPENDED`, and normal grace/failure thresholds apply:
-- During `config reload`, `FEATURE|dldd` disablement, host service stop, or planned reboot sequencing, DLDD marks affected sources `SUSPENDED` before stopping monitor work where possible.
-- During database Docker/Redis unavailability, Redis-backed collection, CONFIG_DB subscription, local status publication, and `FAULT_INFO` publication are unavailable. DLDD preserves local in-memory state where possible and records diagnostics to syslog until Redis returns, but Redis remains the required local publication boundary for controller-visible telemetry.
-- During producer container restart, missing Redis keys or stale Redis tables are treated as source availability events for rules that depend on those keys. DLDD should use SONiC service state when available; otherwise it falls back to the configured grace period and consecutive failure thresholds.
+DLDD determines graceful peer-source handling from trusted installed platform code, never from uploaded rule fields. SONiC does not expose a generic, authoritative mapping from an arbitrary rule path or Redis table/key to the service that produces it. The optional installed `source_lifecycle` vendor hook receives the resolved source binding and may classify a vendor-known outage as expected maintenance; it cannot be selected by uploaded YAML. If that hook is absent or does not identify expected maintenance, the source is `UNAVAILABLE`, not `SUSPENDED`, and normal grace/failure thresholds apply:
+- During DLDD's own `config reload`, FEATURE disablement, host service stop, planned reboot, or rule-file restart, `featured`/systemd stop or restart the process. The file watcher does not inspect `DLDD_STATUS`, classify source state, or supervise process health.
+- During database Docker/Redis unavailability, Redis-backed collection, CONFIG_DB subscription, local status publication, and `FAULT_INFO` publication are unavailable. Because Redis is the required local publication boundary, three consecutive process/rule status publication failures, retried one second apart, cause orderly daemon shutdown and a non-zero exit. The systemd unit's `Restart=on-failure` policy then retries service startup while its database dependency and ordering remain authoritative.
+- During a peer producer container restart, missing Redis keys or stale Redis tables are source availability events only for rules that depend on those keys. A vendor `source_lifecycle` hook can classify known planned maintenance as `SUSPENDED`; otherwise DLDD uses `UNAVAILABLE`, the configured grace period, and consecutive failure thresholds. A peer container restart does not directly restart DLDD.
 - During platform API, I2C, CLI, sysfs, or file errors, DLDD uses adapter error classification. Retryable transport errors become source availability events; evaluator contract errors become broken-rule events.
 
 The default grace policy is:
@@ -832,7 +832,7 @@ calculations also retain full precision.
 - **`source`**: Source identifier in a transport-specific format such as `redis:STATE_DB:PSU_INFO`, `i2c:bus6:0x58`, or `dse:PSU:get_status()`.
 - **`state`**: Source state (`UNAVAILABLE`, `SUSPENDED`, or `RECOVERED`).
 - **`reason`**: Human-readable reason for the source state.
-- **`graceful`**: Boolean indicating whether DLDD believes the source is unavailable due to an expected service reload, feature disable, or maintenance window.
+- **`graceful`**: Boolean indicating that trusted installed lifecycle context classified this peer source outage as expected maintenance. It is not derived from DLDD process status, FEATURE state, or watcher telemetry.
 - **`since`**: Unix timestamp in seconds when this source state began.
 - **`grace_deadline`**: Unix timestamp in seconds when unexpected source unavailability begins contributing to broken-rule counters. Empty or omitted for indefinite operator-controlled suspension.
 - **`last_success`**: Unix timestamp in seconds of the most recent successful sample from this source.
@@ -909,7 +909,7 @@ DLDD is deployed as a host-level systemd service (`dldd.service`). It is not a P
 The service should be integrated with SONiC service management as a host service:
 - `dldd.service` is started and stopped by systemd on the host. The package is installed with `--no-start --no-enable`; the standard SONiC `FEATURE`/`featured` path owns enablement.
 - The unit declares `Requires=database.service config-setup.service`, orders itself `After=` both units, binds/orders to `sonic.target`, and wants `dldd-rules-watch.timer`. It uses `Restart=on-failure` with `RestartSec=10`.
-- The database Docker/Redis service is a required dependency because DLDD uses Redis for `FEATURE`/`DLDD_CONFIG`, Redis-sourced rule data, service status, and `FAULT_INFO` publication. If an in-process Redis operation fails while the required service remains up, DLDD reports through syslog/status where possible and retries according to the relevant source/publication policy.
+- The database Docker/Redis service is a required dependency because DLDD uses Redis for `FEATURE`/`DLDD_CONFIG`, Redis-sourced rule data, service status, and `FAULT_INFO` publication. Source-read failures follow per-rule source policy. Process/rule telemetry publication is the independent write-health check: after three consecutive failed publication attempts one second apart, DLDD shuts down cleanly enough to release workers, exits non-zero, and lets systemd's `Restart=on-failure` policy recover it. A successful read never masks an unavailable write path.
 - gNMI/UMF and gNOI Healthz are remote export and artifact dependencies. A gNMI/gNOI outage should not prevent DLDD from publishing local Redis telemetry when Redis is available, but it prevents remote subscription/artifact retrieval until those services recover.
 - `FEATURE|dldd` controls whether the service is enabled.
 - Non-database peer service or container failures are treated as source-specific runtime failures. For example, if a Redis table is temporarily unavailable because a producer container restarted, only rules that depend on that Redis source should enter unavailable/degraded state according to DLDD thresholds.
@@ -1062,6 +1062,12 @@ show dldd faults
 show dldd faults --status ACTIVE --component PSU0
 show dldd faults --detail
 show dldd faults --json
+
+# Clear daemon status and persisted broken-rule state, preserving FAULT_INFO
+sudo config dldd clear-state
+
+# Fully clear DLDD runtime state, including DLDD-owned faults and artifacts
+sudo config dldd clear-state --all
 ```
 
 `show dldd rules` reads only the daemon-owned STATE_DB snapshot; it does not
@@ -1077,6 +1083,18 @@ scalar metadata and pretty-prints decoded JSON array/object fields. `--json`
 emits the selected rows as structured JSON with those fields decoded rather
 than exposing Redis hash string encodings. Status and component filters apply
 to both output forms.
+
+`config dldd clear-state` is an explicit operator reset, not a normal restart
+path. The command asks for confirmation, stops `dldd.service` when it is
+active, removes the local broken-rule state file and daemon-owned process/rule
+status keys, and then restores the service to its prior active state. By
+default it preserves `FAULT_INFO`, so the next start performs the normal active
+fault reconciliation and bootstrap rechecks. `--all` additionally removes
+only `FAULT_INFO` rows bearing DLDD ownership metadata and removes DLDD Healthz
+artifact files. Both forms preserve packaged, inbox, active, previous, and
+golden rules generations plus CONFIG_DB configuration. The underlying reset
+helper is intentionally callable by trusted platform/operator tooling, but
+uploaded rules cannot invoke it.
 
 DLDD subscribes to `DLDD_CONFIG` changes via Redis SUBSCRIBE and applies runtime-safe updates dynamically without requiring a service restart. Thresholds, monitor-default polling intervals, source grace periods, inactive fault retention periods, fault evidence ack timeout, and active fault recheck interval are runtime-safe. A monitor-default interval update affects only work items whose event omitted `sampling_interval`; explicit event intervals do not change. When a default becomes shorter, DLDD may pull an inherited item's next due time forward. When it becomes longer, an already nearer due attempt remains scheduled and the longer interval applies after that attempt. `rules_inbox_settle_time` is consumed by the rules watcher and takes effect on the next watcher cycle. The active rules source owns `local_action_default_timeout`; changing that default requires rules activation so action validation and timeout behavior stay tied to the same rule generation. The currently active configuration and rules-source timeout default are published in the `DLDD_STATUS|process_state` telemetry, allowing the controller to understand the service's failure tolerance, source-availability policy, and local action timeout policy.
 
@@ -1137,8 +1155,8 @@ The runtime is intentionally split along the ownership boundaries shown in Figur
 | `sonic-host-services` | `dldd/adapters.py`, `evaluators.py`, `hooks.py` | Redis/file/sysfs/CLI/I2C/platform collection, event evaluation, and explicit trusted vendor extension points |
 | `sonic-host-services` | `dldd/orchestrator.py`, `correlation.py`, `logic.py` | Primary-thread signature correlation, fault lifecycle, active-fault rechecks, and monitor command decisions |
 | `sonic-host-services` | `dldd/actions.py`, `artifacts.py` | Bounded asynchronous local actions and Healthz artifact request/collection integration |
-| `sonic-host-services` | `dldd/service.py`, `config.py`, `telemetry.py`, `rule_status.py`, `timestamps.py` | Process composition, CONFIG_DB updates, lifecycle reconciliation, floored external timestamps, `DLDD_STATUS`, per-rule status/detail hashes, and `FAULT_INFO` |
-| `sonic-host-services` | `dldd/watcher.py`, `lifecycle.py`, `cli.py`, `scripts/dldd*`, `data/debian/*dldd*` | Stable inbox detection, generation promotion/fallback, validation CLI, systemd service, watcher service, and timer |
+| `sonic-host-services` | `dldd/service.py`, `config.py`, `telemetry.py`, `rule_status.py`, `timestamps.py` | Process composition, CONFIG_DB updates, lifecycle reconciliation, bounded telemetry-write health handling, floored external timestamps, `DLDD_STATUS`, per-rule status/detail hashes, and `FAULT_INFO` |
+| `sonic-host-services` | `dldd/watcher.py`, `lifecycle.py`, `reset.py`, `cli.py`, `scripts/dldd*`, `data/debian/*dldd*` | Stable inbox detection, generation promotion/fallback, operator runtime-state cleanup, validation CLI, systemd service, watcher service, and timer |
 | `sonic-host-services` | `tests/dldd/` | Contract/security, lifecycle, cadence/async, orchestration, telemetry, timestamps, action/artifact, and service tests |
 | `sonic-utilities` | `show/dldd.py`, `config/dldd.py`, `tests/dldd_test.py` | `show dldd status/rules/faults`, health/component/fault filters, `--detail`, fault `--json`, and DLDD configuration CLI |
 | `sonic-buildimage` | `src/sonic-yang-models/yang-models/sonic-dldd.yang`, `src/sonic-yang-models/tests/yang_model_tests/tests_config/dldd.json` | CONFIG_DB `DLDD_CONFIG` YANG model and validation fixture |
@@ -1165,6 +1183,7 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
     "ttl": -1,
     "type": "hash",
     "value": {
+      "producer": "dldd",
       "rule": "PSU_OV_FAULT",
       "rule_id": 1000001,
       "rule_version": "1.0.0",
@@ -1251,6 +1270,7 @@ The `value` object below is the canonical DLDD logical payload for `FAULT_INFO`.
 
 **Field Descriptions**:
 - **Key Format**: `FAULT_INFO|<percent-encoded-COMPONENT_NAME>|<percent-encoded-SYMPTOM>`. DLDD percent-encodes both components with no safe characters; UMF percent-decodes them and requires the decoded values to match the `component_name` and `symptom` hash fields.
+- **`producer`**: Fixed value `dldd`. This explicit ownership marker lets operator cleanup remove DLDD-created fault rows without deleting another producer's `FAULT_INFO` data.
 - **`rule`**: Rule identifier from the vendor rules schema that triggered this fault
 - **`rule_id`**: Numeric rule identifier from the vendor rules schema
 - **`rule_version`**: Rule version from the vendor rules schema
@@ -1303,7 +1323,7 @@ UMF translates `FAULT_INFO` into the OpenConfig platform Healthz fault model. Th
 | `repair_actions[*].action` | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/action` |
 | `component_name` default target | `/components/component/healthz/faults/fault/remediations/remediation[index]/state/target` |
 
-The following fields are DLDD/SONiC diagnostic metadata and are not native Healthz leaves unless a SONiC extension, OpenConfig identity mapping, or separate OpenConfig alarms mapping is added: `rule`, `rule_id`, `rule_version`, `schema_version`, `active_rules_checksum`, `error_type`, `events`, `actions_taken`, `local_action_state`, `healthz_artifact`, `source_stale`, `severity`, and `remote_action_time_window`.
+The following fields are DLDD/SONiC diagnostic metadata and are not native Healthz leaves unless a SONiC extension, OpenConfig identity mapping, or separate OpenConfig alarms mapping is added: `producer`, `rule`, `rule_id`, `rule_version`, `schema_version`, `active_rules_checksum`, `error_type`, `events`, `actions_taken`, `local_action_state`, `healthz_artifact`, `source_stale`, `severity`, and `remote_action_time_window`.
 
 #### Fault Lifecycle and TTL
 
@@ -1369,13 +1389,14 @@ Graceful shutdown writes `clean_shutdown: true` to the state file. On a clean st
 | Lifecycle Event | Active Rules Copy | State File Behavior |
 |-----------------|-------------------|---------------------|
 | Non-database Docker/PMON crash or restart | Unchanged | Preserve state; affected sources enter unavailable/degraded handling per rule |
-| Database Docker/Redis unavailable | Unchanged | Preserve in-memory state if possible; record to syslog and suspend Redis-dependent collection/publication until Redis returns |
+| Database Docker/Redis unavailable | Unchanged | Source reads follow unavailable policy, but Redis write health is independent: after three consecutive process/rule telemetry publication failures one second apart, release workers, write the state file as an unclean stop where possible, exit non-zero, and rely on systemd `Restart=on-failure` |
 | `systemctl restart dldd` | Revalidated using the ordered candidate policy | Ignore state marked as clean shutdown, fully reevaluate broken rules, and reconcile existing active `FAULT_INFO` records through bootstrap recheck |
 | `config reload` | Usually unchanged | Restart host service through SONiC sequencing; ignore clean-shutdown broken state and fully reevaluate |
 | Rule update activation | Changed | Discard broken-rule state tied to the previous active rules checksum; start fresh for the new active rules copy and reconcile existing active `FAULT_INFO` records against the new execution plan |
 | Feature disable/enable | Unchanged | Feature state is switch configuration. If enable starts a fresh DLDD process, broken-rule state is reevaluated from current active rules and sources |
 | Cold/warm/fast reboot | Revalidated against stable inbox, packaged rules, active copy, and current DSE | Start from selected active rules and sources; stale broken-rule state is ignored if it does not match the active generation; existing active `FAULT_INFO` records are reconciled by bootstrap recheck or marked inactive if no longer mappable |
-| Explicit clear-state command | Any | Clear state as an audited operator action |
+| `config dldd clear-state` | Unchanged | Stop the active service, clear local broken-rule state and DLDD process/rule status telemetry, preserve `FAULT_INFO` for startup reconciliation, then restart only if the service was active |
+| `config dldd clear-state --all` | Unchanged | Perform the default reset and also remove DLDD-owned `FAULT_INFO` rows and DLDD artifact files; preserve every rules generation and CONFIG_DB configuration |
 
 If the state file is corrupted, incompatible with the daemon state schema, or references an active rules checksum that is no longer available, DLDD starts with fresh broken-rule state and records the reason in service telemetry and syslog.
 
@@ -1391,7 +1412,7 @@ If the state file is corrupted, incompatible with the daemon state schema, or re
 7. **Versioned Commit and Promotion**: If the selected candidate is a new valid generation, DLDD renames the staged file into a versioned generation path, records its local SHA-256 checksum, and atomically updates `dld_rules.active.yaml` either by replacing the file or by swapping a symlink according to the implementation choice.
 8. **Fallback and Rollback**: On validation, materialization, or promotion failure, DLDD keeps the previous active generation when it is still valid. If the previous active generation cannot be used, DLDD falls back to packaged rules or golden backup. If no usable generation exists, DLDD starts in `BROKEN|FATAL` with an empty execution plan.
 9. **Monitor Startup**: DLDD builds monitor plans only after a generation is selected and activation validation completes. The process starts from clean in-memory queues and reevaluates broken-rule state for the selected generation.
-10. **Watcher Verification**: After the graceful restart, the watcher may verify that `DLDD_STATUS|process_state.active_rules_checksum` matches the selected active generation and that DLDD published a heartbeat within the expected TTL window. Verification failure is reported as service/update telemetry; fallback decisions remain DLDD-owned.
+10. **DLDD Publication**: The restarted daemon publishes its selected checksum, activation result, fallback decision, and heartbeat. The watcher does not read this telemetry or use it to supervise/restart DLDD; systemd owns failed-process restart policy.
 11. **Audit**: Each update records the versioned filename, local checksum, validation result, activation result, fallback/rollback result when applicable, active generation before/after, zero-usable-rule failures, and source metadata when available.
 
 Validation for activation is the schema validation model defined in `vendor-rules-schema-hld.md`: bounded parsing, exact Pydantic contract selection, a shallow file-envelope gate, independent per-rule Pydantic/semantic/materialization gates, and a zero-usable-rule activation guard. This daemon document treats that schema validation model as normative and describes only DLDD runtime consequences. Activation validation does not sample source values and does not prove that every vendor-defined runtime action is non-disruptive or that every hardware source will be available at runtime; those outcomes are handled by explicit qualification modes and runtime rule failure tracking.
@@ -1415,7 +1436,7 @@ Remote file delivery and local promotion are separate concerns. DLDD does not as
 
 **Restart and rollback**:
 - DLDD restart is part of activation because rule changes replace the in-memory execution plan, DSE bindings, event history, monitor queues, sampling cadence deadlines, and action scheduling state. These are process-local and are not persisted across restart; every eligible work item in the new plan starts immediately due and then resumes its effective explicit or inherited interval.
-- Restart success is not equivalent to activation success. DLDD reports the selected active checksum, validation result, and fallback decision in `DLDD_STATUS|process_state`; the watcher may observe that status after it requested the graceful restart.
+- Restart success is not equivalent to activation success. DLDD reports the selected active checksum, validation result, and fallback decision in `DLDD_STATUS|process_state`. The watcher does not consume that status; systemd observes process exit and applies restart policy.
 - If validation, promotion, or materialization fails, DLDD restores or keeps the previous active generation when possible, otherwise falls back to packaged rules or golden backup.
 - If fallback also fails, DLDD remains in `BROKEN|FATAL` state with audit records and syslog entries identifying both the failed activation and failed fallback.
 
@@ -1518,9 +1539,15 @@ Integration tests validate the complete rule execution pipeline from ingestion t
 
 **Startup and Reconciliation Testing**: Test fresh process start with matching active rules and existing active `FAULT_INFO`, and verify DLDD rebuilds minimal `FaultRecord` state, marks matching `state_by_key` entries for bootstrap recheck, and avoids duplicate publication before reconciliation completes. Test startup with a stable inbox candidate, packaged rules, active copy, and golden fallback to verify DLDD owns validation, promotion, and fallback selection after the watcher-requested graceful restart, and promotes a selected candidate only when it is a different generation from the active copy. Test a candidate that passes file-level validation but materializes zero usable rules and verify DLDD treats activation as failed and keeps or restores a usable generation when available. Test stale active `FAULT_INFO` whose `schema_version` or `active_rules_checksum` no longer matches the selected execution plan, and verify DLDD marks it `INACTIVE` with a stale-rule/source reason instead of treating it as a current active fault.
 
+**Current-State Correlation Testing**: For a rule using `1 AND 2` with `logic_lookback_time: 0`, make event 2 active, advance event time by at least five minutes while event 2 remains in its active failing state, and then make event 1 active. Verify the rule becomes active immediately. Then provide valid clear evidence for event 2 and verify the rule clears. Separately verify that positive lookback values continue to reject active matches whose last match falls outside the configured window.
+
 **Rule Failure State Transitions**: Test the progression through DEGRADED and BROKEN states by simulating transient and persistent adapter failures. For transient failures, force I2C "timeout" exceptions for several consecutive polling cycles and verify that per-rule failure counters increment correctly, the rule enters DEGRADED state but remains in the execution plan, and `process_state` reflects the degraded rules list.
 
-**Source Availability Testing**: Simulate graceful producer restarts, config reload, and Redis key absence for Redis-backed rules. Verify that DLDD publishes `source_status` with `UNAVAILABLE` or `SUSPENDED`, does not create a new `ACTIVE` `FAULT_INFO` record solely because the source is unavailable, and does not increment broken-rule counters during the expected maintenance window.
+**Source Availability Testing**: Simulate a peer producer restart and Redis key absence for Redis-backed rules both with and without a vendor `source_lifecycle` hook. Verify that known expected maintenance publishes `SUSPENDED`, an unclassified outage publishes `UNAVAILABLE`, neither creates a new `ACTIVE` `FAULT_INFO` record solely from source absence, and only the trusted expected-maintenance case suppresses broken-rule counters for the maintenance window. Separately verify `config reload` and FEATURE disable use normal host-service stop/restart behavior rather than synthesizing source status.
+
+**Database Publication Failure Testing**: Permit Redis reads while forcing all process/rule telemetry writes to fail. Verify the write path retries once per second, does not treat successful reads as publication health, performs orderly worker shutdown after the third consecutive failed publication, records an unclean daemon stop where possible, and exits non-zero for systemd `Restart=on-failure`. Restore writes and verify startup performs normal rules activation and active `FAULT_INFO` reconciliation. Also verify the rules-file watcher neither reads `DLDD_STATUS` nor issues an additional restart based on process telemetry.
+
+**Operator State Reset Testing**: Verify default `config dldd clear-state` stops and restarts DLDD only when it was active, removes the local broken-rule state and daemon status/rule keys, preserves every rules/configuration source and all `FAULT_INFO`, and causes startup reconciliation of retained active faults. Verify `--all` additionally removes only DLDD-owned `FAULT_INFO` rows and DLDD artifact files while preserving unrelated producer rows and configuration/rules files.
 
 **Service-Level State Testing**: Validate service-level BROKEN|FATAL state by loading a rules file with multiple rules and simulating failures that cause enough rules to break to exceed default `broken_rules_max_threshold` (default: 5). Verify that `process_state` transitions to `state: BROKEN|FATAL` only when the broken-rule count is greater than the configured threshold, the service continues running but publishes critical state to the controller, and all broken rules are listed with diagnostics in the `process_state.broken_rules` array.
 
