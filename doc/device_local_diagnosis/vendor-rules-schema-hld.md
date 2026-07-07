@@ -219,6 +219,7 @@ event:
     logic: '&'                            # Logical operation for mask
     value: "0b10000000"                   # Comparison value (binary string)
   sampling_interval: 60                   # Optional: Normal sampling cadence in seconds
+  async: true                             # Optional: Collect/evaluate in shared worker pool
   match_count: 1                          # Required: Number of matches needed
   match_period: 0                         # Required: Time window for matches (seconds)
 ```
@@ -233,6 +234,7 @@ event:
 | `path` | Object or String | Yes | Data source specification (structure varies by type) | See Path Specifications below | See examples below |
 | `evaluation` | Object | Yes | Criteria for determining if fault condition is met | See Evaluation Specifications | See examples below |
 | `sampling_interval` | Integer | No | Target interval in seconds between normal collection attempts while the materialized work item is eligible for polling. When omitted, each materialized source inherits the effective polling interval of its assigned monitor. | Strict integer 1-4294967295; explicit `null`, zero, booleans, floats, and numeric strings are invalid | `60` |
+| `async` | Boolean | No | When `true`, submit this event's single materialized source collection and evaluation to the shared bounded asynchronous collection pool so a slow operation does not block other due work in the owning monitor. Defaults to `false`. | Strict boolean; explicit `null`, integers, floats, and strings are invalid | `true` |
 | `match_count` | Integer | Yes | Number of positive evaluations needed to trigger event | 1-1000 | `1` |
 | `match_period` | Integer | Yes | Time window in seconds for accumulating matches | 0-3600 (0=instant) | `0` |
 
@@ -243,6 +245,10 @@ event:
 When `sampling_interval` is omitted, Pydantic preserves the omission instead of inserting a literal default. After DSE expansion and monitor assignment, DLDD resolves the effective interval from the assigned monitor: Redis events use `redis_monitor_polling_interval`, file events use `file_monitor_polling_interval`, and common/vendor events use `common_monitor_polling_interval`. The normal configuration precedence remains CONFIG_DB, then platform defaults, then hardcoded service defaults.
 
 Every eligible work item is immediately due when a new DLDD process or monitor plan starts. Cadence timestamps are process-local and are not restored across restart. After a normal collection attempt, the next attempt is scheduled from monotonic time using the effective interval; missed intervals are coalesced rather than replayed as a catch-up burst. `IN_FLIGHT`, held, suspended, and broken states take precedence over normal cadence, while an eligible primary-requested `RECHECK_ONCE` bypasses the normal interval.
+
+When `async: true`, the due-time decision remains owned by the normal monitor thread, but collection, normalization, and event evaluation for that one materialized work item run as one job in a process-wide bounded pool. DLDD allows only one outstanding job per correlation key. The owning monitor marks the key `COLLECTING`, continues scheduling unrelated work, and later applies the immutable result through its normal result/evidence path; worker threads never mutate monitor state or publish fault evidence directly. The default pool has four daemon workers and capacity for 256 queued jobs. If capacity is exhausted, the key remains due and is retried without counting a collection attempt or failure.
+
+Async cadence is scheduled from successful job submission. A job that runs past its next nominal interval is not overlapped or replayed; after completion, the next eligible cycle coalesces the missed interval into one attempt. `RECHECK_ONCE` uses the same collection mode while still bypassing normal cadence. `async` does not add a timeout or make an adapter thread-safe: vendors must enable it only for adapters/hooks whose single-item collection is safe for concurrent invocation and whose underlying operation has an appropriate bounded timeout. Omission or `false` retains inline monitor-thread collection.
 
 #### Path Specifications by Type
 
@@ -750,6 +756,7 @@ Schema layout definitions provide the NOS with instructions on how to extract co
               "event_path": "$.signatures[*].signature.conditions.events[*].event.path",
               "event_evaluation": "$.signatures[*].signature.conditions.events[*].event.evaluation",
               "event_sampling_interval": "$.signatures[*].signature.conditions.events[*].event.sampling_interval",
+              "event_async": "$.signatures[*].signature.conditions.events[*].event.async",
               "event_match_count": "$.signatures[*].signature.conditions.events[*].event.match_count",
               "event_match_period": "$.signatures[*].signature.conditions.events[*].event.match_period",
               "local_actions": "$.signatures[*].signature.actions.repair_actions.local_actions",
@@ -874,6 +881,7 @@ signatures:
 - Direct I2C monitoring events must use `i2c_type: 'get'`
 - CLI condition paths, CLI local actions, and CLI log queries must use `argv`; shell pipelines and redirection are not valid path syntax
 - An event `sampling_interval`, when present, must be a strict integer from 1 through 4294967295 seconds. Omission is preserved for monitor-default inheritance; explicit `null` is invalid.
+- An event `async`, when present, must be a strict boolean. Omission resolves to `false`; explicit `null`, numeric values, and strings are invalid.
 - `value_configs.type` must use the canonical enum values defined in this document
 - Local actions and log queries must conform to a supported type-specific contract, including timeout handling
 - Local actions that omit per-action `timeout` require a top-level rules-source `local_action_default_timeout`

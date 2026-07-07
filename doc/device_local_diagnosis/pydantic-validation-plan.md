@@ -36,6 +36,7 @@ The target device currently runs CPython 3.13.5. Pydantic v2 supports this inter
 | Unknown core fields | Rejected; allowed and preserved only at documented vendor extension points |
 | `0.0.1` handling | Updated in place because it has not been released |
 | Event sampling | Optional event-level `sampling_interval`; omission inherits the current per-monitor CONFIG_DB effective default |
+| Async event collection | Optional strict `async` boolean; defaults to inline collection and opts a single materialized work item into the bounded shared worker pool when true |
 | DLDD restart timing | No cadence persistence; every eligible work item is due on startup, then resumes its normal interval |
 
 Once schema `0.0.1` is released, its accepted input and runtime meaning are frozen. Subsequent contract changes must follow the versioning rules in `vendor-rules-schema-hld.md`.
@@ -102,6 +103,7 @@ Tasks:
 3. Confirm that closed core objects and explicit vendor extension points are the intended first-release contract.
 4. Add `event.sampling_interval` to the intended contract as an optional positive integer in seconds.
 5. Define omission as inheritance from the materialized source's monitor default and reject explicit `null`.
+6. Add `event.async` as an optional strict boolean defaulting to `false`; reject explicit `null` and coercion.
 
 Exit criteria:
 
