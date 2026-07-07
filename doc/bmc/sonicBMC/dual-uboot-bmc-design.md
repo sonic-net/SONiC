@@ -6,27 +6,33 @@
   - [Table of Contents](#table-of-contents)
   - [Revision](#revision)
 - [Scope](#scope)
+  - [Definitions/Abbreviations](#definitionsabbreviations)
   - [1. Overview](#1-overview)
     - [1.1 Background](#11-background)
-    - [1.2 Functional Requirements](#12-functional-requirements)
-  - [2. Detailed Design](#2-detailed-design)
-    - [2.1 Current Design](#21-current-design)
-    - [2.2 Problem Statement](#22-problem-statement)
+  - [2. Requirements](#2-requirements)
+  - [3. Detailed Design](#3-detailed-design)
+    - [3.1 Current Design](#31-current-design)
+    - [3.2 Problem Statement](#32-problem-statement)
       - [Image Install or Upgrade](#image-install-or-upgrade)
       - [Image Remove](#image-remove)
       - [Next Boot or Boot Once Selection](#next-boot-or-boot-once-selection)
-    - [2.3 Proposed Design](#23-proposed-design)
-      - [2.3.1 Dual Environment Detection](#231-dual-environment-detection)
-      - [2.3.2 Synchronization Flow](#232-synchronization-flow)
-      - [2.3.3 Integration Points in Aspeed Framework](#233-integration-points-in-aspeed-framework)
-      - [2.3.4 Failure Handling](#234-failure-handling)
-  - [3. Testing Plan](#3-testing-plan)
+    - [3.3 Proposed Design](#33-proposed-design)
+      - [3.3.1 Dual Environment Detection](#331-dual-environment-detection)
+      - [3.3.2 Synchronization Flow](#332-synchronization-flow)
+      - [3.3.3 Integration Points in Aspeed Framework](#333-integration-points-in-aspeed-framework)
+      - [3.3.4 Failure Handling](#334-failure-handling)
+  - [4. Configuration and Management](#4-configuration-and-management)
+  - [5. Warmboot and Fastboot Design Impact](#5-warmboot-and-fastboot-design-impact)
+  - [6. Memory Consumption](#6-memory-consumption)
+  - [7. Restrictions/Limitations](#7-restrictionslimitations)
+  - [8. Testing Requirements/Design](#8-testing-requirementsdesign)
     - [Test 1: Single U-Boot Environment](#test-1-single-u-boot-environment)
     - [Test 2: Dual U-Boot Environment Init](#test-2-dual-u-boot-environment-init)
     - [Test 3: Dual U-Boot Environment Install](#test-3-dual-u-boot-environment-install)
     - [Test 4: Dual U-Boot Environment Remove](#test-4-dual-u-boot-environment-remove)
     - [Test 5: Dual U-Boot Environment Next Boot](#test-5-dual-u-boot-environment-next-boot)
     - [Test 6: Error Handling](#test-6-error-handling)
+  - [9. Open/Action Items](#9-openaction-items)
 
 ## Revision
 
@@ -54,6 +60,13 @@ This document does not define a generic solution for all SONiC platforms outside
 
 This document does not define factory production flashing or manufacturing burn flows unless those flows explicitly adopt the same framework-managed bootenv update mechanism.
 
+## Definitions/Abbreviations
+
+- `dual-env capable`: a platform where `/proc/mtd` contains both `u-boot-env` and `u-boot-env-alt`
+- `current-only`: policy that updates only the current U-Boot environment
+- `sync-both`: policy that updates the current U-Boot environment and synchronizes the alternate U-Boot environment
+- `framework-managed operation`: a community installation or management flow within the Aspeed SONiC-BMC framework that updates bootenv
+
 ## 1. Overview
 
 ### 1.1 Background
@@ -66,15 +79,25 @@ The high-level storage relationship is shown below:
 
 ![picture](images/storage_relationship.png)
 
+In this layout, `u-boot-env` stores persistent U-Boot environment variables that are consumed by the boot flow. Typical content includes:
+
+- boot target selection, such as `boot_next` and `boot_once`
+- image metadata, such as `image_dir`, `fit_name`, `sonic_version_1`, and `sonic_version_2`
+- boot arguments, such as `linuxargs` and `bootcmd`
+
+These variables determine which SONiC-BMC image is selected for boot and how the kernel boot parameters are constructed.
+
 The Aspeed SONiC-BMC framework updates U-Boot environment variables through `fw_setenv` during image install, image removal, boot target changes, and initial U-Boot environment programming.
 
 Today only the primary environment is updated. The alternate environment is not synchronized automatically.
+
+As a result, bootenv-changing operations update only the active flash copy, while the alternate flash copy retains old boot metadata. This becomes a functional issue when the platform later boots from the alternate SPI flash, for example after watchdog-triggered switchover. This HLD focuses on the synchronization requirement for such dual-flash switchover scenarios.
 
 As a result, `u-boot-env` and `u-boot-env-alt` may diverge over time.
 
 On platforms with dual SPI flash, active boot source switchover is performed by the SoC watchdog mechanism. This HLD does not change the watchdog-based switchover mechanism itself. The purpose of this design is to keep bootenv metadata consistent across both flash copies so that switchover does not consume stale environment state.
 
-### 1.2 Functional Requirements
+## 2. Requirements
 
 General requirements
 
@@ -89,9 +112,9 @@ General requirements
 - The design shall not require changes to U-Boot, `fw_setenv`, or `fw_printenv`.
 - If the synchronization policy is not specified, the default behavior shall be `current-only`.
 
-## 2. Detailed Design
+## 3. Detailed Design
 
-### 2.1 Current Design
+### 3.1 Current Design
 
 In the current framework, multiple common paths update U-Boot environment directly through `fw_setenv`.
 
@@ -116,49 +139,36 @@ Current behavior on sonic-bmc is:
 
 ![picture](images/current_behavior.png)
 
-### 2.2 Problem Statement
+### 3.2 Problem Statement
 
-When only the primary environment is updated, the alternate environment may retain stale boot metadata.
+When only the primary environment is updated, the alternate environment remains unchanged and retains stale boot metadata.
 
-Examples:
+Representative inconsistency scenarios include:
 
 #### Image Install or Upgrade
 
-```text
-Install or upgrade image
-        ↓
-Primary env updated
-        ↓
-Alternate env still contains old image metadata
-        ↓
-Switch to alternate SPI flash
-        ↓
-Boot may use stale image state
-```
+- Operation: install or upgrade image
+- Updated variables: `image_dir`, `fit_name`, `sonic_version_1`, `linuxargs`
+- Alternate env state: the alternate environment remains unchanged and still contains old image metadata
+- Result: after switchover to the alternate SPI flash, boot uses stale image state
 
 #### Image Remove
 
-```text
-Remove image
-      ↓
-boot_next / sonic_version_x updated in primary env
-      ↓
-Alternate env still references removed image
-```
+- Operation: remove image
+- Updated variables: `boot_next`, `sonic_version_x`
+- Alternate env state: the alternate environment remains unchanged and still references the removed image
+- Result: after switchover to the alternate SPI flash, bootenv still contains invalid image metadata
 
 #### Next Boot or Boot Once Selection
 
-```text
-Set next boot target
-       ↓
-Primary env updated
-       ↓
-Alternate env still carries previous boot selection
-```
+- Operation: set next boot target or boot once target
+- Updated variables: `boot_next`, `boot_once`
+- Alternate env state: the alternate environment remains unchanged and still carries the previous boot selection
+- Result: after switchover to the alternate SPI flash, the boot target differs from the expected selection
 
 This inconsistency becomes visible after flash switchover or recovery scenarios.
 
-### 2.3 Proposed Design
+### 3.3 Proposed Design
 
 The proposed design introduces a common Aspeed-side bootenv synchronization helper.
 
@@ -190,7 +200,7 @@ Representative operations include:
 - first boot environment programming
 - boot menu preparation as part of install or upgrade flow
 
-#### 2.3.1 Dual Environment Detection
+#### 3.3.1 Dual Environment Detection
 
 The framework shall detect dual environment support by parsing `/proc/mtd`.
 
@@ -221,7 +231,7 @@ Synchronization enablement is determined separately from hardware capability:
 - If the platform is dual-env capable and the policy is `current-only`, the operation follows `current-only` behavior.
 - If the policy is not specified, the default is `current-only`.
 
-#### 2.3.2 Synchronization Flow
+#### 3.3.2 Synchronization Flow
 
 The synchronization model is copy-after-update, once per completed framework-managed operation.
 
@@ -235,7 +245,7 @@ After copy, the helper performs byte-to-byte verification between the two enviro
 
 The helper serializes synchronization with a file lock so concurrent framework-managed operations do not interleave alternate environment copy and verification.
 
-#### 2.3.3 Integration Points in Aspeed Framework
+#### 3.3.3 Integration Points in Aspeed Framework
 
 The synchronization helper shall be used by framework-managed bootenv update paths.
 
@@ -266,7 +276,7 @@ environment only when the platform is dual-env capable and the
 synchronization policy is set to `sync-both`.
 ```
 
-#### 2.3.4 Failure Handling
+#### 3.3.4 Failure Handling
 
 The current helper behavior is as follows:
 
@@ -283,7 +293,25 @@ Python-based framework integration may invoke synchronization only when the sync
 
 This design is not transactional. If primary environment updates succeed and alternate synchronization later fails, the primary environment result is kept and the operation reports failure in the framework-managed shell paths.
 
-## 3. Testing Plan
+## 4. Configuration and Management
+
+This design introduces a configurable bootenv synchronization policy. The current HLD does not define a new CLI or management interface.
+
+## 5. Warmboot and Fastboot Design Impact
+
+No specific warmboot or fastboot design change is introduced by this HLD.
+
+## 6. Memory Consumption
+
+No notable steady-state memory consumption impact is introduced by this HLD.
+
+## 7. Restrictions/Limitations
+
+- This design applies only to framework-managed Aspeed SONiC-BMC bootenv update paths.
+- Auto-detection relies on the exact partition labels `u-boot-env` and `u-boot-env-alt`.
+- Factory production flashing and manufacturing burn flows are outside the current scope unless they explicitly adopt the same mechanism.
+
+## 8. Testing Requirements/Design
 
 ### Test 1: Single U-Boot Environment
 
@@ -338,3 +366,7 @@ Check:
 
 - operation reports synchronization failure
 - failure is logged
+
+## 9. Open/Action Items
+
+None at this stage.
