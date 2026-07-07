@@ -38,6 +38,7 @@ The service provides:
 | 0.3 | 2026-07-06 | Gregory Boudreau | Removed superseded validation/image material and reconciled the normative architecture, vendor hooks, artifacts, telemetry, lifecycle, and exact schema `0.0.1` contract |
 | 0.4 | 2026-07-07 | Gregory Boudreau | Added monitor-owned runtime DSE handles, instance expansion, bootstrap/warmup/stable discovery, dynamic-fault restart reconciliation, and the Cisco reference function bank |
 | 0.5 | 2026-07-07 | Gregory Boudreau | Separated abstract DSE selectors from vendor-private expansion and per-capability backend hooks |
+| 0.6 | 2026-07-07 | Gregory Boudreau | Reserved service diagnostics for abnormal conditions by removing routine successful active-fault reconciliation completions |
 
 ## Scope
 
@@ -846,7 +847,7 @@ calculations also retain full precision.
 - **`broken_rules`**: Array of rules or rule keys that failed ingestion validation, are currently degraded, or exceeded runtime failure thresholds. The field name is retained for compatibility and operator clarity, but the array intentionally includes both `DEGRADED` and `BROKEN` rule health records. Empty array when `state` is `"OK"`.
 - **`source_status`**: Array of source availability records for Redis, platform, I2C, CLI, sysfs, file, or DSE sources that are unavailable, suspended, or in the bounded recovered-observation period. These records are separate from `broken_rules` so graceful service transitions do not look like hardware faults or invalid rules.
 - **`inflight_fault_evidence`**: Array of durable primary-owned holds and requested rechecks, with structured rule ID/name, event ID, component, monitor, state, and timing fields. Normal `COLLECTING` and `IN_FLIGHT` queue handoffs are deliberately omitted: they are usually sub-second transitions, while the process-status heartbeat is retained for 30 seconds and would make a sampled handoff look stuck. A genuinely lost handoff is reported through lease-expiry service diagnostics. Empty array when there is no intentional primary-owned work.
-- **`service_diagnostics`**: Bounded array of service-level diagnostics such as stale command, queue, monitor, or lifecycle errors that are not rule authoring failures.
+- **`service_diagnostics`**: Bounded array of service-level diagnostics such as stale command, queue, monitor, or lifecycle errors that are not rule authoring failures. Successful bootstrap and periodic active-fault rechecks are normal lifecycle activity and are not appended to this array; their current outcome remains visible through fault and rule status.
 - **`reason`**: Human-readable explanation of the current state. Empty when `state` is `"OK"`.
 
 **Broken Rule Object Fields**:
