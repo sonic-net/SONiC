@@ -1,4 +1,4 @@
-# AST2700 Secure Upgrade #
+# ARM-UBoot Secure Upgrade #
 
 ## 1. <a name='TableofContent'></a>Table of Content
 
@@ -37,12 +37,12 @@
 ### 1.1. <a name='Revision'></a>Revision
 | Rev | Date | Author | Change Description |
 | :--: | :--: | :----: | ------------------ |
-| 0.1 | 06/2026 | John | Initial AST2700 / U-Boot secure upgrade HLD |
+| 0.1 | 06/2026 | John | Initial ARM / U-Boot secure upgrade HLD |
 
 ### 1.2. <a name='Scope'></a>Scope
 
 This secure upgrade HLD describes the requirements, architecture, and general
-flow details of secure upgrade for SONiC on Aspeed AST2700 platforms that boot
+flow details of secure upgrade for SONiC on ARM-UBoot platforms that boot
 through U-Boot instead of BIOS/EFI.
 
 ### 1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
@@ -68,7 +68,7 @@ must differ while preserving the same `sonic-installer` control flow.
 
 ### 1.5. <a name='Requirements'></a>Requirements
 
-We want to enable secure upgrade of SONiC on AST2700. This includes secure
+We want to enable secure upgrade of SONiC on ARM-UBoot. This includes secure
 upgrade from a running SONiC image on a U-Boot-based platform.
 
 The feature requires:
@@ -93,7 +93,7 @@ The feature requires:
 
 Verification flow calls a verification script during image installation.
 
-For AST2700/U-Boot, `verify_image_sign.sh` verifies the detached CMS signature
+For ARM/U-Boot, `verify_image_sign.sh` verifies the detached CMS signature
 using a PEM certificate staged from the running rootfs instead of reading
 certificates from EFI `db`.
 
@@ -115,7 +115,7 @@ The existing flags are reused:
 ![aspeed_secure_upgrade_signing_options](signing_options.png)
 > The CMS signing process is the same as in the BIOS/UEFI architecture, please refer to:https://github.com/sonic-net/SONiC/blob/master/doc/secure_upgrade/secure_upgrade.md
 
-For AST2700, the same certificate used for FIT signing may also be copied into
+For ARM-UBoot, the same certificate used for FIT signing may also be copied into
 the rootfs and used as the trusted certificate for CMS verification.
 
 The build flow installs:
@@ -140,7 +140,7 @@ Production flow:
 
 #### 1.7.2. <a name='Verificationprocess'></a>Verification process
 
-Secure upgrade verification for AST2700 is implemented in the SONiC installer
+Secure upgrade verification for ARM-UBoot is implemented in the SONiC installer
 bootloader adapter for U-Boot.
 
 The current behavior is:
