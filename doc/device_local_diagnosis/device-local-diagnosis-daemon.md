@@ -317,7 +317,7 @@ These structures maintain type consistency across the service. The orchestrator 
 - **Common Monitor**: Polls eligible Platform API/I2C/CLI/sysfs and vendor-source work keys. An event with no `sampling_interval` inherits `common_monitor_polling_interval` (default: 60 seconds). Sysfs is handled by the common monitor because it is a host-local platform data source with the same scheduling and error-handling model as Platform API, I2C, and CLI collection.
 - An explicit positive event `sampling_interval` overrides the monitor default for every work item materialized from that event. Two events assigned to the same monitor may therefore run at different cadences.
 - Omitted intervals are resolved only after DSE expansion and monitor assignment. CONFIG_DB updates affect inherited work items only; explicitly timed events keep their rule-defined cadence.
-- `async: true` changes only where one event's collection/evaluation runs. It does not change sampling cadence, correlation, match windows, or fault semantics. The process-wide pool has four daemon workers and 256 queued-job slots; capacity exhaustion leaves work due for retry rather than blocking the monitor or counting a failed attempt.
+- `async: true` changes only where one event's collection/evaluation runs. It does not change sampling cadence, correlation, match windows, or fault semantics. The process-wide pool has eight daemon workers and 256 queued-job slots; capacity exhaustion leaves work due for retry rather than blocking the monitor or counting a failed attempt.
 
 **Minimal Monitor Plan Shape**:
 
