@@ -51,6 +51,8 @@
 
 This proposal outlines CI infrastructure changes for sonic-swss, sonic-sairedis, and sonic-swss-common. It does not include any changes to the sonic-buildimage build system, production SONiC code, or existing test code.
 
+Two related problems are deliberately left out of scope. First, the dependency on sonic-buildimage's base VS Docker image is retained as-is (pinned by AZP build ID; see §6.3) rather than folded into the new dependency model. Second, sonic-buildimage's sequential submodule updates — which can break the build when the three repos land mutually-dependent changes — are not addressed here. That second item is complementary: the unified pre-merge gate (§6.8) already validates the three repos together, which is the hard part and makes atomic submodule updates easier to adopt later, but the atomic-update change itself lives in the sonic-buildimage update bot and can be pursued independently of this proposal.
+
 
 ## 1. TL;DR
 
@@ -85,6 +87,7 @@ Currently, each repo owns its entire CI pipeline end-to-end. This causes signifi
 
 1. Build/dependency changes do not automatically propagate - separate PRs are needed for each affected repo which are extra painful when speed is needed (e.g. when approaching branch cut deadlines). E.g. if the name of an artifact required by sonic-sairedis changes, separate PRs to update the artifact name are required for both sonic-sairedis and sonic-swss (since it's dependent on sonic-sairedis).
     - For example, this PR changes swss-common to depend on libyang3 instead of libyang1: https://github.com/sonic-net/sonic-swss-common/pull/973. Since sairedis and swss are both downstream of swss-common, CI pipelines for both broke and each repo required a separate PR to also move to libyang3 and fix the issue: https://github.com/sonic-net/sonic-swss/pull/4618 and https://github.com/sonic-net/sonic-sairedis/pull/1916
+    - A larger, cross-repo instance was the Azure build-agent migration from Ubuntu 20.04 to 22.04. This single environmental change required roughly nine coordinated PRs across the three repos and sonic-buildimage, including dedicated 22.04-compatibility PRs in sonic-swss-common (https://github.com/sonic-net/sonic-swss-common/pull/1018) and sonic-sairedis (https://github.com/sonic-net/sonic-sairedis/pull/1605) on top of the agent-pool/dependency changes in sonic-swss (https://github.com/sonic-net/sonic-swss/pull/3656) and sonic-buildimage (https://github.com/sonic-net/sonic-buildimage/pull/22676, https://github.com/sonic-net/sonic-buildimage/pull/22681). Under the dependency-inheritance model proposed here, the downstream sonic-swss-common and sonic-sairedis compatibility PRs would have been unnecessary — the shared environment setup would be inherited from a single source instead of re-fixed in each repo.
 2. Multiple copies of the same step drift over time - changes made in one repo will remain isolated to that repo by default which means any CI improvements made in one repo will be limited to that repo unless manually added to other repos as well.
     - For example, this SWSS PR improved logs produced during VS test runs: https://github.com/sonic-net/sonic-swss/pull/4291. However, swss-common and sairedis do not get the benefit of this improvement because they each maintain their own copy of the VS test stage.
 3. No easy way to stand up a local dev environment that matches the CI environment. Increases friction for debugging build or test failures, discourages use of C++ unit tests which are faster and often less flaky than VS tests
@@ -179,6 +182,8 @@ A major pain point of the existing CI model is that each repository's CI indepen
 
 As a concrete example, `upstream-artifact.yaml` in sonic-sairedis will list sonic-swss-common artifacts as a dependency. During the environment setup process, the swss-common artifacts are downloaded. As part of this proposal, these artifacts will now include a `build-env/` folder which declares dependencies for specific swss-common version that was used to build the artifact. The dependencies from the swss-common artifact's `base.yaml` will now be installed. Then the swss-common artifact's `upstream-artifacts.yaml` will be parsed, and those upstream artifacts will be downloaded and the entire process is repeated.
 
+Not every cross-repo artifact belongs in this inheritance model. The base VS Docker image (`docker-sonic-vs.gz`) produced by sonic-buildimage is intentionally **excluded**: it is not a build dependency, it is consumed via `docker load` rather than `dpkg -i`, and it is pinned to a specific sonic-buildimage AZP build ID — exactly as the pipelines do today. Retaining that explicit build-ID pin also remains the escape hatch for urgent base-image breakages (e.g. a `start.sh` → `start` rename in sonic-buildimage) without waiting for a change to propagate through the dependency model.
+
 
 Example `packages/base.yaml`:
 ```yaml
@@ -264,6 +269,8 @@ Some CI pipelines need to re-use artifacts from earlier stages in the run, e.g. 
 ### 6.7 sonic-swss owns the entire VS test stack
 
 All three repos (sonic-swss-common, sonic-sairedis, and sonic-swss) rely on VS tests as part of their PR validation pipeline. However, since these VS tests live entirely within sonic-swss, all of the related infra/setup files will stay within sonic-swss rather than being moved into sonic-swss-common alongside `buildenv_setup`. This includes the AZP templates to build the DVS image and run the tests, setup scripts that are run before the tests, and files related to the DVS image construction. sonic-sairedis and sonic-swss-common consume this stack by referencing the swss-owned templates directly (via `@sonic_swss` template references) from their own BuildDocker and Test stages, so the VS test stack has a single source of truth even though all three repos run it.
+
+The `build_and_install_module.sh` kernel-module script (a host-environment dependency invoked before the VS tests, §2.3) is part of this swss-owned stack, so its three drifted copies collapse to one. Making that script itself more resilient to build-agent kernel changes (e.g. caching pre-built modules) is out of scope here — a kernel change that breaks the build would generally also invalidate any cached module — and can be pursued separately.
 
 ### 6.8 Pre-merge CI for shared-infra changes
 
