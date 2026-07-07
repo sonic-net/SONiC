@@ -1,4 +1,4 @@
-# HLD AST2700 U-Boot Secure Boot #
+# HLD ARM U-Boot Secure Boot #
 
 ## 1. <a name='TableofContent'></a>Table of Content
 <!-- vscode-markdown-toc -->
@@ -30,13 +30,13 @@
 ### 1.1. <a name='Revision'></a>Revision
 | Rev | Date | Author | Change Description |
 | :--: | :--: | :----: | ------------------ |
-| 0.1 | 06/2026 | John | Initial AST2700 / U-Boot secure boot HLD |
+| 0.1 | 06/2026 | John | Initial ARM / U-Boot secure boot HLD |
 
 ### 1.2. <a name='Scope'></a>Scope
 
 This document describes the requirements, architecture, build integration, and
 runtime verification model for implementing secure boot on SONiC platforms that
-boot through BootROM, SPL, and U-Boot on Aspeed AST2700.
+boot through BootROM, SPL, and U-Boot on ARM.
 
 Unlike the community `hld_secure_boot.md`, which focuses on BIOS/UEFI,
 `shim`, and `grub`, this design targets a U-Boot verified-boot chain built
@@ -63,7 +63,7 @@ For SONiC on x86, the current community design uses:
 3. `grubx64.efi`
 4. signed Linux kernel and signed kernel modules
 
-AST2700 platforms do not follow that boot path. They boot through:
+ARM platforms do not follow that boot path. They boot through:
 
 1. BootROM
 2. SPL
@@ -72,12 +72,12 @@ AST2700 platforms do not follow that boot path. They boot through:
 5. Linux kernel, initramfs, DTB, and runtime-signed kernel modules
 
 Because of this, simply reusing the x86 `shim/grub` signing flow is not
-sufficient. The secure boot enforcement point for AST2700 must be U-Boot FIT
+sufficient. The secure boot enforcement point for ARM must be U-Boot FIT
 verification.
 
 ### 1.5. <a name='Requirements'></a>Requirements
 
-Secure boot flow and Linux kernel requirements for AST2700:
+Secure boot flow and Linux kernel requirements for ARM:
 
 1. Support signing of the SONiC FIT image
 2. Support signing of kernel modules
@@ -111,7 +111,7 @@ There are two major verification layers in this design:
 
 ### 1.7. <a name='High-LevelDesign'></a>High-Level Design
 
-This section covers the high-level design of secure boot for AST2700.
+This section covers the high-level design of secure boot for ARM.
 
 #### 1.7.1. <a name='Flowdiagram'></a>Flow diagram
 
@@ -136,7 +136,7 @@ boot design, SPL should verify U-Boot before executing it.
 
 ##### U-Boot role
 
-U-Boot is the enforcement point for SONiC boot integrity on AST2700. It loads
+U-Boot is the enforcement point for SONiC boot integrity on ARM. It loads
 the FIT image and, when `verify=yes`, verifies the FIT signature against a
 public key embedded in the U-Boot control DTB.
 
@@ -165,7 +165,7 @@ not verified by U-Boot.
 
 Sign flow occurs when building the SONiC image.
 
-The AST2700 build flow keeps the existing community secure-upgrade variables and
+The ARM/UBoot build flow keeps the existing community secure-upgrade variables and
 adds U-Boot/FIT-specific inputs.
 
 Compilation flags used:
@@ -206,7 +206,7 @@ must be embedded in U-Boot for runtime FIT verification.
 
 ##### SONiC modifications in build flow
 
-The AST2700-specific SONiC modifications are:
+The ARM-specific SONiC modifications are:
 
 1. Generate `sonic_fit.its`
 2. Generate `sonic_arm64.fit`
@@ -217,7 +217,7 @@ The AST2700-specific SONiC modifications are:
 ##### FIT signing template
 
 `platform/aspeed/sonic_fit.its` defines the FIT structure. Only the intended
-AST2700 configuration should carry `signature-*` nodes. In the current
+FIT configuration should carry `signature-*` nodes. In the current
 implementation, signing is enabled only for the Micas configuration.
 
 #### 1.7.4. <a name='RuntimeSBVerificationFlow'></a>Runtime SB Verification Flow
@@ -266,11 +266,11 @@ No Config DB, CLI, or YANG changes are introduced by this design.
 ### 1.9. <a name='RestrictionsLimitations'></a>Restrictions/Limitations
 
 1. This design does not replace the x86 community secure boot HLD. It is an
-   AST2700/U-Boot-specific adaptation.
+   ARM/U-Boot-specific adaptation.
 2. U-Boot runtime verification depends on OTP/SPL support, not only SONiC
    build changes.
-3. The current build flow signs only the intended AST2700 FIT configuration,
-   not all Aspeed configurations.
+3. The current build flow signs only the intended FIT configuration,
+   not all configurations.
 
 
 ### 1.10. <a name='TestingRequirementsDesign'></a>Testing Requirements/Design
@@ -284,8 +284,8 @@ No Config DB, CLI, or YANG changes are introduced by this design.
 
 #### 1.10.2. <a name='SystemTestcases'></a>System Test cases
 
-1. Build unsigned AST2700 image with `SECURE_UPGRADE_MODE=no_sign`
-2. Build signed FIT AST2700 image with `SECURE_UPGRADE_MODE=dev`
+1. Build unsigned image with `SECURE_UPGRADE_MODE=no_sign`
+2. Build signed FIT image with `SECURE_UPGRADE_MODE=dev`
 3. Boot signed FIT successfully with `verify=yes`
 4. Confirm modified FIT payload is rejected by U-Boot with `verify=yes`
 5. Confirm FIT signed by an unknown key is rejected
