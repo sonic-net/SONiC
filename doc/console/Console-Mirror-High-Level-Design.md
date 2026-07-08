@@ -193,6 +193,8 @@ The proxy adds the following internal components:
 
 The proxy main loop must keep serial forwarding as the highest priority. Recording and archive work is offloaded to bounded queues and background tasks.
 
+The `stop --archive` archive-completion wait is bounded. After the initial packaging response, the CLI waits up to 10 minutes for the final archive response. The server also waits up to 10 minutes for archive completion.
+
 #### 3.1.1 MirrorManager
 
 `MirrorManager` is the per-line in-proxy coordinator for mirroring. It is created when the proxy starts and remains in memory for the lifetime of the proxy process.
@@ -210,6 +212,8 @@ The proxy main loop must keep serial forwarding as the highest priority. Recordi
 | `file_path` | Current recording file path under the fixed secure directory |
 | `writer` | Active `RecordingWriter`, if a session is active |
 | `writer_drop_count` | Number of writer records dropped since the last recorded drop event |
+
+Valid runtime transitions are `idle -> active` when a session starts, `active -> stopping` when a manual stop, timeout, fatal writer error, or proxy shutdown begins, and `stopping -> idle` after the writer is closed. There is no persistent `error` mirror state; errors are reported through CLI responses, process logs, and recording `EVENT` records when a recording file is still writable.
 
 `MirrorManager` exposes internal methods to the proxy and `MirrorControlServer`:
 
@@ -276,7 +280,7 @@ Writer shutdown sequence:
 3. Flush the file.
 4. Close the file descriptor.
 
-If the writer encounters a fatal file error, for example disk full or write failure, it reports the error to `MirrorManager`. `MirrorManager` stops the recording session, updates STATE_DB state, and leaves the console forwarding path running.
+If the writer encounters a fatal file error, for example disk full or write failure, it reports the error to `MirrorManager`. `MirrorManager` transitions the recording session through `stopping` to `idle`, updates STATE_DB state, and leaves the console forwarding path running.
 
 #### 3.1.3 RecordingArchiver
 
@@ -340,7 +344,9 @@ The socket is created with restrictive permissions so only Admin/root users can 
 * No mirror session is already active when processing `start`.
 * A mirror session is active when processing `stop`.
 
-After validation, `MirrorControlServer` calls the corresponding `MirrorManager` method. For `start`, `status`, `timeout`, and a manual stop without archiving, it returns one structured response. For `stop --archive`, it sends an initial packaging response after recording has stopped, then keeps the UDS connection open until the archive future completes and sends a final response.
+After validation, `MirrorControlServer` calls the corresponding `MirrorManager` method. For `start`, `status`, `timeout`, and a manual stop without archiving, it returns one structured response. For `stop --archive`, it sends an initial packaging response after recording has stopped, then keeps the UDS connection open until the archive future completes, the server-side archive wait budget expires, or the client disconnects.
+
+`MirrorControlServer` enforces a bounded archive-completion wait for `stop --archive`. It applies a 10-minute server-side wait budget for the final archive completion response. If the server-side wait budget expires before the archive future completes, the server closes the response stream without sending another response and requests cancellation of the archive job. If cancellation succeeds, the archiver removes any incomplete `.zip.tmp` file and preserves all source `.log` parts.
 
 `MirrorControlServer` must not perform disk I/O or serial I/O itself. It only validates control messages, enforces access policy, and invokes `MirrorManager`.
 
@@ -358,7 +364,7 @@ This section defines the message protocol used on the `MirrorControlServer` UDS 
 }
 ```
 
-`max_file_size` uses the same value semantics as the CLI `--max-file-size` option. It is a positive integer expressed in MB. Unit suffixes are not accepted; for example, `64` means 64 MB.
+`max_file_size` uses the same value semantics as the CLI `--max-file-size` option. It is a positive integer expressed in MB and defaults to 64 MB. Unit suffixes are not accepted; for example, `64` means 64 MB.
 
 `timeout` uses the same duration syntax as the CLI `--timeout` option. Supported suffixes are `s`, `m`, `h`, and `d`. If omitted, the proxy uses the default value `24h`. Zero, negative, and infinite timeout values are rejected so every mirror session has a bounded lifetime.
 
@@ -435,7 +441,9 @@ The CLI prints this information and continues waiting on the socket. When packag
 }
 ```
 
-If the CLI disconnects while waiting, `MirrorControlServer` drops only the response subscription. The background archive job continues unchanged. If packaging fails, the final response uses `status: "error"` and reports that the original log parts were preserved.
+If the CLI does not receive the final response within 10 minutes, it exits. If the server-side 10-minute archive wait budget expires first, the server closes the response stream without sending another response and cancels the archive job. If packaging fails before the wait budget expires, the final response uses `status: "error"` and reports that the original log parts were preserved.
+
+If the CLI disconnects while waiting, `MirrorControlServer` drops only the response subscription. The background archive job continues unchanged.
 
 Example timeout update request:
 
@@ -623,6 +631,8 @@ delta = record_timestamp - recording_start_timestamp
 
 The fixed delta unit is milliseconds. Because the delta value is limited to 12 decimal digits, its maximum value is `999999999999ms`, which is approximately 11,574 days or 31.69 years. The proxy rejects a start or timeout-update request that exceeds this maximum.
 
+Because `timestamp` and `delta` are derived from UTC wall-clock time, they are time references and are not guaranteed to be monotonic if the system clock is adjusted; `seq` is the strict monotonic ordering field.
+
 For example, if the recording starts at `2026-06-13T14:12:00.123Z` and a record is created at `2026-06-13T14:12:01.000Z`, the elapsed time is `877` milliseconds, so the `delta` field is written as `+000000000877ms`. The delta field makes it easy to analyze timing gaps between RX and TX records without repeatedly subtracting absolute timestamps.
 
 Example records:
@@ -684,13 +694,14 @@ The mirror implementation must not block or terminate the active console session
 | Timeout update during stop | Reject the update because the session is no longer active |
 | Timeout timer reset failure | Keep the previous timeout and timer active, and return an error |
 | Auto-stop timer setup failure | Reject `start` and close any newly opened recording file |
-| Disk full | Stop recording, update STATE_DB, keep console forwarding |
+| Disk full | Transition the mirror through `stopping` to `idle`, update STATE_DB, keep console forwarding |
 | Writer queue full | Drop mirror records, record a drop event when the writer queue recovers, keep forwarding |
 | ZIP creation failure | Preserve every source `.log` part, remove the incomplete `.zip.tmp`, and return an error to a waiting CLI |
 | Source log deletion failure | Keep the valid ZIP, report the undeleted source paths, and do not treat archive contents as lost |
+| Archive wait timeout | CLI exits on its own wait timeout; server-side timeout closes the response stream, cancels the archive job if possible, removes incomplete temporary archive files, and preserves source logs |
 | Stop CLI disconnect | Continue the archive job; only the final completion notification is lost |
 | Proxy exits during packaging | Preserve source logs; an incomplete temporary ZIP is not considered a completed archive |
-| Proxy restart | Stop current mirror session and mark state `idle` after restart |
+| Proxy restart | Stop any current mirror session and mark state `idle` after restart |
 
 The writer queue should be bounded. When the queue is full, new mirror records are dropped rather than blocking the proxy. A drop event is inserted when the queue becomes writable again.
 
@@ -701,7 +712,7 @@ The writer queue should be bounded. When the queue is full, new mirror records a
 1. Initialize serial and PTM resources as in the existing console monitor design.
 2. Create the per-line mirror runtime directory.
 3. Start the `MirrorControlServer`.
-4. Initialize `MirrorManager` in idle state and overwrite any stale STATE_DB active state from an unclean restart.
+4. Initialize `MirrorManager` in `idle` state and overwrite any stale STATE_DB `active` or `stopping` state from an unclean restart.
 5. Enter the normal proxy forwarding loop.
 
 #### Mirror Start
@@ -718,11 +729,13 @@ The writer queue should be bounded. When the queue is full, new mirror records a
 1. CLI sends a `stop` request with `archive=false` by default or `archive=true` when `-a` / `--archive` is specified.
 2. Proxy cancels the auto-stop timer.
 3. Proxy writes a stop event with `reason=manual` to the recording file.
-4. Proxy drains the queue, flushes, and closes the writer.
-5. Proxy sets the mirror state to `idle` and clears active recording fields, including `file_path`, from STATE_DB.
-6. If `archive=false`, the proxy leaves all recording parts in place and returns the recording prefix immediately.
-7. If `archive=true`, the proxy creates an immutable archive job and expected ZIP path, sends the `packaging` response, and submits the job to `RecordingArchiver`.
-8. When the archive future completes, `MirrorControlServer` sends the final archive path or error to the waiting CLI.
+4. Proxy atomically transitions the mirror state from `active` to `stopping` and updates STATE_DB.
+5. Proxy drains the queue, flushes, and closes the writer.
+6. Proxy sets the mirror state to `idle` and clears active recording fields, including `file_path`, from STATE_DB.
+7. If `archive=false`, the proxy leaves all recording parts in place and returns the recording prefix immediately.
+8. If `archive=true`, the proxy creates an immutable archive job and expected ZIP path, sends the `packaging` response, and submits the job to `RecordingArchiver`.
+9. When the archive future completes before the 10-minute server-side archive wait budget expires, `MirrorControlServer` sends the final archive path or error to the waiting CLI.
+10. If the 10-minute server-side wait budget expires first, `MirrorControlServer` closes the response stream and requests archive job cancellation.
 
 The mirror is already idle during archive creation, so another mirror can start without waiting for packaging. A CLI process terminated during this wait does not cancel the archive job.
 
@@ -739,13 +752,14 @@ The mirror is already idle during archive creation, so another mirror can start 
 
 1. The monotonic auto-stop deadline expires.
 2. `MirrorManager` invokes `stop(reason="timeout", archive=true)`.
-3. Proxy writes the timeout stop event, drains the queue, flushes, and closes the writer.
-4. Proxy submits the archive job and updates STATE_DB state to `idle`, clearing active recording fields.
-5. `RecordingArchiver` packages the stopped recording in the background. There is no waiting CLI, so completion is recorded only in process logs.
+3. Proxy atomically transitions the mirror state from `active` to `stopping` and updates STATE_DB.
+4. Proxy writes the timeout stop event, drains the queue, flushes, and closes the writer.
+5. Proxy submits the archive job and updates STATE_DB state to `idle`, clearing active recording fields.
+6. `RecordingArchiver` packages the stopped recording in the background. There is no waiting CLI, so completion is recorded only in process logs.
 
 #### Proxy Shutdown
 
-On proxy shutdown, the auto-stop timer is cancelled and the mirror writer receives a stop event and flushes the recording file if possible. STATE_DB is updated to show the mirror session is no longer active. In-progress archive tasks are allowed a bounded shutdown interval; if they cannot finish, source logs are preserved. Because no mirror configuration is stored in CONFIG_DB, the session is not restored when the proxy or device starts again.
+On proxy shutdown, the auto-stop timer is cancelled and the mirror writer receives a stop event and flushes the recording file if possible. If a session was `active`, it transitions through `stopping`; STATE_DB is updated to `idle` once the mirror session is no longer active. In-progress archive tasks are allowed a bounded shutdown interval; if they cannot finish, source logs are preserved.
 
 ---
 
@@ -761,7 +775,7 @@ Runtime state is stored in STATE_DB.
 
 | Key Format | Field | Value | Description |
 |------------|-------|-------|-------------|
-| `CONSOLE_MIRROR\|<line>` | `state` | `idle` / `active` / `error` | Mirror state |
+| `CONSOLE_MIRROR\|<line>` | `state` | `idle` / `active` / `stopping` | Mirror state |
 | `CONSOLE_MIRROR\|<line>` | `owner_pid` | PID | CLI process that started the session |
 | `CONSOLE_MIRROR\|<line>` | `started_by` | username | User that started mirroring |
 | `CONSOLE_MIRROR\|<line>` | `start_time` | Unix timestamp | Mirror start time |
@@ -817,7 +831,7 @@ Options:
 | `--devicename` | Interpret target as remote device name instead of line number |
 | `--direction {rx,tx,both}` | Select mirrored direction, default `both` |
 | `--timeout <duration>` | Auto-stop timeout, default `24h`. Supported suffixes are `s`, `m`, `h`, and `d`; the value must be positive and within the delta maximum |
-| `--max-file-size <MB>` | Maximum size of each recording part before rotation, expressed as a positive integer in MB. For example, `64` means 64 MB |
+| `--max-file-size <MB>` | Maximum size of each recording part before rotation, expressed as a positive integer in MB, default `64`. For example, `64` means 64 MB |
 
 Example:
 
@@ -885,7 +899,7 @@ Waiting for packaging to complete...
 Recording archive: /var/log/sonic/console-mirror/line1/console-mirror-line1-both-20260613T141200Z.zip
 ```
 
-After printing the expected archive path, the CLI remains blocked waiting for the final server response. Interrupting or terminating the CLI does not cancel packaging.
+After printing the expected archive path, the CLI waits up to 10 minutes for the final server response. If the server-side wait expires first, the server closes the response stream and cancels packaging if possible. Interrupting or terminating the CLI closes only the response subscription.
 
 ### 5.3 Update Mirror Timeout
 
@@ -1033,3 +1047,4 @@ The following items can be added in later revisions:
 2. [SONiC Console Switch High Level Design](https://github.com/sonic-net/SONiC/blob/master/doc/console/SONiC-Console-Switch-High-Level-Design.md)
 3. [sonic-net/sonic-utilities](https://github.com/sonic-net/sonic-utilities/)
 4. [sonic-utilities consutil main.py](https://github.com/sonic-net/sonic-utilities/blob/master/consutil/main.py)
+5. [sonic-net/sonic-host-services](https://github.com/sonic-net/sonic-host-services)
