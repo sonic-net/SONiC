@@ -87,4 +87,5 @@
 | sonic-host-services | Qi Luo(Microsoft) | qiluo-msft |  |
 | sonic-formal-infra | Mengqi Liu (Alibaba) | mengqiliu20 | enabled |
 |  | Ali Kheradmand (Google) | kheradmandG |enabled  |
-| sonic-redfish |  |  |  |
+| sonic-redfish | Chinmoy Dey (Nexthop AI) | chinmoy-nexthop | enabled |
+|  | Shreyansh Jain (Nexthop AI) | shreyansh-nexthop | enabled |
