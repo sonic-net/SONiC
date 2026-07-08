@@ -19,7 +19,7 @@ It covers:
 
 - New CLI: `config sed wipe-ssd`
 - Common `SedMgmtBase.wipe_ssd()` API, `ssd_erase.sh` orchestrator (including the ramdisk pivot), and `sed_pw_utils.sh` extensions
-- Platform-specific `get_psid()`
+- Platform API `get_psid()` 
 
 ## 3. Definitions/Abbreviations
 
@@ -50,7 +50,7 @@ Provide a controlled, destructive CLI to **securely wipe** the switch boot SSD w
 | Runtime TPM bank loss   | If SED TPM password banks are corrupted or out of sync at runtime (risk of lockout on next boot), a controlled wipe resets TPM banks to factory default and clears the drive so the platform can be reprovisioned. |
 
 
-> **Warning:** Wipe is **irreversible**. After completion, the SSD contains no bootable SONiC image and the SED password is reset to the platform default in TPM banks A/B.
+> **Warning:** Wipe is **irreversible**. After completion the SSD contains no bootable SONiC image, SED locking is disabled, and the drive password is reset to the platform default in TPM banks A/B.
 
 
 ### 4.2 Additions to the SED framework
@@ -142,7 +142,7 @@ Existing SED getters (`get_default_sed_password()`, `get_tpm_bank_a_address()`, 
 | Step | Behavior                                                                                                                  |
 | ---- | ------------------------------------------------------------------------------------------------------------------------- |
 | 1    | Get `SedMgmt` via `chassis.get_sed_mgmt()`. If `None`, print "SED management is not supported on this platform" and exit. |
-| 2    | `click.confirm("This will PERMANENTLY erase the SSD and reboot the switch. Continue?", default=False)`.                   |
+| 2    | `click.confirm("This will PERMANENTLY erase the SSD. Continue?", default=False)`.                                         |
 | 3    | Print the start banner.                                                                                                   |
 | 4    | Call `sed_mgmt.wipe_ssd()`. The Python call **blocks** until `ssd_erase.sh` exits.                                        |
 | 5    | Print success or failure.                                                                                                 |
@@ -182,7 +182,7 @@ PSID revert destroys the drive's Media Encryption Key (MEK) and resets the drive
 
 ### 7.5 `sed_pw_utils.sh` extensions
 
-One new helper: `check_sed_crypto_erase_prereqs` — validates PSID, required tools, an NVMe boot disk with OPAL 2.0 and `LockingEnabled = Y`, and NVMe sanitize support; on success exports `psid_val`, `nvme_disk_name` (controller device), and `default_pw` for the orchestrator. All other helpers (logging, TPM writes, disk discovery, SED checks) are reused unchanged from the change-password framework.
+One new helper: `check_sed_crypto_erase_prereqs` — validates PSID / default password / required tools, reuses the existing `check_sed_ready` for the shared TPM/SED/locking checks, then verifies the boot disk is NVMe with sanitize support. On success exports `psid_val`, `nvme_disk_name` (controller), and `default_pw` for the orchestrator. All other helpers (logging, TPM writes, disk discovery) are reused unchanged from the change-password framework.
 
 ## 8. CLI Reference
 
@@ -208,7 +208,7 @@ Example (interactive):
 
 ```
 admin@sonic:~$ config sed wipe-ssd
-This will PERMANENTLY erase the SSD and reboot the switch. Continue? [y/N]: y
+This will PERMANENTLY erase the SSD. Continue? [y/N]: y
 =========================================================================
  SSD ERASE STARTED
    * Do NOT power off the switch or interrupt this session.
