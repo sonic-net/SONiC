@@ -14,7 +14,7 @@
 - [7. Configuration and management](#7-configuration-and-management)
   - [7.1 Configuration model](#71-configuration-model)
   - [7.2 YANG model and Configuration Example](#72-yang-model-and-configuration-example)
-    - [7.2.1 PON Protection Group](#721-pon-protection-group)
+    - [7.2.1 OLT Interface Protection Instance](#721-olt-interface-protection-instance)
     - [7.2.2 CONFIG\_DB example](#722-config_db-example)
   - [7.3 CLI Commands](#73-cli-commands)
     - [CLICK-based](#click-based)
@@ -134,7 +134,7 @@ Below diagram illustrates the integration of Dual Home PON (Passive Optical Netw
 
 | Label | Path | Description |
 | --- | --- | --- |
-| A | CONFIG_DB → ponprotd | Config updates for PEER_SWITCH and PON_OLT_INTF_PROTECTION_GROUP. |
+| A | CONFIG_DB → ponprotd | Config updates for PEER_SWITCH and PON_OLT_INTF_PROTECTION. |
 | B | STATE_DB → ponprotd | State change updates for OLT interface and associated switch port. |
 | C | ponprotd → APPL_DB | Composite protection state updates from ponprotd FSM. |
 | D | APPL_DB → PonOrch | Protection state change updates for the OLT interface. |
@@ -151,7 +151,7 @@ The list of yang containers are:
 1. PON_CONTROLLER — Configures the local PON management instance (logging, ONUs discovery, mgmt interface) that discovers OLTs and registers XGS-PON ONUs.
 2. PEER_SWITCH — Identifies the partner switch (hostname, loopback IPv4) used for controller-level HA and installing the tunnel.
 3. PON_OLT — Per-OLT configuration bound to a switch front-panel port, holding XGS-PON parameters (FEC, encryption, framing, ranging) and protection attributes for the OLT.
-4. PON_OLT_INTF_PROTECTION_GROUP — Defines a local OLT interface with failover policy (mode).
+4. PON_OLT_INTF_PROTECTION — Defines a local OLT interface with failover policy (mode).
 5. TUNNEL — Carries the underlay tunnel between the two controllers/switches over which traffic is redirected from peer gateway to local Gateway switch.
 
 ![Yang-Block-Diagram](images/Yang-Block-Diagram.png)
@@ -161,23 +161,22 @@ The main function and relationships are as follows:
 | # | Functional area | Description |
 | --- | --- | --- |
 | 1. | Control | PON_CONTROLLER drives policy and maps controller-to-OLT role. |
-| 2. | Protection | The PON_OLT_INTF_PROTECTION_GROUP holds configuration (port and mode) for each OLT interface. |
+| 2. | Protection | The PON_OLT_INTF_PROTECTION holds configuration (port and mode) for each OLT interface. |
 | 3. | Traffic context | TUNNEL \| PON_TUNNEL which is an IPinIP Tunnel used for redirecting traffic to the active OLT interface. |
 
 ### 7.2 YANG model and Configuration Example
 
-Below is a new YANG models using SONiC terminology for sonic-pon-olt-intf-protection-group.yang
+Below is a new YANG models using SONiC terminology for sonic-pon-olt-protection.yang
 
-#### 7.2.1 PON Protection Group
+#### 7.2.1 OLT Interface Protection Instance
 
 ```
-module: sonic-pon-olt-intf-protection-group
-    +--rw sonic-pon-olt-intf-protection-group
-       +--rw PON_OLT_INTF_PROTECTION_GROUP
-          +--rw PON_OLT_INTF_PROTECTION_GROUP_LIST* [name]
-             +--rw name             string
-             +--rw port             -> /prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name
-             +--rw mode?            enumeration
+module: sonic-pon-olt-protection
+    +--rw sonic-pon-olt-protection
+        +--rw PON_OLT_INTF_PROTECTION
+            +--rw PON_OLT_INTF_PROTECTION_LIST* [portname]
+                +--rw portname 		-> /prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:name
+                +--rw mode?     	enumeration
 ```
 
 **Amendment #1** The TUNNEL information uses the existing sonic-tunnel.yang, and everything stays the same in sonic-tunnel with small extension in the key for PON Tunnel description.
@@ -270,18 +269,17 @@ module: sonic-pon-olt-intf-protection-group
         }
     },
 
- "//3": "PON_OLT_INTF_PROTECTION_GROUP references existing DEVICE_METADATA, PORT, TUNNEL, and PEER_SWITCH entries. server_ipv4/server_ipv6 are derived from VLAN_SUB_INTERFACE prefixes.",
-    "PON_OLT_INTF_PROTECTION_GROUP": {
-        "pg-pon-01": {
-            "port":           "Ethernet0",
-            "mode":           "auto"
-        },
+ "//3": "PON_OLT_INTF_PROTECTION references existing DEVICE_METADATA, PORT, TUNNEL, and PEER_SWITCH entries. server_ipv4/server_ipv6 are derived from VLAN_SUB_INTERFACE prefixes.",
 
-        "pg-pon-02": {
-            "port":           "Ethernet4",
-            "mode":           "auto"
+    "PON_OLT_INTF_PROTECTION": {
+        "Ethernet0": {
+            "mode": "auto"
+        },
+        "Ethernet4": {
+            "mode": "auto"
         }
     }
+
 }
 
 ```
@@ -293,22 +291,25 @@ module: sonic-pon-olt-intf-protection-group
 ###### Config Commands
 
 ```
-config pon protection-group add  <name> --port <Ethernet#> [--mode auto]
-config pon protection-group set  <name> [--mode ...]
-config pon protection-group del  <name>
+config pon protection add --olt-interface Ethernet0
+
+config pon protection set --olt-interface Ethernet0 --mode auto
+
+config pon protection del --olt-interface Ethernet0
 ```
 
 ###### Show commands
 
 ```
 ! Configuration
-show pon protection-group         [<name>]
+show pon protection olt-interface         [<port-name>]
 
 ! Operational state
-show pon protection-group state   [<name>]
+show pon protection olt-interface state   [<port-name>]
 
 ! Detail / relationships
-show pon protection-group members <name>
+show pon protection olt-interface detail <port-name>
+
 ```
 
 #### KLISH-based
@@ -316,31 +317,30 @@ show pon protection-group members <name>
 ###### Config Commands
 
 ```
-sonic#                                  exec
-sonic# configure terminal               → sonic(config)#
-sonic(config)# pon protection-group <n> → sonic(config-pon-pg-<n>)#
+sonic#                                  			        exec
+sonic# configure terminal               			        → sonic(config)#
+sonic(config)# pon protection olt-interface                 → sonic(config-pon-protection-<port-name>)#
 
-An example configuration,
-sonic(config)# pon protection-group pg-pon-01
-sonic(config-pon-pg-pg-pon-01)# port Ethernet0
-sonic(config-pon-pg-pg-pon-01)# mode auto
-sonic(config-pon-pg-pg-pon-01)# commit
-sonic(config-pon-pg-pg-pon-01)# exit
+An example configuration
+sonic(config)# pon protection olt-interface Ethernet0
+sonic(config-pon-protection-Ethernet0)# mode auto
+sonic(config-pon-protection-Ethernet0)# commit
+sonic(config-pon-protection-Ethernet0)# exit
 
-sonic(config)# no pon protection-group pg-pon-01
+sonic(config)# no pon protection olt-interface Ethernet0
 ```
 
 ###### Show commands
 
 ```
 ! Configuration
-show pon protection-group                 [<name>]
+show pon protection olt-interface                [<port-name>]
 
 ! Operational state
-show pon protection-group state           [<name>]
+show pon protection olt-interface state         [<port-name>]
 
 ! Detail / relationships
-show pon protection-group members <name>
+show pon protection olt-interface detail <port-name>
 
 ```
 
@@ -348,8 +348,7 @@ show pon protection-group members <name>
 
 | New/Existing Key | Table | Key | Field | Description |
 | --- | --- | --- | --- | --- |
-| New | PON_OLT_INTF_PROTECTION_GROUP | &lt;protection_intf_group_name&gt; |  | Protection group per OLT interface |
-|  |  |  | port | port; port name |
+| New | PON_OLT_INTF_PROTECTION | &lt;portname&gt; |  | OLT interface protection instance |
 |  |  |  | mode | "auto": Automatic detection of OLT Interface failures and recovery to initiate the dynamic reroute of traffic |
 | Existing | PEER_SWITCH | &lt;switchname&gt; |  |  |
 |  |  |  | address_ipv4 | IPv4 address; // peer Gateway ip address |
@@ -417,7 +416,7 @@ Note: The REDIS tables (`PON_OLT_INTF_STATE_LIST`, `protection-status`) and its
 
 To support Dual Homed PON Gateway solution - a new standalone daemon `ponprotd` is introduced that is the authority for programming routing entries related to OLT interfaces. `ponprotd` is created for PON semantics with a dedicated FSM-driven architecture. The `ponprotd` includes the following:
 
-- ponprotd owns the composite state (derived from OLT Interface State, Link State) per protection group.
+- ponprotd owns the composite state (derived from OLT Interface State, Link State) per OLT interface protection instance.
 - ponprotd is the single writer of forwarding state to APPL_DB and STATE_DB.
 - ponprotd operates as a new subsystem.
 
@@ -448,7 +447,7 @@ There are 3 composite states values (ACTIVE, STANDBY and UNKNOWN), each mapped t
 Health definition:
 
 - The health determines the desired state of the Dual Homed PON Gateway system.
-- Health is a per-protection-group indicator that reflects whether the data plane is consistent with the current control plane forwarding decision.
+- Health is a per OLT interface protection instance that reflects whether the data plane is consistent with the current control plane forwarding decision.
 - ponprotd sets health to unhealthy immediately on every FSM state transition. Once the desired states of the system is achieved then health becomes healthy.
 
 | # | OLT Interface State | Link State | Composite State | Action | Health | APPL_DB | STATE_DB |
@@ -463,7 +462,7 @@ Health definition:
 ##### 8.1.1.4 Boot and Initialization Sequence
 
 1. ponprotd starts
-2. Load CONFIG_DB: PON_OLT_INTF_PROTECTION_GROUP, DEVICE_METADATA, PEER_SWITCH
+2. Load CONFIG_DB: PON_OLT_INTF_PROTECTION, DEVICE_METADATA, PEER_SWITCH
    → set mComponentInitState bit0 (ConfigLoaded)
 3. Subscribe STATE_DB:
      PON_OLT_INTF_PROTECTION_STATE           → OLT interface State(Dimension 1, written by PonOrch)
@@ -517,9 +516,9 @@ Health definition:
   - Peer switch configuration identifies the peer Gateway switch and creates IPinIP tunnels between the Gateway switches.
   - IPinIP tunnel creation leverages the SAI_TUNNEL_ATTR_LOOPBACK_PACKET_ACTION attribute during tunnel creation to prevent looping or unintended packet re-encapsulation when both OLT ports are in the standby state.
   - When PEER_SWITCH is configured, tunnel is created which is referred in PonProtCfgOrch to create the TNH id.
-- PON Protection Group Configuration
-  - The PON-Protection group configure a OLT port as part of the PON protection group.
-  - Each OLT port in the protection group will have an initial default state of standby.
+- OLT Interface Protection Instance Configuration
+  - OLT interface protection instance configures an OLT port as part of the PON protection setup.
+  - Each configured OLT port starts in the default standby state.
   - In the standby state, traffic destined for the standby OLT port are re-directed via the tunnel to forward traffic to the peer Gateway.
 
 ![Protection CONFIG Flow handling](images/Protection%20CONFIG%20Flow%20handling.png)
@@ -539,7 +538,7 @@ Health definition:
 
 ##### 8.1.3.3 OrchAgent:  IPinIP Tunnel Route Programming
 
-The diagram below provides a configuration example of Gateway (G-B) with the PON OLT protection group in a standby state illustrating the IPinIP tunnel which redirects traffic to the other Gateway switch (G-A).
+The diagram below provides a configuration example of Gateway (G-B) with an OLT interface in a standby state illustrating the IPinIP tunnel which redirects traffic to the other Gateway switch (G-A).
 
 - Neighbors that are part of the IP subnet configured on Gateway (G-B) port with the OLT Interface in a standby state will be redirected via the IPinIP tunnel.
 
@@ -701,7 +700,7 @@ Below APIs are standard SAI spec APIs already implemented in SONiC. The PonOrch
 
 ## 11. Memory consumption
 
-Memory on the Gateway switches grows linearly with the number of configured protection groups (per OLT interface), the number of IP subnets per port, and the number of ONUs and servers attached.
+Memory on the Gateway switches grows linearly with the number of configured OLT interface protection instances, the number of IP subnets per port, and the number of ONUs and servers attached.
 
 The table below uses a single OLT interface and a single server IP as the unit basis. We can derive total consumption at any scale by extrapolating the numbers.
 
@@ -740,9 +739,9 @@ The following testing is planned for this feature:
 | # | Test Case | Verification |
 | --- | --- | --- |
 | 1 | Create Peer switch configuration | Verify tunnel and TNH is created in ASIC_DB with configured IP. |
-| 2 | Create Protection group config | Verify port context is created and all IP interface routes of that port is programmed with TNH until explicit active transition. |
-| 3 | Create Multiple protection groups | Verify each port has independent context and protection state, IP interface routes of that port is programmed with TNH, all sharing the same tunnel NH from peer switch config. |
-| 4 | Delete Protection group | Verify port context removed; if port was standby, routes are restored to use local interface. TNH should not be removed (owned by peer switch). |
+| 2 | Create OLT interface protection instance | Verify port context is created and all IP interface routes of that port is programmed with TNH until explicit active transition. |
+| 3 | Create multiple OLT interface protection instances | Verify each port has independent context and protection state, IP interface routes of that port is programmed with TNH, all sharing the same tunnel NH from peer switch config. |
+| 4 | Delete OLT interface protection instance | Verify port context removed; if port was standby, routes are restored to use local interface. TNH should not be removed (owned by peer switch). |
 | 5 | Delete Peer switch config | Verify TNH, and tunnel cleaned up from ASIC_DB. |
 
 2. State change handling Tests:
