@@ -185,7 +185,7 @@ flowchart LR
   subgraph RP["Active RP"]
     agg["ack_producer_aggregator"]
     rpdb[("STATE_DB<br/>(redis_chassis.server:6381)<br/>CHASSIS_MODULE_TABLE")]
-    chdb[("CHASSIS_STATE_DB<br/>(redis_chassis.server:6381)")]
+    chdb[("CHASSIS_STATE_DB<br/>(redis_chassis.server:6380)")]
     appdb[("APPL_DB<br/>(ACK_PRODUCER_TABLE,<br/>APPL_STATE_DB, resp. channel)")]
     chdb -->|ACK_PROD_INFO notify| agg
     rpdb -->|CHASSIS_MODULE_TABLE notify| agg
@@ -218,10 +218,10 @@ flowchart LR
 ```
 
 Every line card writes into the **shared chassis Redis** (`redis_chassis.server`,
-port 6381) on the RP. The aggregator listens on `CHASSIS_STATE_DB` for
+port 6380) on the RP. The aggregator listens on `CHASSIS_STATE_DB` for
 producer changes and rolls them up into a single
 `ACK_PROD_SUMMARY_INFO|CHASSIS 0` row. It also reads the **chassis-wide**
-`STATE_DB` — the STATE_DB instance on the same `redis_chassis.server`, — for `CHASSIS_MODULE_TABLE`. `chassisd`
+`STATE_DB` — the STATE_DB instance on the `redis_chassis.server, port 6381`, — for `CHASSIS_MODULE_TABLE`. `chassisd`
 on the active RP publishes card oper-state there so the same view of every
 line card is visible chassis-wide.
 
@@ -462,7 +462,6 @@ producer-up in `ack_prod_sst` is processed after a fresh card-offline in
 before the initial `CHASSIS_MODULE_TABLE` replay completes.
 
 ---
-
 
 ## 6. Open Questions for Community Review
 
