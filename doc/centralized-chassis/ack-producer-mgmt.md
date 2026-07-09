@@ -126,8 +126,8 @@ Two cooperating systemd-managed daemons:
 
 | Daemon | Service unit | Runs on | Writes | Reads |
 | --- | --- | --- | --- | --- |
-| **`ack_producer_monitor`** | `ack-producer-monitor.service` | Every **line card** and every **fixed** host | `ACK_PROD_INFO` rows (one per NPU on the local card) | Docker events stream + `docker inspect` |
-| **`ack_producer_aggregator`** | `ack-producer-aggregator.service` | **Active supervisor** on modular chassis; the host on fixed switches | `ACK_PROD_SUMMARY_INFO` row + the `AckProducerTracker` Redis Lua script | `ACK_PROD_INFO` (all cards), `CHASSIS_MODULE_TABLE` (modular only) |
+| **`ack_producer_monitor`** | `ack-producer-monitor.service` | Every **line card** and every **fixed** host | `ACK_PROD_INFO` rows (one per NPU ) | Docker events stream + `docker inspect` |
+| **`ack_producer_aggregator`** | `ack-producer-aggregator.service` | **Active supervisor** on modular chassis; the host on fixed switches | `ACK_PROD_SUMMARY_INFO` row | `ACK_PROD_INFO`, `CHASSIS_MODULE_TABLE` (modular only) |
 
 The split between writer (line card) and aggregator (supervisor) maps cleanly
 onto `CHASSIS_STATE_DB`: per-card daemons push their local view into a
@@ -280,40 +280,7 @@ Example: `LC2 NPU1` → bit `2 * 3 + 1 = 7`.
 
 ### 3.4 `AckProducerTracker` (addition to `sonic-swss-common`)
 
-A C++ helper invoked by the aggregator on every bitmap change:
-
-```python
-self.ack_tracker.set(bitmap_diff)     # producer(s) appeared
-self.ack_tracker.remove(bitmap_diff)  # producer(s) disappeared
-```
-
-#### DB targets (important)
-
-`AckProducerTracker` does **not** write to `CHASSIS_STATE_DB`. It opens
-connections to the local **`APPL_DB`** and **`APPL_STATE_DB`** and operates
-exclusively on them:
-
-| Call | DB | Effect |
-| --- | --- | --- |
-| `set(bitlist)` | `APPL_DB` | `EVALSHA` of `ackproducer_tracker_add.lua` against `ACK_PRODUCER_TABLE`; adds bits to the per-producer bitmap |
-| `remove(bitlist)` | `APPL_DB` | For each key under `ACK_PRODUCER_TABLE`, `EVALSHA` of `ackproducer_tracker_del.lua`; clears bits and, when a producer set goes empty, returns a `system_object` to be ACK-published |
-| `remove(bitlist)` (side effect) | `APPL_STATE_DB` | `publishLikeResponsePublisher` writes `<table>` (e.g. `ROUTE_TABLE`) state — mirrors orchagent `ResponsePublisher::publish` |
-| `remove(bitlist)` (side effect) | `APPL_DB_<table>_RESPONSE_CHANNEL` | `NotificationProducer::send` with `err_str + protocol + intent` so that `fpmsyncd::RouteSync::onRouteResponse` can ACK the route |
-
-The `ACK_PROD_SUMMARY_INFO` row described in §3.2 is the only artifact the
-aggregator publishes into `CHASSIS_STATE_DB` (modular) or `STATE_DB`
-(fixed) — and it does so via a normal `Table` write, not via
-`AckProducerTracker`.
-
-#### Thread safety
-
-The aggregator runs two listener threads (§5.2) that can both reach
-`AckProducerTracker.set/remove`. To preserve ordering between a
-producer-up event and a card-offline event for the same slot, the
-aggregator serializes them on `self.lock` and holds that lock across the
-in-memory bitmap mutation **and** the `AckProducerTracker` call (§5.5).
-The C++ helper itself only needs to be re-entrancy-safe per Redis
-connection; the application-level ordering is enforced by the caller.
+A C++ helper invoked by the aggregator on every bitmap change via its exposed APIs.
 
 ---
 
@@ -341,7 +308,7 @@ inactive_states = {stop, die, kill, pause, destroy, paused,
 
 - **Inactive** → write `status=0` immediately *and* cancel any pending
   active-debounce timer for that container.
-- **Active** → schedule a per-container `threading.Timer(DEBOUNCE_SECONDS=5)`;
+- **Active** → schedule a per-container timer
   if no inactive event arrives within 5 s, re-confirm via `docker inspect`
   and only then write `status=1`.
 
@@ -425,41 +392,36 @@ if state in inactive_states:
     self.update_ack_producer_for_slot(slot, False)  # clears all NPU bits + cleans DB
 ```
 
-`update_ack_producer_for_slot(slot, False)` additionally calls
-`cleanup_db_for_slot(slot)`, which deletes every
-`ACK_PROD_INFO|LC<slot>|asic*` row, so a removed card does not leave stale
-producer entries behind for the next time the slot is repopulated.
+In addition to clearing every NPU bit for the slot, the aggregator also
+purges the slot's producer rows from the chassis-wide DB, so a removed
+card leaves no stale entries behind when the slot is later repopulated.
 
 ### 5.4 Producer-event handling
 
-```python
-def process_ack_prod_upds(self, key, op, fvp):
-    if key in ["PortConfigDone", "PortInitDone"]: return
-    if op != "SET": return
-    if slot >= max_num_lcs or npu >= MAX_NPUS_PER_CARD: return
-    if self.ack_map[slot][npu] != status:
-        self.update_ack_producer_for_npu(slot, npu, bool(status))
-```
-
-Idempotent against duplicate notifications and bounded against bad inputs.
+For each `ACK_PROD_INFO` update, the aggregator ignores the
+`PortConfigDone` / `PortInitDone` sentinel keys and non-SET operations,
+bounds-checks the slot and NPU indices, and forwards the change only
+when the reported status differs from what it currently tracks. This
+keeps the handler idempotent against duplicate notifications and safe
+against out-of-range inputs.
 
 ### 5.5 Concurrency model
 
-The two listener threads can race on the same slot, so `self.lock` is
-held across **both** the in-memory mutation and the matching
-`AckProducerTracker.set/remove`, `cleanup_db_for_slot`, and
-`update_ack_prod_summary` calls. swsscommon is thread-safe per Redis
+The two listener threads can act on the same slot concurrently, so the
+aggregator serializes them with a single mutex held across **both** the
+in-memory bitmap update **and** the matching writes to the chassis and
+application databases. The underlying Redis client is thread-safe per
 operation but does not preserve ordering across threads; keeping the
-external calls inside the lock prevents a producer-up from resurrecting
+external writes inside the mutex prevents a producer-up from resurrecting
 bits that a concurrent card-offline just cleared.
 
-Under the same lock, `update_ack_producer_for_npu` also drops producer-up
-events for slots whose `card_state` is `Offline` / `Empty` /
-`PoweredDown` / `Fault`. This covers the cross-queue case where a stale
-producer-up in `ack_prod_sst` is processed after a fresh card-offline in
-`chassis_module_sst`. `self.card_state` is initialized to `None`
-("not yet observed") so the gate does not fire on aggregator startup
-before the initial `CHASSIS_MODULE_TABLE` replay completes.
+Under the same mutex, the producer-event handler also drops producer-up
+notifications for slots already known to be inactive — empty, offline,
+powered down, or in fault. This covers the cross-queue case where a stale
+producer-up event, queued before the card was pulled, is processed after
+the fresher card-offline event. The card-state cache is initialized as
+"not yet observed" so the gate does not misfire during aggregator
+startup, before the initial card-state replay completes.
 
 ---
 
