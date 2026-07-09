@@ -139,10 +139,10 @@ This feature targets **Alpha** maturity under the [SONiC feature quality definit
 | Proxy listener | The proxy use case shall expose a host-local TACACS+ TCP listener on loopback for existing SONiC TACACS+ consumers. |
 | Native IPC | The native IPC use case shall expose a UDS endpoint for SONiC components that require a direct gRPC/protobuf API. |
 | Existing consumers | Existing SONiC TACACS+ consumers shall not need to implement TLS, read TLS fields, or call UDS IPC when they use the proxy path. |
-| Compatibility server list | The compatibility `TACPLUS_SERVER` list shall allow a loopback entry as the first server and existing non-TLS servers as later fallback entries. |
+| Compatibility server list | The compatibility `TACPLUS_SERVER` list shall allow a highest-priority loopback entry and lower-priority existing non-TLS fallback entries. |
 | Upstream configuration source | The central agent shall read upstream TLS-capable TACACS+ server configuration from new ConfigDB keys that are not consumed by existing SONiC TACACS+ components. |
-| Upstream server ordering | The implementation shall support multiple upstream TACACS+ servers using the priority order configured across filtered TCP candidates and TLS candidates. |
-| Failover | The implementation shall prefer the first healthy server and fail over to later servers when the preferred server is not reachable. |
+| Upstream server ordering | The implementation shall support multiple upstream TACACS+ servers using the priority order configured across filtered TCP candidates and TLS candidates, where larger numeric `priority` values are more preferred. |
+| Failover | The implementation shall prefer the healthy server with the highest numeric priority and fail over to lower-priority servers when the preferred server is not reachable. |
 | Recovery | The implementation shall periodically probe the preferred server while failed over and return traffic to it when it recovers. |
 | Persistent connection reuse | The implementation shall support a single connection model where one service-owned upstream connection can carry multiple TACACS+ sessions. |
 | Dedicated connection mode | The implementation shall support a dedicated connection mode for deployments that require one upstream connection per request. |
@@ -179,15 +179,15 @@ This feature targets **Alpha** maturity under the [SONiC feature quality definit
 | Save and restore | CLI changes shall preserve save and restore compatibility with configurations from previous releases. |
 | CLI row ownership | CLI commands shall manage existing `TACPLUS` and `TACPLUS_SERVER` compatibility rows separately from new `TACPLUS_SERVER_TLS` rows; they shall not transform an existing TCP server row into a TLS server row or a TLS server row into a TCP server row. |
 | CLI validation | CLI commands that add or modify a `TACPLUS_SERVER_TLS` row shall validate the resulting TLS server configuration before committing the change. |
-| Priority control | Priority changes shall control whether the central agent selects a TCP or TLS upstream candidate first. |
+| Priority control | Priority changes shall control whether the central agent selects a TCP or TLS upstream candidate first. Increasing a server's numeric `priority` promotes it; decreasing the value demotes it. |
 | Credential shape | Each active stored TLS server configuration shall map to one valid YANG security and credential choice. Redundant fields from another credential choice shall be rejected rather than ignored. |
 | YANG model contents | YANG model changes shall describe TLS transport, single connection mode, and secret/certificate references, aligned with the TACACS+ YANG model in [RFC 9950](https://datatracker.ietf.org/doc/rfc9950/). |
-| Priority-order model | YANG model changes shall preserve upstream TACACS+ server priority ordering, using a SONiC extension to RFC 9950 when needed. |
+| Priority-order model | YANG model changes shall preserve upstream TACACS+ server priority ordering, including SONiC's convention that larger numeric `priority` values are higher preference, using a SONiC extension to RFC 9950 when needed. |
 | Upstream candidate management | The management model shall allow operators to configure TCP and TLS upstream candidates independently. |
 | TLS credential management | The management model shall allow operators to configure one TLS credential choice: server certificate validation, mTLS, or PSK. |
 | TLS PSK management | For PSK, the CLI workflow shall default to PSK-DHE with approved TLS groups, allow optional group constraints, and allow explicit PSK-only interop mode. |
 | Connection mode selection | The management model shall allow operators to select persistent connection reuse or dedicated per-request connections. |
-| Compatibility workflow | The management workflow shall configure the existing `TACPLUS_SERVER` compatibility list separately from the new upstream server list so existing consumers can use loopback first and non-TLS fallback servers later. |
+| Compatibility workflow | The management workflow shall configure the existing `TACPLUS_SERVER` compatibility list separately from the new upstream server list so existing consumers can use a highest-priority loopback entry and lower-priority non-TLS fallback servers. |
 
 ### 5.4 Scalability and Performance Requirements
 
@@ -270,7 +270,7 @@ The proposed architecture adds a KubeSONiC-managed central agent between local S
                                                      +-------------------------------+
 ```
 
-The compatibility `TACPLUS_SERVER` list places the loopback listener first. Existing non-TLS servers may remain later in the list so the current SONiC TACACS+ path can fall back during migration if the local listener is unavailable or if confirmed existing client behavior treats a local service error as a server failure.
+The compatibility `TACPLUS_SERVER` list gives the loopback listener the highest priority value. Existing non-TLS servers may remain at lower priority so the current SONiC TACACS+ path can fall back during migration if the local listener is unavailable or if confirmed existing client behavior treats a local service error as a server failure.
 
 The central agent exposes two downstream interfaces toward local clients: a TACACS+ proxy service on a loopback TCP listener for existing SONiC consumers, and a gRPC forwarding service on a Unix domain socket for new components. Both interfaces hand requests to the central agent's single upstream engine for server selection, TLS, connection reuse, and failover.
 
@@ -281,7 +281,7 @@ The central agent can serve multiple local consumers without each local consumer
 | Component | Responsibility | Lifetime |
 | --- | --- | --- |
 | Central agent | Operates the TACACS+ proxy service for existing SONiC consumers on loopback and the gRPC forwarding service for native UDS clients, reads upstream TACACS+ configuration, opens upstream TCP/TLS connections, and performs ordered failover. | Feature container managed through KubeSONiC and SONiC feature control. |
-| Existing SONiC TACACS+ consumer | Sends TACACS+ requests to the first reachable server in `TACPLUS_SERVER`, normally the loopback listener when using the proxy path. Examples include PAM, AAA, CLI, shell, audit, or accounting integrations as applicable. | Existing service or one-shot process. |
+| Existing SONiC TACACS+ consumer | Sends TACACS+ requests to the highest-priority reachable server in `TACPLUS_SERVER`, normally the loopback listener when using the proxy path. Examples include PAM, AAA, CLI, shell, audit, or accounting integrations as applicable. | Existing service or one-shot process. |
 | Configuration model mapper | Parses and validates TACACS+ YANG or CONFIG_DB input and maps it into runtime upstream server configuration. | Library or service module. |
 | SONiC CONFIG_DB adapter | Maps new SONiC ConfigDB upstream tables into the runtime configuration model and optionally reads existing compatibility rows for diagnostics. | Library or service module. |
 | Diagnostic TACACS+ client | Sends test TACACS+ requests to the loopback listener, directly to an upstream server, or through a native IPC interface. | One-shot command. |
@@ -314,7 +314,7 @@ If a target deployment cannot run KubeSONiC-managed feature containers, that dep
 
 ### 7.2 Existing Consumer Proxy Path
 
-The proxy service uses a host-local TACACS+ TCP listener as the compatibility surface for existing SONiC TACACS+ consumers. Existing consumers continue to use the current `TACPLUS|global` and `TACPLUS_SERVER|*` configuration. Operators configure the loopback listener as the first TACACS+ server, with existing non-TLS servers retained later in the list when migration fallback is desired.
+The proxy service uses a host-local TACACS+ TCP listener as the compatibility surface for existing SONiC TACACS+ consumers. Existing consumers continue to use the current `TACPLUS|global` and `TACPLUS_SERVER|*` configuration. Operators configure the loopback listener with the highest TACACS+ server priority value, with existing non-TLS servers retained at lower priority when migration fallback is desired.
 
 ```text
 Existing SONiC consumer
@@ -327,7 +327,7 @@ The local listener accepts TACACS+ packets from existing consumers on loopback. 
 
 The KubeSONiC deployment must make the listener reachable from the host network namespace at the configured loopback address and TCP port. A pod-local `127.0.0.1` listener is not sufficient because existing PAM, shell, audit, accounting, and CLI components run in the SONiC host context. The exact mechanism, such as host networking or an approved host-local port exposure pattern, requires KubeSONiC review.
 
-When the local listener is unavailable, existing SONiC TACACS+ clients should be able to try later non-TLS servers in the current `TACPLUS_SERVER` priority list according to existing client failover behavior. The central agent must avoid converting upstream transport outages into authentication denials when fallback is configured; it should surface local service failure in a form that the existing clients treat as a server failure. The exact failover trigger must be confirmed against existing SONiC TACACS+ client behavior and covered by sonic-mgmt tests.
+When the local listener is unavailable, existing SONiC TACACS+ clients should be able to try lower-priority non-TLS servers in the current `TACPLUS_SERVER` priority list according to existing client failover behavior. The central agent must avoid converting upstream transport outages into authentication denials when fallback is configured; it should surface local service failure in a form that the existing clients treat as a server failure. The exact failover trigger must be confirmed against existing SONiC TACACS+ client behavior and covered by sonic-mgmt tests.
 
 ### 7.3 TACACS+ TLS Transport
 
@@ -392,7 +392,7 @@ Dedicated connection mode remains available. In dedicated mode, a request uses i
 
 ### 7.6 Ordered Failover and Recovery
 
-The central agent maintains upstream server state. The preferred upstream server is the first healthy server in the priority order configured by the new upstream ConfigDB tables. When the service maps SONiC upstream rows into the RFC 9950-based model used internally, the implementation must preserve that SONiC priority order, using a SONiC YANG extension when the base RFC 9950 model does not carry the needed ordering field. If the preferred upstream server fails, the service tries the next upstream server. While using a backup server, the service periodically probes the preferred server and moves traffic back when it recovers.
+The central agent maintains upstream server state. The preferred upstream server is the healthy server with the highest numeric `priority` value configured by the new upstream ConfigDB tables; in a configured range from 1 to N, N is the highest preference. When the service maps SONiC upstream rows into the RFC 9950-based model used internally, the implementation must preserve that SONiC priority order, using a SONiC YANG extension when the base RFC 9950 model does not carry the needed ordering field. If the preferred upstream server fails, the service tries the next lower-priority upstream server. While using a backup server, the service periodically probes the highest-priority server and moves traffic back when it recovers.
 
 The service shall serialize reconnect attempts for each upstream server. If multiple local requests arrive while a reconnect is in progress, one reconnect attempt is performed and the other requests wait for the result.
 
@@ -456,7 +456,7 @@ Existing SONiC TACACS+ consumers and the central agent share four CONFIG_DB tabl
 | Table | Contents | Read by |
 | --- | --- | --- |
 | `TACPLUS` | Existing global TACACS+ defaults in the `global` row: authentication type, default timeout, shared-secret `passkey`, and source interface. These defaults apply both to the existing-consumer view and to the non-TLS `TACPLUS_SERVER` upstream candidates. | Existing consumers and the central agent. |
-| `TACPLUS_SERVER` | Existing per-server TACACS+ over TCP rows with shared-secret obfuscation only: priority, TCP port, timeout, and `passkey`. During migration this list normally holds the loopback row first and optional non-TLS fallback servers later. | Existing consumers, as their server list, and the central agent, as non-TLS upstream candidates after it filters its own loopback row. |
+| `TACPLUS_SERVER` | Existing per-server TACACS+ over TCP rows with shared-secret obfuscation only: priority, TCP port, timeout, and `passkey`. During migration this list normally gives the loopback row the highest priority value and optional non-TLS fallback servers lower priority values. | Existing consumers, as their server list, and the central agent, as non-TLS upstream candidates after it filters its own loopback row. |
 | `TACPLUS_SERVER_TLS` | New per-server TACACS+ over TLS rows: TLS port, cipher suites, SNI, single connection mode, the single TLS credential choice (certificate, mTLS, or PSK), and protected credential references. Each row is self-contained. | The central agent only. |
 | `TACPLUS_FORWARDER` | New global settings for the central agent itself in the `global` row: the loopback listener address and port and the agent's own operational defaults. | The central agent only. |
 
@@ -465,9 +465,11 @@ The following rules keep these tables consistent:
 - Existing `TACPLUS` and `TACPLUS_SERVER` rows shall not contain TLS upstream server fields, so existing consumers never parse or filter TLS rows.
 - The central agent draws upstream candidates from both server tables: `TACPLUS_SERVER` rows as TCP candidates after it filters its own loopback row, and `TACPLUS_SERVER_TLS` rows as TLS candidates.
 - `TACPLUS|global` and `TACPLUS_FORWARDER|global` are independent. Non-TLS `TACPLUS_SERVER` upstream candidates inherit their global defaults — authentication type, default timeout, and source interface — from `TACPLUS|global`, exactly as existing consumers interpret those rows. `TACPLUS_FORWARDER|global` governs only the central agent itself and does not override those upstream defaults. TLS upstream servers depend on neither global row because each `TACPLUS_SERVER_TLS` row carries its own complete settings.
-- Operators add a loopback `TACPLUS_SERVER` row as the first server when they want existing consumers to reach the central agent first.
+- Operators add a loopback `TACPLUS_SERVER` row with the highest priority value when they want existing consumers to reach the central agent first.
 
-The central agent combines the filtered TCP server candidates and TLS server candidates using configured priority order. Operators can add a TLS server and promote it above an existing TCP server, or demote the TCP server, so the TLS server is selected first while the TCP server remains available as fallback.
+The central agent combines the filtered TCP server candidates and TLS server candidates using configured priority order, selecting larger numeric `priority` values before smaller values. Operators can add a TLS server and promote it above an existing TCP server by assigning the TLS server a larger priority value, or demote the TCP server by assigning it a smaller value, so the TLS server is selected first while the TCP server remains available as fallback.
+
+This priority convention follows the existing SONiC TACACS+ YANG definition for [`TACPLUS_SERVER_LIST/priority`](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-system-tacacs.yang#L75-L83), where `priority` is constrained to `1..64` and described as "Server selection priority; higher values are tried first." The new TLS server table shall preserve the same range and ordering convention. See also the [references](#15-references).
 
 Existing rows such as the following remain valid:
 
@@ -489,19 +491,19 @@ The proxy migration view uses those same existing rows with a loopback entry for
 
 ```text
 TACPLUS_SERVER|127.0.0.1
-  priority    "1"
+  priority    "60"
   tcp_port    "49"
   timeout     "3"
   passkey     "loopback-secret"
 
 TACPLUS_SERVER|192.0.2.10
-  priority    "100"
+  priority    "1"
   tcp_port    "49"
   timeout     "10"
   passkey     "upstream-secret"
 
 TACPLUS_SERVER_TLS|192.0.2.20
-  priority    "1"
+  priority    "60"
   tcp_port    "449"
   cipher_suites "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
   timeout     "10"
@@ -598,13 +600,13 @@ Expected error behavior:
 
 | Condition | Behavior |
 | --- | --- |
-| Preferred upstream TACACS+ server unreachable | Try next upstream server in priority order. |
-| Upstream response obfuscation mismatch | Treat as a transport failure: disconnect the upstream connection, do not deliver the packet, and fail over to the next server in priority order. |
+| Preferred upstream TACACS+ server unreachable | Try the next lower-priority upstream server. |
+| Upstream response obfuscation mismatch | Treat as a transport failure: disconnect the upstream connection, do not deliver the packet, and fail over to the next lower-priority server. |
 | All upstream TACACS+ servers unreachable | Surface local service failure in a form that enables existing fallback when configured; return retriable service error to native IPC clients. |
 | TLS certificate validation failure | Reject connection and log validation failure without exposing secrets. |
 | Incomplete TLS credential configuration | Reject the new configuration and keep the previous valid state when available. |
 | CONFIG_DB parse failure | Keep previous valid state when available, otherwise keep feature inactive. |
-| Loopback listener unavailable | Existing SONiC TACACS+ consumers may try later existing `TACPLUS_SERVER` entries according to existing failover behavior. |
+| Loopback listener unavailable | Existing SONiC TACACS+ consumers may try lower-priority existing `TACPLUS_SERVER` entries according to existing failover behavior. |
 | Native IPC endpoint unavailable | Native clients receive a retriable local service error. |
 
 ### 7.11 Serviceability and Debug
@@ -667,9 +669,9 @@ CLI changes shall be reviewed with sonic-utilities maintainers. The exact comman
 
 The CLI is the operator workflow. It should provide stable SONiC commands that update the existing TCP compatibility configuration, the new TLS server configuration, and the forwarder-local configuration without requiring operators to understand the full TACACS+ YANG tree. The central agent validates the combined upstream candidate set before using it.
 
-The existing `config tacacs` commands continue to manage `TACPLUS|global` and `TACPLUS_SERVER|*`. During migration, operators use those commands to put the loopback listener first and to keep existing non-TLS fallback servers later if desired. These rows remain plain TACACS+ TCP rows and shall not receive upstream TLS fields.
+The existing `config tacacs` commands continue to manage `TACPLUS|global` and `TACPLUS_SERVER|*`. During migration, operators use those commands to give the loopback listener the highest priority and to keep existing non-TLS fallback servers at lower priority if desired. These rows remain plain TACACS+ TCP rows and shall not receive upstream TLS fields.
 
-New TLS-specific commands manage `TACPLUS_SERVER_TLS|*` rows. These commands add, modify, and delete TLS server entries; they do not change existing `TACPLUS_SERVER|*` TCP entries into TLS entries. To move traffic to TLS, an operator adds a TLS server entry and assigns it a higher priority than the existing TCP server, or demotes the TCP server, so the central agent selects the TLS server first while the TCP server remains available as fallback.
+New TLS-specific commands manage `TACPLUS_SERVER_TLS|*` rows. These commands add, modify, and delete TLS server entries; they do not change existing `TACPLUS_SERVER|*` TCP entries into TLS entries. To move traffic to TLS, an operator adds a TLS server entry and assigns it a numerically higher priority than the existing TCP server, or demotes the TCP server to a smaller value, so the central agent selects the TLS server first while the TCP server remains available as fallback.
 
 The stored TLS server row shall remain valid after every committed change. The CLI shall not leave an active `TACPLUS_SERVER_TLS` row containing fields from multiple TLS credential choices. For example, when a TLS server uses PSK, the row shall not also contain mTLS client certificate and key fields. When a TLS server uses mTLS, the row shall not also contain PSK identity, secret, or PSK key exchange fields. A TLS command must fail with a clear error if required target fields are missing, the target configuration is internally inconsistent, or the final row would be ambiguous.
 
@@ -678,13 +680,13 @@ The central agent shall repeat validation when reading stored TCP and TLS server
 | Area | CLI capability |
 | --- | --- |
 | Feature state | Enable or disable the central agent feature. |
-| Compatibility list | Configure the existing `TACPLUS_SERVER` compatibility list with the loopback listener first and optional non-TLS fallback servers later. |
+| Compatibility list | Configure the existing `TACPLUS_SERVER` compatibility list with the loopback listener at the highest priority and optional non-TLS fallback servers at lower priorities. |
 | Forwarder-local settings | Configure the forwarder-local listener and agent settings in `TACPLUS_FORWARDER`. |
 | TLS server rows | Add, modify, and delete TACACS+ over TLS server entries in `TACPLUS_SERVER_TLS`. |
 | TLS credential mode | Select certificate-based TLS server authentication, mTLS, or PSK for a TLS server by writing the corresponding valid TLS fields. |
 | TLS port | Set the TLS TCP port for a TLS server. |
 | Cipher suites | Configure the TLS 1.3 cipher suite preference list for a TLS server using RFC 8446 Appendix B.4 cipher suite names. |
-| Priority | Promote or demote TLS and TCP servers by priority so the central agent selects the desired server first. |
+| Priority | Promote or demote TLS and TCP servers by numeric priority, where larger values are selected first. |
 | Server name and SNI | Configure server domain name and SNI behavior. |
 | Credential references | Configure references to trust anchors, client certificates, client private keys, PSK identity, and protected PSK symmetric key material. |
 | Connection mode | Configure single connection mode or dedicated connection mode. |
@@ -696,15 +698,15 @@ Candidate CLI examples:
 config feature state tacacs-tls-forwarder enabled
 
 # Existing SONiC TACACS+ consumers use loopback first.
-config tacacs add 127.0.0.1 --port 49 --timeout 3 --key loopback-secret --type pap --pri 1
+config tacacs add 127.0.0.1 --port 49 --timeout 3 --key loopback-secret --type pap --pri 60
 
 # Optional migration fallback through the existing non-TLS path.
-config tacacs add 192.0.2.10 --port 49 --timeout 10 --key upstream-secret --type pap --pri 100
+config tacacs add 192.0.2.10 --port 49 --timeout 10 --key upstream-secret --type pap --pri 1
 
 # Add a TACACS+ over TLS server with certificate validation using a CA bundle.
 config tacacs tls add 192.0.2.20 certificate \
   --port 449 \
-  --priority 1 \
+  --priority 60 \
   --key upstream-secret \
   --cipher-suites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384 \
   --domain-name tacacs.example.com \
@@ -725,7 +727,7 @@ config tacacs tls modify 192.0.2.20 certificate \
 # Add a TACACS+ over TLS 1.3 PSK server. The domain name enables SNI when SNI is active. PSK-DHE uses approved default groups unless groups are supplied.
 config tacacs tls add 192.0.2.30 psk \
   --port 449 \
-  --priority 2 \
+  --priority 90 \
   --key upstream-secret \
   --cipher-suites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384 \
   --domain-name tacacs.example.com \
@@ -733,15 +735,15 @@ config tacacs tls add 192.0.2.30 psk \
   --psk-secret-ref /etc/sonic/credentials/tacacs-psk-01.key
 
 # Promote TLS by priority and keep the existing TCP server as fallback.
-config tacacs tls modify 192.0.2.20 --priority 1
-config tacacs modify 192.0.2.10 --pri 100
+config tacacs tls modify 192.0.2.20 --priority 60
+config tacacs modify 192.0.2.10 --pri 1
 
 config tacacs tls modify 192.0.2.20 --single-connection enabled
 show tacacs tls-forwarder status
 show tacacs tls-forwarder counters
 ```
 
-The TLS command family writes only `TACPLUS_SERVER_TLS` rows; existing `config tacacs` commands write only `TACPLUS` and `TACPLUS_SERVER` rows. Priority changes control which server the central agent selects first; they never convert a TCP row into a TLS row or the reverse. CLI defaults for `cipher_suites` and PSK key exchange follow the [TACACS+ TLS transport (Section 7.3)](#73-tacacs-tls-transport) and [TLS credential choices (Section 7.4)](#74-tls-credential-choices): a strong RFC 8446 cipher list is supplied when the operator omits one, and PSK defaults to PSK-DHE with the approved groups unless the operator explicitly requests `--psk-key-exchange psk-only`.
+The TLS command family writes only `TACPLUS_SERVER_TLS` rows; existing `config tacacs` commands write only `TACPLUS` and `TACPLUS_SERVER` rows. Priority changes control which server the central agent selects first, with larger numeric values selected before smaller values; they never convert a TCP row into a TLS row or the reverse. CLI defaults for `cipher_suites` and PSK key exchange follow the [TACACS+ TLS transport (Section 7.3)](#73-tacacs-tls-transport) and [TLS credential choices (Section 7.4)](#74-tls-credential-choices): a strong RFC 8446 cipher list is supplied when the operator omits one, and PSK defaults to PSK-DHE with the approved groups unless the operator explicitly requests `--psk-key-exchange psk-only`.
 
 Any TLS server row must be valid and complete when it is committed. All credential material it references — trust anchor, client certificate and private key, or PSK key — must already exist when the `config tacacs tls add` command runs, and must remain in place until that TLS server is removed. A CLI operator must not be granted access to the secret material itself, so the CLI cannot inspect the credential contents directly. Instead, the central agent may expose a validation API, such as an upsert-server call, that the CLI invokes at command issuance: the central agent holds the credential material the operator cannot see, assesses whether every referenced object exists and is complete, and returns any validation problems for the CLI to surface. If a referenced credential is absent, the central agent shall exclude that server entirely rather than connect without the required material. The central agent always re-validates the full configuration on startup, so a server with missing credential material is also excluded after a restart or configuration reload until the material is provisioned.
 
@@ -753,7 +755,7 @@ Candidate CLI, ConfigDB, and model mapping:
 | `--local-listen-port` | `TACPLUS_FORWARDER|global` / `local_listen_port` | TCP port used by the local loopback TACACS+ listener. |
 | Server command family | `TACPLUS_SERVER` or `TACPLUS_SERVER_TLS` | Existing `config tacacs` commands manage TACACS+ over TCP/shared-secret rows; `config tacacs tls` commands manage TACACS+ over TLS rows. |
 | `--port` | `tcp_port` | TCP port for the selected transport-security mode. |
-| `--priority` or `--pri` | `priority` | Upstream server ordering used by the central agent. |
+| `--priority` or `--pri` | `priority` | Upstream server ordering used by the central agent; larger numeric values are selected before smaller values. |
 | `--timeout` | `timeout` | Runtime server timeout policy. |
 | `--cipher-suites` | `cipher_suites` | Colon-separated TLS 1.3 cipher suite preference list from RFC 8446 Appendix B.4, such as `TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384`. The CLI may default this field, but stored `TACPLUS_SERVER_TLS` rows shall contain it. |
 | `--domain-name` | `domain_name` | Name used for certificate verification and SNI. |
@@ -796,13 +798,13 @@ The `FEATURE` scope fields in the example follow existing SONiC multi-ASIC servi
   },
   "TACPLUS_SERVER": {
     "127.0.0.1": {
-      "priority": "1",
+      "priority": "60",
       "tcp_port": "49",
       "timeout": "3",
       "passkey": "loopback-secret"
     },
     "192.0.2.10": {
-      "priority": "100",
+      "priority": "1",
       "tcp_port": "49",
       "timeout": "10",
       "passkey": "upstream-secret"
@@ -818,7 +820,7 @@ The `FEATURE` scope fields in the example follow existing SONiC multi-ASIC servi
   },
   "TACPLUS_SERVER_TLS": {
     "192.0.2.20": {
-      "priority": "1",
+      "priority": "60",
       "tcp_port": "449",
       "cipher_suites": "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384",
       "timeout": "10",
@@ -842,15 +844,15 @@ Compatibility and upstream candidate selection:
 | --- | --- |
 | Existing compatibility rows | Existing `TACPLUS` and `TACPLUS_SERVER` rows remain valid TACACS+ TCP/shared-secret rows and shall not contain upstream TLS-only fields. |
 | Existing consumers | Existing consumers read only the existing compatibility rows. The new `TACPLUS_SERVER_TLS` and `TACPLUS_FORWARDER` rows are used only by the central agent and management tooling. |
-| Loopback compatibility row | The loopback compatibility row shall point to a host-local address and shall be the first server only when operators want existing consumers to use the central agent first. |
+| Loopback compatibility row | The loopback compatibility row shall point to a host-local address and shall have the highest priority only when operators want existing consumers to use the central agent first. |
 | Loopback filtering | The central agent shall filter out the loopback compatibility row assigned to itself before treating `TACPLUS_SERVER` rows as upstream TCP candidates. |
-| Migration fallback | Optional non-TLS fallback servers may remain later in the existing `TACPLUS_SERVER` list during migration. |
+| Migration fallback | Optional non-TLS fallback servers may remain at lower priority in the existing `TACPLUS_SERVER` list during migration. |
 | Local listener address | The local listener address must be loopback or another SONiC-approved host-local endpoint. |
 | Upstream self-targeting | Upstream server rows shall not target the local listener address and port. |
 | TCP upstream candidates | `TACPLUS_SERVER` rows are upstream plain TCP/shared-secret candidates after loopback filtering. |
 | TLS upstream candidates | `TACPLUS_SERVER_TLS` rows are upstream TLS candidates and must include a target TCP port and `cipher_suites` for the TLS mode. |
 | Runtime mapping | Stored `TACPLUS_SERVER`, `TACPLUS_SERVER_TLS`, and `TACPLUS_FORWARDER` rows are mapped into the validated runtime configuration before use. |
-| Priority ordering | The central agent shall combine filtered TCP candidates and TLS candidates using configured priority order. |
+| Priority ordering | The central agent shall combine filtered TCP candidates and TLS candidates using configured priority order, with larger numeric `priority` values selected before smaller values. |
 
 TLS credentials and sensitive material:
 
@@ -881,7 +883,7 @@ Candidate ConfigDB-to-runtime mapping:
 | `TACPLUS_SERVER_TLS` row key | Upstream TLS server entry with name/address derived from the SONiC row. |
 | `tcp_port` | `server.port`. |
 | `cipher_suites` | Colon-separated TLS 1.3 cipher suite preference list from RFC 8446 Appendix B.4. |
-| `priority` | Upstream server ordering, preserved through a SONiC extension to the RFC 9950-based model when needed. |
+| `priority` | Upstream server ordering, where larger numeric values are higher preference, preserved through a SONiC extension to the RFC 9950-based model when needed. |
 | `timeout` | Runtime server timeout policy. |
 | `domain_name` and `sni_enabled` | `domain-name` and `sni-enabled`. |
 | `trust_anchor_ref` | `server-authentication` credential reference, SONiC-approved truststore reference, or protected CA bundle path. |
@@ -1004,7 +1006,7 @@ The implementation shall include unit tests for the following items:
 | Upstream TACACS+ validation | Validating credential references, priority ordering across filtered TCP rows and TLS rows, target port, and TLS credential choices. |
 | CLI required fields | CLI validation rejects adding or modifying a TLS server row when required fields for the target TLS credential shape are missing. |
 | CLI ambiguity rejection | CLI validation rejects direct or restored TLS server rows with redundant credential fields that would make the TLS credential choice ambiguous. |
-| CLI row separation | CLI validation keeps TCP server rows and TLS server rows separate; priority changes can promote TLS above TCP without changing an existing TCP row into a TLS row. |
+| CLI row separation | CLI validation keeps TCP server rows and TLS server rows separate; priority changes can promote TLS above TCP by assigning TLS a larger numeric priority without changing an existing TCP row into a TLS row. |
 | TLS transport parsing | Parsing TLS transport fields, domain name, SNI, cipher suite preference lists, PSK key exchange mode, PSK-DHE group lists, and single connection mode. |
 | TLS cipher suites | Rejecting empty or unsupported TLS cipher suite preference lists. |
 | TLS credential completeness | Rejecting incomplete TLS credential configurations, including missing client certificate material or missing PSK material for the selected choice. |
@@ -1028,20 +1030,20 @@ The implementation shall include system tests for the following items:
 | Feature lifecycle | The central agent feature can be enabled and disabled through the SONiC feature mechanism and KubeSONiC controls. |
 | Container deployment | KubeSONiC deploys the feature container only on eligible nodes and reports container state. |
 | Listener exposure | The local listener is reachable from existing SONiC host TACACS+ consumers on loopback and is not reachable from management or data plane interfaces. |
-| Existing consumer compatibility | Existing SONiC TACACS+ consumers use the loopback `TACPLUS_SERVER` row first and can use configured non-TLS fallback servers later in the existing list. |
+| Existing consumer compatibility | Existing SONiC TACACS+ consumers use the highest-priority loopback `TACPLUS_SERVER` row first and can use configured lower-priority non-TLS fallback servers in the existing list. |
 | Loopback filtering | The central agent filters its own loopback row before using `TACPLUS_SERVER` entries as upstream TCP candidates. |
 | ConfigDB source | The central agent reads upstream TACACS+ server configuration from CONFIG_DB. |
 | Runtime validation | The central agent reports the active configuration source and validates the runtime configuration derived from stored upstream ConfigDB rows. |
 | CLI pre-commit validation | CLI attempts to add or modify a `TACPLUS_SERVER_TLS` row fail before commit when the effective TLS server configuration is incomplete or ambiguous. |
 | CLI row separation | CLI TLS server add and modify commands commit only valid `TACPLUS_SERVER_TLS` rows and do not mutate existing `TACPLUS_SERVER` TCP rows. |
-| Priority migration | Priority changes can promote a TLS server above an existing TCP server or demote the TCP server so the central agent selects TLS first while keeping TCP fallback available. |
+| Priority migration | Priority changes can promote a TLS server above an existing TCP server by assigning TLS a larger numeric priority, or demote the TCP server to a smaller numeric priority, so the central agent selects TLS first while keeping TCP fallback available. |
 | TCP upstream connectivity | The central agent connects to an upstream TACACS+ server over TCP. |
 | TLS server authentication | The central agent connects to an upstream TACACS+ server over TLS with server certificate verification. |
 | mTLS connectivity | The central agent connects with mTLS using configured client certificate material. |
 | TLS credential modes | The central agent connects to TLS servers using each configured TLS credential choice. |
 | TLS PSK modes | The central agent connects to TLS PSK servers using the default approved PSK-DHE groups, explicit PSK-DHE group lists, and explicit PSK-only interop mode when supported. |
 | Certificate validation failures | Invalid certificate, wrong server name, or missing trust anchor causes connection failure. |
-| Ordered failover | Multiple upstream TACACS+ servers fail over in configured priority order. |
+| Ordered failover | Multiple upstream TACACS+ servers fail over from higher numeric priority to lower numeric priority. |
 | Preferred server recovery | Preferred server probing returns traffic to the preferred server after recovery. |
 | Single connection mode | Single connection mode reuses upstream connections for multiple requests. |
 | Dedicated connection mode | Dedicated connection mode opens separate connections for compatibility. |
@@ -1101,7 +1103,7 @@ This section tracks the remaining implementation and ownership work needed to cl
 | Confirm the KubeSONiC feature-container deployment path, host-loopback exposure mechanism, node labels, and rollback workflow for this service. | SONiC community and KubeSONiC owners | Open |
 | Agree on ConfigDB table and field names for the new upstream TACACS+ configuration, including TLS transport, TLS credential choices, PSK key exchange and group selection, single connection mode, and TLS port defaults. | AAA and YANG reviewers | Open |
 | Confirm existing SONiC TACACS+ client failover behavior when the loopback listener is unavailable or closes a request because all upstream servers are unavailable. | AAA and sonic-mgmt reviewers | Open |
-| Define the SONiC YANG extension used to preserve upstream TACACS+ server priority ordering when mapping toward RFC 9950. | AAA and YANG reviewers | Open |
+| Define the SONiC YANG extension used to preserve upstream TACACS+ server priority ordering, including the larger-number-is-higher-preference convention, when mapping toward RFC 9950. | AAA and YANG reviewers | Open |
 | Decide whether stored configuration remains table-shaped with TACACS+ model mapping or moves toward a more YANG-native representation in a separate HLD. | AAA, YANG, and ConfigDB reviewers | Open |
 | Confirm ACMS/gNMI-style credential provisioning, directory paths, file permissions, and reference naming for TLS private keys, trust anchors, and PSK material. | Security and platform reviewers | Proposed |
 | Define the central-agent credential-validation API that the CLI calls at command issuance, such as an upsert-server assessment, so referenced credential material can be confirmed without granting the CLI operator read access to the secret material. The central agent also re-validates the full configuration on startup. | AAA, security, and sonic-utilities reviewers | Proposed |
@@ -1117,6 +1119,7 @@ This section tracks the remaining implementation and ownership work needed to cl
 - [RFC 8446, The Transport Layer Security (TLS) Protocol Version 1.3](https://datatracker.ietf.org/doc/rfc8446/).
 - [RFC 9887, Terminal Access Controller Access-Control System Plus (TACACS+) over TLS 1.3](https://datatracker.ietf.org/doc/rfc9887/).
 - [RFC 9950, A YANG Data Model for Terminal Access Controller Access-Control System Plus (TACACS+)](https://datatracker.ietf.org/doc/rfc9950/).
+- [SONiC `sonic-system-tacacs.yang`](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-yang-models/yang-models/sonic-system-tacacs.yang).
 - [SONiC HLD template](../guidelines/hld_template.md).
 - [SONiC feature quality definition](../guidelines/SONiC%20feature%20quality%20definition.md).
 - [SONiC TACACS+ improvement HLD](../aaa/TACACS+%20Design.md).
