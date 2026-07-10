@@ -77,7 +77,7 @@ As a result, we need the ability to model the following information:
 
 ### 4. Overview 
 
-This HLD proposes adding a new configuration file called `optical_devices.json` that will contain information about the hardware devices used to drive traffic through the ports of a switch, and how each device is mapped to each port/interface on the switch. Specifically, this will enable configuration of hardware where:
+This HLD proposes adding a new configuration file called `cpo.json` that will contain information about the hardware devices used to drive traffic through the ports of a switch, and how each device is mapped to each port/interface on the switch. Specifically, this will enable configuration of hardware where:
 - hardware devices are shared amongst multiple ports/interfaces.
 - multiple hardware devices are used by a single port/interface.
 
@@ -119,7 +119,7 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
   }
 }
 
-# optical_devices.json
+# cpo.json
 {
   // devices provides a description of devices that are involved in driving
   // traffic through ports on the switch.
@@ -185,11 +185,11 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
 
 The key details of this configuration approach are as follows:
 * platform.json remains the same, providing information about how ASIC lanes map to interfaces, what breakout modes are supported and mapping information about interfaces to physical front-panel ports.
-* A new file called optical_devices.json is introduced. This file describes all the optical devices present in the chassis in the "devices" section. It also describes how each of those devices are used by the interfaces defined in platform.json in the "interfaces" section.
-* The association of CMIS banks for each device is also encoded in the "interfaces" section of the optical_devices.json file. This can be used by banking logic in SONiC platform APIs, per the [banking HLD](https://github.com/sonic-net/SONiC/pull/2183).
-* `optical_devices.json` supports a two-stage lookup to accommodate hwsku-specific port mappings. Different SKUs under the same platform may wire logical interfaces to physical optical devices differently, so the file can be placed in either the hwsku or platform directory:
-  1. First, look for `optical_devices.json` in the current hwsku directory: `/usr/share/sonic/device/<platform>/<hwsku>/optical_devices.json`. If found, use it.
-  2. If no hwsku-specific file is found, fall back to the platform directory: `/usr/share/sonic/device/<platform>/optical_devices.json`.
+* A new file called cpo.json is introduced. This file describes all the optical devices present in the chassis in the "devices" section. It also describes how each of those devices are used by the interfaces defined in platform.json in the "interfaces" section.
+* The association of CMIS banks for each device is also encoded in the "interfaces" section of the cpo.json file. This can be used by banking logic in SONiC platform APIs, per the [banking HLD](https://github.com/sonic-net/SONiC/pull/2183).
+* `cpo.json` supports a two-stage lookup to accommodate hwsku-specific port mappings. Different SKUs under the same platform may wire logical interfaces to physical optical devices differently, so the file can be placed in either the hwsku or platform directory:
+  1. First, look for `cpo.json` in the current hwsku directory: `/usr/share/sonic/device/<platform>/<hwsku>/cpo.json`. If found, use it.
+  2. If no hwsku-specific file is found, fall back to the platform directory: `/usr/share/sonic/device/<platform>/cpo.json`.
 
   This allows a single file to be shared across many hwskus under the same platform while still permitting per-hwsku overrides when the port mapping differs.
 
@@ -287,7 +287,7 @@ class ElsfpApiFactory(CpoApiFactory):
 
 ##### 7.3.2 Chassis and CPO Object Creation
 
-Vendors can leverage data parsed from the `optical_devices.json` file to instantiate CPO API objects where appropriate. A shared utility function will be provided to easily parse the `optical_devices.json` file. For example, a vendor could implement logic like the below for a CPO hardware platform with optical engines and external laser sources.
+Vendors can leverage data parsed from the `cpo.json` file to instantiate CPO API objects where appropriate. A shared utility function will be provided to easily parse the `cpo.json` file. For example, a vendor could implement logic like the below for a CPO hardware platform with optical engines and external laser sources.
 ```python
 from sonic_py_common import device_info
 
@@ -298,25 +298,25 @@ class ChassisBase:
     # List of SfpBase-derived objects representing all sfps
     # available on the chassis
     self._sfp_list = []
-    optical_device_data = device_info.get_optical_devices_data()
-    if optical_device_data:
-      self.construct_sfp_list_for_topology(optical_device_data)
+    cpo_data = device_info.get_cpo_data()
+    if cpo_data:
+      self.construct_sfp_list_for_topology(cpo_data)
 
-  def construct_sfp_list_for_topology(self, optical_device_data):
-    """Subclasses should implement this method to create sfp objects based on topology data in optical_devices.json"""
+  def construct_sfp_list_for_topology(self, cpo_data):
+    """Subclasses should implement this method to create sfp objects based on topology data in cpo.json"""
     raise NotImplementedError
 
 class VendorCpoChassis(ChassisBase):
   ...
-  def construct_sfp_list_for_topology(self, optical_device_data):
-      for interface in optical_device_data.interfaces:
+  def construct_sfp_list_for_topology(self, cpo_data):
+      for interface in cpo_data.interfaces:
         assert len(interface.associated_devices) == 2, "We expect 2 devices per interface on this CPO hardware platform"
 
         # Construct OE/ELSFP objects
         oe = None
         elsfp = None
         for dvc_info in interface.associated_devices:
-          device = optical_device_data.devices[dvc_info.device_id]
+          device = cpo_data.devices[dvc_info.device_id]
           if device.device_type == "optical_engine":
             oe = VendorOe(hardware_id=self.hw_id, bank=dvc_info.bank)
           elif device.device_type == "external_laser_source":
@@ -416,7 +416,7 @@ This HLD does not propose any changes to CLI commands, though there will be late
 
 This HLD proposes no changes to CONFIG_DB.
 
-The information in `optical_devices.json` is static hardware topology: it has no runtime consumers that subscribe to it via the database, and it is not user-configurable (it cannot change without a corresponding change to the physical hardware). The data is consumed directly from the filesystem by vendor platform API code at chassis initialization time, as described in section 7.3.2.
+The information in `cpo.json` is static hardware topology: it has no runtime consumers that subscribe to it via the database, and it is not user-configurable (it cannot change without a corresponding change to the physical hardware). The data is consumed directly from the filesystem by vendor platform API code at chassis initialization time, as described in section 7.3.2.
 
 If future consumers outside the platform API require visibility into this topology (for example, CLI `show` commands), the conventional mechanism is for the platform daemons to publish derived, read-only data to STATE_DB, in the same way `xcvrd` publishes the TRANSCEIVER_INFO table today. Any such STATE_DB tables will be defined in the later HLDs covering CLI support for CPO hardware (see section 9).
 
@@ -431,9 +431,9 @@ There should be no noteworthy change in memory consumption from the changes in t
 This approach does not support configuration of interfaces that use multiple CMIS banks of a hardware device, since it seems unlikely a transceiver wider than 8 lanes will be required soon. However, adding support for this would require only minor changes to the schema.
 
 ### 13. Testing Requirements/Design  
-Given the additional complexity of configuring the `optical_devices.json` file and its dependency on the information in the `platform.json` file, this HLD proposes adding validation tooling that can be leveraged manually after altering the `optical_devices.json` file and used at build-time as part of unit-tests to validate `optical_devices.json` files being included in a SONiC image.
+Given the additional complexity of configuring the `cpo.json` file and its dependency on the information in the `platform.json` file, this HLD proposes adding validation tooling that can be leveraged manually after altering the `cpo.json` file and used at build-time as part of unit-tests to validate `cpo.json` files being included in a SONiC image.
 
-A validation script will be implemented at `sonic-buildimage/src/sonic-device-data/tests/optical_devices_checker`, following the precedent of scripts already present in the `sonic-buildimage/src/sonic-device-data/tests/` directory.
+A validation script will be implemented at `sonic-buildimage/src/sonic-device-data/tests/cpo_checker`, following the precedent of scripts already present in the `sonic-buildimage/src/sonic-device-data/tests/` directory.
 
 #### 13.1 Unit Test cases  
 
@@ -457,7 +457,7 @@ This validation script will verify:
    - Device-to-interface associations are consistent
 
 4. **Cross-File Validation**
-   - Interface names in `optical_devices.json` match interfaces defined in `platform.json`
+   - Interface names in `cpo.json` match interfaces defined in `platform.json`
    - Consistency between port counts and device counts
    - Assigned lanes in each file are consistent across both files for each interface, and that interfaces don't have conflicting configuration for devices that are shared across multiple interfaces (overlapping lane assignment for instance)
 
