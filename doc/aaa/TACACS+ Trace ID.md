@@ -26,7 +26,6 @@
 | 0.1 | 2026-05-28 | Rod Persky | Initial TraceId proposal. |
 | 0.2 | 2026-07-09 | Rod Persky | Changed TraceId environment variable to `SSH_CLIENT_TRACEID` and added YANG configuration support. |
 
-
 ## 2. Introduction and Motivation
 
 Operators often need to reconstruct what happened during a specific access session or automation workflow, not only what commands were observed on a device. In many environments, the device-side TACACS+ authorization logs and the access proxy or automation logs are stored in separate systems. Today, TACACS+ command authorization records identify the user and command, but they do not carry an end-to-end correlation value supplied by the client workflow.
@@ -319,7 +318,7 @@ The selected value format is a generic safe token.
 Allowed characters:
 
 ```text
-A-Z a-z 0-9 . _ : -
+A-Z a-z 0-9 . _ : - |
 ```
 
 Validation rules:
@@ -364,7 +363,7 @@ Helper behavior:
 - Read `getenv("SSH_CLIENT_TRACEID")`.
 - Return false when the variable is unset or empty.
 - Validate length before copying.
-- Validate each byte against `[A-Za-z0-9._:-]`.
+- Validate each byte against `[A-Za-z0-9._:|-]`.
 - Copy the exact valid value into the caller-provided buffer.
 - Return false on invalid input.
 - Do not call helpers that tokenize or mutate the string returned by `getenv()`.
@@ -527,7 +526,7 @@ Recommended unit test cases:
 
 | Test | Setup | Expected result |
 | --- | --- | --- |
-| Valid SSH_CLIENT_TRACEID with feature enabled | `traceid_authorization` enabled and `SSH_CLIENT_TRACEID=trace-123:abc.def` | `tac_add_attrib()` receives `traceid` with exact value. |
+| Valid SSH_CLIENT_TRACEID with feature enabled | `traceid_authorization` enabled and `SSH_CLIENT_TRACEID=\|trace-123:abc.def.` | `tac_add_attrib()` receives `traceid` with exact value. |
 | Valid SSH_CLIENT_TRACEID with feature disabled | `traceid_authorization` disabled and `SSH_CLIENT_TRACEID=trace-123:abc.def` | No `traceid` attribute. |
 | SSH_CLIENT_TRACEID unset | No environment variable | No `traceid` attribute. |
 | SSH_CLIENT_TRACEID empty | `SSH_CLIENT_TRACEID=` | No `traceid` attribute. |
@@ -555,7 +554,7 @@ Run on a SONiC image with TACACS+ command authorization configured.
 | Login without SSH_CLIENT_TRACEID | `ssh user@sonic` and run an authorized command | Command authorization behaves as before; no `traceid` AV pair. |
 | Login with SetEnv | `ssh -o SetEnv=SSH_CLIENT_TRACEID=trace-123 user@sonic` and run a command | TACACS+ authorization request includes `traceid=trace-123`. |
 | Login with SendEnv | `SSH_CLIENT_TRACEID=trace-456 ssh -o SendEnv=SSH_CLIENT_TRACEID user@sonic` and run a command | TACACS+ authorization request includes `traceid=trace-456`. |
-| Feature disabled | Set `TACPLUS|global traceid_authorization=false`, send a valid `SSH_CLIENT_TRACEID`, and run a command | Login and command authorization continue; `traceid` is omitted. |
+| Feature disabled | Set `TACPLUS\|global traceid_authorization=false`, send a valid `SSH_CLIENT_TRACEID`, and run a command | Login and command authorization continue; `traceid` is omitted. |
 | Invalid value | Send `SSH_CLIENT_TRACEID` with a space or equals sign | Login and command authorization continue; `traceid` is omitted. |
 | Bash readonly guard | Attempt `unset SSH_CLIENT_TRACEID` in the initial shell | Bash rejects the unset operation. |
 | Best-effort limitation | Run `env SSH_CLIENT_TRACEID=other bash` | Child shell can alter the value; limitation is documented. |
