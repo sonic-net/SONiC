@@ -5,29 +5,27 @@ Rev v1.0
 ## Table of Contents
 
 1. [Revision History](#1-revision-history)  
-2. [About this Manual](#2-about-this-manual)  
+2. [About this document](#2-about-this-document)  
 3. [Scope](#3-scope)  
 4. [Definitions and Abbreviations](#4-definitions-and-abbreviations)  
-5. [References](#5-references)  
-6. [5\. Overview](#5-overview)  
-7. [6\. Requirements](#6-requirements)  
-8. [7\. Architecture and Design](#7-architecture-and-design)  
-9. [8\. Behavior Scenarios](#8-behavior-scenarios)  
-10. [9\. SAI Contract](#9-sai-contract)  
-11. [10\. Data Model and DB Schema](#10-data-model-and-db-schema)  
-12. [11\. Switchover Trigger Sources](#11-switchover-trigger-sources)  
-13. [12\. Capability Detection and Eligibility](#12-capability-detection-and-eligibility)  
-14. [13\. Configuration and Manageability](#13-configuration-and-manageability)  
-15. [14\. Warm Boot and Fast Boot](#14-warm-boot-and-fast-boot)  
-16. [15\. Restrictions and Limitations](#15-restrictions-and-limitations)  
-17. [16\. Test Plan](#16-test-plan)  
-18. [17\. Open Questions and Future Work](#17-open-questions-and-future-work)
+5. [Overview](#5-overview)  
+6. [Requirements](#6-requirements)  
+7. [Architecture and Design](#7-architecture-and-design)  
+8. [Behavior Scenarios](#8-behavior-scenarios)  
+9. [SAI Contract](#9-sai-contract)  
+10. [Data Model and DB Schema](#10-data-model-and-db-schema)  
+11. [Switchover Trigger Sources](#11-switchover-trigger-sources)  
+12. [Capability Detection and Eligibility](#12-capability-detection-and-eligibility)  
+13. [Configuration and Manageability](#13-configuration-and-manageability)  
+14. [Warm Boot and Fast Boot](#14-warm-boot-and-fast-boot)  
+15. [Restrictions and Limitations](#15-restrictions-and-limitations)  
+16. [Test Plan](#16-test-plan)  
+17. [Open Questions and Future Work](#17-open-questions-and-future-work)
 
 ---
 
 ## 1\. Revision History
 
-## 
 
 | Rev | Date | Author(s) | Notes |
 | :---- | :---- | :---- | :---- |
@@ -37,7 +35,7 @@ Rev v1.0
 
 ## 2\. About this document
 
-This document is a High-Level Design (HLD) for orchagent's support of *protection* next-hop groups (NHGs).  This describes the platform implementation of the PIC feature covered by the [https://github.com/sonic-net/SONiC/pull/2292](https://github.com/sonic-net/SONiC/pull/2292), where NHGs whose member set is partitioned into a **primary** subset and a **standby** subset, with hardware/SDK-assisted switching between the two.
+This document is a High-Level Design (HLD) for orchagent's support of *protection* next-hop groups (NHGs).  This describes the platform implementation of the PIC feature covered by the [https://github.com/sonic-net/SONiC/pull/2292](https://github.com/sonic-net/SONiC/pull/2292), where NHGs whose member set is partitioned into a **primary** subset and a **standby** subset, with orchagent-driven switching between the two.
 
 The design is platform-capability driven: orchagent uses the protection-NHG path only when SAI advertises support; otherwise the route falls back to ECMP over the primary subset.  
 
@@ -56,13 +54,13 @@ Out of scope:
 
 - The route producer (BGP/FRR or any other control-plane source). Producer-side logic is the responsibility of that component; this design only describes what producers must place in `APPL_DB`.  
 - SAI driver / SDK implementation. This document specifies the SAI surface that orchagent uses; how a particular SAI implementation realizes the contract on its hardware (for example, FEC pairs vs. ECMP-replace) is out of scope.  
-- Tunnel/overlay next hops as protection-NHG members. The current scope is plain underlay next hops only. Tunnel/overlay support is anticipated as a follow-up.
+- Tunnel/overlay next hops as protection-NHG members. The current scope is plain underlay next hops only. Tunnel/overlay support is anticipated as a follow-up.  
+- Routes that point at an explicit NhgOrch next-hop-group index (`NEXT_HOP_GROUP_TABLE`) as protection NHGs. The current scope is flat-list `ROUTE_TABLE` routes carrying `primary_nh_count` (see §7.4); index-based NHGs are a possible follow-up.
 
 ---
 
 ## 4\. Definitions and Abbreviations
 
-## 
 
 | Term | Definition |
 | :---- | :---- |
@@ -87,9 +85,9 @@ A traditional ECMP NHG treats every member as an equal peer; loss of a member on
 
 A **protection NHG** introduces that framework. The route producer marks the first *N* of the route's *N+M* next hops as **primary** and the remaining *M* as **standby**. When all primaries are unreachable, traffic is steered to the standbys; when at least one primary becomes reachable again, traffic returns to the primaries. Since these NHGs are shared by multiple routes, on failure it provides a faster convergence to all the routes using this group.
 
-This design supports any **N:M** ratio, including 1:1, subject only to the platform's NHG capacity limit. The transition from primary to standby and back can be either HW driven or SW driven based on the capability of underlying HW/SDK.  
+This design supports any **N:M** ratio, including 1:1, subject only to the platform's NHG capacity limit. The transition from primary to standby and back is driven by orchagent, which issues `SAI_NEXT_HOP_GROUP_ATTR_SET_SWITCHOVER` based on next-hop liveness reported by NeighOrch.
 
-For example, if the HW/SDK can support monitoring objects like interface state or BFD session state and use that to trigger switchover in HW itself.  However if the HW does not support some or all of the features required, then we can switchover by issuing `SAI_NEXT_HOP_GROUP_ATTR_SET_SWITCHOVER` to the affected group based on the nature of the failure.
+Hardware/SDK-driven switchover (for example, via SAI monitored objects that track interface or BFD session state) is **out of scope** for this design; see §17.
 
 ---
 
@@ -100,17 +98,18 @@ As mentioned earlier, this HLD is the platform complement of the feature describ
 ### 6.1 Functional
 
 - Support arbitrary **N:M** primary:standby ratios, including 1:1.  
-- Activate the protection-NHG path **only when SAI advertises support** for `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION` or `SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION`. On platforms that advertise neither, fall back to plain ECMP over the primary subset; never spread BGP traffic across standbys when the producer asked for protection.  
+- Activate the protection-NHG path **only when SAI advertises support** for `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION`. On platforms that do not advertise it, fall back to plain ECMP over the primary subset; never spread BGP traffic across standbys when the producer asked for protection.  
 - When **all primary** next hops become unreachable, switch the active subset to **standby**.  
 - When **any primary** next hop becomes reachable again, switch the active subset **back to primary**.  
 - While at least one primary is reachable (i.e., not switched over), neighbor events on individual primaries shall **shrink or grow the primary subset programmed in SAI** without changing the switchover state.  
 - While not switched over, neighbor events on individual standbys shall keep the standby subset programmed in SAI in sync with their reachability state, so that a future switchover lands on a current set.  
-- While switched over (standbys active), neighbor events on individual standbys are **deferred** — orchagent does not perturb the standby set in SAI in the current design. This would cause traffic to blackhole if the traffic was being hashed to the standby path that is down.  But given that this is a second order failure and the fact that it leads to a degenerate case where there are no primary or secondary paths with similar results, this is not a concern.  Since this is solution for faster convergence, the expectation is that this is just a transit state and that control plane would eventually come and update the routes with best paths available.  
+- While switched over (standbys active), neighbor events on individual standbys shall **shrink or grow the standby subset programmed in SAI**, exactly as primary events do while primaries are active — the active subset is kept current so traffic is never hashed onto a known-dead standby. The one guard is that the active subset is never allowed to empty as a side effect: removing the *last* live standby is the degenerate all-paths-dead case handled in §8.7.  
 - Multiple routes whose primary and standby sets are identical shall **share** a single protection NHG (deduplication keyed on the member tuple).
 
 ### 6.2 Configuration
 
-- The producer signals protection-NHG intent by adding a `primary_nh_count` field on the existing `APPL_DB.ROUTE_TABLE` entry. No new tables, no schema migration. The field is optional; absent or `0` or if `primary_nh_count` is the same as the size of nexthop list, means the route is plain ECMP.
+- The producer signals protection-NHG intent by adding a `primary_nh_count` field on the existing `APPL_DB.ROUTE_TABLE` entry. No new tables, no schema migration. The field is optional; absent, or `primary_nh_count == len(nexthop)`, means the route is plain ECMP.  
+- **Producer contract:** a well-behaved producer never emits `primary_nh_count == 0`. When all primaries are withdrawn (permanently) after reconvergence, the producer republishes the route with the surviving paths promoted to primaries and `primary_nh_count` set accordingly — which may be a plain ECMP route (`primary_nh_count == len(nexthop)`, no standbys). Orchagent treats a stray `primary_nh_count == 0` defensively (WARN + skip the row); it should not occur in normal operation.
 
 ### 6.3 Scalability
 
@@ -172,7 +171,9 @@ As mentioned earlier, this HLD is the platform complement of the feature describ
    +------------------------------------------------------+
 ```
 
-### 7.1 Lifecycle of a Protection NHG
+**Legend:** every box except *Route Producer (BGP/FRR)* is a C++ class within the single `orchagent` process — `RouteOrch`, `NhgOrch`, `PortsOrch`, `NeighOrch`, and `ProtNhg`. `ProtNhg` in particular is an in-process object owned by `NhgOrch`, **not** a new daemon.
+
+### 7.2 Lifecycle of a Protection NHG
 
 This design assumes that the PR that is currently being upstreamed provides the infrastructure necessary to create and manage the lifecycle of a Protection NHG.  The PR is available at [https://github.com/sonic-net/sonic-swss/pull/4390\#issuecomment-4228074250](https://github.com/sonic-net/sonic-swss/pull/4390#issuecomment-4228074250)
 
@@ -214,7 +215,7 @@ However, additional changes may be necessary to support this use case of N:M car
 
 The state lives in the `ProtNhg` instance. The `Primary_Active` ↔ `Standby_Active` transition is the *switchover*; everything else is membership and lifecycle.
 
-### 7.2 RouteOrch Eligibility Decision
+### 7.3 RouteOrch Eligibility Decision
 
 When a `ROUTE_TABLE` entry is processed, RouteOrch classifies it based on `primary_nh_count`:
 
@@ -222,22 +223,32 @@ When a `ROUTE_TABLE` entry is processed, RouteOrch classifies it based on `prima
 | :---- | :---- |
 | equal to `len(nexthop)` | Existing path: ECMP, single-NH, blackhole, or interface route as appropriate. |
 | `> len(nexthop)` | Invalid: warn, skip the row. |
-| `0 < primary_nh_cout < len(nexthop)` and platform supports it | **Protection-NHG path**: first `primary_nh_count` nexthops are primary, rest are standby. |
-| `0 < pc < len(nexthop)` and platform does **not** support it | Truncate to primaries only, program as ECMP. Logged at WARN. |
+| `0 < primary_nh_count < len(nexthop)` and platform supports it | **Protection-NHG path**: first `primary_nh_count` nexthops are primary, rest are standby. |
+| `0 < primary_nh_count < len(nexthop)` and platform does **not** support it | Truncate to primaries only, program as ECMP. Logged at WARN. |
 
 Once classified into the protection-NHG path, RouteOrch builds a deterministic key (canonicalized over the primary and standby sets) and asks `NhgOrch` to materialize it. Distinct routes with the same key share the same SAI NHG OID.
 
-### 7.3 NhgOrch Ownership
+### 7.4 Ownership: RouteOrch drives, NhgOrch holds
 
-`NhgOrch` owns the protection-NHG objects in the same way it owns regular ECMP NHGs: keyed by a deterministic string, refcounted by the routes referencing them, created lazily, and destroyed when the refcount reaches zero. The protection-NHG object encapsulates:
+Ownership here differs from plain ECMP, so it is worth stating precisely:
+
+- **Plain ECMP over a flat `ROUTE_TABLE` nexthop list** is owned by **RouteOrch** (`m_syncdNextHopGroups`, keyed by the `NextHopGroupKey`); NhgOrch is not involved.  
+- **Routes that point at an explicit next-hop-group index** (`NEXT_HOP_GROUP_TABLE`) are owned by **NhgOrch**.
+
+Protection NHGs are produced by flat-list `ROUTE_TABLE` entries (carrying `primary_nh_count`), so by the rule above they would normally be RouteOrch-owned. This design instead introduces a **new, dedicated collection in NhgOrch — `m_protNhgs`** — to hold the protection-NHG objects, while **RouteOrch is modified to drive their lifecycle**:
+
+- **RouteOrch** classifies the row, builds a deterministic key over the primary and standby sets, calls `NhgOrch::createProtNhg(key, primaries, standbys)`, pins the route to the returned NHG OID, and maintains the per-route refcount (`incProtNhgRefCount` / `decProtNhgRefCount`), asking NhgOrch to destroy the object when the refcount reaches zero. This is analogous to how RouteOrch manages its own `m_syncdNextHopGroups`, except the objects are centralized in NhgOrch so that distinct routes with identical primary/standby sets dedup onto one OID.  
+- **NhgOrch** stores the objects (keyed by the deterministic string, refcounted, created lazily, destroyed at refcount zero) and reuses its existing `validateNextHop` / `invalidateNextHop` NeighOrch fan-out to drive per-member liveness and switchover. This fan-out is the reason the objects live in NhgOrch rather than RouteOrch's `m_syncdNextHopGroups`, which has no per-member liveness/switchover machinery.
+
+The protection-NHG object (`ProtNhg`) encapsulates:
 
 - the SAI NHG OID,  
 - per-member SAI OIDs (one per resolved primary or standby NH),  
 - the *active subset* state (whether the group is currently forwarding on primaries or standbys).
 
-Existing fan-out hooks in `NhgOrch::validateNextHop` and `NhgOrch::invalidateNextHop` (driven by `NeighOrch`) are extended to consult the protection-NHG table on every NH liveness change and to call into the protection-NHG object so it can re-evaluate its active subset.
+Existing fan-out hooks in `NhgOrch::validateNextHop` and `NhgOrch::invalidateNextHop` (driven by `NeighOrch`) are extended to consult `m_protNhgs` on every NH liveness change and to call into the protection-NHG object so it can re-evaluate its active subset.
 
-### 7.4 NeighOrch Integration
+### 7.5 NeighOrch Integration
 
 `NeighOrch` is the single source of truth for next-hop liveness. The orchagent already publishes liveness changes to `NhgOrch`:
 
@@ -254,7 +265,6 @@ This section walks through the expected control flow for the situations the desi
 
 ### 8.1 Steady state — all paths up
 
-### 
 
 ```
  Producer    APPL_DB    RouteOrch    NhgOrch    ProtNhg    SAI
@@ -347,7 +357,7 @@ The first primary recovery causes a switchback. The recovered primary is added t
        |           |          |  ** primary subset is now active again **
 ```
 
-### 8.5 Standby flap while not switched over (req: keep SDK in sync)
+### 8.5 Standby flap while not switched over
 
 The standby is added to or removed from the SAI standby subset as its NeighOrch state changes, so the standby subset stays current and a future switchover lands on a clean set. No switchover state change.
 
@@ -363,29 +373,31 @@ The standby is added to or removed from the SAI standby subset as its NeighOrch 
        |           |          | ** switchover state unchanged **
 ```
 
-### 8.6 Standby flap while switched over (deferred)
+### 8.6 Standby flap while switched over
 
-While the standbys are currently active, the design does **not** add or remove standbys from SAI on individual standby NeighOrch events. Rationale: doing so would shrink the active subset on the fly, potentially down to zero, while the active path is in use. The current design accepts that the standby subset programmed in SAI may diverge from NeighOrch's view while it is active, and re-syncs on the next switchover. See §16, §18.
+While the standbys are the active subset, a standby member's death is handled the same way a primary member's death is handled while primaries are active: the dead standby is removed from the active subset in SAI (the standby ECMP set shrinks), and a recovered standby is added back. This keeps the active set current so traffic is never hashed onto a known-dead standby. The single guard is that orchagent never removes the *last* live member of the active subset — that would empty it; removing the last live standby is the all-paths-dead case handled in §8.7.
 
 ```
-   NeighOrch    NhgOrch    ProtNhg
-       |           |          |
-       | invalidateNextHop(s1)  ** switched over, s1 dies **
-       +---------->|          |
+   NeighOrch    NhgOrch    ProtNhg    SAI
+       |           |          |        |
+       | invalidateNextHop(s1)  ** switched over, s1 dies, other standbys live **
+       +---------->|          |        |
        |           | invalidate standby s1 (switched over)
-       |           +--------->|
-       |           |          | ** no-op (deferred) **
+       |           +--------->|        |
+       |           |          | remove_next_hop_group_member(s1)
+       |           |          +------->|
+       |           |          | ** active (standby) subset shrinks; still non-empty **
 ```
 
 ### 8.7 Last primary down with no live standbys ("all paths dead")
 
-When the last live primary goes down and the standby subset programmed in SAI has zero members (because all standbys were unreachable for long enough that they were already removed from SAI per §9.5), the SAI `SET_SWITCHOVER=true` call is rejected by SAI/SDK because the destination active subset would be empty. The design responds gracefully:
+When the last live primary goes down, orchagent first checks the standby subset it has programmed in SAI. If that subset has zero members — because all standbys were unreachable long enough to be removed from SAI per §8.5 — switching over would leave the active subset empty, so orchagent **does not issue `SET_SWITCHOVER`**. It aborts the operation:
 
-- the SAI rejection is propagated up;  
-- `m_switched_over` is **not** flipped;  
-- the dead primary is **not** removed from SAI.
+- `SET_SWITCHOVER=true` is **not** issued: orchagent pre-checks that the target subset is non-empty (see §9.4), so it does not rely on a SAI/SDK error code to detect this case;  
+- `m_switched_over` is **not** flipped — the group stays `Primary_Active`;  
+- the dead primary is **not** removed from SAI. (Contrast §8.3, where the switchover succeeds and the dead primary is removed *after* it; here the operation is aborted, so the removal that would have followed the switchover does not happen either.)
 
-Traffic that hashes onto the dead primary FEC is dropped. This is the same end-state as a regular ECMP NHG with all members dead. The system is **self-healing**: when any primary or standby returns, the next neighbor event re-runs the active-subset evaluation and either restores primary forwarding (if a primary recovers) or successfully completes the deferred switchover (if a standby recovers).
+Traffic that hashes onto the dead primary FEC is dropped. This is the same end-state as a regular ECMP NHG with all members dead. The system is **self-healing**: when any primary or standby returns, the next neighbor event re-runs the active-subset evaluation and either restores primary forwarding (if a primary recovers) or now successfully switches over (if a standby recovers, so the target subset is no longer empty).
 
 ```
    NeighOrch    NhgOrch    ProtNhg    SAI
@@ -394,16 +406,12 @@ Traffic that hashes onto the dead primary FEC is dropped. This is the same end-s
        +---------->|          |        |
        |           | invalidate primary p_last
        |           +--------->|        |
-       |           |          | set_next_hop_group_attribute(SET_SWITCHOVER=true)
-       |           |          +------->|
-       |           |          |  error: no standby members in active set
-       |           |          |<-------+
-       |           | failure  |        |
-       |           |<---------+        |
-       |           |  ** switchover state stays Primary_Active; **
-       |           |  ** p_last is NOT removed from SAI **
+       |           |          | ** last live primary; would switch to standbys **
+       |           |          | ** pre-check: standby programmed count == 0 **
+       |           |          | ** -> abort: do NOT issue SET_SWITCHOVER, do NOT remove p_last **
        |           |          |        |
-       |           |          |  ** black-hole until recovery **
+       |           |  ** switchover state stays Primary_Active **
+       |           |  ** black-hole until recovery **
 
   -- later, any path recovers --
 
@@ -418,9 +426,13 @@ Traffic that hashes onto the dead primary FEC is dropped. This is the same end-s
 
 ### 8.8 Route update that changes the NH set
 
-If a route is updated such that its primary or standby set changes, RouteOrch builds a **new** key and asks `NhgOrch` to materialize the new protection NHG. The route is repointed to the new NHG OID. The old NHG's refcount is decremented; if it hits zero, the old NHG is destroyed in SAI. Routes with the same NH set are not perturbed.
+Orchagent re-classifies the `ROUTE_TABLE` entry on **every** update and derives a fresh key from the current `nexthop` list and `primary_nh_count`. Because role is purely positional — the first `primary_nh_count` entries are primaries, the rest standbys, and a given next hop appears **once** in the list — a next hop is never simultaneously a primary and a standby; a change that moves a next hop between the two subsets simply produces a different key. The three transitions are handled uniformly by re-keying:
 
-If only `primary_nh_count` flips between zero and non-zero (i.e., the route transitions in or out of protection-NHG semantics), RouteOrch tears down the protection NHG (decRef) and reprograms the route as plain ECMP, or vice versa.
+1. **Plain ECMP → protection** (producer adds `0 < primary_nh_count < len`): RouteOrch builds the protection-NHG key, materializes it via `NhgOrch`, repoints the route, and releases the old plain-ECMP NHG.  
+2. **Protection → plain ECMP** (producer drops the field or sets `primary_nh_count == len` — e.g., standbys promoted to primaries after reconvergence, §8.7 / §6.2): RouteOrch reprograms the route as plain ECMP and decRefs the protection NHG (destroyed at refcount zero).  
+3. **Protection → protection with a different split** (the primary/standby membership or the N:M boundary changes): a new key, a new protection NHG, the route repointed, and the old NHG decRef'd.
+
+In all cases the old NHG's refcount is decremented and, if it reaches zero, the old NHG is destroyed in SAI. Routes still referencing the old key are not perturbed. A given next hop that appears in the primary set of one route and the standby set of another is fine — they are distinct keys / distinct NHGs; the positional rule only constrains a *single* route's list.
 
 ### 8.9 Route delete
 
@@ -434,7 +446,6 @@ The design uses only standard SAI attributes. orchagent does **not** assume anyt
 
 ### 9.1 Capability query (boot, once)
 
-### 
 
 ```c
 sai_object_type_get_availability(switch_id, SAI_OBJECT_TYPE_NEXT_HOP_GROUP, ...);
@@ -444,17 +455,15 @@ sai_query_attribute_enum_values_capability(switch_id, SAI_OBJECT_TYPE_NEXT_HOP_G
 
 The orchagent inspects the returned enum list for:
 
-- `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION` — software-controlled active subset (orchagent issues `SET_SWITCHOVER`).  
-- `SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION` — hardware/SDK-controlled active subset based on per-member `MONITORED_OBJECT`; orchagent uses `ADMIN_ROLE` for explicit overrides.
+- `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION` — software-controlled active subset (orchagent issues `SET_SWITCHOVER`).
 
-If neither is advertised, protection-NHG creation is disabled and routes fall back to ECMP-over-primaries.
+If it is not advertised, protection-NHG creation is disabled and routes fall back to ECMP-over-primaries.
 
 ### 9.2 NHG create
 
-### 
 
 ```c
-SAI_NEXT_HOP_GROUP_ATTR_TYPE = SAI_NEXT_HOP_GROUP_TYPE_PROTECTION   // or HW_PROTECTION
+SAI_NEXT_HOP_GROUP_ATTR_TYPE = SAI_NEXT_HOP_GROUP_TYPE_PROTECTION
 ```
 
 The `TYPE` attribute is set once at creation time and is immutable. The OID returned is stable for the life of the protection NHG; routes pin to it across switchover and member churn.
@@ -468,7 +477,6 @@ SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID = <NHG OID>
 SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID       = <NH SAI OID>
 SAI_NEXT_HOP_GROUP_MEMBER_ATTR_CONFIGURED_ROLE   = SAI_NEXT_HOP_GROUP_MEMBER_CONFIGURED_ROLE_PRIMARY
                                                 or _CONFIGURED_ROLE_STANDBY
-SAI_NEXT_HOP_GROUP_MEMBER_ATTR_MONITORED_OBJECT  = <oid, optional, HW_PROTECTION only>
 ```
 
 orchagent expects that adding a member to either subset does **not** disturb the currently-active subset, and that removing a member from a subset also does not disturb the other subset.
@@ -482,9 +490,7 @@ SAI_NEXT_HOP_GROUP_ATTR_SET_SWITCHOVER = false  // primary subset active (defaul
 SAI_NEXT_HOP_GROUP_ATTR_SET_SWITCHOVER = true   // standby subset active
 ```
 
-For `SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION`, the hardware/SDK selects the active subset based on the per-member `MONITORED_OBJECT` state. orchagent may override with `SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE`.
-
-orchagent expects that issuing `SET_SWITCHOVER` to a target subset that has **zero programmed members** is rejected by SAI (it would otherwise produce an undefined active subset). This rejection is the trigger for the §9.7 graceful-failure behavior.
+orchagent never issues `SET_SWITCHOVER` toward a target subset that has **zero programmed members** — it pre-checks the target subset's programmed member count and aborts the switchover if it would be empty (see §8.7). A SAI driver may additionally reject such a call defensively, but orchagent does not depend on that rejection or on any particular return code.
 
 ### 9.5 Observability
 
@@ -516,8 +522,9 @@ Fields:
 Semantics:
 
 - `0 < primary_nh_count < len(nexthop)` is the **only** value that triggers protection-NHG handling.  
-- The first `primary_nh_count` entries of `nexthop` are the primary set; the remainder are the standby set.  
-- The **order of primaries and the order of standbys** is preserved internally only for parsing; the orchagent canonicalizes them when constructing the protection-NHG key, so two routes with the same set are deduped regardless of producer order.
+- The first `primary_nh_count` entries of `nexthop` are the primary set; the remainder are the standby set. **Producer contract:** the producer — FRR or any other routing stack / controller — MUST place the primary next hops at the **front** of the `nexthop` / `ifname` lists, since role is determined purely by position.  
+- The **order of primaries and the order of standbys** is preserved internally only for parsing; the orchagent canonicalizes them when constructing the protection-NHG key, so two routes with the same set are deduped regardless of producer order.  
+- The optional `weight` field is the existing ECMP/WCMP weight (not new to this design); when present, weights apply to members **within the currently active subset**.
 
 The field is optional; no schema migration is needed. Producers that do not understand the field continue to publish plain-ECMP rows and orchagent processes them unchanged.
 
@@ -539,7 +546,7 @@ $ redis-cli -n 0 hgetall 'ROUTE_TABLE:100.0.0.0/24'
 
 ASIC\_DB representation is the standard SAI representation of:
 
-- one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP` per protection NHG, with `SAI_NEXT_HOP_GROUP_ATTR_TYPE` \= `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION` (or `_HW_PROTECTION`),  
+- one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP` per protection NHG, with `SAI_NEXT_HOP_GROUP_ATTR_TYPE` \= `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION`,  
 - one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER` per resolved member, carrying `CONFIGURED_ROLE`,  
 - the route entry pointing to the NHG OID via `SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID`.
 
@@ -607,27 +614,28 @@ This document does not require any of the non-port sources to be wired up as par
 
 ## 12\. Capability Detection and Eligibility
 
-At orchagent boot, `NhgOrch` performs one capability query against SAI for the `SAI_NEXT_HOP_GROUP_ATTR_TYPE` enum and caches two booleans:
+At orchagent boot, `NhgOrch` performs one capability query against SAI for the `SAI_NEXT_HOP_GROUP_ATTR_TYPE` enum and caches a boolean:
 
-- `sw_protection_supported` — true iff `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION` is in the returned enum.  
-- `hw_protection_supported` — true iff `SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION` is in the returned enum.
+- `sw_protection_supported` — true iff `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION` is in the returned enum.
 
 A route is **eligible** for the protection-NHG path if all of the following hold:
 
-1. The platform advertises a usable protection variant (at least one of the two booleans is true). When only one is supported, that variant is used.  
+1. The platform advertises `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION` (`sw_protection_supported` is true).  
 2. `0 < primary_nh_count < len(nexthop)`.  
-3. The route is a plain underlay route (not overlay, not SRv6, not blackhole) — these flavors are out of scope for Phase 1\.  
-4. `len(nexthop) <= NHGRP_MAX_SIZE`.
+3. The route is a plain underlay route (not overlay, not SRv6, not blackhole) — these flavors are out of scope for Phase 1\.
 
-If (2) and (3) hold but (1) or (4) fails, the route is programmed as ECMP **over the primary subset only** and a WARN is emitted that names the failing condition. Standbys are *never* spread into a plain-ECMP fallback, because doing so would defeat the producer's intent.
+If (2) and (3) hold but (1) fails, the route is programmed as ECMP **over the primary subset only** and a WARN is emitted. Standbys are *never* spread into a plain-ECMP fallback, because doing so would defeat the producer's intent.
 
 ---
 
 ## 13\. Configuration and Manageability
 
-There are no CLI knobs introduced by this design. The feature is gated by SAI capability.
+This design introduces **no CLI knobs**; the feature is controlled by two existing gates rather than a switch-level toggle:
 
-A ROUTE\_TABLE entry with appropriate `primary_nh_count` is the recommended way to opt routes into protection NHG handling on a per-route basis. Producer-side configuration is out of scope for this document.
+1. **SAI capability.** Orchagent activates the protection-NHG path only when SAI advertises `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION`. On platforms that do not, routes carrying `primary_nh_count` fall back to plain ECMP over the primary subset (§12).  
+2. **Per-route producer opt-in.** A route becomes a protection NHG only when the producer sets `primary_nh_count` on its `ROUTE_TABLE` entry. If a producer never emits the field, orchagent creates no protection NHGs — there is no always-on behavior to disable.
+
+Because of (2), enabling or disabling the feature is naturally controlled at the **producer (FRR/BGP)**, which owns the config knobs that decide whether to mark routes with primary/standby intent. A separate switch-side enable knob would be redundant: on incapable hardware the capability gate disables it, and on capable hardware the producer controls it per route. Producer-side configuration is out of scope for this document.
 
 ---
 
@@ -645,10 +653,10 @@ No explicit warm-boot serialization is introduced by this design.
 
 ## 15\. Restrictions and Limitations
 
-1. **Standby flap while switched over is a no-op** (§9.6). The standby subset programmed in SAI may temporarily diverge from `NeighOrch`'s view when the standbys are the active subset. This is a deliberate trade-off, not a bug; lifting the restriction is straightforward when needed (see §18).  
+1. **Active-subset shrink guard** (§8.6, §8.7). Orchagent never removes the last live member of the active subset, since that would leave it empty; the resulting black hole is the all-paths-dead case (§8.7), self-healing on any recovery. Otherwise the active subset (primary or standby) is kept in sync with `NeighOrch` liveness.  
 2. **Tunnel/overlay next hops** are not yet supported as members of a protection NHG. Protection NHGs are limited to plain underlay next hops in Phase 1\.  
-3. **All-paths-dead** results in a black hole (§9.7), the same end-state as regular ECMP all-down. The route is not reprogrammed to a drop next hop. This is consistent with existing SONiC behavior; no separate handling is added.  
-4. **Total member count** is bounded by `NHGRP_MAX_SIZE` (currently 128). Routes that exceed this fall back to ECMP-over-primaries.  
+3. **All-paths-dead** results in a black hole (§8.7), the same end-state as regular ECMP all-down. The route is not reprogrammed to a drop next hop. This is consistent with existing SONiC behavior; no separate handling is added.  
+4. **Total member count** is bounded by the platform's SAI/SDK NHG capacity, the same as plain ECMP; orchagent does not impose a separate per-group cap — oversized groups are rejected by SAI.  
 5. **Triggers are limited to port oper events today**. Other sources (§12) are supported by the existing `NeighOrch` plumbing and will work without orchagent changes; integrating them is out of scope for the initial deliverable.
 
 ---
@@ -673,9 +681,10 @@ No explicit warm-boot serialization is introduced by this design.
 - Last live primary down \-\> single `SET_SWITCHOVER=true` immediately followed by the dead-member remove; verify ordering at SAI.  
 - Primary recovery from switched-over state \-\> single `SET_SWITCHOVER=false`; verify primary set is current.  
 - Standby down while not switched over \-\> standby subset shrinks; verify no `SET_SWITCHOVER`.  
-- Standby down while switched over \-\> verify SAI is **not** touched (deferred).  
-- All-paths-dead \-\> verify SAI rejection of `SET_SWITCHOVER=true` is propagated; verify recovery on either side.  
-- Route update that changes the NH set \-\> verify deterministic key, refcount transitions, and old-NHG destroy when refcount==0.
+- Standby down while switched over (not the last) \-\> active standby subset shrinks; verify no `SET_SWITCHOVER`. Last live standby down \-\> all-paths-dead handling (§8.7).  
+- All-paths-dead \-\> verify orchagent pre-check aborts the switchover (no `SET_SWITCHOVER` issued, dead primary left in place); verify recovery on either side.  
+- Route update that changes the NH set \-\> verify deterministic key, refcount transitions, and old-NHG destroy when refcount==0.  
+- Back-to-back primary flaps (rapid up\-\>down\-\>up\-\>down) \-\> verify OA/SAI resource churn is bounded (no NHG/member OID leak, switchover count tracks the flaps) and the group converges to the correct active subset; stress at a high flap rate to constrain OA and HW resource usage.
 
 ### 16.3 Negative tests
 
@@ -686,6 +695,7 @@ No explicit warm-boot serialization is introduced by this design.
 
 ## 17\. Open Questions and Future Work
 
-1. **Lifting the §9.6 restriction.** Allowing standby member churn while standbys are active would require ensuring the active subset never empties out as a side effect — feasible, but the cost/value trade-off should be revisited based on real deployment data.  
-2. **Tunnel/overlay next-hop members.** Phase 2\.
+1. **Tunnel/overlay next-hop members.** Phase 2\.  
+2. **Hardware/SDK-driven switchover.** Using `SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION` with per-member monitored objects (interface / BFD session state) so the ASIC/SDK performs switchover without orchagent issuing `SET_SWITCHOVER`. Out of scope for this design (§5); the switchover here is orchagent-driven.  
+3. **Combination with ARS / adaptive load balancing.** A protection NHG is a distinct SAI NHG type; combining it with ARS/ALB on the same group is not supported today and would need separate design.
 
