@@ -246,7 +246,7 @@ event:
 
 `sampling_interval` schedules normal source collection; it does not alter evaluation or correlation semantics. It is independent of `match_period`, `logic_lookback_time`, local-action `wait_period`, operation `timeout`, and `active_fault_recheck_interval`.
 
-When `sampling_interval` is omitted, Pydantic preserves the omission instead of inserting a literal default. During planning, DLDD resolves the effective interval from the assigned monitor: direct Redis events use `redis_monitor_polling_interval`, direct file events use `file_monitor_polling_interval`, and common/vendor/DSE templates use `common_monitor_polling_interval`. Every runtime child of a DSE template retains the template's explicit or inherited cadence relationship. The normal configuration precedence remains CONFIG_DB, then platform defaults, then hardcoded service defaults.
+When `sampling_interval` is omitted, Pydantic preserves the omission instead of inserting a literal default. During planning, DLDD resolves the effective interval from the assigned monitor. Every static source—whether written directly in the rule or returned as a typed direct DSE result—uses the monitor default for its concrete transport: Redis uses `redis_monitor_polling_interval`, file uses `file_monitor_polling_interval`, and Platform API/I2C/CLI/sysfs/vendor sources use `common_monitor_polling_interval`. A DSE source runtime-handle template uses the common-monitor default, and every expanded child retains the template's explicit or inherited cadence relationship. The normal configuration precedence remains CONFIG_DB, then platform defaults, then hardcoded service defaults.
 
 Every eligible work item is immediately due when a new DLDD process or monitor plan starts. Cadence timestamps are process-local and are not restored across restart. After a normal collection attempt, the next attempt is scheduled from monotonic time using the effective interval; missed intervals are coalesced rather than replayed as a catch-up burst. `IN_FLIGHT`, held, suspended, and broken states take precedence over normal cadence, while an eligible primary-requested `RECHECK_ONCE` bypasses the normal interval.
 
@@ -325,7 +325,7 @@ path:
   format: "text"
 ```
 
-The Pydantic path contract requires `file` and `format` to be non-empty strings and permits optional `scaling` and `unit`. During materialization, the built-in file/sysfs adapter supports `text`, `string`, `raw`, `json`, `yaml`, `integer`, `int`, `float`, and `boolean`; another format fails adapter validation for that rule.
+The Pydantic path contract requires `file` and `format` to be non-empty strings and permits optional `scaling` and `unit`. During shared activation preflight, the built-in file/sysfs adapter supports `text`, `string`, `raw`, `json`, `yaml`, `integer`, `int`, `float`, and `boolean`; another format fails adapter validation for that rule.
 
 **Sysfs Path Structure:**
 ```yaml
@@ -405,11 +405,11 @@ evaluation:
   value: "{psu*}:{get_output_voltage_failure_value()}" # DSE reference that resolves to expected value or expression input
 ```
 
-DSE can be used both as a data source path (`event.type: dse`) and as an evaluation type (`evaluation.type: dse`). A DSE evaluation is vendor extensible: the vendor hook resolves the rule reference to a trusted evaluator handle during activation, and the monitor invokes that handle for the current binding at every event sample.
+DSE can be used both as a data source path (`event.type: dse`) and as an evaluation type (`evaluation.type: dse`). A DSE evaluation is vendor extensible: during activation, the vendor resolver returns either a fixed typed `ResolvedEvaluation` or a trusted `DSEEvaluationHandle`. A fixed result is materialized into the ordinary evaluator path; the monitor invokes a handle's `get_comparator()` for the current binding at every event sample.
 
-When `operator` is present, DLDD applies the named operator to the event value and the value returned by the DSE evaluator handle for that sample. This allows rules to use DSE for dynamic value resolution while keeping comparison semantics visible in the rule.
+When `operator` is present, DLDD applies the named operator to the event value and the `expected_value` returned by the fixed result or runtime comparison handle. This allows rules to use DSE for fixed or dynamic value resolution while keeping comparison semantics visible in the rule.
 
-When `operator` is omitted, the DSE evaluator handle must return a complete comparator/evaluator contract. Handle resolution is the activation gate; because activation never invokes the handle, a malformed runtime return is reported as an isolated evaluator failure rather than an activation-time schema result.
+When `operator` is omitted, the DSE result must supply complete comparison semantics through its own `operator` plus `expected_value`, or through a trusted `comparator(actual) -> bool`. A fixed `ResolvedEvaluation` is validated during activation. A runtime handle is validated for identity and callability during activation without invocation; each per-sample return is validated at the adapter boundary, and a malformed return is reported as an isolated evaluator failure.
 
 For schema version `0.0.1`, a DSE evaluation with `operator` uses the same normalized comparison vocabulary as other DLDD evaluators. `equals` is accepted as the readable alias for `==`, and `not_equals` is accepted as the readable alias for `!=`.
 
@@ -421,7 +421,7 @@ For schema version `0.0.1`, a DSE evaluation with `operator` uses the same norma
 | `comparison` | `type`, `operator`, `value` | `unit`, `value_configs` | Applies numeric/string comparison using `>`, `<`, `>=`, `<=`, `==`, or `!=`. |
 | `string` | `type`, `operator`, `value` | `case_sensitive`, `value_configs` | Applies `contains`, `equals`, or `regex` to the collected string. |
 | `boolean` | `type`, `value` | `value_configs` | Matches when the collected boolean equals `value`. |
-| `dse` | `type`, `value` | `operator`, `value_configs` | If `operator` is present, DLDD applies it to the collected event value and DSE-resolved `value`. If omitted, the DSE hook supplies the complete comparator/evaluator contract. DSE may also supply value metadata implicitly. |
+| `dse` | `type`, `value` | `operator`, `value_configs` | If `operator` is present, DLDD applies it to the collected event value and DSE-resolved `expected_value`. If omitted, the fixed result or runtime comparison handle supplies complete comparison semantics. DSE may supply value metadata implicitly; explicit non-default rule `value_configs` take precedence over that implicit metadata in both direct-result and runtime-handle modes. |
 
 Binary values should be represented as quoted strings such as `"0b10000000"` to avoid YAML loader ambiguity.
 
@@ -668,7 +668,7 @@ The fixed trusted platform extension surface is:
 | `component_metadata` named hook | Supplies optional component metadata such as serial number for fault publication. |
 | `i2c` named hook | Validates/resolves vendor logical I2C bus identifiers. |
 
-These factories are discovered only from the installed `sonic_platform.dldd` module. Rule YAML can provide bounded hook parameters, but cannot change the discovery module or attach executable code. A vendor implementation should expose a small reviewed function bank rather than import or evaluate a function name supplied by a rule. One bank may contain expansion, source, evaluator, action, and query handlers; each registration declares the uses it permits so the implementation stays extensible without duplicating registries.
+These factories are discovered only from the installed `sonic_platform.dldd` module. Rule YAML can provide bounded hook parameters, but cannot change the discovery module or attach executable code. Core DLDD defines typed resolution and runtime-call contracts only. Each vendor owns how references are mapped to reviewed functions, including whether it uses classes, closures, a function bank, generated code, or another internal design.
 
 #### Selector, Expansion, and Function Separation
 
@@ -680,54 +680,28 @@ The resulting responsibilities are:
 |-------|----------------|
 | Rule reference | Names only an abstract selector and capability, such as `{temperature*}:{get_value()}`. |
 | Selector expansion | Discovers current component instances and returns opaque `DSEBinding` objects with stable instance/source identities. |
-| Selector function | Uses one binding to perform `get_value`, `get_high_threshold`, another source/evaluator capability, or a future vendor operation. |
-| Function bank | Maps vendor configuration aliases to reviewed installed Python handlers and enforces permitted uses. It never imports a rule-selected module or evaluates a rule-selected expression. |
+| Selector function | Uses one binding to perform `get_value`, `get_high_threshold`, another source/comparison capability, or a future vendor operation. |
+| Vendor resolver | Maps the parsed reference to a typed direct result or typed runtime handle. Its implementation and configuration are vendor-owned. |
 | Backend handler | Implements Redis, Platform API, SDK, I2C, sysfs, file, or another vendor mechanism behind the abstract capability. |
 
-Core DLDD does not prescribe a YAML layout for this vendor-private mapping. The concrete reference files are identified in the daemon HLD's cross-repository implementation map. The included non-normative platform reference implementation uses the following shape solely as its own configuration contract:
+Core DLDD does not prescribe a YAML layout or provide a concrete implementation for this vendor-private mapping. The non-normative platform reference files are identified in the daemon HLD's cross-repository implementation map and documented in that platform repository. Generic implementations need only satisfy the interfaces below:
 
-```yaml
-function_bank:
-  state_db_hash_expand:
-    handler: redis_hash_expand
-    uses: [expansion]
-  state_db_hash_read:
-    handler: redis_hash_read
-    uses: [source, evaluation]
+```python
+class DSEHook:
+    def resolve_source(reference, context): ...
+    def resolve_evaluation(reference, context): ...
+    def resolve_action(command, context): ...     # optional
+    def resolve_query(command, context): ...      # optional
 
-selectors:
-  "temperature*":
-    expansion:
-      hook: state_db_hash_expand
-      authoritative: false
-      parameters:
-        database: STATE_DB
-        table: TEMPERATURE_INFO
-        key_pattern: "TEMPERATURE_INFO|*"
-      policy:
-        bootstrap_scans: 2
-        bootstrap_interval: 5
-        warmup_cycles: 3
-        stable_interval: 300
-    functions:
-      get_value:
-        use: source
-        hook: state_db_hash_read
-        parameters:
-          field: temperature
-          value_type: float
-          unit: celsius
-      get_high_threshold:
-        use: evaluation
-        hook: state_db_hash_read
-        parameters:
-          field: high_threshold
-          operator: ">="
-          value_type: float
-          unit: celsius
+class DSESourceHandle:
+    def expand(rule_context): ...
+    def get_value(invocation_context): ...
+
+class DSEEvaluationHandle:
+    def get_comparator(invocation_context): ...
 ```
 
-Here `temperature*`, `get_value()`, and `get_high_threshold()` remain transport-neutral. Only the opaque platform mapping mentions STATE_DB. The expansion binding contains enough vendor-private identity for the chosen function handler, while another function under the same selector may instead use the instance name to call Platform API or an SDK. A function must be explicitly present under the selected selector; being registered in the global function bank does not expose it automatically.
+This is interface pseudocode, not a common DSE implementation. `temperature*`, `get_value()`, and `get_high_threshold()` remain transport-neutral. A vendor may implement them using different backends, and it must expose only functions that are valid for the selected selector.
 
 #### DSE Reference Grammar
 
@@ -746,14 +720,26 @@ The braced form supports `*` and `?` wildcard selectors. The unbraced form is ac
 | `function` | Vendor-defined DSE function name | `get_output_voltage_fault_register`, `get_output_voltage_failure_value` |
 | `()` | Function-call marker. Arguments are not part of schema version `0.0.1`; vendors may extend through DSE data if needed. | `get_status()` |
 
-DSE resolution is vendor extensible, but resolution and execution are separate phases. During activation, a DSE source reference resolves to a `DSESourceHandle` and a DSE evaluation reference resolves to a `DSEEvaluationHandle`. Core DLDD checks that the requested reference is exposed and that the returned functions are callable; it does not invoke source expansion, enumerate instances, fetch a value, fetch a threshold, or build an evaluator. A resolution error marks only the affected rule broken when another usable rule remains.
+DSE resolution is vendor extensible, but resolution and execution are separate phases. During activation, a DSE source reference resolves either to a non-empty sequence of typed `ResolvedSource` objects or to a `DSESourceHandle`. A DSE evaluation reference resolves either to a fixed typed `ResolvedEvaluation` or to a `DSEEvaluationHandle`. Direct typed results are appropriate when configuration can map the abstraction to an ordinary common adapter or fixed comparison without source I/O. Handles are required for runtime discovery, source reads, or dynamic comparisons. Raw mappings, bare runtime callables, dynamic imports, and rule-selected Python names are invalid.
 
-The monitor invokes the handles at runtime:
+Core DLDD checks that the requested reference is exposed, returned references match, direct results satisfy their contracts, and handle functions are callable. It does not invoke source expansion, enumerate instances, fetch a value, fetch a threshold, or execute an action/query during activation. A resolution error marks only the affected rule broken when another usable rule remains.
+
+The monitor invokes runtime handles only; typed direct results have already joined the ordinary adapter/evaluator path:
 
 - `DSESourceHandle.expand(rule_context)` returns `DSEExpansionResult(bindings, authoritative)` when discovery is due. Each `DSEBinding` has a stable component `instance`, stable `source_id`, immutable vendor data, and optional value metadata.
 - `DSESourceHandle.get_value(invocation_context)` reads one expanded binding at event sampling time.
-- `DSEEvaluationHandle.get_evaluator(invocation_context)` runs at event sampling time and returns an expected value/operator mapping or a trusted complete comparator contract.
-- `DSEExpansionPolicy` supplies bootstrap scan count/spacing, warmup monitor-cycle count, and stable rescan interval. The common monitor owns and executes this policy; the primary orchestration thread never calls DSE source/evaluator functions.
+- `DSEEvaluationHandle.get_comparator(invocation_context)` runs at event sampling time and returns a typed `ResolvedEvaluation`. That result contains a refreshed expected value and optional operator, or a trusted `comparator(actual) -> bool` callable. Raw evaluator mappings are not accepted.
+- `DSEExpansionPolicy` supplies bootstrap scan count/spacing, warmup monitor-cycle count, and stable rescan interval. The common monitor owns and executes this policy; the primary orchestration thread never calls DSE source/comparison runtime functions.
+
+| Vendor function | Invocation owner and time | Required result | Permitted work |
+|-----------------|---------------------------|-----------------|----------------|
+| `resolve_source` | Activation thread, once per referenced source | `DSESourceHandle` or non-empty `ResolvedSource` sequence | Inspect already-loaded vendor configuration and bind trusted functions; no source or inventory I/O |
+| `resolve_evaluation` | Activation thread, once per referenced evaluation | `DSEEvaluationHandle` or `ResolvedEvaluation` | Inspect already-loaded vendor configuration and bind trusted functions; no threshold/source I/O |
+| `expand` | Common monitor when discovery is due | `DSEExpansionResult` | Discover current bindings using vendor-defined backend behavior |
+| `get_value` | Monitor or async collection worker, every event sample/recheck | Raw source value | Read only the selected binding |
+| `get_comparator` | Same collection job, every event sample/recheck | `ResolvedEvaluation` | Refresh expected value/operator or construct a trusted comparator |
+| `resolve_action` / `resolve_query` | Activation thread | `ResolvedCommand` | Bind an executor without invoking it |
+| `ResolvedCommand.executor` | Action or artifact worker at the rule-defined runtime point | Operation-specific result | Execute the immutable materialized operation |
 
 This split allows a vendor DSE source to discover instances periodically while reading fast-changing values and thresholds every event sample. For example, a platform's abstract `current*` selector may use a private STATE_DB expansion handler every five minutes once stable, while `get_value()` rereads `current` and `get_high_threshold()` rereads `high_threshold` every five-second sample. Direct Redis paths likewise query the configured source on every sample; a direct value is never cached merely because its rule was materialized.
 
@@ -780,30 +766,30 @@ event:
 This is one logical event instanced over every discovered current sensor, not
 one event per sensor and not an OR expression containing every sensor.
 
-For source and evaluator references, resolution returns callable handles and must not read live hardware, Redis, files, or other external state. DSE action/query references continue to resolve to a `ResolvedCommand`, and resolution must not execute the command. The default compatibility matcher requires exact product and software-version membership; a platform may install `create_compatibility_matcher(...)` when its version/product matching rules differ.
+For source and evaluator references, resolution returns only the typed direct results or callable handles described above and must not read live hardware, Redis, files, or other external state. DSE action/query references continue to resolve to a `ResolvedCommand`, and resolution must not execute the command. The default compatibility matcher requires exact product and software-version membership; a platform may install `create_compatibility_matcher(...)` when its version/product matching rules differ.
 
 #### DSE Instance Semantics
 
-A wildcard source is instanced and expands into one ordinary `MonitorWorkItem` per returned binding. It remains one logical rule event: the per-instance work items do not become a large OR expression and retain the event's single ID. Correlation joins events by the returned component instance.
+A wildcard source is instanced. A typed direct resolution returns a non-empty `ResolvedSource` sequence in which every source identifies its component instance; a runtime source handle instead expands to `DSEBinding` objects when discovery is due. Both forms materialize one ordinary `MonitorWorkItem` per source/binding. They remain one logical rule event: the per-instance work items do not become a large OR expression and retain the event's single ID. Correlation joins events by the returned component instance.
 
 When the same signature also contains a non-instanced event, DLDD clones that common predicate into each newly discovered component execution rather than changing the rule logic or creating an OR list. Multiple DSE events that discover the same component share ownership of an identical common-predicate clone so removing one dynamic binding does not remove work still required by another event.
 
 | Source cardinality | Evaluator cardinality | Schema `0.0.1` behavior |
 |--------------------|-----------------------|--------------------------|
 | Common | Common | Supported |
-| Common | Instanced wildcard | Rejected; there is no source instance with which to bind the evaluator |
-| Instanced | Common | Supported; the common evaluator runs once per source sample with that source binding context |
-| Instanced | Instanced wildcard | Supported only when source and evaluator selectors match exactly; the same binding is passed to both handles |
+| Common | Instanced wildcard runtime handle | Rejected; there is no source instance with which to bind the comparison function |
+| Instanced | Common or fixed `ResolvedEvaluation` | Supported; the same fixed/common comparison semantics apply to every source sample |
+| Instanced | Instanced wildcard runtime handle | Supported only when source and evaluator selectors match exactly; the source binding is passed to the comparison handle |
 
-A direct event with explicit `instances` is also an instanced source and may use an instanced DSE evaluator. A direct common event may use only a common DSE evaluator. These rules prevent ambiguous cross-products while still allowing a vendor evaluator to derive a per-instance expected value.
+A direct event with explicit `instances` is also an instanced source and may use an instanced DSE comparison handle. A direct common event may use only a common/fixed DSE evaluation. A fixed `ResolvedEvaluation` has common cardinality because it is resolved once during activation and is never invoked with a per-instance binding. These rules prevent ambiguous cross-products while still allowing a vendor comparison handle to derive a per-instance expected value.
 
 #### Runtime Expansion and Stabilization
 
 Source inventory may be incomplete while SONiC producers are starting, and no generic API can prove it globally complete. DLDD therefore treats repeated unchanged scans as stable rather than claiming completeness. The monitor-owned state machine is:
 
-1. **BOOTSTRAP**: run the vendor-configured number of closely spaced expansion scans. The included platform reference policy uses two scans five seconds apart. No source/evaluator value reads occur merely because expansion ran.
+1. **BOOTSTRAP**: run the vendor-configured number of closely spaced expansion scans. The included platform reference policy uses two scans five seconds apart. No source/comparison value reads occur merely because expansion ran.
 2. **WARMUP**: sample every currently expanded child for one full monitor cycle, then rescan. Repeat for the configured number of unchanged cycles; the included platform reference policy uses three. Any binding change resets the unchanged count.
-3. **STABLE**: rescan at the vendor stable interval; the included platform reference policy uses 300 seconds. A changed fingerprint returns to WARMUP. Child `get_value()` and `get_evaluator()` still run at normal event cadence during this interval.
+3. **STABLE**: rescan at the vendor stable interval; the included platform reference policy uses 300 seconds. A changed fingerprint returns to WARMUP. Child `get_value()` and `get_comparator()` still run at normal event cadence during this interval.
 
 The DSE layer owns the policy values and the meaning of `authoritative`; the common monitor owns timing, phase transitions, and child work state. A non-authoritative empty or reduced result does not delete established children, which avoids losing monitoring during transient producer startup/restart. An authoritative result may remove absent children only when they are not in-flight or held by the primary. Expansion failures retain existing children, degrade discovery status, and retry at the bootstrap interval.
 
@@ -926,15 +912,15 @@ signatures:
 - `value_configs.type` must use the canonical enum values defined in this document
 - Local actions and log queries must conform to a supported type-specific contract, including timeout handling
 - Local actions that omit per-action `timeout` require a top-level rules-source `local_action_default_timeout`
-- DSE source/evaluation references must resolve to callable handles without invoking them. Built-in evaluator/operator compatibility is checked during validation; a DSE evaluator's returned value/operator/comparator contract is checked each time the monitor invokes it.
-- Remote activation must fail if per-signature validation and materialization leave zero usable direct rules and zero successfully resolved DSE templates for the current platform. A valid DSE template with zero instances before runtime expansion is still usable.
+- DSE source/evaluation references must resolve to valid typed direct results or callable runtime handles without runtime-function invocation. Built-in evaluator/operator compatibility and fixed `ResolvedEvaluation` contracts are checked during activation; a comparison handle's typed return contract is checked each time the monitor invokes it.
+- Remote activation must fail if per-signature validation and materialization leave zero usable static work and zero successfully resolved DSE source templates for the current platform. A valid DSE source template with zero instances before runtime expansion is still usable.
 - Complete examples in this document should be valid YAML or JSON and should be usable as validation fixtures, but examples are not the validation authority.
 
 ### Validation Contract
 
 Validation is driven by trusted, exact-version Pydantic v2 contracts rather than prose examples or a runtime-loaded JSON Schema. For every supported `schema_version`, DLDD registers an immutable contract containing a shallow file-envelope `TypeAdapter`, an independently callable per-signature `TypeAdapter`, the corresponding fully nested document model used for schema generation/tests, and an explicit DTO-to-domain converter. Context-free, version-specific semantic checks are Pydantic model validators. DSE reference resolution, platform compatibility, and direct-source materialization follow conversion and consume only the immutable, version-neutral domain model.
 
-The Pydantic models own required fields, strict primitive types, enum values, ranges, DSE reference grammar, collection bounds, unknown-field policy, and type-specific path, evaluation, action, and query shapes. Bounded DLDD helpers and model validators own context-free cross-field constraints such as event ID uniqueness, condition-logic parsing, timeout inheritance eligibility, event references, and built-in evaluator/operator compatibility. Product/software matching, DSE handle resolution, trusted vendor-hook discovery, and direct adapter configuration remain later materialization concerns. Runtime DSE expansion and per-sample handle invocation are deliberately outside activation validation. The contents of vendor `dld_dse.yaml` are outside every core Pydantic contract.
+The Pydantic models own required fields, strict primitive types, enum values, ranges, DSE reference grammar, collection bounds, unknown-field policy, and type-specific path, evaluation, action, and query shapes. Bounded DLDD helpers and model validators own context-free cross-field constraints such as event ID uniqueness, condition-logic parsing, timeout inheritance eligibility, event references, and built-in evaluator/operator compatibility. Product/software matching and typed DSE direct-result/runtime-handle resolution are later materialization concerns; trusted runtime-hook discovery, work-plan construction, and direct adapter configuration validation belong to shared activation preflight. Runtime DSE expansion and per-sample handle invocation are deliberately outside activation validation. The contents of vendor `dld_dse.yaml` are outside every core Pydantic contract.
 
 Core models reject unknown fields and use strict validation: numeric strings are not converted to numbers, booleans are not integers, non-finite numbers are rejected, and behavior-bearing unions use explicit type dispatch. Explicit vendor extension envelopes may preserve only bounded JSON-compatible fields for a type advertised by installed trusted platform code. A malformed built-in type never falls through to vendor handling.
 
@@ -956,7 +942,7 @@ All core versioned models inherit one closed contract policy equivalent to `stri
 
 Pydantic receives the already parsed and bounded Python object graph; it never receives untrusted file bytes directly, and DLDD does not use `model_validate_json()` as a parser shortcut. This preserves duplicate-key rejection, YAML alias/tag rejection, source-line mapping, and uniform JSON/YAML resource limits before model construction.
 
-Pydantic DTOs are short-lived validation objects. `frozen=True` prevents assignment but is not deep immutability, so each exact-version contract has an explicit converter that creates the version-neutral domain dataclasses, converts collections to tuples, recursively freezes mappings and vendor options, applies only documented defaults/inheritance, and never attaches a callable selected by uploaded data. Planning, DSE handle resolution, correlation, actions, and telemetry consume only these immutable domain objects; they do not consume Pydantic models or unreviewed `model_dump()` output. Callable handles are attached only by the trusted installed registry after conversion.
+Pydantic DTOs are short-lived validation objects. `frozen=True` prevents assignment but is not deep immutability, so each exact-version contract has an explicit converter that creates the version-neutral domain dataclasses, converts collections to tuples, recursively freezes mappings and vendor options, applies only documented defaults/inheritance, and never attaches a callable selected by uploaded data. The converter also stamps every immutable domain `Signature` with its own version-module constant. Planning, DSE resolution, correlation, actions, fault publication, telemetry, and restart reconciliation obtain schema provenance from that signature; generic code never substitutes a current-version literal. Callable runtime handles are attached only by the trusted installed registry after conversion.
 
 Built-in event, evaluator, action, and query types use explicit typed dispatch. A reserved built-in name must validate against its exact built-in model and cannot fall through to a generic vendor extension after malformed input. Vendor extensions use a bounded JSON-compatible envelope and are accepted only when trusted installed platform code explicitly advertises that type. Uploaded rules cannot select a Python module, class, callable, URL, or filesystem schema.
 
@@ -964,9 +950,11 @@ Built-in event, evaluator, action, and query types use explicit typed dispatch. 
 
 The contract registry is Python code installed with DLDD and is immutable after initialization. Lookup is exact; a rule declaring `0.0.2` never falls back to `0.0.1`. Uploaded rules cannot provide a schema URI, filesystem path, module, class, callable, model name, or validator. A newer exact version receives an explicit registry entry even when it intentionally reuses an existing implementation.
 
-DLDD uses pinned Pydantic v2 and its compatible pinned `pydantic-core` as the runtime structural validation dependency. `sonic-host-services` declares Python `>=3.9`; the current deployed target is CPython 3.13 and has been exercised on Python 3.13.5. The current integration pins `pydantic==2.13.4` and `pydantic_core==2.46.4` in both build and host-image dependency locks. Registry construction verifies that each entry's version matches the envelope and document models' literal `schema_version`, that envelope/signature/document adapters can be constructed, and that every entry supplies its DTO-to-domain converter. An import failure, registry/model mismatch, adapter construction failure, or unexpected validator exception is a daemon/package failure; it is not attributed to uploaded rule content and must not be downgraded to a per-rule `BROKEN` result.
+Only a version-owned implementation module such as `rule_schema/v0_0_1.py` may contain that production schema-version literal. The registry imports the module's constant, and successful validation replaces the untrusted input token with the selected contract's canonical version. A `RuleSet` and all of its signatures must have identical provenance; planning rejects empty or mixed-version inputs. Input fixtures, HLD examples, version-specific tests, and generated authoring schemas necessarily contain wire version values and are not generic runtime authorities.
 
-Every supported SONiC Python version and architecture must qualify the exact dependency set with binary-wheel availability, deterministic hashes, native-extension import/linkage checks, `pip check`, complete `sonic-host-services` tests, image construction, license/SBOM/vulnerability review, and startup/resource regression checks. Floating ranges, prereleases, runtime downloads, and an unexpected Rust/source build in the image path are not acceptable. Failure to import the compatible `pydantic-core` is an image construction/package defect rather than a rule-file validation result.
+DLDD uses pinned Pydantic v2 and its compatible `pydantic-core` as the runtime structural validation dependency. `sonic-host-services` declares Python `>=3.9`; the current deployed target is CPython 3.13 and has been exercised on Python 3.13.5. The host-services wheel metadata is authoritative for the direct Pydantic requirement and Pydantic's own metadata determines its compatible core dependency; image version snapshots are generated build outputs rather than a second hand-maintained dependency authority. Registry construction verifies that each entry's version matches the envelope and document models' literal `schema_version`, that envelope/signature/document adapters can be constructed, and that every entry supplies its DTO-to-domain converter. An import failure, registry/model mismatch, adapter construction failure, or unexpected validator exception is a daemon/package failure; it is not attributed to uploaded rule content and must not be downgraded to a per-rule `BROKEN` result.
+
+Every supported SONiC Python version and architecture must qualify the resolved dependency set with deterministic hashes, native-extension import/linkage checks, `pip check`, complete `sonic-host-services` tests, image construction, license/SBOM/vulnerability review, and startup/resource regression checks. `pydantic-core` specifically must resolve to a compatible binary distribution; an unexpected Rust/source build for it in the image path is not acceptable. Failure to import the compatible core is an image construction/package defect rather than a rule-file validation result.
 
 Pinned `regex` remains the bounded regular-expression evaluation dependency. Runtime regular-expression searches have a 100 ms deadline; exceeding it produces an evaluator error instead of indefinitely blocking a monitor worker.
 
@@ -1021,14 +1009,14 @@ Validation uses a shallow Pydantic file-envelope pass followed by an independent
 
 1. **File-envelope activation gate**: Validates the root object, exact registered `schema_version`, top-level optional fields, non-empty `signatures` list, deterministic signature wrapper shape, configured input limits, and cross-signature identity uniqueness. Malformed input, unsupported versions, invalid top-level structure, duplicate rule IDs or names, and errors that prevent deterministic signature isolation reject the entire candidate and trigger rollback or retention of the previous active generation.
 2. **Per-signature Pydantic and semantic gate**: Applies the version's strict signature model and context-free semantic validation independently to every isolated signature. Missing per-rule fields, invalid types, paths, enums, condition expressions, action/query contracts, and other localized authoring errors mark only that rule broken.
-3. **Per-signature materialization gate**: Checks product/software applicability, DSE reference-to-handle resolution/callability, source/evaluator instance-cardinality compatibility, trusted vendor-hook availability, and direct adapter configuration without invoking DSE handles, sampling monitoring sources, or executing actions. Localized failures mark only that rule broken.
+3. **Per-signature materialization and shared preflight gate**: Materialization checks product/software applicability, DSE resolution to typed direct results or runtime handles, returned-contract validity, and source/comparison instance-cardinality compatibility. `build_adapter_registry(extensions)` constructs the one runtime adapter set, and `preflight_activation(validation, extensions, polling_intervals)` builds the work plan, checks trusted runtime-hook availability, and calls adapter `validate()` without invoking runtime functions, sampling monitoring sources, or executing actions. Its `ActivationPreflightResult` carries the same validation, plan, adapters, and localized failures used by both the daemon and CLI.
 4. **Usable-rule activation guard**: Activation succeeds as `DEGRADED` when at least one rule is usable and one or more rules are broken. Activation fails when zero usable rules remain, preserving or restoring the previous valid generation or fallback.
 
-Normal activation validates rules, direct configuration, and DSE handle resolution only. DLDD core does not call adapter source-read/collection methods, DSE expansion/source/evaluator functions, or local actions. Trusted DSE registry and vendor validation methods invoked during resolution must be side-effect-free and must not sample hardware or external source values. A DSE source template is usable even before any runtime instance is discovered. A currently absent key, file, device, component, or fault-only source is a runtime availability/discovery condition, not an activation failure. Invalid direct source configuration, an unresolved DSE reference/handle, incompatible instance cardinality, or a required trusted vendor hook that is not installed remains a per-rule materialization failure.
+Normal activation validates rules, direct configuration, and typed DSE direct-result/runtime-handle resolution only. DLDD core does not call adapter source-read/collection methods, DSE expansion/source/comparison runtime functions, or local actions. Trusted DSE registry and vendor validation methods invoked during resolution must be side-effect-free and must not sample hardware or external source values. A DSE source template is usable even before any runtime instance is discovered. A currently absent key, file, device, component, or fault-only source is a runtime availability/discovery condition, not an activation failure. An unresolved DSE reference, invalid typed result/runtime handle, or incompatible instance cardinality is a per-rule materialization failure; invalid direct source configuration or a missing required runtime hook is a per-rule preflight failure.
 
 Declared rule/materialization errors (`DSEError` or `ValueError`) are localized to the affected rule. Unexpected exceptions from trusted validator or vendor code indicate an implementation/package failure; they abort that candidate attempt and enter lifecycle fallback rather than being mislabeled as vendor-rule authoring errors.
 
-Schema `0.0.1` keeps `event.type` and `evaluation.type` closed. Direct platform-source extension uses the bounded `platform_api` hook object, while a DSE source resolves to a trusted installed handle and runtime binding. Action and query operations have a bounded generic vendor envelope whose type must be advertised and validated by the trusted platform registry. Vendors may supply side-effect-free validation and execution hooks, but uploaded rules do not install or select a Pydantic model. A type name in uploaded YAML never causes dynamic module import, and reserved built-in type names are always dispatched to their exact built-in models.
+Schema `0.0.1` keeps `event.type` and `evaluation.type` closed. Direct platform-source extension uses the bounded `platform_api` hook object, while a DSE source resolves to either typed concrete sources or a trusted installed source handle and runtime binding. Action and query operations have a bounded generic vendor envelope whose type must be advertised and validated by the trusted platform registry. Vendors may supply side-effect-free validation and execution hooks, but uploaded rules do not install or select a Pydantic model. A type name in uploaded YAML never causes dynamic module import, and reserved built-in type names are always dispatched to their exact built-in models.
 
 #### Validation Modes
 
@@ -1037,8 +1025,8 @@ The validation CLI exposes progressively stronger, explicit modes:
 | Mode | Behavior |
 |------|----------|
 | `static-schema` | Bounded safe parsing, exact contract selection, shallow envelope validation, independent strict per-signature Pydantic validation, and context-free semantics. The historical name is retained, but no runtime JSON Schema is loaded. No platform extension discovery or source access occurs. |
-| `dse-resolve` | Adds DSE and trusted vendor-extension reference-to-handle resolution without expanding sources, enumerating instances, fetching values/thresholds, invoking evaluator handles, or executing actions. |
-| `activation-dry-run` | Adds product/software compatibility, direct work/DSE template materialization, trusted hook discovery, and side-effect-free direct adapter configuration validation. This is the normal promotion gate. |
+| `dse-resolve` | Adds DSE and trusted vendor-extension resolution to typed direct results or runtime handles without expanding sources, enumerating instances, fetching values/thresholds, invoking runtime functions, or executing actions. |
+| `activation-dry-run` | Uses the same common preflight as daemon activation, adding product/software compatibility, static work/DSE source-template materialization, trusted hook discovery, and side-effect-free adapter configuration validation. This is the normal promotion gate. |
 | `hardware-probe` | Explicit operator qualification that may invoke vendor-selected read-only source access. It is not part of normal activation. |
 | `e2e-execute` | Explicit controlled monitoring-source qualification that expands DSE templates and calls each resulting/direct adapter's `collect()` path (collection, normalization, and evaluation). It does not execute local actions or artifact queries and is not part of normal activation. |
 
@@ -1047,8 +1035,8 @@ The validation CLI exposes progressively stronger, explicit modes:
 2. **Exact Contract Selection**: Read `schema_version` and require its exact trusted registry entry.
 3. **Envelope Validation**: Validate only the shallow file envelope and cross-rule identities at file scope.
 4. **Independent Rule Validation**: Run strict version-specific Pydantic and context-free semantic validation for each isolated signature, retaining localized diagnostics.
-5. **DSE and Evaluator Validation**: Resolve DSE references to callable handles, validate source/evaluator cardinality, and verify deterministic built-in evaluator semantics without invoking the DSE handles.
-6. **Materialization Preflight**: Check compatibility, trusted vendor hooks, and direct adapter configuration without expanding DSE inventory, collecting source values/thresholds, invoking DSE evaluators, or executing actions.
+5. **DSE and Evaluator Validation**: Resolve DSE references to typed direct results or runtime handles, validate returned contracts and source/comparison cardinality, and verify deterministic built-in evaluator semantics without invoking runtime functions.
+6. **Materialization Preflight**: Check compatibility, trusted vendor hooks, and direct adapter configuration without expanding DSE inventory, collecting source values/thresholds, invoking DSE comparison runtime functions, or executing actions.
 7. **Activation Guard**: Reject the candidate if no usable rules remain; otherwise activate the usable rules and publish localized failures as broken-rule diagnostics.
 8. **Qualification Modes**: Invoke configured source-read or collection paths only when an operator explicitly requests hardware-probe or end-to-end validation. These paths are vendor-selected and must be reviewed for their intended read-only qualification behavior.
 
