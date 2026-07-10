@@ -24,6 +24,7 @@ Amit Grover - Cisco
   - [LC consumer bootstrap](#lc-consumer-bootstrap)
 - [12. Route check and auditing](#12-route-check-and-auditing)
 - [13. Related documents](#13-related-documents)
+  - [13.1 Centralized chassis references](#131-centralized-chassis-references)
 - [14. Operational notes](#14-operational-notes)
 - [15. Test plan](#15-test-plan)
 - [16. Review feedback and action items](#16-review-feedback-and-action-items)
@@ -38,6 +39,7 @@ Amit Grover - Cisco
 |-----|------------|--------------|--------------------|
 | 0.1 | 06/04/2026 | Amit Grover  | Initial centralized chassis routing HLD |
 | 0.2 | 06/11/2026 | Amit Grover  | Added route check and auditing section ([§12](#12-route-check-and-auditing)) |
+| 0.3 | 07/08/2026 | Amit Grover  | Added centralized chassis references ([§13.1](#131-centralized-chassis-references)) |
 
 ---
 
@@ -344,6 +346,20 @@ BGP/Zebra (RP) → kernel (RP) → fpmsyncd (RP) → APPL_DB (RP) → RouteOrch 
 | [voq_hld.md](../voq/voq_hld.md) | VOQ chassis forwarding and system ports |
 | [sonic-vrf-hld.md](../vrf/sonic-vrf-hld.md) | VRF tables and per-VRF RIB (orthogonal extension) |
 
+### 13.1 Centralized chassis references
+
+Related HLDs and PRs for centralized chassis routing, host path, IPC, ACK, and manageability.
+
+**Table 13: Centralized chassis related HLDs and PRs**
+
+| Topic | Reference | Notes |
+|-------|-----------|-------|
+| Port orchestration and PktIO / host path | [Port Orchestration and host path for VOQ modular chassis](https://github.com/jhli-cisco/SONiC/blob/jhli-voq_hostpath/doc/centralized-chassis/Port_Orchestration_and_host_path_for_VOQ_modular_chassis.md) | Hierarchical port naming, slow-path / punt handling (PackIO / PuntIO) |
+| Architecture | [voq_chassis_hld.md](https://github.com/huanlev/SONiC/blob/f4c462700e6b89532f39e7e199b95745320366bc/doc/centralized-chassis/voq_chassis_hld.md) | Centralized chassis baseline — RP/LC placement, **database-central**, boot sequence |
+| ACK infrastructure | [sonic-net/SONiC PR #2408](https://github.com/sonic-net/SONiC/pull/2408) | Aggregated / distributed ACK mechanism for route programming status |
+| ZMQ / Redis hybrid IPC | [whitebox/SONiC PR #104](https://wwwin-github.cisco.com/whitebox/SONiC/pull/104) | IPC infrastructure — **APPL_DB** distribution over ZMQ with Redis persistence |
+| Manageability | [whitebox/SONiC PR #100](https://wwwin-github.cisco.com/whitebox/SONiC/pull/100) | Centralized chassis manageability and operational model |
+
 ---
 
 ## 14. Operational notes
@@ -374,20 +390,20 @@ The following action items were captured from the community review session on **
 
 | Date | AI Summary | Description | Resolved |
 |------|------------|-------------|----------|
-| Jun 11, 5:30–6:30 PM | Add centralized vs disaggregated comparison table | Update the HLD with a comparison table between **centralized VOQ-based chassis** and **disaggregated / Ethernet-based chassis**, highlighting differences in **manageability** and **user experience**. | Not resolved |
-| Jun 11, 5:30–6:30 PM | Add centralized vs disaggregated design section | Add a section comparing the **centralized model** with the **current disaggregated model**, including **motivations**, **advantages**, and **disadvantages** (e.g. single point of failure, manageability, scalability). | Not resolved |
-| Jun 11, 5:30–6:30 PM | Document deployment models and scenarios | Add **deployment model details**, including typical scenarios (e.g. **uplink / downlink line cards**) and how **routing** and **neighbor resolution** are handled in each case. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Add AppDB vs ASICDB route audit section | Add a section on **route check / auditing** between **APPL_DB** and **ASIC_DB**, and describe how this is managed in the centralized chassis architecture. | Resolved — [§12](#12-route-check-and-auditing) |
-| Jun 11, 5:30–6:30 PM | Add slow-path / punt handling section | Add a section on **slow path handling** (e.g. how **BGP control packets** are punted from **RP to line card** and vice versa), with a reference to the upcoming **PackIO / PuntIO HLD**. | Not resolved |
-| Jun 11, 5:30–6:30 PM | Define and validate target scale numbers | Include **target scale numbers** in the HLD: expected scale for **interfaces**, **routes**, **ARP/neighbor entries**, and **BGP neighbors**; validate that **FRR/BGP** can support centralized chassis scale. | Not resolved |
-| Jun 11, 5:30–6:30 PM | Perform and present performance analysis | Perform and present **performance analysis** (including **link flap** scenarios per Amit Pawar), with **graphs/data** on **route scale**, **convergence**, and **link-flap impact**. | Not resolved |
+| Jun 11, 5:30–6:30 PM | Add slow-path / punt handling section | Add a section on **slow path handling** (e.g. how **BGP control packets** are punted from **RP to line card** and vice versa), with a reference to the upcoming **PackIO / PuntIO HLD**. | Resolved — [Port Orchestration and host path for VOQ modular chassis](https://github.com/jhli-cisco/SONiC/blob/jhli-voq_hostpath/doc/centralized-chassis/Port_Orchestration_and_host_path_for_VOQ_modular_chassis.md) |
+| Jun 11, 5:30–6:30 PM | Add hierarchical port naming section | Add a section/reference on **hierarchical port naming** and ensure **global naming consistency** between **RP** and **line cards**. | Resolved — [Port Orchestration and host path for VOQ modular chassis](https://github.com/jhli-cisco/SONiC/blob/jhli-voq_hostpath/doc/centralized-chassis/Port_Orchestration_and_host_path_for_VOQ_modular_chassis.md) |
+| Jun 11, 5:30–6:30 PM | Present dependent HLDs to working groups | Present upcoming HLDs on **IPC infrastructure**, **aggregated ACK mechanism**, and **PackIO/PuntIO** to the relevant working groups for community feedback. | Resolved — [§13.1 Centralized chassis references](#131-centralized-chassis-references) |
+| Jun 11, 5:30–6:30 PM | Add centralized vs disaggregated comparison table | Update the HLD with a comparison table between **centralized VOQ-based chassis** and **disaggregated / Ethernet-based chassis**, highlighting differences in **manageability** and **user experience**. | In progress |
+| Jun 11, 5:30–6:30 PM | Add centralized vs disaggregated design section | Add a section comparing the **centralized model** with the **current disaggregated model**, including **motivations**, **advantages**, and **disadvantages** (e.g. single point of failure, manageability, scalability). | In progress |
+| Jun 11, 5:30–6:30 PM | Document deployment models and scenarios | Add **deployment model details**, including typical scenarios (e.g. **uplink / downlink line cards**) and how **routing** and **neighbor resolution** are handled in each case. | In progress |
+| Jun 11, 5:30–6:30 PM | Define and validate target scale numbers | Include **target scale numbers** in the HLD: expected scale for **interfaces**, **routes**, **ARP/neighbor entries**, and **BGP neighbors**; validate that **FRR/BGP** can support centralized chassis scale. | In progress |
+| Jun 11, 5:30–6:30 PM | Perform and present performance analysis | Perform and present **performance analysis** (including **link flap** scenarios per Amit Pawar), with **graphs/data** on **route scale**, **convergence**, and **link-flap impact**. | In progress |
+| Jun 11, 5:30–6:30 PM | Evaluate MultiDB for scale and DB restart | Review and consider **MultiDB** (separate containers for **CONFIG_DB / APPL_DB**) to address **scale** and **database restart** issues (per discussion with Deepak and Venkit). | In progress |
+| Jun 11, 5:30–6:30 PM | Evaluate link flap dampening | Review and consider adding **link flap dampening** if not already covered (per discussion with Prince and Amit Pawar). **Clarification:** Community SONiC has **link flap monitoring** (`show interfaces flap`); **link event damping** is a separate HLD ([Link-event-damping-HLD.md](../link_event_damping/Link-event-damping-HLD.md)) and is not broadly shipped. Intent TBD — whether centralized chassis needs **link event damping** at LC before events reach RP BGP, documented **flap convergence behavior** only, or **monitoring + performance analysis** is sufficient for v1. Related AI: performance analysis (link flap scenarios). | Need clarification — pending review with Prince / Amit Pawar |
 | Jun 11, 5:30–6:30 PM | Review RIB/FIB HLD impact on centralized routing | Review the **RIB/FIB HLD PR** (to be shared by Eddie) for impact on centralized chassis routing, especially **ECMP shrink** and **next-hop group handling across line cards**. | Not resolved |
-| Jun 11, 5:30–6:30 PM | Add hierarchical port naming section | Add a section/reference on **hierarchical port naming** and ensure **global naming consistency** between **RP** and **line cards**. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Add BFD offload and LC CPU control-plane section | Add a section/reference on **BFD offload support** and **line card CPU involvement** for control packets. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Cross-reference related PRs and HLDs | Update the HLD to **reference and list all related PRs and HLDs** for centralized chassis work (per Sunesh's suggestion). | Not resolved |
 | Jun 11, 5:30–6:30 PM | Add chassis management changes section | Add a section on **chassis management changes** and plan to **present these to the SONiC Test working group**. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Plan port channel, VLAN, and LAG support | Update the HLD with analysis and handling of **port channel**, **VLAN**, and **LAG support** in **future phases**. | Not resolved |
 | Jun 11, 5:30–6:30 PM | Plan QoS support and oversubscription testing | Update the HLD with analysis and handling of **QoS configuration support**, including **class-based behavior** and **oversubscription testing**. | Not resolved |
-| Jun 11, 5:30–6:30 PM | Present dependent HLDs to working groups | Present upcoming HLDs on **IPC infrastructure**, **aggregated ACK mechanism**, and **PackIO/PuntIO** to the relevant working groups for community feedback. | Not resolved |
-| Jun 11, 5:30–6:30 PM | Evaluate MultiDB for scale and DB restart | Review and consider **MultiDB** (separate containers for **CONFIG_DB / APPL_DB**) to address **scale** and **database restart** issues (per discussion with Deepak and Venkit). | Not resolved |
-| Jun 11, 5:30–6:30 PM | Evaluate link flap dampening | Review and consider adding **link flap dampening** if not already covered (per discussion with Prince and Amit Pawar). | Not resolved |
