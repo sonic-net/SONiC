@@ -475,7 +475,7 @@ location                  = STR                                       ; leak sen
 leak_severity             = "status"                                  ; CRITICAL/MINOR (per-sensor level)
 timestamp                 = STR                                       ; timestamp when this status is recorded.
 
-key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in CONFIG_DB
+key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in STATE_DB
 ; field                   = value
 leak_type                 = STR                                       ; Leak sensor type
 max_minor_duration_sec    = integer                                   ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
