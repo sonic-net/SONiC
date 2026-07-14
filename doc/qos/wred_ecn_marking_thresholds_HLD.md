@@ -95,15 +95,15 @@ Nine optional fields are added to `WRED_PROFILE` (three per color):
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ecn_green_min_threshold`     | byte_count | Queue depth (bytes) at which ECN marking begins for green packets |
-| `ecn_green_max_threshold`     | byte_count | Queue depth (bytes) at which all green packets are ECN marked |
-| `ecn_green_mark_probability`  | percentage (0..100) | Mark probability for green packets between the ECN min/max |
-| `ecn_yellow_min_threshold`    | byte_count | As above, yellow |
-| `ecn_yellow_max_threshold`    | byte_count | As above, yellow |
-| `ecn_yellow_mark_probability` | percentage (0..100) | As above, yellow |
-| `ecn_red_min_threshold`       | byte_count | As above, red |
-| `ecn_red_max_threshold`       | byte_count | As above, red |
-| `ecn_red_mark_probability`    | percentage (0..100) | As above, red |
+| `green_ect_min_threshold`     | byte_count | Queue depth (bytes) at which ECN marking begins for green packets |
+| `green_ect_max_threshold`     | byte_count | Queue depth (bytes) at which all green packets are ECN marked |
+| `green_ect_mark_probability`  | percentage (0..100) | Mark probability for green packets between the ECN min/max |
+| `yellow_ect_min_threshold`    | byte_count | As above, yellow |
+| `yellow_ect_max_threshold`    | byte_count | As above, yellow |
+| `yellow_ect_mark_probability` | percentage (0..100) | As above, yellow |
+| `red_ect_min_threshold`       | byte_count | As above, red |
+| `red_ect_max_threshold`       | byte_count | As above, red |
+| `red_ect_mark_probability`    | percentage (0..100) | As above, red |
 
 All fields are optional. When a color's ECN threshold fields are omitted, that color's
 ECN marking continues to use the existing WRED drop thresholds (unchanged behavior).
@@ -184,9 +184,9 @@ Example `WRED_PROFILE` with drop thresholds and independent ECN marking threshol
             "green_min_threshold": "1048576",
             "green_max_threshold": "2097152",
             "ecn":                 "ecn_all",
-            "ecn_green_min_threshold":    "262144",
-            "ecn_green_max_threshold":    "524288",
-            "ecn_green_mark_probability": "5"
+            "green_ect_min_threshold":    "262144",
+            "green_ect_max_threshold":    "524288",
+            "green_ect_mark_probability": "5"
         }
     }
 }
