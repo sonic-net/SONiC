@@ -159,14 +159,14 @@ config bmc os openbmc
 ### 5.2 Platform BMC CLIs
 
 ```
-show platform bmc summary          # OpenBMC only (requires get_version / Redfish)
+show platform bmc summary          # OpenBMC and SONiC BMC (FirmwareVersion is N/A since it cannot be retrieved without Redfish)
 ---------------------------
 Manufacturer: XXXXX
 Model: XXXXX
 PartNumber: XXXXX
 SerialNumber: XXXXX
 PowerState: XXXXX
-FirmwareVersion: XXXXX               
+FirmwareVersion: N/A               
 
 show platform firmware status
 Component    Version                    Description
