@@ -357,8 +357,8 @@ Related HLDs and PRs for centralized chassis routing, host path, IPC, ACK, and m
 | Port orchestration and PktIO / host path | [Port Orchestration and host path for VOQ modular chassis](https://github.com/jhli-cisco/SONiC/blob/jhli-voq_hostpath/doc/centralized-chassis/Port_Orchestration_and_host_path_for_VOQ_modular_chassis.md) | Hierarchical port naming, slow-path / punt handling (PackIO / PuntIO) |
 | Architecture | [voq_chassis_hld.md](https://github.com/huanlev/SONiC/blob/f4c462700e6b89532f39e7e199b95745320366bc/doc/centralized-chassis/voq_chassis_hld.md) | Centralized chassis baseline — RP/LC placement, **database-central**, boot sequence |
 | ACK infrastructure | [sonic-net/SONiC PR #2408](https://github.com/sonic-net/SONiC/pull/2408) | Aggregated / distributed ACK mechanism for route programming status |
-| ZMQ / Redis hybrid IPC | [whitebox/SONiC PR #104](https://wwwin-github.cisco.com/whitebox/SONiC/pull/104) | IPC infrastructure — **APPL_DB** distribution over ZMQ with Redis persistence |
-| Manageability | [whitebox/SONiC PR #100](https://wwwin-github.cisco.com/whitebox/SONiC/pull/100) | Centralized chassis manageability and operational model |
+| ZMQ / Redis hybrid IPC | [sonic-net/SONiC PR #2438](https://github.com/sonic-net/SONiC/pull/2438) | IPC infrastructure — **APPL_DB** distribution over ZMQ with Redis persistence |
+| Manageability | [sonic-net/SONiC PR #2404](https://github.com/sonic-net/SONiC/pull/2404) | Centralized chassis manageability and operational model |
 
 ---
 
