@@ -112,9 +112,26 @@ This will allow both a `CmisManagerTask` and `CpoManagerTask` to run in parallel
 
 ###### 7.1.2.2 CpoManagerTask
 
-A `CpoManagerTask` will be introduced to handle CPO ports. Initially, this will be a minimal skeleton that re-uses the `CmisManagerTask` logic as-is.
-Later on, if customization of state machine logic is required to aid in debugging or manage extra steps in the state machine for CPO, the `CmisManagerTask`
-can be refactored and/or methods can be overriden in `CmisManagerTask` by `CpoManagerTask`.
+A `CpoManagerTask` will be introduced to handle CPO ports. Initially this will be a minimal skeleton that re-uses the `CmisManagerTask` logic as-is,
+since the current logic of managing the state machine at the granularity of logical interfaces should be entirely re-usable for current CPO hardware.
+
+There is only one area of the state machine that requires some additional logic for CPO: during `handle_cmis_dp_deinit_state` when the state
+machine handles the DPDeinit state. In this function, if a module is already in low power mode, ALL lanes of the device are deinitialized and
+disabled:
+```python3
+        # Deinit and disable all lanes if we are in ModuleLowPwr to avoid unintentional
+        # initialization of other datapaths during transition to ModuleReady
+        if self.check_module_state(api, ['ModuleLowPwr']):
+            self.log_notice("{}: ModuleLowPwr detected, set datapath deinit and disable Tx output for all lanes".format(lport))
+            deinit_host_lanes_mask = self.port_dict[lport]['max_host_lanes_mask']
+            disable_media_lanes_mask = self.port_dict[lport]['max_media_lanes_mask']
+```
+To replicate this logic for CPO, all lanes of an optical engine would have to be deinitialized and disabled if the optical engine is in low
+power mode, since low power mode is a module-wide state. This requires fetching all other interfaces that share the same underlying OE and
+disabling / deinitializing their lanes. See the below code snippet outlining `CpoManagerTask` for how this could be implemented simply.
+
+Later on, if further customization of state machine logic is required to aid in debugging or manage extra steps in the state machine for CPO,
+the `CmisManagerTask` can be refactored and/or methods can be overriden in `CmisManagerTask` by `CpoManagerTask`.
 
 ```python3
 class CpoManagerTask(CmisManagerTask):
@@ -131,6 +148,19 @@ class CpoManagerTask(CmisManagerTask):
 
     def log_error(self, message):
         super().log_error("CPO: {}".format(message))
+
+    def handle_cmis_dp_deinit_state(self, lport):
+        # Fetch all sibling physical ports that share this optical engine
+        # and disable and deinitialize their lanes.
+        api = self.port_dict[lport].get('api')
+        if self.check_module_state(api, ['ModuleLowPwr']):
+            for sibling_pport in self.get_oe_sibling_pports(lport):
+                sibling_api = self.sfp_obj_dict[sibling_pport].get_xcvr_api()
+                sibling_api.set_datapath_deinit(0xff)
+                sibling_api.tx_disable_channel(0xff, True)
+        # Run the existing logic that handles the physical port associated
+        # with the current logical interface.
+        return super().handle_cmis_dp_deinit_state(lport)
 ```
 
 #### 7.2 DOM Telemetry (DomInfoUpdateTask)
