@@ -615,7 +615,7 @@ The smartswitch needs to know the reboot cause for the NPU and the DPUs.
 ```
 #### DPU Reboot Cause
 * The smartswitch needs to know the reboot cause for all the DPUs.
-* The reboot-cause is captured and recorded only when the midplane of DPU is online.
+* The reboot-cause (which is captured by the platform) is recorded only when the midplane of DPU is online by calling the `get_reboot_cause` API.
 * Each DPU SONiC publishes a `boot_id` (a fresh UUID generated per boot from `/proc/sys/kernel/random/boot_id`) into its `DPU_STATE` entry in CHASSIS_STATE_DB. The NPU chassisd compares the reported `boot_id` against the last `boot_id` it persisted, when they differ a real DPU boot occurred, so chassisd calls `get_reboot_cause()` when midplane down transitions to up, records the cause to DB and json, and updates the persisted `boot_id`.
 * The get_reboot_cause will return the current reboot-cause of the module.
 * For persistent storage of the DPU reboot-cause and reboot-cause-history files use the existing mechanism and host storage path under "/host/reboot-cause/module/dpux". The boot_id is also stored in this file.
