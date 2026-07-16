@@ -239,9 +239,27 @@ since it shares the same prefix of `TRANSCEIVER_` with the existing tables.
 
 ###### 7.2.2.2 CpoDomInfoUpdateTask
 
-A subclass of `DomInfoUpdateTask` will be introduced, called `CpoDomInfoUpdateTask`. This task will re-implement the high-level
-control flow of DOM logic for CPO so that information shared across logical interfaces is read from the hardware only once per
-device. This is necessary for two reasons:
+A subclass of `DomInfoUpdateTask` will be introduced, called `CpoDomInfoUpdateTask`. Similarly to the `CpoManagerTask`,
+this task will only be created to handle CPO ports and any traditional pluggable ports will continue to be handled
+via the existing `DomInfoUpdateTask` which can run in parallel:
+```python3
+        # Start the dom sensor info update thread
+        dom_info_update = None
+        if self.sfp_obj_dict:
+            dom_info_update = DomInfoUpdateTask(self.namespaces, port_mapping_data, self.sfp_obj_dict, self.stop_event, self.skip_cmis_mgr, self.dom_update_interval)
+            dom_info_update.start()
+            self.threads.append(dom_info_update)
+
+        # Start the CPO dom sensor info update thread
+        cpo_dom_info_update = None
+        if self.cpo_obj_dict:
+            cpo_dom_info_update = CpoDomInfoUpdateTask(self.namespaces, port_mapping_data, self.cpo_obj_dict, self.stop_event, False, self.dom_update_interval)
+            cpo_dom_info_update.start()
+            self.threads.append(cpo_dom_info_update)
+```
+
+This task will re-implement the high-level control flow of DOM logic for CPO so that information shared across logical
+interfaces is read from the hardware only once per device. This is necessary for two reasons:
 - Since OE and ELSFP devices are shared across multiple logical interfaces, duplicate information will be published to
 each logical interface's database table. In the CPO task, non-banked information will be read from the hardware once
 and published to the table for each logical interface associated with the OE or ELSFP. Banked information will be read
