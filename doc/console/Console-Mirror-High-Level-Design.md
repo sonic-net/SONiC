@@ -6,6 +6,7 @@
 | Rev | Date | Author | Change Description |
 | :---: | :---------: | :--------: | ------------------ |
 | 0.1 | 06/13/2026 | William Zhang | Initial version |
+| 0.2 | 07/16/2026 | William Zhang | Define CLI audit metadata and align CLI error output |
 
 ---
 
@@ -358,11 +359,15 @@ This section defines the message protocol used on the `MirrorControlServer` UDS 
 {
   "op": "start",
   "line": "1",
+  "owner_pid": 12345,
+  "started_by": "admin",
   "direction": "both",
   "timeout": "24h",
   "max_file_size": 64
 }
 ```
+
+`owner_pid` is the PID of the `consutil` process that starts the mirror session. `started_by` is the original invoking username.
 
 `max_file_size` uses the same value semantics as the CLI `--max-file-size` option. It is a positive integer expressed in MB and defaults to 64 MB. Unit suffixes are not accepted; for example, `64` means 64 MB.
 
@@ -853,7 +858,7 @@ Remaining: 24h
 If a mirror session is already active for the target line, the command fails:
 
 ```text
-Cannot start mirror: line [1] already has an active mirror session
+Mirror request failed on line [1]: Line 1 already has an active mirror session
 ```
 
 ### 5.2 Stop Mirroring
