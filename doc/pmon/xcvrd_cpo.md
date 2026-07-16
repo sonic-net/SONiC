@@ -383,17 +383,50 @@ publish functions directly with the data it has already collected.
 | get_transceiver_threshold_info | no, but is a thin wrapper around a CmisApi function of the same name |
 | get_transceiver_vdm_thresholds | no, but is a thin wrapper around a CmisApi function of the same name |
 
-The philosophy of leveraging DeviceBase and the CmisApi should also work for this task. We will require
-the same refactoring to call the CmisApi instead of the thin wrapper functions on SfpOptoeBase that we
-need to do for the DOM telemetry above.
+The philosophy of leveraging DeviceBase and the CmisApi should also work for this task. The same
+refactoring to call the CmisApi directly instead of the thin wrapper functions on SfpOptoeBase that was
+suggested in section "7.2 DOM Telemetry" above is a pre-requisite to enable code sharing between CPO
+and traditional pluggables in this task.
 
 ##### 7.3.2 Changes Required
 
-A CPO specific `SfpStateUpdateTask` subclass will be introduced. All of the existing logic can be re-used, but
-the only difference will be the logic to publish transceiver info to Redis. For CPO, we will need to publish
-both OE and ELSFP related information here. As a result, the `SfpStateUpdateTask` will be refactored to pull
-the logic that publishes to Redis into its own function that can be overriden in the CPO subclass to publish
-both OE and ELSFP information.
+###### 7.3.2.1 CpoStateUpdateTask
+
+A CPO specific `SfpStateUpdateTask` subclass will be introduced. The bulk of the existing logic can be re-used;
+the differences for CPO are:
+
+- **Transceiver info publishing**: both OE and ELSFP information must be published. The `SfpStateUpdateTask`
+  logic that publishes transceiver info to Redis will be pulled into its own function that the CPO subclass
+  overrides to publish OE information to the existing `TRANSCEIVER_INFO` table and ELSFP information to a new
+  `TRANSCEIVER_ELS_INFO` table.
+- **Threshold publishing on insertion**: OE thresholds are published to the existing
+  `TRANSCEIVER_DOM_THRESHOLD` / `TRANSCEIVER_VDM_*_THRESHOLD` tables as today, and ELSFP threshold data
+  provided by the ElsfpApi is published to the parallel `TRANSCEIVER_ELS_*` variants, following the schema
+  approach in section 7.2.2.1.
+- **Cleanup on plug-out and logical port removal**: the table list passed to `del_port_sfp_dom_info_from_db()`
+  will be extended with the `TRANSCEIVER_ELS_*` tables so ELSFP entries are cleared alongside the existing
+  `TRANSCEIVER_*` entries. This preserves the contract with orchagent in a backwards compatible manner, which
+  reacts to the creation and deletion of the `TRANSCEIVER_INFO` table.
+- **De-duplication of module-scope reads**: transceiver info and thresholds are module-scope data, and one
+  ELSFP plug event affects all sibling physical ports sharing that ELSFP. The CPO subclass will read this data
+  once per device and re-use it across sibling ports, mirroring the approach in section 7.2.2.2.
+
+###### 7.3.2.2 Presence Change Event Handling
+
+For CPO objects, `get_presence()` reports the presence of the ELSFP. The OE is co-packaged and always present,
+so the ELSFP is the only removable device for a CPO port.
+
+Insertion and removal detection is driven by the chassis-level `get_change_event()` call, which returns a
+single stream of per-physical-port events. Since `SfpStateUpdateTask` and `CpoStateUpdateTask` run in parallel,
+they cannot both call `get_change_event()` directly: it is a single blocking event stream, so each call would
+consume events destined for both tasks. There is essentially no mechanism that would prevent the CPO task from
+consuming events for traditional transceivers and vice-versa.
+
+To address this, a new `get_elsfp_change_event()` function will be defined in the platform API alongside
+`get_change_event()`. It follows the same semantics — blocking with a timeout, returning insertion/removal
+events keyed by physical port, reported once for each physical port associated with the ELSFP — but reports
+ELSFP events only. `CpoStateUpdateTask` blocks on `get_elsfp_change_event()` while `SfpStateUpdateTask`
+continues to consume `get_change_event()` unchanged, giving each task its own independent event stream.
 
 #### 7.4 Port Device Access
 
