@@ -110,7 +110,7 @@ of ports it is responsible for. Internally, it will then decide to skip any port
         # Start the CMIS manager
         # self.sfp_obj_dict contains all traditional pluggable ports
         cmis_manager = None
-        if not self.skip_cmis_mgr:
+        if not self.skip_cmis_mgr and self.sfp_obj_dict:
             cmis_manager = CmisManagerTask(self.namespaces, port_mapping_data, self.sfp_obj_dict, self.stop_event, skip_cmis_mgr=self.skip_cmis_mgr)
             cmis_manager.start()
             self.threads.append(cmis_manager)
@@ -118,7 +118,7 @@ of ports it is responsible for. Internally, it will then decide to skip any port
         # Start the CPO manager
         # self.cpo_obj_dict contains all CPO ports
         cpo_manager = None
-        if self.cpo_obj_dict:
+        if not self.skip_cpo_mgr and self.cpo_obj_dict:
             cpo_manager = CpoManagerTask(self.namespaces, port_mapping_data, self.cpo_obj_dict, self.stop_event)
             cpo_manager.start()
             self.threads.append(cpo_manager)
