@@ -430,29 +430,40 @@ continues to consume `get_change_event()` unchanged, giving each task its own in
 
 #### 7.4 Port Device Access
 
-TODO: How `xcvrd` accesses CPO objects on the Chassis object and differentiates between what is a CPO port
-and what is a traditional pluggable port.
+`xcvrd` needs to know how to differentiate between traditional pluggable ports and CPO ports. There is not
+yet a standardized SFF-8024 identifier for CPO modules, so this will be solved by checking if the port is
+a CPO port via the ChassisBase-provided CPO object access methods outlined in the ["Port Mapping for CPO"
+HLD](https://github.com/sonic-net/SONiC/blob/master/doc/platform/port_mapping_for_cpo.md):
+```python3
+def is_cpo_port(physical_port):
+    if platform_chassis is None:
+        return False
+    try:
+        return platform_chassis.get_cpo(physical_port) is not None
+    except (NotImplementedError, AttributeError, IndexError):
+        return False
+```
+This will allow `xcvrd` to make a decision on whether a given port should be handled by the existing set of
+tasks or the new set of CPO-specific tasks described in this HLD.
 
-Two options:
-1. Define new `get_cpo()` accessors on ChassisBase and store CPO ports on in a `self.cpo_list` instance variable separate to `self.sfp_list`
-2. Re-use `self.sfp_list`, but just store a `CpoBase`-derived object in that list for any CPO ports.
-
-Option 1 will require more work in `xcvrd`, but provides a cleaner separation between CPO and traditional pluggables.
-Option 2 requires less work, because more code can be re-used in `xcvrd`.
+In the above sections, `xcvrd` also requires the ability to fetch which other physical ports share an
+optical engine or ELSFP with the current physical port. To support that need, two new functions will
+be implemented as utility functions for `xcvrd` code to use:
+- `get_oe_sibling_pports` which fetches all other physical ports that share an OE.
+- `get_elsfp_sibling_pports` which fetches all other physical ports that share an ELSFP.
 
 ### 8. SAI API 
 
 This HLD proposes no SAI API changes.
 
 ### 9. Configuration and management 
-This section should have sub-sections for all types of configuration and management related design. Example sub-sections for "CLI" and "Config DB" are given below. Sub-sections related to data models (YANG, REST, gNMI, etc.,) should be added as required.
-If there is breaking change which may impact existing platforms, please call out in the design and get platform vendors reviewed. 
+N/A
 
 ### 10. Warmboot and Fastboot Design Impact  
 N/A
 
 ### 11. Memory Consumption
-This sub-section covers the memory consumption analysis for the new feature: no memory consumption is expected when the feature is disabled via compilation and no growing memory consumption while feature is disabled by configuration. 
+No noticeable increase in memory consumption is expected due to the changes proposed in this HLD.
 
 ### 12. Restrictions/Limitations  
 
