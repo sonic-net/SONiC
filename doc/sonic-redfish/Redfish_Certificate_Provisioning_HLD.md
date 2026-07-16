@@ -7,7 +7,7 @@ What this design delivers, in one list. Each item has a full section below.
 - **Automatic certificate consumption.** A staging helper (`stage-credentials.sh`) inside the redfish container reshapes the provisioned files from `/etc/sonic/credentials/` (`server.crt`, `server.key`, `server_ca.crt`) into what bmcweb expects: a combined `server.pem`, a CA truststore with its `<hash>.0` symlink. bmcweb's code is untouched.
 - **Automatic rotation.** A watcher picks up installs and rotations (inotify, plus a 60 second reconcile as a safety net) and restarts bmcweb, since bmcweb reads certificates only at startup. A cert/key pair guard ensures a mid-rotation mismatch is never staged.
 - **mTLS enforcement.** `TLSStrict` and CN-to-local-user mapping (`MTLSCommonNameParseMode 2`) are enabled once, at first provisioning. Clients must present a certificate signed by the staged CA whose CN names a local BMC user.
-- **Secure mode (fail closed).** A CONFIG_DB flag, `DEVICE_METADATA|localhost` field `redfish_secure_mode`, is auto-set at first provisioning. Once on, every bmcweb start is gated: with no valid staged certificate, bmcweb does not start at all, instead of falling back to a self-signed cert. Recovery is automatic when valid certs reappear.
+- **Secure mode (fail closed).** A CONFIG_DB flag, `REDFISH|AUTHENTICATION_MODE` field `secure_mode`, is auto-set at first provisioning. Once on, every bmcweb start is gated: with no valid staged certificate, bmcweb does not start at all, instead of falling back to a self-signed cert. Recovery is automatic when valid certs reappear.
 - **Deletion behavior.** Deleting the source certificates does not tear down the running service (bmcweb keeps serving the last staged certificate), and it is not a way to revoke access: the running bmcweb keeps serving the already-loaded certificate and keeps trusting the same CA. To actually revoke, rotate the CA (clients whose certs were issued by the old CA then fail the mTLS handshake).
 - **Observability.** The watcher publishes sync status to STATE_DB (`REDFISH_CERT_STATUS|global`: `in_sync`, `last_error`, fingerprints, served serial) every cycle, and every decision is logged to syslog. A rotation that fails to land is visible, not silent; monitoring must watch `in_sync`.
 - **Boot resilience preserved.** Before certificates are ever provisioned, the BMC still boots with bmcweb's self-signed certificate and the API is reachable.
@@ -210,7 +210,7 @@ Enable once; it persists. `TLSStrict` survives restarts in the persistent data f
 
 The features so far preserve bmcweb's self-signed fallback: useful during bootstrap, but wrong for a provisioned production unit, where falling back to an untrusted, non-mTLS certificate on a cert problem would be a silent security downgrade. Secure mode closes that door.
 
-**The policy flag.** Secure mode is a CONFIG_DB field: `DEVICE_METADATA|localhost` field `redfish_secure_mode`. When `true`, bmcweb must never serve a self-signed certificate; if no valid provisioned certificate is staged, bmcweb does not run at all (fail closed).
+**The policy flag.** Secure mode is a CONFIG_DB field: `REDFISH|AUTHENTICATION_MODE` field `secure_mode`. When `true`, bmcweb must never serve a self-signed certificate; if no valid provisioned certificate is staged, bmcweb does not run at all (fail closed).
 
 **Enforced at every start.** Because bmcweb's supervisord entry runs the script's guard mode, every single bmcweb start passes the gate:
 
@@ -326,7 +326,7 @@ What persists where:
 | provisioned source certs | host `/etc/sonic/credentials` | yes | yes | yes |
 | Staged certs, TLSStrict | container writable layer | yes | no | yes (container is restarted, not recreated) |
 | Fingerprint stamp | host `/var/lib/bmcweb` | yes | yes | yes |
-| `redfish_secure_mode` | running CONFIG_DB | yes | yes | only if config is saved |
+| `REDFISH|AUTHENTICATION_MODE:secure_mode` | running CONFIG_DB | yes | yes | only if config is saved |
 
 **Reboot.** CONFIG_DB is reloaded from the saved configuration, so an unsaved secure-mode flag does not survive by itself. The design covers this: on boot, if provisioned certs are present, the oneshot stages them and re-enables secure mode before bmcweb starts. So a provisioned unit returns to the same secured state after reboot, with or without `config save`. The one gap is a reboot on a provisioned unit whose source certs were also lost: with the flag unsaved, secure mode reads off and bmcweb would self-sign. Persisting the flag with `config save` closes that gap; whether to do that automatically is an open decision, deliberately left out of the container (a host-side concern).
 
@@ -362,7 +362,7 @@ No provisioning agent is involved in these tests. All certificates are generated
 - BMC shell access: run commands on the BMC host over SSH (write to `/etc/sonic/credentials`, `docker exec redfish ...`, `redis-cli` against CONFIG_DB/STATE_DB).
 - Cert install helper: place generated files into `/etc/sonic/credentials` with the versioned-file + stable-symlink layout; supports partial installs for negative cases.
 - Poll helpers: wait-until on STATE_DB `REDFISH_CERT_STATUS|global` fields (`in_sync`, fingerprints, `last_update`) and on the served certificate serial.
-- Teardown (critical, secure-mode is one-way by design): remove test certs from `/etc/sonic/credentials`, clear `redfish_secure_mode` from CONFIG_DB, remove staged files and `/bmcweb_persistent_data.json` inside the container (or recreate the redfish container), returning the BMC to the bootstrap state for other test modules.
+- Teardown (critical, secure-mode is one-way by design): remove test certs from `/etc/sonic/credentials`, clear `REDFISH|AUTHENTICATION_MODE:secure_mode` from CONFIG_DB, remove staged files and `/bmcweb_persistent_data.json` inside the container (or recreate the redfish container), returning the BMC to the bootstrap state for other test modules.
 
 **Test independence:** every test case is self-contained and order-independent. Each case brings the DUT to the state its steps require (via setup/fixtures) and restores state on teardown, so no case relies on another having run first. Where a section lists a precondition (for example "a valid trio is staged"), that state is established by the case's own setup, not inherited from a previous case. A shared install fixture provides the common "v1 staged, in_sync" starting point; cases that need a different starting point (bootstrap, mismatched pair) set it up themselves.
 
@@ -374,7 +374,7 @@ No provisioning agent is involved in these tests. All certificates are generated
 
 **Precondition (skip if not met):**
 
-- This case requires the bootstrap state: `/etc/sonic/credentials` contains no `server.crt`, `server.key`, or `server_ca.crt`, and `redfish_secure_mode` is not set (or not true) in CONFIG_DB. If either is already present, the DUT is provisioned; skip this case with a clear reason rather than resetting the device.
+- This case requires the bootstrap state: `/etc/sonic/credentials` contains no `server.crt`, `server.key`, or `server_ca.crt`, and `REDFISH|AUTHENTICATION_MODE:secure_mode` is not set (or not true) in CONFIG_DB. If either is already present, the DUT is provisioned; skip this case with a clear reason rather than resetting the device.
 
 **Steps:**
 
@@ -396,11 +396,11 @@ No provisioning agent is involved in these tests. All certificates are generated
 
 **Precondition (skip if not met):**
 
-- Bootstrap state: no certs in `/etc/sonic/credentials`, `redfish_secure_mode` not set (or not true) in CONFIG_DB, bmcweb serving its self-signed certificate.
+- Bootstrap state: no certs in `/etc/sonic/credentials`, `REDFISH|AUTHENTICATION_MODE:secure_mode` not set (or not true) in CONFIG_DB, bmcweb serving its self-signed certificate.
 
 **Steps:**
 
-1. Confirm the bootstrap precondition (skip otherwise): STATE_DB `REDFISH_CERT_STATUS|global` reports `in_sync false` with a "credentials not ready" reason, and `redfish_secure_mode` is unset.
+1. Confirm the bootstrap precondition (skip otherwise): STATE_DB `REDFISH_CERT_STATUS|global` reports `in_sync false` with a "credentials not ready" reason, and `REDFISH|AUTHENTICATION_MODE:secure_mode` is unset.
 2. Generate a valid trio with the test cert generator: a CA, and a server cert/key whose SAN matches the BMC's Redfish endpoint (IP/hostname).
 3. Install `server.crt`, `server.key`, and `server_ca.crt` into `/etc/sonic/credentials` in the versioned-file + stable-symlink layout.
 4. Poll (2s interval, 90s timeout) until STATE_DB reports `in_sync true`.
@@ -412,7 +412,7 @@ No provisioning agent is involved in these tests. All certificates are generated
 3. `CA-cert.pem` is present in `/etc/ssl/certs/authority` and a valid `<hash>.0` symlink points to it.
 4. The fingerprint stamp `/var/lib/bmcweb/.staged-credentials.stamp` is written and equals the fingerprint of the installed trio.
 5. `TLSStrict: true` is set in `/bmcweb_persistent_data.json`.
-6. `redfish_secure_mode` is now `true` in CONFIG_DB (`DEVICE_METADATA|localhost`), set automatically with no manual step.
+6. `secure_mode` is now `true` in CONFIG_DB (`REDFISH|AUTHENTICATION_MODE`), set automatically with no manual step.
 7. STATE_DB `REDFISH_CERT_STATUS|global`: `in_sync true`, `last_error` empty, `source_fingerprint` equals `applied_fingerprint`, and `served_serial` equals the installed server cert's serial.
 8. `last_update` advances across two successive reads at least one watch interval apart (the watcher heartbeat is alive).
 
@@ -485,7 +485,7 @@ Preconditions for this section: a valid trio (call it v1) is staged and `in_sync
 2. An mTLS request with the original client cert (unchanged, same CA) still succeeds with HTTP 200.
 3. `TLSStrict` is still `true`.
 4. The fingerprint stamp advanced to the v2 trio, and `source_fingerprint` equals `applied_fingerprint`.
-5. `redfish_secure_mode` remains `true` (unchanged by rotation).
+5. `secure_mode` remains `true` (unchanged by rotation).
 
 **Test Case #2: Rotating the CA is staged and the new truststore takes effect**
 
@@ -598,7 +598,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true` (
 1. The `stage-credentials` oneshot ran and reached EXITED (code 0) before bmcweb started (staging happened ahead of the first bmcweb start).
 2. bmcweb's first served certificate is the v1 provisioned cert, not self-signed: at no point during startup was a self-signed cert served (the served serial is v1 from the first successful HTTPS response).
 3. mTLS is enforced immediately (a request without a client cert is rejected; a valid client cert returns HTTP 200).
-4. `redfish_secure_mode` is still `true` (survived in CONFIG_DB across the recreate).
+4. `secure_mode` is still `true` (survived in CONFIG_DB across the recreate).
 
 **Test Case #2: A bmcweb-only restart retains mTLS and does not re-run the oneshot**
 
@@ -624,7 +624,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true` (
 **Verification:**
 
 1. bmcweb comes up serving the v1 provisioned cert with mTLS enforced, with no self-signed phase, because the oneshot re-stages from the surviving source certs before bmcweb starts.
-2. `redfish_secure_mode` is `true` after boot (re-enabled by the boot-time stage even if it was not persisted with `config save`, since the source certs are present).
+2. `secure_mode` is `true` after boot (re-enabled by the boot-time stage even if it was not persisted with `config save`, since the source certs are present).
 3. The fingerprint stamp (on the host mount) survived the reboot and matches the v1 trio.
 
 ### Section 9: Robustness and negative input
@@ -700,13 +700,13 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true`, 
 
 ### Section 10: Secure mode (fail closed)
 
-Preconditions for this section: `redfish_secure_mode` is `true` (established by a prior successful install, which the case's setup performs).
+Preconditions for this section: `secure_mode` is `true` (established by a prior successful install, which the case's setup performs).
 
 **Test Case #1: Guard refuses to start bmcweb when no valid cert is available**
 
 **Steps:**
 
-1. Set up: install v1 so `redfish_secure_mode` becomes `true` and mTLS works.
+1. Set up: install v1 so `secure_mode` becomes `true` and mTLS works.
 2. Remove the source trio from `/etc/sonic/credentials`, and inside the container remove the staged `server.pem` (so neither a valid source nor a valid staged cert exists), then restart bmcweb: `docker exec redfish supervisorctl restart bmcweb`.
 3. Wait for supervisord to finish its start attempts.
 
