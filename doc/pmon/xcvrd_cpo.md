@@ -18,9 +18,10 @@
     - [7.2.1 Interface Gap Analysis](#721-interface-gap-analysis)
     - [7.2.2 Changes Required](#722-changes-required)
       - [7.2.2.1 Database Schema for CPO](#7221-database-schema-for-cpo)
-      - [7.2.2.2 CpoDomInfoUpdateTask](#7222-cpodominfoupdatetask)
-      - [7.2.2.3 Introduce banked and non-banked aggregate getters in CmisApi and ElsfpApi](#7223-introduce-banked-and-non-banked-aggregate-getters-in-cmisapi-and-elsfpapi)
-      - [7.2.2.4 Refactor of DomInfoUpdateTask Database Publishing Utilities](#7224-refactor-of-dominfoupdatetask-database-publishing-utilities)
+      - [7.2.2.2 New ELSFP Database Fields](#7222-new-elsfp-database-fields)
+      - [7.2.2.3 CpoDomInfoUpdateTask](#7223-cpodominfoupdatetask)
+      - [7.2.2.4 Introduce banked and non-banked aggregate getters in CmisApi and ElsfpApi](#7224-introduce-banked-and-non-banked-aggregate-getters-in-cmisapi-and-elsfpapi)
+      - [7.2.2.5 Refactor of DomInfoUpdateTask Database Publishing Utilities](#7225-refactor-of-dominfoupdatetask-database-publishing-utilities)
   - [7.3 ELSFP Presence Detection (SfpStateUpdateTask)](#73-elsfp-presence-detection-sfpstateupdatetask)
     - [7.3.1 Interface Gap Analysis](#731-interface-gap-analysis)
     - [7.3.2 Changes Required](#732-changes-required)
@@ -237,7 +238,120 @@ published to the regular `TRANSCEIVER_*` tables.
 - The naming scheme `TRANSCEIVER_ELS_*` preserves the ability to grep for the Redis keys related to transceiver information,
 since it shares the same prefix of `TRANSCEIVER_` with the existing tables.
 
-###### 7.2.2.2 CpoDomInfoUpdateTask
+###### 7.2.2.2 New ELSFP Database Fields
+
+This section lists the initially proposed fields to be published to Redis for ELSFP devices.
+
+Note: this is not intended to be a canonical source-of-truth but rather just give a high-level idea of the information
+that will be published for an ELSFP and provide an opportunity for reviewers to point out any notable information that is not
+included. It is likely to become outdated and drift from reality with time.
+
+**TRANSCEIVER_ELS_INFO**
+
+| Field Name | Type | Description |
+|---|---|---|
+| `module_function_type` | STRING | Module function type, e.g. "Resource Module" |
+| `lane_count` | INTEGER | Number of optical lanes supported by the ELSFP |
+| `control_mode` | STRING | Laser control mode: "APC" or "ACC" |
+| `max_optical_power` | FLOAT | Maximum supported output optical power (dBm) |
+| `min_optical_power` | FLOAT | Minimum supported output optical power (dBm) |
+| `max_laser_bias` | FLOAT | Maximum laser bias current (mA) |
+| `min_laser_bias` | FLOAT | Minimum laser bias current (mA) |
+| `lane_to_fiber_mapping` | STRING | Mapping of lane index to fiber index |
+| `lane_frequency` | FLOAT | Nominal per-lane optical frequency (THz) |
+| Existing fields reported for OE | - | Any common CMIS fields reported by OE will also be reported by the ELSFP |
+
+**TRANSCEIVER_ELS_DOM_SENSOR**
+
+The following fields are added for ELSFP entries. The existing `temperature` and `voltage` fields are retained.
+
+| Field Name | Type | Description |
+|---|---|---|
+| `voltage_laneN` | FLOAT | Per-lane supply voltage (V); N = 1..lane_count |
+| `laser_bias_current_laneN` | FLOAT | Per-lane laser bias current (mA); N = 1..lane_count |
+| `optical_power_laneN` | FLOAT | Per-lane output optical power (dBm); N = 1..lane_count |
+| `icc_monitor` | FLOAT | Integrated coherent controller monitor value |
+| `tec_current` | FLOAT | TEC drive current (mA); optional, present only if vendor supports aux monitor |
+| `laser_temperature` | FLOAT | Laser junction temperature (°C); optional, present only if vendor supports aux monitor |
+
+**TRANSCEIVER_ELS_DOM_THRESHOLD**
+
+The following per-lane threshold fields are added for ELSFP entries:
+
+| Field Name | Type | Description |
+|---|---|---|
+| `bias_alarm_high_laneN` | FLOAT | Laser bias high alarm threshold (mA) |
+| `bias_alarm_low_laneN` | FLOAT | Laser bias low alarm threshold (mA) |
+| `bias_warn_high_laneN` | FLOAT | Laser bias high warning threshold (mA) |
+| `bias_warn_low_laneN` | FLOAT | Laser bias low warning threshold (mA) |
+| `optical_power_alarm_high_laneN` | FLOAT | Optical power high alarm threshold (dBm) |
+| `optical_power_alarm_low_laneN` | FLOAT | Optical power low alarm threshold (dBm) |
+| `optical_power_warn_high_laneN` | FLOAT | Optical power high warning threshold (dBm) |
+| `optical_power_warn_low_laneN` | FLOAT | Optical power low warning threshold (dBm) |
+| `tec_current_alarm_high` | FLOAT | TEC current high alarm threshold (mA); optional, present only if vendor supports aux monitor |
+| `tec_current_alarm_low` | FLOAT | TEC current low alarm threshold (mA); optional |
+| `tec_current_warn_high` | FLOAT | TEC current high warning threshold (mA); optional |
+| `tec_current_warn_low` | FLOAT | TEC current low warning threshold (mA); optional |
+| `laser_temperature_alarm_high` | FLOAT | Laser temperature high alarm threshold (°C); optional, present only if vendor supports aux monitor |
+| `laser_temperature_alarm_low` | FLOAT | Laser temperature low alarm threshold (°C); optional |
+| `laser_temperature_warn_high` | FLOAT | Laser temperature high warning threshold (°C); optional |
+| `laser_temperature_warn_low` | FLOAT | Laser temperature low warning threshold (°C); optional |
+
+**TRANSCEIVER_ELS_DOM_FLAG**
+
+| Field Name | Type | Description |
+|---|---|---|
+| `laser_bias_alarm_high_laneN` | BOOLEAN | Laser bias high alarm flag |
+| `laser_bias_alarm_low_laneN` | BOOLEAN | Laser bias low alarm flag |
+| `laser_bias_warn_high_laneN` | BOOLEAN | Laser bias high warning flag |
+| `laser_bias_warn_low_laneN` | BOOLEAN | Laser bias low warning flag |
+| `optical_power_alarm_high_laneN` | BOOLEAN | Optical power high alarm flag |
+| `optical_power_alarm_low_laneN` | BOOLEAN | Optical power low alarm flag |
+| `optical_power_warn_high_laneN` | BOOLEAN | Optical power high warning flag |
+| `optical_power_warn_low_laneN` | BOOLEAN | Optical power low warning flag |
+| `tec_current_alarm_high` | BOOLEAN | TEC current high alarm flag; optional, present only if vendor supports aux monitor |
+| `tec_current_alarm_low` | BOOLEAN | TEC current low alarm flag; optional |
+| `tec_current_warn_high` | BOOLEAN | TEC current high warning flag; optional |
+| `tec_current_warn_low` | BOOLEAN | TEC current low warning flag; optional |
+| `laser_temperature_alarm_high` | BOOLEAN | Laser temperature high alarm flag; optional, present only if vendor supports aux monitor |
+| `laser_temperature_alarm_low` | BOOLEAN | Laser temperature low alarm flag; optional |
+| `laser_temperature_warn_high` | BOOLEAN | Laser temperature high warning flag; optional |
+| `laser_temperature_warn_low` | BOOLEAN | Laser temperature low warning flag; optional |
+| `active_alarm_laneN` | BOOLEAN | True if any alarm is active for lane N |
+| `active_warning_laneN` | BOOLEAN | True if any warning is active for lane N |
+
+**TRANSCEIVER_ELS_STATUS**
+
+| Field Name | Type | Description |
+|---|---|---|
+| `module_state` | STRING | CMIS module state |
+| `module_fault_cause` | STRING | Fault cause if module_state is Fault |
+| `enable_laneN` | BOOLEAN | Whether lane N is enabled |
+| `state_laneN` | STRING | Per-lane state: "Lane Output off" \| "Lane Output ramping" \| "Lane Output on" |
+| `output_fiber_checked_laneN` | BOOLEAN | Whether output fiber check has completed for lane N |
+
+Fields that are specific to datapath-capable modules (e.g., `dpinit_pending_hostlane1-8`, TX/RX output status) are **not** written for ELSFP entries.
+
+**TRANSCEIVER_ELS_STATUS_FLAG**
+
+| Field Name | Type | Description |
+|---|---|---|
+| `lane_summary_fault` | BOOLEAN | True if any lane has an active fault |
+| `lane_summary_warning` | BOOLEAN | True if any lane has an active warning |
+| `alarm_code_laneN` | STRING | Per-lane alarm code |
+| `warn_code_laneN` | STRING | Per-lane warning code |
+| `active_alarm` | BOOLEAN | Lane summary active alarm flag |
+| `active_warn` | BOOLEAN | Lane summary active warning flag |
+
+**TRANSCEIVER_ELS_VDM_***
+
+VDM content for ELSFP entries is vendor-defined, following the same structure as for conventional CMIS modules. The exact fields depend on what the vendor chooses to expose via VDM.
+
+**TRANSCEIVER_ELS_FIRMWARE_INFO**
+
+No new fields are added for ELSFP entries.
+
+###### 7.2.2.3 CpoDomInfoUpdateTask
 
 A subclass of `DomInfoUpdateTask` will be introduced, called `CpoDomInfoUpdateTask`. Similarly to the `CpoManagerTask`,
 this task will only be created to handle CPO ports and any traditional pluggable ports will continue to be handled
@@ -325,7 +439,7 @@ The `get_oe_sibling_pports()` / `get_elsfp_sibling_pports()` helpers return the 
 same underlying OE / ELSFP respectively, derived from the platform port mapping. These are described further in section
 "7.4 Port Device Access".
 
-###### 7.2.2.3 Introduce banked and non-banked aggregate getters in CmisApi and ElsfpApi
+###### 7.2.2.4 Introduce banked and non-banked aggregate getters in CmisApi and ElsfpApi
 
 As shown above in the CPO DOM control flow, the aggregate `CmisApi` functions used by the DOM task will be split
 into non-banked (module-scoped) and banked (lane-scope) variants. An analysis of the EEPROM pages read by each
@@ -341,7 +455,7 @@ pages 10h and above) in a single call:
 | `get_module_temperature`, `get_transceiver_threshold_info`, `get_transceiver_info_firmware_versions`, `get_lpmode` | all reads | — |
 | `get_transceiver_pm`, VDM values/flags/thresholds | support/advertising bits only (01h) | all monitored data |
 
-The mixed functions cannot be used as-is by the CPO DOM control flow (section 7.2.2.2), which needs to read module-scope data
+The mixed functions cannot be used as-is by the CPO DOM control flow (section 7.2.2.3), which needs to read module-scope data
 once per device and lane-scope data once per physical port. Each mixed aggregate will therefore be split, with the existing
 function re-implemented as the composition of the two new variants:
 
@@ -363,11 +477,11 @@ function re-implemented as the composition of the two new variants:
 Re-implementing the aggregate as a composition (rather than leaving it as parallel code) keeps behavior for traditional
 pluggables identical and means a vendor override of a scoped variant automatically stays consistent with the aggregate.
 
-###### 7.2.2.4 Refactor of DomInfoUpdateTask Database Publishing Utilities
+###### 7.2.2.5 Refactor of DomInfoUpdateTask Database Publishing Utilities
 
 The per-port publishing entrypoints used by `DomInfoUpdateTask` (e.g. `post_port_dom_sensor_info_to_db`) and the
 flag-publishing paths currently couple two steps in a single call — read the information from the transceiver EEPROM,
-then publish it — and hard-code the target `TRANSCEIVER_*` tables. The CPO control flow (section 7.2.2.2) performs its
+then publish it — and hard-code the target `TRANSCEIVER_*` tables. The CPO control flow (section 7.2.2.3) performs its
 own reads, de-duplicated across the ports sharing a device, and publishes both OE and ELSFP data. To be re-usable by
 the CPO task, the publishing code paths will be refactored so that:
 
@@ -377,7 +491,7 @@ the CPO task, the publishing code paths will be refactored so that:
   latter).
 
 For instance, the `dom_db_utils.post_diagnostic_values_from_dict_to_db()` function used in the `CpoDomInfoUpdateTask`
-snippet in section 7.2.2.2 is an example of this refactored publishing code path: the CPO control flow passes it the
+snippet in section 7.2.2.3 is an example of this refactored publishing code path: the CPO control flow passes it the
 values it has already collected along with the target table.
 
 All remaining publishing logic — value normalization, `last_update_time` stamping, and the flag metadata handling
@@ -427,7 +541,7 @@ the differences for CPO are:
   reacts to the creation and deletion of the `TRANSCEIVER_INFO` table.
 - **De-duplication of module-scope reads**: transceiver info and thresholds are module-scope data, and one
   ELSFP plug event affects all sibling physical ports sharing that ELSFP. The CPO subclass will read this data
-  once per device and re-use it across sibling ports, mirroring the approach in section 7.2.2.2.
+  once per device and re-use it across sibling ports, mirroring the approach in section 7.2.2.3.
 
 ###### 7.3.2.2 Presence Change Event Handling
 
