@@ -240,6 +240,8 @@ Packages:
 
 **Special handling:** SNMP service uses timer-based startup pattern requiring different restart logic.
 
+**Scope — containers managed by Sonic Package Manager (SPM):** Some containers are built as SPM extension packages (registered via `SONIC_PACKAGES_LOCAL`/`SONIC_PACKAGES` — for example `dhcp_relay`, `dhcp_server`, `macsec`; the exact set is determined by the build configuration), and SPM maintains its own package database and feature registry for them. The `docker` type applies to **built-in containers only**; SPM-managed containers are **out of scope** and must be updated through SPM. This keeps a single mechanism per container and avoids the inconsistent state that would result from two parallel infras replacing the same container image.
+
 ##### 7.3.2 Debian Package Upgrade (`debian`)
 
 **Install flow:**
@@ -259,6 +261,8 @@ Packages:
 3. Copy new file to target directory: `cp -p <file> <target_dir>/`
 
 **Rollback:** Restore original file from backup; if no backup exists, remove the deployed file.
+
+> **Note:** The `script` type only replaces the file on disk; it does not reload or restart anything. A script (or a long-running process) that is already running will not pick up the update until it is next invoked or restarted.
 
 ##### 7.3.4 Hook Script Execution (`hook_script`)
 
@@ -354,12 +358,12 @@ ii  libcareplus  1.0.3  amd64  libcareplus service package
 
 1. `libcare-ctl` attaches to every thread of the target process via `ptrace(PTRACE_ATTACH)`, freezing execution.
 2. It parses `/proc/<pid>/maps` to discover the ELF objects (main binary and shared libraries) and matches their BuildID against the `.kpatch` header.
-3. An anonymous memory region is allocated inside the target process (via a remote `mmap` syscall injected through `ptrace`).
+3. An anonymous memory region is allocated read-write inside the target process, near the original code (within ±2 GB so a 32-bit `jmp` can reach it), via a remote `mmap` syscall injected through `ptrace`.
 4. The patch ELF is relocated on-the-fly: symbols are resolved against the original binary, a jump table is created for undefined/external symbols, and all relocations are applied.
 5. The relocated patch code (`.kpatch.text`, `.kpatch.data`, jump table) is written into the allocated region via `/proc/<pid>/mem`.
 6. **Safety check** (see below): every thread and coroutine stack is inspected with `libunwind` to ensure no CPU is currently executing any function about to be patched. If a thread is inside such a function, the patcher inserts a temporary breakpoint at the function's return address, resumes the thread, and waits until it exits.
-7. Once safe, the original function's first 5 bytes are copied to the undo region, then overwritten with a `jmp` to the patched function (x86: `0xE9` + 32-bit relative offset).
-8. The patch memory is remapped `r-x` (read-execute), threads are detached, and the process resumes.
+7. Once safe, the original function's first 5 bytes are saved to the undo region, then overwritten with a `jmp` to the patched function (x86: `0xE9` + 32-bit relative offset). `libcare-ctl` does not `mprotect` the original code page — its permissions stay read-execute — and instead writes the bytes through `/proc/<pid>/mem` while ptrace-attached. This relies on standard Linux kernel behavior: a write to `/proc/<pid>/mem` goes through `get_user_pages_remote()` with the `FOLL_FORCE` flag, and because the `.text` page is a private, copy-on-write mapping, the kernel copies the page and applies the write to a private copy rather than rejecting it — the same path a debugger uses to set a breakpoint in read-only `.text`. The VMA's protection bits are left unchanged. This requires ptrace permission on the target (root / `CAP_SYS_PTRACE`, subject to the kernel's Yama `ptrace_scope` policy); if a mapping is not copy-on-write-able or such access is blocked by a hardening policy, the write fails and the patch cannot be applied.
+8. The patch region is changed to its final permissions via a `mprotect` syscall injected through `ptrace`: the executable sections (`.kpatch.text` and the jump table) become read-execute, while the `.kpatch.data` section stays read-write. Threads are then detached, and the process resumes.
 
 *Rollback (Unpatch):*
 
@@ -398,6 +402,8 @@ ii  libcareplus  1.0.3  amd64  libcareplus service package
 **Rollback:** Re-tag original image, remove version tag and flag file.
 
 This is a cold-upgrade type: the new image only becomes active after a reboot.
+
+**Scope — containers managed by Sonic Package Manager (SPM):** As with the `docker` type (7.3.1), the `dockerfile` type applies to **built-in containers only**. Containers built as SPM extension packages (registered via `SONIC_PACKAGES_LOCAL`/`SONIC_PACKAGES` — for example `dhcp_relay`, `dhcp_server`, `macsec`) are **out of scope** and must be updated through SPM, to avoid two parallel mechanisms managing the same container image and the resulting inconsistent state.
 
 #### 7.4 Installation Flow
 
@@ -607,8 +613,11 @@ The hotpatch feature has no impact on warmboot or fastboot flows:
 6. The system does not support concurrent patch installation.
 7. `dpkg-repack` must be available on the system for Debian rollback functionality.
 8. The `libcareplus` Debian package must be pre-installed for `func_hotpatch` support.
-9. `func_hotpatch` only supports **C/C++** functions.
-10. The following scenarios are **not supported** by `func_hotpatch`:
+9. `func_hotpatch` requires the target process to permit writing to its code pages and creating executable memory. Processes hardened with a W^X-style policy (e.g. systemd `MemoryDenyWriteExecute=yes`, SELinux `execmem` denial, PaX MPROTECT, or kernel lockdown) will reject the patch, and installation will fail.
+10. `func_hotpatch` supports up to 512 patches applied to a single process.
+11. The `script` type performs a file replacement only; it does not update the in-memory copy of an already-running script or process. The update takes effect on the next invocation/restart.
+12. `func_hotpatch` only supports **C/C++** functions.
+13. The following scenarios are **not supported** by `func_hotpatch`:
     - Functions in infinite loops or that never return
     - `inline` functions
     - Constructor / initialization functions
@@ -620,7 +629,7 @@ The hotpatch feature has no impact on warmboot or fastboot flows:
     - Structure member changes (add, remove, modify)
     - Modifying C files that use compiler macros such as `__LINE__` or `__FILE__`
     - Modifying Intel vector assembly instructions
-11. Package ordering within `patch_info.yml` is significant - rollback proceeds in strict reverse order.
+14. Package ordering within `patch_info.yml` is significant - rollback proceeds in strict reverse order.
 
 
 ### 13. Testing Requirements/Design
