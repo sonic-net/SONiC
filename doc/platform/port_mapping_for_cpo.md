@@ -136,8 +136,8 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
       "device_type": "optical_engine",
       // The number of CMIS banks associated with this device.
       "max_banks": 4,
-      // The overall number of physical lanes available in this device.
-      "lanes": "41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,...",
+      // The ASIC lanes this device is responsible for
+      "asic_lanes": "41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,...",
       // If a vendor needs to encode I2C mapping information, that information
       // can be included here. However, this is platform dependent and may be
       // achieved via other mechanisms.
@@ -148,8 +148,8 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
       // Number of individual lasers this device provides.
       "lasers": 8,
       "max_banks": 1,
-      // laser_to_lane_mapping provides a mapping of laser to which lane it is powering.
-      "laser_to_lane_mapping": {
+      // laser_to_asic_lane_mapping provides a mapping of laser to which ASIC lane it is powering.
+      "laser_to_asic_lane_mapping": {
         "1": "41,42",
         "2": "43,44",
         "3": "45,46",
