@@ -45,6 +45,7 @@
 | Rev | Date       | Author                  | Change Description |
 |-----|------------|-------------------------|--------------------|
 | 0.1 | 2026-05-12 | Venkit Kasiviswanathan  | Initial version    |
+| 0.2 | 2026-07-19 | Venkit Kasiviswanathan  | Revise §7.2 ingress model: stage ZMQ tuples in a coalescing map (`m_ingress`) and merge into `m_toSync` in `execute()`; `drain()` runs lock-free. |
 
 ## 2. Scope
 
@@ -89,8 +90,9 @@ queues and ZMQ socket buffers back up under load.
 
 This HLD proposes to:
 
-1. Move the addToSync work into `mqPollThread` so tuples flow directly into
-   the coalescing `m_toSync`, removing the intermediate non-coalescing queues.
+1. Remove the intermediate non-coalescing queues: the `mqPollThread` ingress
+   callback coalesces tuples into a staging map, and the main thread merges
+   that map into `m_toSync` in `execute()`.
 2. Split `drain()` into three independent stages (build bulk, flush, handle
    response) and run each under a bounded time quantum with yield/resume
    semantics.
@@ -169,10 +171,10 @@ unchanged. What changes is the threading model and data flow inside
 
 ![New orchagent route programming flow](images/orchagent_route_redesign/new_design.png)
 
-- Move `addToSync` work off the main thread. The merge logic now runs in
-  `mqPollThread`.
-- Eliminate the intermediate queues. Tuples flow from `mqPollThread` →
-  `m_toSync` directly.
+- Eliminate the intermediate non-coalescing queues. The `mqPollThread` ingress
+  callback coalesces tuples into a staging map (`m_ingress`) instead.
+- Merge the staging map into `m_toSync` in `execute()` on the main thread, then
+  run `drain()` without holding the lock.
 - Wake the main loop at most once per "real" burst. Use a 2-tier poll timeout
   to coalesce notifications.
 - Split `drain()` into three independent tasks (`toBulkTask`, `flushTask`,
@@ -194,27 +196,35 @@ unchanged. What changes is the threading model and data flow inside
 - `m_toSync` can be converted to a simple `unordered_map`. Any update simply
   overwrites the existing entry's value.
 
-### 7.2. Update `m_toSync` from `mqPollThread` directly
+### 7.2. Coalesce ZMQ ingress into a staging map; merge into `m_toSync` in `execute()`
 
 PRs implementing this:
 
 - [sonic-swss-common#1187](https://github.com/sonic-net/sonic-swss-common/pull/1187)
 - [sonic-swss#4564](https://github.com/sonic-net/sonic-swss/pull/4564)
 
-- Eliminate the intermediate non-coalescing queues described above and update
-  the coalescing `m_toSync` directly from `mqPollThread`.
-- This ensures ZMQ socket buffers are drained on time.
-- More coalescing happens when `drain()` is slower.
-- The following operations are performed inside `mqPollThread`:
-  - `pops()`
-  - `addToSync()`
-- Locks protect concurrent access to `m_toSync`.
-- The change is implemented incrementally. The initial implementation still
-  holds the lock for the entire duration when `drain()` is operating, which
-  is no different from today.
-- In subsequent PRs the code incrementally reads/writes `m_toSync` only when
-  required, allowing `mqPollThread` to update it even while `drain()` is
-  operating.
+- Eliminate the intermediate non-coalescing queues described above. Rather than
+  merging into `m_toSync` from `mqPollThread`, the poll thread's ingress
+  callback stages each tuple into a separate, key-coalescing
+  `std::unordered_map` (`m_ingress`) under `m_toSyncMutex`. Because `m_ingress`
+  is keyed by the route key, repeated updates to the same key overwrite in
+  place, so it coalesces (unlike the old queue). The poll thread never calls
+  `addToSync()` and never touches `m_toSync`.
+- This ensures ZMQ socket buffers are drained on time. More coalescing happens
+  in `m_ingress` when `drain()` is slower.
+- `ZmqRouteConsumer::execute()` (the orch main thread) then merges the staged
+  tuples into `m_toSync`: under `m_toSyncMutex` it moves everything out of
+  `m_ingress`, clears it, and calls `addToSync(entries)` — mirroring
+  `ZmqConsumer::execute()`'s `pops()` + `addToSync()`. The lock is held only
+  for this brief hand-off.
+- `drain()` then runs **without** the lock. Because `m_toSync` is mutated only
+  by the main thread, `drain()` and all base `ConsumerBase` paths need no
+  locking; there is no phase where the lock is held for the duration of
+  `drain()`.
+- Wake-up is coalesced: the ingress callback fires `notifyPending()` only once
+  the staged batch reaches `gMaxBulkSize` (so the main loop wakes to a real
+  batch), and the `ZmqRouteServer` poll loop otherwise wakes the main loop at
+  most once per burst (the 2-tier poll timeout described in §6.3).
 
 ### 7.3. Split `drain()` into 3 independent operations
 
@@ -321,10 +331,12 @@ This is a built-in SONiC feature, not a SONiC Application Extension.
 ### 7.9. SWSS / Syncd changes
 
 - Inside SWSS, the largest changes are in the ZMQ consumer path and
-  `RouteOrch`. The change replaces a non-coalescing intermediate queue with
-  direct updates into the coalescing `m_toSync` map (protected by a lock),
-  and breaks `drain()` into three independently schedulable stages with
-  yield/resume semantics and per-stage time quanta.
+  `RouteOrch`. The change replaces a non-coalescing intermediate queue with a
+  key-coalescing staging map (`m_ingress`) populated by the poll thread; the
+  main thread merges it into `m_toSync` in `execute()` (holding the lock only
+  for that hand-off) and then runs `drain()` lock-free. It also breaks
+  `drain()` into three independently schedulable stages with yield/resume
+  semantics and per-stage time quanta.
 - Syncd is not modified by this design. The SAI bulk API usage and
   flush-ordering semantics (deletes first, adds next, changes last) are
   preserved.
@@ -424,9 +436,6 @@ same SAI bulk-flush ordering. Existing warmboot/fastboot guarantees
 
 ## 12. Restrictions/Limitations
 
-- The incremental rollout still holds the `m_toSync` lock for the entire
-  duration of `drain()` in the initial PRs. Full concurrent access is gated
-  on subsequent PRs that read/write `m_toSync` only when required.
 - The yield/resume scheme relies on each stage being able to checkpoint its
   progress. Stages that, in the future, perform indivisible work larger than
   the time quantum will still run to completion before yielding.
@@ -437,8 +446,9 @@ same SAI bulk-flush ordering. Existing warmboot/fastboot guarantees
 
 - `m_toSync` as `unordered_map`: SET-then-SET coalesces, DEL-then-SET
   overwrites, SET-then-DEL overwrites.
-- `mqPollThread` writes directly into `m_toSync` with the correct lock
-  discipline.
+- The `mqPollThread` ingress callback stages tuples into `m_ingress`
+  (coalescing by key) under `m_toSyncMutex`, and `execute()` merges `m_ingress`
+  into `m_toSync` and then runs `drain()` without the lock.
 - `toBulkTask`, `flushTask`, `responseHandlingTask` each respect the
   configured time quantum and correctly checkpoint/resume.
 - `responseHandlingTask` failure handling: write back to `m_toSync` only when
