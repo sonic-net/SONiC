@@ -55,7 +55,7 @@ The scope of this HLD is to define how `xcvrd` will use the CPO platform API obj
 | CMIS | Common Management Interface Specification |
 | CPO | Co-packaged Optics |
 | OE | Optical Engine |
-| ELSFP | External Laser Small Factor Pluggable |
+| ELSFP | External Laser Small Form Factor Pluggable |
 | DOM | Digital Optical Monitoring |
 
 ### 4. Overview 
@@ -148,7 +148,7 @@ power mode, since low power mode is a module-wide state. This requires fetching 
 disabling / deinitializing their lanes. See the below code snippet outlining `CpoManagerTask` for how this could be implemented simply.
 
 Later on, if further customization of state machine logic is required to aid in debugging or manage extra steps in the state machine for CPO,
-the `CmisManagerTask` can be refactored and/or methods can be overriden in `CmisManagerTask` by `CpoManagerTask`.
+the `CmisManagerTask` can be refactored and/or methods can be overridden in `CmisManagerTask` by `CpoManagerTask`.
 
 ```python3
 class CpoManagerTask(CmisManagerTask):
