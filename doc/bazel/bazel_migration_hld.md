@@ -41,20 +41,32 @@
 
 This document covers the migration of the SONiC build system into a modern, Bazel-based system. It proposes an end state of the build system, as well as a migration path to get us there.
 
-Please note that this design covers only the migration of individual components. Migrating the full image assembly process is out of the scope of this document.
+Please note that this design covers only the migration of individual components (defined in the next section). Migrating the full image assembly process is out of the scope of this document.
 
 ### 3. Definitions/Abbreviations
 
+Core Definitions
+
+- Component: When we reference "SONiC components" here, we're generally talking about "a unit of work that can exist and be built in isolation".
+    - For this document, it is useful to think of components as "pieces of functionality that would make sense to migrate at once".
+    - A useful heuristic to figure out what is and isn't a component is to look at `<sonic-buildimage>/rules/*.mk`. If it has an `*.mk` file, we'll likely call it a component.
+    - First party `.deb` files, first party wheels (e.g. `sonic-utilities`), and containers are components. The tests for `sonic-swss` are _not_ a component.
+
+Bazel Definitions
+
 - Bazel: A build system open-sourced by Google. It specializes in polyglot builds, and promises fast, reproducible builds through hermeticity. [Documentation](https://bazel.build/docs)
-- Bazel rules, also called rulesets: Extensions to Bazel to provide additional capabilities, usually to integrate Bazel with a new programming language. Usually named `rules_<lang>`. For instance, `rules_go` extends Bazel to be able to build and test Go sources. [Documentation](https://bazel-docs-staging.netlify.app/versions/master/skylark/rules.html)
-- BUILD files: Files where the Bazel build is defined. Usually named `BUILD.bazel`, and written by hand in [Starlark](https://bazel.build/rules/language). [Documentation](https://bazel.build/concepts/build-files)
-- Bazel registry: A specially-shaped directory that hosts bazel rules and their versions. [Documentation](https://bazel.build/external/registry)
-- Bazel Central Registry, or BCR: The canonical, Google-maintained Bazel registry. Most rulesets live here, and most Bazel projects pull their rulesets from here. [Documentation](https://registry.bazel.build/)
-- bzlmod: Bazel's dependency resolution tool, which takes care of resolving ruleset dependencies. Automatically works with the BCR by default, but can be configured to resolve dependencies from other Bazel registries. [Documentation](https://bazel.build/external/overview)
 - Bazel target: The unit of a build. A target represents one or more inputs and produces one or more outputs. For instance, "the docker image for syncd" is a target, but so is "the shared library of sonic_swss_common". [Documentation](https://bazel.build/concepts/build-ref)
 - Label: The unique identifier of a target. It follows the syntax `@<repository name>//path/to/target:<target name>` . For instance, `@sonic_buildimage//dockers/docker-base-bookworm:docker-base-bookworm` refers to [this target](https://github.com/thesayyn/sonic-buildimage/blob/04f2d3bf54650b1ceecb663a11f53be6810856f1/dockers/docker-base-bookworm/BUILD.bazel#L123-L139). [Documentation](https://bazel.build/concepts/labels)
+- Bazel rules, also called rulesets: Extensions to Bazel to provide additional capabilities, usually to integrate Bazel with a new programming language. Usually named `rules_<lang>`. For instance, `rules_go` extends Bazel to be able to build and test Go sources. Over time, more of the basic Bazel capabilities have migrated into rules (e.g. `rules_java`) [Documentation](https://bazel-docs-staging.netlify.app/versions/master/skylark/rules.html)
+- BUILD files: Files where the Bazel build is defined. Usually named `BUILD.bazel`, and written by hand in [Starlark](https://bazel.build/rules/language). [Documentation](https://bazel.build/concepts/build-files)
+- Bazel registry: A specially-shaped directory that hosts bazel rules and their versions. [Documentation](https://bazel.build/external/registry)
+    - A registry can be hosted either in the local filesystem, or in an HTTP server (e.g. a GitHub repository).
+    - A registry always hosts Bazel rules. If a Bazel module looks to be something else, it's usually because it hosts _the Bazel BUILD files for that module_. For instance, the module [`@openssl`](https://registry.bazel.build/modules/openssl) in the Bazel Central Registry hosts [BUILD files](https://registry-preview.bazel.build/modules/openssl/3.5.5.bcr.4/overlay), not C files. The source code of OpenSSL itself is fetched at [build time, usually via `http_archive`](https://github.com/bazelbuild/bazel-central-registry/blob/68775ed7998a241462b0db593673b8277f407ba2/modules/openssl/3.5.5.bcr.4/overlay/MODULE.bazel#L18-L25).
+- Bazel Central Registry, or BCR: The canonical, Google-maintained Bazel registry. Most rulesets live here, and most Bazel projects pull their rulesets from here. [Documentation](https://registry.bazel.build/)
+- bzlmod: Bazel's dependency resolution tool, which takes care of resolving ruleset dependencies. Automatically works with the BCR by default, but can be configured to resolve dependencies from other Bazel registries. [Documentation](https://bazel.build/external/overview)
 
-Non-Bazel Definitions
+Non-Bazel Definitions:
+
 - debhelper, or `dh`: A suite of Debian tools to rebuild and repack Debian packages. In SONiC, they are used to apply patches to external dependencies. [Documentation](https://man7.org/linux/man-pages/man1/dh.1.html)
 - Open Container Initiative (OCI): An industry standard to specify container formats and runtimes. [Documentation](https://opencontainers.org/).
 
@@ -84,7 +96,7 @@ Early results demonstrate that we can produce cold builds similar to those in th
 
 Bazel migrations are expensive, and famously disruptive. To alleviate this issue as much as possible, we propose a gradual, non-mandatory rollout.
 
-We will **extend the existing build system** with a new target type that can build docker containers in Bazel.
+We will **extend the existing build system** with a new makefile target type that can build docker containers in Bazel.
 The mechanics of this new target are discussed in [7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability).
 
 Users can control whether they want to build with Bazel or GNU make with a command line flag:
@@ -103,34 +115,42 @@ To minimize disruption, we propose the following phases to the migration:
 
 ##### Phase 1: Trial of Bazel Infrastructure
 
-Phase 1 will introduce Bazel as an optional build system for some components. The goal is to validate whether and how SONiC could most benefit from Bazel.
+Phase 1 will introduce Bazel as an optional build system for some components.
+The goal is to validate whether and how SONiC could most benefit from Bazel.
 
 For this phase, `BUILD_WITH_BAZEL_WHEN_AVAILABLE` will be turned off by default.
-We will start adding Bazel builds for leaf, small components such as `sysmgr`, `p4rt`, and the small watchdog binaries, and continue onto progressively larger leaf components until we have sufficient coverage to be representative of the benefits and challenges that Bazel poses.
+We will aim to migrate entire containers at once, though it's possible that a container can have _some_ Bazel-built parts and some Make-built parts.
+We will start adding Bazel builds for leaf, small containers such as `sysmgr`, `p4rt`, and the small watchdog binaries, and continue onto progressively larger leaf containers until we have sufficient coverage to be representative of the benefits and challenges that Bazel poses.
 
-All components should still be buildable with the regular Make-based flow.
+All components (containers and individual `.deb`s) should still be buildable with the regular Make-based flow.
 
-When a component is built with Bazel, this will entail:
+When a container is built with Bazel, this will entail:
 
-- Eliminating system dependencies for that component (e.g. from `apt` and `whl`), as well as other sonic-make injected deps. All dependencies will go through the hermetic Bazel build graph.
-- Removing `deb` packages as an intermediate format for that component, instead relying on the Bazel dependency graph.
-- Removing `docker` as a dependency for that component, instead building containers directly with Bazel.
+- Eliminating system dependencies for that container (e.g. from `apt` and `whl`), as well as other sonic-make injected deps. All dependencies will go through the hermetic Bazel build graph.
+- Removing `deb` packages as an intermediate format for that container, instead relying on the Bazel dependency graph. We will retain the ability to create `deb` packages with Bazel, it will just not be required.
+- Removing `docker` as a dependency for that container, instead building containers directly with Bazel.
 
 However, we will not attempt to:
 
-- Build a component with Bazel outside of the SONiC Make infra, or outside the slave container. The interface for users will still be `make target/dockers-*.gz`.
-- Build the base layers in Bazel. Bazel will consume Make-built base layers (e.g. `docker-base-bookworm`, `config-engine`).
-
-**We expect this phase to last until the November release.**
+- Build a container with Bazel outside of the SONiC Make infra, or outside the slave container. The interface for users will still be `make target/dockers-*.gz`.
+- Build the base layers in Bazel. Bazel will consume Make-built base layers (e.g. `docker-base-trixie`, `config-engine`).
 
 The community can use this period to experiment with Bazel, adopt it into their own builds, and generally gather information on whether this is a net benefit.
+We will use this period to gather feedback and craft a list of requirements and exit criteria, answering the question: What guarantees do we need to proceed to Phase 2? What user journeys are the right ones for developers, CI, deployment and so forth?
+We will attempt to formalize them, and fill any gaps during Phase 1.
+
+**We expect this phase to last until the November release.**
 
 After the November release, the community will face a decision point: Should Bazel be a first-class build system in SONiC?
 
 Specifically:
 
-- Should Bazel be allowed to be the _only option_ for certain components (like it is today for `p4rt`)?
-- Should Bazel be allowed to handle most of the dependency graph for these components? As a consequence, some SONiC dependencies will have to be converted to Bazel (e.g. `sonic-utilities`).
+- Is the development experience in Bazel supported well enough to be used in day-to-day operations for migrated components and containers?
+    - Are there any gaps left to fill before this is true?
+- Should Bazel be allowed to be the _only option_ for certain containers (like it is today for `p4rt`)?
+- Should Bazel be allowed to handle most of the dependency graph for these containers? As a consequence, some SONiC dependencies will have to be converted to Bazel (e.g. `sonic-utilities`).
+
+If we decide there are still gaps, we will work to correct them before proceeding.
 
 If we decide to move forward, we will continue onto Phase 2.
 
@@ -162,7 +182,7 @@ One open question is when we will establish a blocking CI pipeline for Bazel bui
 We propose the following structure:
 
 - Phase 1: A nightly, post-merge job that tests the Bazel builds only. There are no expectations to keep this job green, but it will be useful in spotting regressions.
-- Phase 2: Bazel builds are blocking pre-submit. When we flip the default of `BUILD_WITH_BAZEL_WHEN_AVAILABLE`, the components that are migrated to Bazell will now be blocking the pre-submit checks.
+- Phase 2: Bazel builds are blocking pre-submit. When we flip the default of `BUILD_WITH_BAZEL_WHEN_AVAILABLE`, the components that are migrated to Bazel will now be blocking the pre-submit checks.
 
 This phased approach allows us to establish critical infrastructure and let the build mature before we make it required for anyone.
 
@@ -196,7 +216,7 @@ The migration must satisfy the following requirements:
 
 There are no expected changes to the SONiC component architecture.
 
-However, we will extende the SONiC build architecture to add a new target type for containers (read more in [Section 7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability)).
+However, we will extend the SONiC build architecture to add a new target type for containers (read more in [Section 7.a](#7a-changes-to-existing-build-system-bazelmake-interoperability)).
 
 In addition, some of the existing dependency graph for libraries, binaries, and third party dependencies will move into Bazel.
 
@@ -206,30 +226,34 @@ This section specifies how different parts of the build will work under Bazel.
 Everything explained here has already been implemented in a proof of concept migrating `docker-sysmgr`, in [sonic-buildimage#28005](https://github.com/sonic-net/sonic-buildimage/pull/28005).
 The following sections will explain different parts of that PR.
 
+> [!warning]
+> At the time of writing, development of the PR had been done in Bookworm.
+> Since then, SONiC changed to be Trixie-only.
+> We will migrate the PR to be Trixie-only before submitting it for review,
+> but please note that some of the code links may not match the text, and still mention Bookworm.
+
 #### 7.a Changes to Existing Build System (Bazel/make Interoperability)
 
 During the migration, Bazel and make will have to interoperate. This section explains the changes needed in the current build system to make that happen.
 
 We propose to **extend the existing build system to add the ability to build some targets with Bazel**. For example, with [docker-sysmgr](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/rules/docker-sysmgr.mk#L21-L30):
 
-```make
+```diff
 # From sonic-buildimage#28005/rules/docker-sysmgr.mk
 
 ...
-ifeq ($(BUILD_WITH_BAZEL_WHEN_AVAILABLE),n)
-
++ifeq ($(BUILD_WITH_BAZEL_WHEN_AVAILABLE),n)
++
 SONIC_DOCKER_IMAGES += $(DOCKER_SYSMGR)
 SONIC_INSTALL_DOCKER_IMAGES += $(DOCKER_SYSMGR)
-
-else
-
-# When BUILD_WITH_BAZEL_WHEN_AVAILABLE is enabled, build this docker with Bazel.
-# Bazel only supports bookworm today, which is enforced at the root Makefile.
-$(DOCKER_SYSMGR)_BAZEL_BASE += $(DOCKER_CONFIG_ENGINE_BOOKWORM)
-SONIC_BAZEL_DOCKER_IMAGES += $(DOCKER_SYSMGR)
-SONIC_BOOKWORM_DOCKERS += $(DOCKER_SYSMGR)
-
-endif
++
++else
++
++$(DOCKER_SYSMGR)_BAZEL_BASE += $(DOCKER_CONFIG_ENGINE_TRIXIE)
++SONIC_BAZEL_DOCKER_IMAGES += $(DOCKER_SYSMGR)
++SONIC_TRIXIE_DOCKERS += $(DOCKER_SYSMGR)
++
++endif
 ...
 ```
 
@@ -280,7 +304,7 @@ This section describes how individual components are built with Bazel, focusing 
 The Bazel ethos is that **every input to a build must be known, down to the checksum, before the build starts**. The current build system has a few instances where we cannot deterministically predict these inputs.
 
 - Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/blorente/sonic-build-infra/tree/master/toolchains/gcc).
-- Fetch Debian packages deterministically, instead of relying on `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/MODULE.bazel#L23-L56).
+- Fetch Debian packages deterministically, instead of relying on `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/MODULE.bazel#L23-L56). Please note that this only refers to the Bazel ruleset, and is **unrelated to distroless containers** as a concept. Switching to distroless containers is out of the scope of this document.
 
 > [!warning]
 > During the transition, Bazel will consume base layers from the Make-based build. This can lead to discrepancies in runtime dependencies if we don't keep the `rules_distroless` dependencies up to date.
@@ -296,7 +320,7 @@ We propose four approaches to tackle this problem. They are detailed in [this do
 In order of most preferred to least preferred, they are:
 
 1. Find the module we want to patch in the BCR. Please see the PR for instructions on how to patch it.
-2. Pull the dependency as a Debian package with `rules_distroless`. This method does not allow patching.
+2. Pull the dependency as a Debian package with `rules_distroless`. This method does not build the dependencies from source, and thus **does not allow patching**.
 3. Migrate said dependency to Bazel. The specific method will depend on the dependency, but tips and tricks have been listed in the document above.
 4. Patch and build the dependency out of band, and then import the built artifacts into the Bazel build.
 
@@ -405,13 +429,13 @@ For instance, following the example in [7.b.4](#7b4-platform--device-support):
 
 ```starlark
 oci_image(
-    name = "docker-base-bookworm",
+    name = "docker-base-trixie",
     ...
 )
 
 debug_container(
-	name = "docker-base-bookworm_dbg",
-    base = ":docker-base-bookworm" # reference the container above
+	name = "docker-base-trixie_dbg",
+    base = ":docker-base-trixie" # reference the container above
 )
 ```
 
@@ -460,7 +484,7 @@ We expect the resulting containers to be comparable (if not equal) to those prod
 
 We should not depend on the host system at all. This means that we must find hermetic alternatives to historically unhermetic software, such as gcc. For instance, we should never rely on gcc being installed on the system.
 
-This means that, sometimes, we'll need to migrated dependencies to Bazel, which incurs a non-trivial cost. A large portion of these dependencies have already been migrated, and the maintenance cost is estimated to be low.
+This means that, sometimes, we'll need to migrate dependencies to Bazel, which incurs a non-trivial cost. A large portion of these dependencies have already been migrated, and the maintenance cost is estimated to be low.
 
 ### 13. Testing Requirements/Design  
 
