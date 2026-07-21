@@ -712,6 +712,8 @@ The writer queue should be bounded. When the queue is full, new mirror records a
 
 ### 3.7 Service Lifecycle
 
+![State Machine Diagram](./Console-Mirror-State-Machine.svg)
+
 #### Proxy Startup
 
 1. Initialize serial and PTM resources as in the existing console monitor design.
