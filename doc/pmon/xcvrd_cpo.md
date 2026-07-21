@@ -250,13 +250,9 @@ duplicate reads from the hardware). The only downside to publishing non-banked d
 increase in memory usage on the order of kilobytes in the worst case (the EEPROM of transceiver devices is small).
 
 Banked information will not be duplicated. For instance, any per-lane information will only be published to the logical interface's table
-associated with those lanes.
-
-**Breakout Interfaces**
-
-We will re-use the same database publishing strategy already in-use for breakout interfaces in `xcvrd` today. DOM information will be
-published only for the first subport of a breakout interface. Other sources of information, like `TRANSCEIVER_INFO`, will be published for
-all subports.
+associated with those lanes. Note that this will also be true for breakout interfaces. Previously, DOM information would only be published
+for the first subport of a physical port. Under this HLD, CPO hardware platforms will publish DOM information for all subports but will only
+publish information about the lanes associated with each subport.
 
 ###### 7.2.2.2 New ELSFP Database Fields
 
