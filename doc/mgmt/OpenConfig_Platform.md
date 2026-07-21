@@ -1,7 +1,7 @@
 # OpenConfig support for Platform components
 
 # High Level Design Document
-#### Rev 0.1
+#### Rev 0.3
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -21,14 +21,14 @@
   * [Table 5: Fan Information Mapping](#fan-information-mapping) 
   * [Table 6: CPU Information Mapping](#cpu-information-mapping) 
   * [Table 7: Transceiver Information Mapping](#transceiver-information-mapping) 
-  * [Table 8: Component Type to DB Table Mapping](#component-type-to-db-table-mapping) 
-  * [Table 9: Transceiver Threshold Field Mapping](#334-transceiver-threshold-field-mapping) 
+  * [Table 8: Transceiver Threshold Field Mapping](#334-transceiver-threshold-field-mapping) 
 
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
 | 0.1 | 08/24/2025  | Anukul Verma | Initial version                   |
 | 0.2 | 12/10/2025  | Neha Das | Added integrated-circuit and PCIE components   |
+| 0.3 | 07/21/2026  | Anukul Verma | Updated supported YANG tree (missing nodes) and minor corrections |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration/management of Platform components in SONiC corresponding to openconfig-platform.yang module and its sub-modules.
@@ -49,8 +49,8 @@ module: openconfig-platform
         +--ro state
         |  +--ro name?               string
         |  +--ro type?               union
-        |  x--ro id?                 string
-        |  x--ro location?           string
+        |  +--ro id?                 string
+        |  +--ro location?           string
         |  +--ro description?        string
         |  +--ro mfg-name?           string
         |  +--ro mfg-date?           oc-yang:date
@@ -118,6 +118,14 @@ module: openconfig-platform
         |        +--ro advisory-non-fatal-errors?      oc-yang:counter64
         |        +--ro internal-errors?                oc-yang:counter64
         |        +--ro hdr-log-overflow-errors?        oc-yang:counter64
+        +--rw chassis
+        |  +--ro utilization
+        |     +--ro resources
+        |        +--ro resource* [name]
+        |           +--ro state
+        |              +--ro name?    string
+        |              +--ro used?    uint64
+        |              +--ro free?    uint64
         +--rw power-supply
         |  +--ro state
         |     +--ro oc-platform-psu:enabled?          boolean
@@ -130,11 +138,9 @@ module: openconfig-platform
         +--rw fan
         |  +--ro state
         |     +--ro oc-fan:speed?                      uint32
-        |     +--ro oc-platform-ext:speed-percentage?   uint32
+        |     +--ro oc-platform-ext:speed-percentage?   uint8
         |     +--ro oc-platform-ext:direction?           enumeration
         +--rw cpu
-        |  +--rw config
-        |  +--ro state
         |  +--rw oc-cpu:utilization
         |     +--ro oc-cpu:state
         |        +--ro oc-cpu:instant?    oc-types:percentage
@@ -290,6 +296,7 @@ The following existing STATE DB tables are utilized for platform component infor
 - FAN_DRAWER_INFO
 - CHASSIS_INFO
 - CPU_STATS (new table; sonic-host-services will have changes to populate this)
+- PORT_TABLE
 - NODE_CFG
 - NODE_INFO
 - PCIE_DEVICE
@@ -485,6 +492,7 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | `/components/component/state/oper-status` | - | - | Fixed: ACTIVE |
 | `/components/component/state/empty` | - | - | Fixed: false |
 | `/components/component/state/removable` | TRANSCEIVER_INFO | is_replaceable | From is_replaceable field |
+| `/components/component/state/temperature/instant` | TRANSCEIVER_DOM_SENSOR | temperature | Module temperature (transceiver components) |
 
 ##### Transceiver State Information
 
@@ -530,7 +538,7 @@ The following sections provide detailed mapping between OpenConfig YANG paths an
 | OpenConfig YANG Path | SONiC DB Table | SONiC DB Field | Notes |
 |---------------------|----------------|----------------|--------|
 | `/transceiver/physical-channels/channel[index=N]/state/index` | - | - | Channel index (0-based) |
-| `/transceiver/physical-channels/channel[index=N]/state/description` | - | - | Channel description |
+| `/transceiver/physical-channels/channel[index=N]/state/description` | - | - | Generated: "Physical Channel {N} for {component key}" |
 | `/transceiver/physical-channels/channel[index=N]/state/input-power/instant` | TRANSCEIVER_DOM_SENSOR | rx{N}power | RX power for channel N |
 | `/transceiver/physical-channels/channel[index=N]/state/output-power/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}power | TX power for channel N |
 | `/transceiver/physical-channels/channel[index=N]/state/laser-bias-current/instant` | TRANSCEIVER_DOM_SENSOR | tx{N}bias | TX bias current for channel N |
