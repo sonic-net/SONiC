@@ -302,14 +302,14 @@ It is possible that a given packet can get a hit in route table and/or mapping t
 
   ![dash-outbound-meter](../../images/dash/dash-hld-outbound-meter-pipeline.png)
 
-### 2.4.3 Floating NIC + PrivateLink Metering Behavior
+### 2.4.3 Floating NIC + Private Link Metering Behavior
 
 For the FNIC + PL scenario, a single round trip from the VM to the PL endpoint and back consists of four total packets from the DPU perspective:
 
 1. The original packet from the VM, which lands on the DPU
-2. The packet from the DPU to the PE (which is the original VM packet w/ transforms/mappings applied)
+2. The packet from the DPU to the PE (which is the original VM packet with transforms/mappings applied)
 3. The return packet from the PE, which lands on the DPU
-4. The packet from the DPU to the VM (which is the return packet w/ transforms/mappings applied)
+4. The packet from the DPU to the VM (which is the return packet with transforms/mappings applied)
 
 Since transformations on the DPU (particularly the 4to6 and 6to4 IP address transformations) will change the packet size, it's important to consider how DASH metering buckets will reflect the different packet sizes. The packet which lands on the DPU from an external source should increment the inbound bytes of the matched metering bucket, while the resulting packet sent by the DPU should increment the outbound bytes of the same bucket.
 
@@ -322,7 +322,7 @@ As an example, assume the following:
 This results in the following packet sizes:
 
 | Packet | Size | Metering Bucket Stat Incremented |
-| - | - | - |
+| --- | --- | --- |
 | VM to DPU | 100 bytes | Bucket 1 inbound bytes |
 | DPU to PE | 120 bytes | Bucket 1 outbound bytes |
 | PE to DPU | 200 bytes | Bucket 2 inbound bytes |
@@ -331,7 +331,7 @@ This results in the following packet sizes:
 The final expected metering stat values are:
 
 | Metering Bucket | Stat | Value |
-| - | - | - |
+| --- | --- | --- |
 | Bucket 1 | Inbound Bytes | 100 |
 | Bucket 1 | Outbound Bytes | 120 |
 | Bucket 2 | Inbound Bytes | 200 |
