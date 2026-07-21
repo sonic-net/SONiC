@@ -227,6 +227,8 @@ against the `XcvrApi` instead.
 
 ###### 7.2.2.1 Database Schema for CPO
 
+**Separate Tables for OE and ELSFP**
+
 For CPO, all OE data will be published to the existing `TRANSCEIVER_*` `STATE_DB` tables `DomInfoUpdateTask` publishes to, while
 ELSFP data will be published to new parallel tables following the naming format `TRANSCEIVER_ELS_*` (e.g.
 `TRANSCEIVER_ELS_DOM_SENSOR`, `TRANSCEIVER_ELS_STATUS_FLAG`). The rationale behind this approach is as follows:
@@ -237,6 +239,24 @@ For example, there is no need to consider key collisions in this approach, which
 published to the regular `TRANSCEIVER_*` tables.
 - The naming scheme `TRANSCEIVER_ELS_*` preserves the ability to grep for the Redis keys related to transceiver information,
 since it shares the same prefix of `TRANSCEIVER_` with the existing tables.
+
+**Non-Banked Information Will be Duplicated in Redis**
+
+The `STATE_DB` tables will continue to be keyed by logical interface names: `TRANSCEIVER_INFO|Ethernet0`, `TRANSCEIVER_ELS_INFO|Ethernet0`.
+Any non-banked information on an OE or ELSFP spanning multiple ports will be duplicated across each interface in the database. While
+duplicate information will be published to Redis, non-banked information WILL NOT be read from the hardware multiple times in order to
+not unnecessarily consume i2c read bandwidth (see "7.2.2.3 CpoDomInfoUpdateTask" where the control flow is described that will prevent
+duplicate reads from the hardware). The only downside to publishing non-banked duplicate information to Redis is a very small amount of
+increase in memory usage on the order of kilobytes in the worst case (the EEPROM of transceiver devices is small).
+
+Banked information will not be duplicated. For instance, any per-lane information will only be published to the logical interface's table
+associated with those lanes.
+
+**Breakout Interfaces**
+
+We will re-use the same database publishing strategy already in-use for breakout interfaces in `xcvrd` today. DOM information will be
+published only for the first subport of a breakout interface. Other sources of information, like `TRANSCEIVER_INFO`, will be published for
+all subports.
 
 ###### 7.2.2.2 New ELSFP Database Fields
 
