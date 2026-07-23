@@ -1,7 +1,7 @@
 # OpenConfig Support for Route Map.
 
 # High Level Design Document
-#### Rev 0.2
+#### Rev 0.1
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -18,7 +18,7 @@
       * [1.2.1 Basic Approach](#121-basic-approach)
       * [1.2.2 Container](#122-container)
   * [2 Functionality](#2-functionality)
-      * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
+    * [2.1 Target Deployment Use Cases](#21-target-deployment-use-cases)
   * [3 Design](#3-design)
     * [3.1 Overview](#31-overview)
     * [3.2 DB Changes](#32-db-changes)
@@ -29,24 +29,25 @@
       * [3.2.5 COUNTER DB](#325-counter-db)
     * [3.3 User Interface](#33-user-interface)
       * [3.3.1 Data Models](#331-data-models)
+        * [3.3.1.1 Extension leaves (SONiC)](#3311-extension-leaves-sonic)
       * [3.3.2 REST API Support](#332-rest-api-support)
       * [3.3.3 gNMI Support](#333-gnmi-support)
       * [3.3.4 gNMI Subscription Support](#334-gnmi-subscription-support)
-  * [4 Flow Diagrams](#4-flow-diagrams)
+  * [4 OpenConfig to SONiC Mapping Table](#4-openconfig-to-sonic-mapping-table)
   * [5 Error Handling](#5-error-handling)
   * [6 Unit Test Cases](#6-unit-test-cases)
     * [6.1 Functional Test Cases](#61-functional-test-cases)
     * [6.2 Negative Test Cases](#62-negative-test-cases)
 
 # List of Tables
-[Table 1: Abbreviations](#table-1-abbreviations)
-[Table 2: OpenConfig YANG SONiC YANG Mapping](#4-flow-diagrams)
+  * [Table 1: Abbreviations](#table-1-abbreviations)
+  * [Table 2: CONFIG_DB ROUTE_MAP / ROUTE_MAP_SET Mapping](#table-2-config_db-route_map--route_map_set-mapping)
+  * [Table 3: OpenConfig to SONiC Mapping Table](#table-3-openconfig-to-sonic-mapping-table)
 
 # Revision
-| Rev |     Date    |       Author          | Change Description                                                                 |
-|:---:|:-----------:|:---------------------:|------------------------------------------------------------------------------------|
-| 0.1 | 24/11/2025  | Raja Kushwah          | Initial version                                                                    |
-| 0.2 | 07/22/2026  | Raja Kushwah          | Addressed review comments: corrected SONiC YANG file names, container/field names, `policy-result` path; added REST/gNMI examples |
+| Rev |     Date    |       Author          | Change Description |
+|:---:|:-----------:|:---------------------:|--------------------|
+| 0.1 | 07/23/2026  | Raja Kushwah, Anukul Verma | Initial version |
 
 
 # About this Manual
@@ -58,75 +59,75 @@ This document provides general information about the OpenConfig configuration of
 - In scope: route-map (policy-definition) and statements, their match conditions, BGP and protocol-agnostic set-actions, and flow control (`on-match-next`, `on-match-goto-statement`, `next-statement`).
 - Out of scope: defined-sets (prefix-sets, community-sets, ext-community-sets, as-path-sets) are covered in a separate HLD; route-map match conditions only reference them by name (leafref).
 
-- Supported attributes in the OpenConfig YANG tree (SONiC-extension leaves marked with `(ext)`):
+- Supported attributes in OpenConfig YANG tree:
 
-```text
+<pre>
 module: openconfig-routing-policy
-+--rw routing-policy
-   +--rw policy-definitions
-      +--rw policy-definition* [name]
-         +--rw name                     -> ../config/name
-         +--rw config
-         |  +--rw name?                 string
-         +--rw statements
-            +--rw statement* [name]
-               +--rw name               -> ../config/name
-               +--rw config
-               |  +--rw name?                 string
-               |  +--rw description?          string   (ext)
-               +--rw conditions
-               |  +--rw config
-               |  |  +--rw call-policy?          leafref
-               |  |  +--rw install-protocol-eq?  identityref (BGP | DIRECTLY_CONNECTED | STATIC)
-               |  +--rw match-interface/config/interface?   leafref
-               |  +--rw match-prefix-set/config/prefix-set?  leafref
-               |  +--rw match-tag-set/config/tag-set?        leafref
-               |  +--rw oc-bgp-pol:bgp-conditions
-               |     +--rw config
-               |     |  +--rw local-pref-eq?        uint32
-               |     |  +--rw med-eq?               uint32
-               |     |  +--rw origin-eq?            identityref (IGP | EGP | INCOMPLETE)
-               |     |  +--rw match-nexthop-set?          leafref  (ext)
-               |     |  +--rw match-src-network-instance? string   (ext)
-               |     |  +--rw match-neighbor*             string   (ext, max 1)
-               |     +--rw match-community-set/config/community-set?         leafref
-               |     +--rw match-ext-community-set/config/ext-community-set? leafref
-               |     +--rw match-as-path-set/config/as-path-set?             leafref
-               +--rw actions
-                  +--rw config
-                  |  +--rw policy-result?           enumeration (ACCEPT_ROUTE | REJECT_ROUTE | NEXT_STATEMENT)
-                  |  +--rw next-statement?          uint16   (ext)
-                  |  +--rw on-match-next?           boolean  (ext)
-                  |  +--rw on-match-goto-statement? uint16   (ext)
-                  +--rw set-tag/config/mode?  enum (INLINE)
-                  +--rw set-tag/inline/config/tag*  union (uint32)
-                  +--rw oc-bgp-pol:bgp-actions
-                     +--rw config
-                     |  +--rw set-next-hop?      union (IPv4 | IPv6 | PREFER_GLOBAL)
-                     |  +--rw set-local-pref?    uint32
-                     |  +--rw set-med?           uint32
-                     |  +--rw set-med-action?    enum (SET | ADD | SUBTRACT)
-                     |  +--rw set-route-origin?  identityref (IGP | EGP | INCOMPLETE)
-                     |  +--rw set-source-address? oc-inet:ip-address  (ext)
-                     +--rw set-as-path-prepend/config
-                     |  +--rw asn?          oc-inet:as-number
-                     |  +--rw repeat-n?     uint8
-                     |  +--rw asn-sequence? string   (ext)
-                     +--rw set-community
-                     |  +--rw config/method?   enum (INLINE | REFERENCE)
-                     |  +--rw config/options?  enum (ADD)
-                     |  +--rw inline/config/communities*         string
-                     |  +--rw reference/config/community-set-refs* string
-                     +--rw set-ext-community
-                     |  +--rw config/method?   enum (INLINE | REFERENCE)
-                     |  +--rw config/options?  enum (REPLACE)
-                     |  +--rw inline/config/communities*             string
-                     |  +--rw reference/config/ext-community-set-refs* string
-                     +--rw oc-rp-ext:set-large-community  (ext)
-                        +--rw config/method?   enum (INLINE)
-                        +--rw config/options?  enum (ADD)
-                        +--rw inline/config/large-communities* string
-```
+  +--rw routing-policy
+     +--rw policy-definitions
+        +--rw policy-definition* [name]
+           +--rw name                     -> ../config/name
+           +--rw config
+           |  +--rw name?                 string
+           +--rw statements
+              +--rw statement* [name]
+                 +--rw name               -> ../config/name
+                 +--rw config
+                 |  +--rw name?                 string
+                 |  +--rw oc-rp-ext:description? string
+                 +--rw conditions
+                 |  +--rw config
+                 |  |  +--rw call-policy?          leafref
+                 |  |  +--rw install-protocol-eq?  identityref (BGP | DIRECTLY_CONNECTED | STATIC)
+                 |  +--rw match-interface/config/interface?   leafref
+                 |  +--rw match-prefix-set/config/prefix-set?  leafref
+                 |  +--rw match-tag-set/config/tag-set?        leafref
+                 |  +--rw oc-bgp-pol:bgp-conditions
+                 |     +--rw config
+                 |     |  +--rw local-pref-eq?        uint32
+                 |     |  +--rw med-eq?               uint32
+                 |     |  +--rw origin-eq?            identityref (IGP | EGP | INCOMPLETE)
+                 |     |  +--rw oc-rp-ext:match-nexthop-set?          leafref
+                 |     |  +--rw oc-rp-ext:match-src-network-instance? string
+                 |     |  +--rw oc-rp-ext:match-neighbor*             string (max 1)
+                 |     +--rw match-community-set/config/community-set?         leafref
+                 |     +--rw match-ext-community-set/config/ext-community-set? leafref
+                 |     +--rw match-as-path-set/config/as-path-set?             leafref
+                 +--rw actions
+                    +--rw config
+                    |  +--rw policy-result?           enumeration (ACCEPT_ROUTE | REJECT_ROUTE | NEXT_STATEMENT)
+                    |  +--rw oc-rp-ext:next-statement?          uint16
+                    |  +--rw oc-rp-ext:on-match-next?           boolean
+                    |  +--rw oc-rp-ext:on-match-goto-statement? uint16
+                    +--rw set-tag/config/mode?  enum (INLINE)
+                    +--rw set-tag/inline/config/tag*  union (uint32)
+                    +--rw oc-bgp-pol:bgp-actions
+                       +--rw config
+                       |  +--rw set-next-hop?      union (IPv4 | IPv6 | PREFER_GLOBAL)
+                       |  +--rw set-local-pref?    uint32
+                       |  +--rw set-med?           uint32
+                       |  +--rw set-med-action?    enum (SET | ADD | SUBTRACT)
+                       |  +--rw set-route-origin?  identityref (IGP | EGP | INCOMPLETE)
+                       |  +--rw oc-rp-ext:set-source-address? oc-inet:ip-address
+                       +--rw set-as-path-prepend/config
+                       |  +--rw asn?          oc-inet:as-number
+                       |  +--rw repeat-n?     uint8
+                       |  +--rw oc-rp-ext:asn-sequence? string
+                       +--rw set-community
+                       |  +--rw config/method?   enum (INLINE | REFERENCE)
+                       |  +--rw config/options?  enum (ADD)
+                       |  +--rw inline/config/communities*         string
+                       |  +--rw reference/config/community-set-refs* string
+                       +--rw set-ext-community
+                       |  +--rw config/method?   enum (INLINE | REFERENCE)
+                       |  +--rw config/options?  enum (REPLACE)
+                       |  +--rw inline/config/communities*             string
+                       |  +--rw reference/config/ext-community-set-refs* string
+                       +--rw oc-rp-ext:set-large-community
+                          +--rw config/method?   enum (INLINE)
+                          +--rw config/options?  enum (ADD)
+                          +--rw inline/config/large-communities* string
+</pre>
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
@@ -179,7 +180,7 @@ The code changes for this feature are part of the *Management Framework* contain
 
 # 3 Design
 ## 3.1 Overview
-This HLD design is in line with the [Management Framework HLD](https://github.com/project-arlo/SONiC/blob/354e75b44d4a37b37973a3a36b6f55141b4b9fdf/doc/mgmt/Management%20Framework.md)
+This HLD design is in line with the [Management Framework HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Management%20Framework.md).
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
@@ -188,6 +189,15 @@ There are no changes to CONFIG DB schema definition. Route-maps use the existing
 - `ROUTE_MAP` — per-statement match/set/flow-control fields (`ROUTE_MAP|<name>|<stmt_name>`), including the leafref fields that reference defined-sets (e.g. `match_prefix_set`, `match_community`, `match_as_path`).
 
 Defined-set tables (`PREFIX_SET`/`PREFIX`, `COMMUNITY_SET`, `EXTENDED_COMMUNITY_SET`, `AS_PATH_SET`) are owned by the separate defined-sets HLD.
+
+#### Table 2: CONFIG_DB ROUTE_MAP / ROUTE_MAP_SET Mapping
+| CONFIG_DB item | Value / format |
+|----------------|----------------|
+| Table `ROUTE_MAP_SET` | One row per route-map name |
+| Key `ROUTE_MAP_SET` | `{name}` e.g. `ROUTE` |
+| Table `ROUTE_MAP` | One row per route-map statement |
+| Key `ROUTE_MAP` | `{name}\|{stmt_name}` e.g. `ROUTE\|10` |
+| Field `route_operation` | `permit` or `deny` (from OpenConfig `ACCEPT_ROUTE` / `REJECT_ROUTE`) |
 
 ### 3.2.2 APP DB
 There are no changes to APP DB schema definition.
@@ -202,13 +212,33 @@ There are no changes to COUNTER DB schema definition.
 The following examples show how the supported OpenConfig routing-policy objects can be configured and retrieved. The IP address, port, username, and password used are illustrative only.
 
 ### 3.3.1 Data Models
-The OpenConfig YANG modules (openconfig-routing-policy.yang, openconfig-bgp-policy.yang) expose route maps under /routing-policy/policy-definitions/policy-definition, with their referenced prefix, community, AS-path, and tag sets under /routing-policy/defined-sets. The SONiC internal models sonic-route-map.yang and sonic-routing-policy-sets.yang are used in the transformer mapping to CONFIG_DB.
-
 - openconfig-routing-policy.yang
 - openconfig-bgp-policy.yang
-- openconfig-routing-policy-ext.yang
+- openconfig-routing-policy-ext.yang (SONiC; see [§3.3.1.1](#3311-extension-leaves-sonic))
 - sonic-route-map.yang
 - sonic-routing-policy-sets.yang
+
+#### 3.3.1.1 Extension leaves (SONiC)
+In SONiC, route-map statement and BGP action leaves below are provided via **openconfig-routing-policy-ext.yang** (YANG prefix **`oc-rp-ext`**) today; equivalent leaves are proposed for the base OpenConfig models in the community repository where applicable.
+
+<pre>
+augment .../policy-definitions/policy-definition/statements/statement/config
+  - description
+augment .../statement/actions/config
+  - next-statement
+  - on-match-next
+  - on-match-goto-statement
+augment .../statement/actions/openconfig-bgp-policy:bgp-actions/config
+  - set-source-address
+augment .../statement/conditions/openconfig-bgp-policy:bgp-conditions/config
+  - match-nexthop-set
+  - match-src-network-instance
+  - match-neighbor
+augment .../bgp-actions/set-as-path-prepend/config
+  - asn-sequence
+augment .../statement/actions/openconfig-bgp-policy:bgp-actions
+  - set-large-community (container: method, options, inline/large-communities)
+</pre>
 
 ### 3.3.2 REST API Support
 GET/PUT/POST/PATCH/DELETE are supported, including at leaf level.
@@ -376,8 +406,8 @@ Response:
 ```
 
 ### 3.3.4 gNMI Subscription Support
-#### 3.3.4.1 Once (ONCE mode)
-One-shot snapshot of all route-map policy-definitions:
+#### 3.3.4.1 ONCE
+One-shot snapshot of a route-map policy-definition:
 ```
 gnmic -a 172.29.94.154:38575 --insecure -e json_ietf subscribe --path "/openconfig-routing-policy:routing-policy/policy-definitions/policy-definition[name=ROUTE]" --target OC-YANG --mode once
 ```
@@ -398,6 +428,17 @@ Response (updates trimmed):
 }
 ```
 
+#### 3.3.4.2 SUBSCRIBE (on-change)
+On-change subscription on the policy-definitions container:
+```
+gnmic -a 172.29.94.154:38575 --insecure -e json_ietf subscribe --path "/openconfig-routing-policy:routing-policy/policy-definitions" --target OC-YANG --mode stream --stream-mode on-change
+```
+
+Sample subscription (periodic sample):
+```
+gnmic -a 172.29.94.154:38575 --insecure -e json_ietf subscribe --path "/openconfig-routing-policy:routing-policy/policy-definitions" --target OC-YANG --mode stream --stream-mode sample --sample-interval 30s
+```
+
 # 4 OpenConfig to SONiC Mapping Table
 Mapping attributes between OpenConfig YANG and the CONFIG_DB route-map tables. Route-map objects map to `sonic-route-map.yang` (tables `ROUTE_MAP_SET` and `ROUTE_MAP`). The SONiC table/field names correspond to the `sonic-ext` deviations declared in `openconfig-routing-policy-annot.yang`.
 
@@ -411,7 +452,7 @@ All OpenConfig paths below are relative to `/openconfig-routing-policy:routing-p
 
 | OpenConfig YANG Path                       | SONiC DB Table  | SONiC DB Field | Notes                          |
 |--------------------------------------------|-----------------|----------------|--------------------------------|
-| /policy-definitions/policy-definition/name | ROUTE_MAP_SET   | Key `{name}`   | Route-map name                 |
+| `/routing-policy/policy-definitions/policy-definition/name` | ROUTE_MAP_SET   | Key `{name}`   | Route-map name                 |
 | ../policy-definition/config/name           | ROUTE_MAP_SET   | Key `{name}`   | Same as list key               |
 
 #### 4.2 Route-Map statement (match / set / flow-control)
@@ -482,11 +523,11 @@ The following OpenConfig leaves do not map 1:1 to a single DB field; the transfo
 | match-prefix-set (referenced set mode IPv4)    | match_prefix_set                                   | chosen via prefix-set `mode`                                          |
 | match-prefix-set (referenced set mode IPv6)    | match_ipv6_prefix_set                              | chosen via prefix-set `mode`                                          |
 
-Translation Notes (constraints not captured by the table above):
-- `community-set-refs` / `ext-community-set-refs` accept exactly one non-empty entry because SONiC stores a single reference (`set_community_ref` / `set_ext_community_ref`).
-- `install-protocol-eq` supports only `BGP`, `DIRECTLY_CONNECTED`, and `STATIC`.
-- `match-neighbor` is a leaf-list limited to a single entry (SONiC `match_neighbor@`).
-- Attributes marked `"not-supported": true` in `openconfig-routing-policy-annotation.json` (see Scope) are rejected.
+Translation Notes:
+1. `community-set-refs` / `ext-community-set-refs` accept exactly one non-empty entry because SONiC stores a single reference (`set_community_ref` / `set_ext_community_ref`).
+2. `install-protocol-eq` supports only `BGP`, `DIRECTLY_CONNECTED`, and `STATIC`.
+3. `match-neighbor` is a leaf-list limited to a single entry (SONiC `match_neighbor@`).
+4. Not supported leaves (outside the Scope tree) are rejected for any operation performed on them.
 
 # 5 Error Handling
 Invalid configurations report an error. Validations enforced by the transformers and YANG/CVL include:
@@ -502,7 +543,7 @@ Invalid configurations report an error. Validations enforced by the transformers
 - `set-asn` rejects ASN 0 (reserved).
 - `on-match-goto-statement` cannot be used when `on-match-next` is true (enforced by the `must` constraint in `sonic-route-map.yang` / the `-ext` model).
 
-# 6 Unit Test cases
+# 6 Unit Test Cases
 ## 6.1 Functional Test Cases
 1. Create, verify, and delete a route-map (policy-definition) and statements using PUT, PATCH, POST, GET, and DELETE via REST/gNMI.
 2. Verify `policy-result` (ACCEPT_ROUTE/REJECT_ROUTE) set/get/delete on statements, and its mapping to SONiC `route_operation` (permit/deny).
@@ -513,7 +554,7 @@ Invalid configurations report an error. Validations enforced by the transformers
 7. Verify `set-local-pref`, `set-route-origin`, `set-source-address`, `set-tag`, and `set-as-path-prepend` (asn / repeat-n / asn-sequence).
 8. Verify match conditions referencing defined-sets: prefix-set (IPv4 and IPv6 mutual exclusion), community-set, ext-community-set, as-path-set, tag, local-pref, med, origin, install-protocol, and the SONiC-ext next-hop-set / src-network-instance / neighbor.
 9. Verify wild-card/subtree GET: `/routing-policy/policy-definitions`.
-10. Verify gNMI subscription (ONCE) on `/routing-policy/policy-definitions`.
+10. Verify gNMI subscription (ONCE and on-change) on `/routing-policy/policy-definitions`.
 
 ## 6.2 Negative Test Cases
 1. Verify `on-match-goto-statement` together with `on-match-next = true` is rejected (CVL `must` constraint).
