@@ -184,6 +184,9 @@ One open question is when we will establish a blocking CI pipeline for Bazel bui
 We propose the following structure:
 
 - At the beginning of Phase 1: A nightly, post-merge job that tests the Bazel builds only. There are no expectations to keep this job green, but it will be useful in spotting regressions.
+- Throughout Phase 1:
+    - We will add tests to the Bazel CI pipeline to ensure that Bazel and Make produce similar-enough artifacts. We define similar-enough as "produce the same file names in the same locations with the same permissions". We cannot check that the files are byte-by-byte equivalent, because the Make-based build system is less hermetic than Bazel.
+    - The build working group will keep an eye on changes to the Make-based build system, and try to incorporate them into the Bazel system quickly. This will prevent technical debt from building up in preparation for Phase 2.
 - At the beginning of Phase 2: Bazel builds are blocking pre-submit. When we flip the default of `BUILD_WITH_BAZEL_WHEN_AVAILABLE`, the components that are migrated to Bazel will now be blocking the pre-submit checks.
 
 This phased approach allows us to establish critical infrastructure and let the build mature before we make it required for anyone.
@@ -557,3 +560,6 @@ We expect to be able to leverage remote caching to make these builds significant
 
 - **If we stand up a public remote cache, how would the hosting and trust models work?**
     - This area has extensive prior art, but a rough sketch would be that the cache would be hosted in current Azure infrastructure, and only CI jobs are allowed to write to it.
+
+- **How should we handle dependencies like `snapshot.debian.org`, and the BCR?**
+    - These are static repositories of archives. Sometimes, they are not reliable. A shared community instance of a service like Artifactory would help paper over the reliability issues, but we should discuss how to host and run an instance like that.
