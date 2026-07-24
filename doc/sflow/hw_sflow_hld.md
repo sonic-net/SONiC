@@ -44,28 +44,23 @@
 ### 2\. Scope
 
 This document describes the addition of an optional sFlow feature in
-SONiC, hardware accelerated sFlow. The design proposes new paths through
-existing orchagents to wire the relevant SAI attribute with their
-underlying hardware-capable platforms, while reusing logic from existing
-implementations. The goals are to:
-- Add a new path through SONiC for sFlow telemetry to configure an
-increasingly-supported silicon feature
-- Limit drastic changes to the fundamental SONiC behavior while doing so
+SONiC - hardware accelerated sFlow. In ASICs that support hardware accelerated sflow, 
+the sflow packets will be sent directly from the ASIC to the collector. This design 
+document explains how SflowOrch will be modified to support this sflow mode.
 
 ### 3\. Definitions/Abbreviations
 
 | Term | Definition |
 | :---- | :---- |
 | sFlow | Sampled flow, RFC 3176 / sflow.org v5 |
-| HW sFlow | Hardware accelerated sFlow |
+| HW sFlow | Hardware accelerated sFlow, packets sent from ASIC to collector directly |
 | CPU sFlow | The existing sample-and-punt sFlow path documented in SONiC’s [`sflow_hld.md`](https://github.com/sonic-net/SONiC/blob/master/doc/sflow/sflow_hld.md) |
 | SAI | Switch Abstraction Interface |
 | MOD | Mirror-on-Drop |
 | COPP | Control Plane Policing (host-interface trap rate limiter) |
-| `MIRROR_SESSION_TYPE_SFLOW` | SAI mirror session type that builds sFlow v5 datagrams in silicon ([`saimirror.h:51`](https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h)). Today's SAI surface; subject to change. |
-| `INGRESS_SAMPLE_MIRROR_SESSION` | SAI port attribute binding a list of sampled mirror sessions for ingress sampling ([`saiport.h:1399-1423`](https://github.com/opencomputeproject/SAI/blob/master/inc/saiport.h)) |
-| TAM | Telemetry and Monitoring |
-| TamOrch | Orchagent in `sonic-swss` that owns SAI TAM objects. Proposed in unmerged [sonic-swss#4370](https://github.com/sonic-net/sonic-swss/pull/4370); not present on `master`. |
+| `MIRROR_SESSION_TYPE_SFLOW` | SAI mirror session type that builds sFlow v5 datagrams in silicon ([`saimirror.h:51`](https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h)). |
+| TAM | Telemetry and Monitoring, a SAI namespace for telemetry-related objects and attributes |
+| TamOrch | Orchagent in `sonic-swss` that programs TAM features like Mirror-on-drop. Proposed in unmerged [sonic-swss#4370](https://github.com/sonic-net/sonic-swss/pull/4370); not present on `master`. |
 | hsflowd | InMon's host-sflow agent (`https://github.com/sflow/host-sflow`) |
 
 ### 4\. Overview
@@ -73,25 +68,12 @@ increasingly-supported silicon feature
 In the existing SONiC sFlow architecture, all sampled packets are punted
 to the CPU over a generic-netlink channel and `hsflowd` performs sFlow
 datagram construction in userspace. This works well at moderate sampling
-rates and link speeds, but is sharply rate-limited on multi-Tbps
-platforms: every sample must cross the COPP policer, the kernel
-genetlink path, the userspace agent, and the kernel UDP send path.
+rates and link speeds, but is rate-limited on higher speed
+platforms.
 
-Concretely: the SONiC default COPP configuration installs the
-`sample_packet` trap at 1000 packets per second (see
-[`copp_cfg.j2:76-88,
-135-138`](https://github.com/sonic-net/sonic-buildimage/blob/master/files/image_config/copp/copp_cfg.j2)).
-For comparison, a single 800G port at line rate with 64-byte frames
-produces ~1.19 Gpps; sampling at 1-in-2048 yields ~580K samples per
-second, well over the COPP cap on one port alone. Operators who raise
-the cap trade CPU saturation for sample completeness; neither outcome
-is desirable.
+With hardware acceleration, the forwarding ASIC:
 
-Multi-Tbps platforms increasingly support an alternative model in which
-a hardware block:
-
-1. Performs the 1-in-N sampling decision in the ingress (and/or egress)
-   pipeline.
+1. Performs the 1-in-N sampling decision in the pipeline (ingress or egress).
 2. Truncates the sampled packet to the configured header size.
 3. Prepends sFlow flow-record fields (using preserved system metadata to
    recover ingress / egress port info).
@@ -107,84 +89,48 @@ into silicon) and at re-program time (to refresh the encap when the
 next-hop or source IP changes). Steady-state sample throughput is
 decoupled from CPU and COPP capacity.
 
-This document describes the high-level design for hardware accelerated
-sFlow in SONiC: an alternative datapath in which sampled packets are
-encapsulated and emitted as wire-format sFlow v5 UDP datagrams by the
-forwarding silicon itself.
-
-This HLD proposes to wire this path by extending the existing
-`SflowOrch` with a new sibling class, `HwSflow`, that owns the HW sFlow
-lifecycle. The CPU-based path documented in
-[`doc/sflow/sflow_hld.md`](https://github.com/sonic-net/SONiC/blob/master/doc/sflow/sflow_hld.md)
-remains the default path on platforms that lack the necessary silicon
-support.
-
 ### 5\. Requirements
-
-#### Phase I
 
 1. Detect platform capability for HW sFlow via SAI capability query, and
    reflect it in `STATE_DB:SWITCH_CAPABILITY`.
-2. Support configuring HW sFlow on physical interfaces in both ingress
-   and egress directions, reusing the existing per-port
-`sample_direction: rx | tx | both` setting on `SFLOW_SESSION` rows.
-3. Support up to 4 concurrent sFlow collectors, subject to the
-   hardware-advertised session maximum.
-4. Support IPv4 and IPv6 collectors.
-5. Select the sFlow datapath automatically from platform capability:
-   HW sFlow on platforms that advertise it, CPU sFlow otherwise,
-uniformly across all sFlow-enabled ports and collectors. The operator
-does not configure the datapath in the normal workflow. A system-wide
-`mode` override knob (`auto` / `hw-accelerated` / `cpu-path`, default
-`auto`) exists for debug and forced-path scenarios only.
-6. Resolve the destination MAC, source MAC, source IP, and other
+2. Support configuring HW sFlow on physical interfaces in ingress
+   direction only, reusing the existing per-port
+`sample_direction: rx ` setting on `SFLOW_SESSION` rows.
+3. Support IPv4 and IPv6 collectors.
+4. Select the sFlow datapath based on configuration. Default mode is
+`cpu-path` and hardware acceleration can be enabled if `mode` is set 
+to `hw-accelerated`.
+5. Resolve the destination MAC, source MAC, source IP, and other
    encapsulation parameters automatically from kernel routing/neighbor
 state.
-7. Automatically refresh the silicon encap when the resolved next-hop
+6. Automatically refresh the silicon encap when the resolved next-hop
    MAC, source IP, or routing changes.
-8. Counter samples and MOD notifications (when MOD is performed via
-   sFlow) continue to be produced by the existing CPU path even when HW
-sFlow is active.
-9. Portchannel (LAG) interface support, including LAG-egress sampling.
-
-#### Phase II
-
-10. Operator configuration of resolved encap fields (manual TOS/TTL).
+7. Portchannel (LAG) interface support, including LAG-egress sampling.
 
 #### Not planned to be supported
 
 1. HW-accelerated counter samples (out of scope).
 2. ACL-driven HW sFlow sessions (support is be port-level only).
+3. Egress sampling.
 
 ### 6\. Architecture Design
 
 This change extends `SflowOrch` in `sonic-swss` with a new `HwSflow`
 sibling class and adds CLI / YANG / CONFIG_DB fields. SAI TAM APIs are
-called directly from `SflowOrch::HwSflow`. The sibling-class shape is
-identical to `SflowDropMonitor` in the unmerged
+called directly from `SflowOrch::HwSflow`. This design is
+similar to `SflowDropMonitor` in the
 [`sonic-net/sonic-swss#3970`](https://github.com/sonic-net/sonic-swss/pull/3970).
 
 HW sFlow is the same operator-facing feature as CPU sFlow with a
 different datapath, so it stays under the `sflow` CLI/CONFIG_DB namespace
-and `SflowOrch` owns both paths. The operator never configures or sees
-TAM rows; platform capability selects the datapath (with `mode` as a
-debug override, §7.5). The cost is that
-`SflowOrch::HwSflow` carries its own `NeighOrch` / `RouteOrch` resolver,
-duplicating logic also present in `MirrorOrch` (resolver consolidation is
-tracked in §14 item 1).
+and `SflowOrch` owns both paths. 
 
 ### 7\. High-Level Design
 
-The design extends `SflowOrch` in `sonic-swss` with a new `HwSflow`
-sibling class that owns the HW sFlow lifecycle: collector/encap
+`HwSflow` owns the HW sFlow lifecycle: collector/encap
 resolution against `NeighOrch` / `RouteOrch`, SAI TAM object create /
 update / delete, the sFlow session SAI object, and per-port binding via
-`INGRESS_SAMPLE_MIRROR_SESSION` / `EGRESS_SAMPLE_MIRROR_SESSION`.
-
-The current design gates on silicon SAI support
-(`SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION` and the egress
-equivalent, plus `SAI_MIRROR_SESSION_TYPE_SFLOW` or its TAM-namespace
-successor - see §7.12).
+`INGRESS_SAMPLE_MIRROR_SESSION`.
 
 ### 7.1 Built-in vs Application Extension
 
@@ -194,10 +140,10 @@ Built-in feature modification.
 
 | Repository | Component | Change |
 | :---- | :---- | :---- |
-| `sonic-swss` | `SflowOrch` | New `HwSflow` sibling class that consumes `SFLOW_COLLECTOR`, attaches `Observer`s to `NeighOrch` and `RouteOrch`, resolves `(dst_mac, src_mac, egress_port)` against kernel routing/neighbor state and pins encap `src_ip` to `SFLOW|global:agent_id`'s IP (see §7.5) on session create and on observer-callback refresh, calls SAI TAM APIs directly to create `TAM_TRANSPORT` / `TAM_COLLECTOR` / sFlow session, and binds the result via `INGRESS_SAMPLE_MIRROR_SESSION` / `EGRESS_SAMPLE_MIRROR_SESSION`. |
+| `sonic-swss` | `SflowOrch` | Added `HwSflow`; consumes `SFLOW_COLLECTOR`, attaches `Observer`s to `NeighOrch` and `RouteOrch`, resolves `(dst_mac, src_mac, egress_port)` against kernel routing/neighbor state and pins encap `src_ip` to `SFLOW|global:agent_id`'s IP (see §7.5) on session create and on observer-callback refresh, calls SAI TAM APIs directly to create `TAM_TRANSPORT` / `TAM_COLLECTOR` / sFlow session, and binds the result via `INGRESS_SAMPLE_MIRROR_SESSION`. |
 | `sonic-swss` | `SflowOrch::HwSflow` resolver | New. |
-| `sonic-swss` | `SwitchOrch` | Expose `INGRESS_SAMPLE_MIRROR_SESSION_CAPABLE` (and the egress equivalent) from `sai_query_attribute_capability()` in `STATE_DB:SWITCH_CAPABILITY`. |
-| `sonic-utilities` | `config sflow` / `show sflow` | New `mode` override knob (debug; default `auto`) and diagnostic output. HW sFlow is fully driven through `config sflow` (single operator CLI surface); the normal workflow needs no datapath config. |
+| `sonic-swss` | `SwitchOrch` | Expose `INGRESS_SAMPLE_MIRROR_SESSION_CAPABLE`from `sai_query_attribute_capability()` in `STATE_DB:SWITCH_CAPABILITY`. |
+| `sonic-utilities` | `config sflow` / `show sflow` | New `mode` override knob (debug; default `cpu-path`) and diagnostic output. |
 | `sonic-yang-models` | `sonic-sflow.yang` | Add `mode` field. |
 | `sonic-buildimage` | sflow container | hsflowd config template: optional `sub_agent_id` field (open issue, see §14). |
 | `sonic-buildimage` | `db_migrator.py` | Migrate existing config to new schema (additive, absent `mode` = `auto`). |
@@ -206,31 +152,18 @@ Built-in feature modification.
 ### 7.3 Module interfaces and dependencies
 
 * `SflowOrch::HwSflow` consumes
-`STATE_DB:SWITCH_CAPABILITY:INGRESS_SAMPLE_MIRROR_SESSION_CAPABLE` (and
-the egress equivalent) to gate the HW path globally. The selected path
-applies to the entire system.
+`STATE_DB:SWITCH_CAPABILITY:INGRESS_SAMPLE_MIRROR_SESSION_CAPABLE` 
+to gate the capability. The selected path applies to the entire system.
 * `SflowOrch::HwSflow` consumes `APP_DB:SFLOW_SESSION_TABLE` and
 `CONFIG_DB:SFLOW_COLLECTOR`. It performs collector resolution using a
 new resolver attached to `NeighOrch` and `RouteOrch`, modeled on
-resolvers from `MirrorOrch` and `TamOrch` (unmerged).
+resolvers from `MirrorOrch` and `TamOrch`.
 It then calls SAI TAM APIs directly to create one
 `SAI_OBJECT_TYPE_TAM_TRANSPORT` (refcounted across collectors) and one
 `SAI_OBJECT_TYPE_TAM_COLLECTOR` per collector, plus the sFlow session
 SAI object.
 * `SflowOrch::HwSflow` binds the resulting session OID via
-`SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION` (or its TAM-namespace
-successor; see §7.12) on each enabled port, honoring `sample_direction`
-to also bind `EGRESS_SAMPLE_MIRROR_SESSION` when configured.
-
-### 7.4 SWSS changes
-
-A new sibling class `HwSflow` is added inside `SflowOrch` (same shape as
-`SflowDropMonitor` in
-[sonic-swss#3970](https://github.com/sonic-net/sonic-swss/pull/3970)),
-plus a `mode` knob in `SFLOW|global`. The `HwSflow` class consumes
-`SFLOW_COLLECTOR`, attaches a new resolver to `NeighOrch` / `RouteOrch`,
-calls SAI TAM APIs directly, and binds the resulting session via port
-attributes.
+`SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION` on each enabled port.
 
 ### 7.5 SWSS and Syncd changes in detail
 
@@ -252,63 +185,24 @@ flowchart TB
     HwSflow -->|creates| SES["sFlow session SAI object<br/>today: SAI_OBJECT_TYPE_MIRROR_SESSION<br/>TYPE=SFLOW<br/>future: TAM-namespaced object"]
     SES -.->|carries SAMPLE_RATE,<br/>TRUNCATE_SIZE, UDP_*,<br/>encap fields| TC
 
-    HwSflow -->|binds OID| PORT["Port:<br/>SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION<br/>and/or _EGRESS_SAMPLE_MIRROR_SESSION"]
+    HwSflow -->|binds OID| PORT["Port:<br/>SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION<br/>]
     SES -.->|bound to| PORT
 ```
 
-#### Producer / consumer split
+On session create, `HwSflow` walks `NeighOrch` / `RouteOrch` to populate `(dst_mac, src_mac,
+egress_port)` and pins `src_ip` to `agent_id`'s IP and registers as a neighbor / next-hop observer to
+refresh on kernel state changes. The resolver picks the first nexthop and
+the first LAG member if the resolution is over a ECMP or LAG. 
 
-`SflowOrch::HwSflow` is both the producer (consuming `SFLOW` /
-`SFLOW_COLLECTOR`, resolving encap) and the consumer (calling SAI TAM
-APIs, binding port attributes). The operator never sees `TAM_SESSION`
-rows because HW sFlow is fully encapsulated under the `sflow` CLI
-namespace.
-
-`HwSflow` handles address resolution as well. On session create, it
-walks `NeighOrch` / `RouteOrch` to populate `(dst_mac, src_mac,
-egress_port)` and pins `src_ip` to `agent_id`'s IP (see §7.5 "Agent
-address coupling"), and registers as a neighbor / next-hop observer to
-refresh on kernel state changes. A future refactor extracting this
-resolver into a shared helper is tracked in §14; it is out of scope for
-this work.
-
-`SflowOrch` resolves the system-wide effective path from platform
-capability and `SFLOW|global:mode` (default `auto`; explicit values are
-a debug/override facility, not the normal workflow):
-
-  | `mode` | Capable | Effective path |
-  | :---- | :---- | :---- |
-  | `auto` (default) | yes | HW |
-  | `auto` (default) | no | CPU (`STATE_DB:SFLOW_STATE.path_reason` records why, e.g. `platform_not_capable`) |
-  | `cpu-path` | (any) | CPU (forced) |
-  | `hw-accelerated` | yes | HW (forced) |
-  | `hw-accelerated` | no | **failed** (sFlow admin-down, WARN syslog, `STATE_DB:SFLOW_STATE.path_reason=platform_not_capable`) |
-
-"Capable" means the platform advertises the capability bits required by
-the *current config*: ingress support always, plus egress support when
-any port is configured `sample_direction=tx`/`both`. Under `auto` a
-config that demands egress sampling on an ingress-only platform
-therefore resolves to CPU (uniform system-wide path, reason
-`egress_sample_not_capable`), never to `failed`. Capability selection
-happens at path-selection time only — `auto` is not an error-driven
-runtime fallback. If the HW path is selected and later hits a
-structural failure, the system reports `active_path=failed` (see
-below) rather than silently reverting to CPU.
-
-On entering HW path, `SflowOrch` creates one `TAM_TRANSPORT` + one
+When hw-acceleration is enabled and supported, `SflowOrch` creates one `TAM_TRANSPORT` + one
 `TAM_COLLECTOR` per configured collector, plus the sFlow session SAI
-object, then binds the session OID via the appropriate port attribute(s)
-honoring `sample_direction`. On entering CPU path it uses the existing
-`SAI_OBJECT_TYPE_SAMPLEPACKET` flow unchanged. Mode transitions tear
-down the old path's SAI state before standing up the new path's; a brief
-sampling outage is expected.
+object, then binds the session OID to the port. Mode transitions from `cpu-mode` 
+to `hw-acceleration` or vice versa tear down the old path's SAI state before 
+standing up the new path's; a brief sampling outage is expected.
 
-**Collector over-subscription.** When the configured collector count
-exceeds the supported maximum (the lesser of the 4-collector scaling
-target, §5 requirement 3, and the platform's advertised limit),
-`SflowOrch::HwSflow` programs
-the first N collectors (sorted by name, so the set is stable across
-restarts and reconciles) and leaves the rest unprogrammed —
+When the configured collector count exceeds the supported maximum (the platform's advertised limit),
+`SflowOrch::HwSflow` programs the first N collectors (sorted by name, so the 
+set is stable across restarts and reconciles) and leaves the rest unprogrammed —
 `SFLOW_COLLECTOR_STATE.PROGRAMMED=false,
 LAST_ERROR=hw_session_limit_exceeded`, plus a WARN syslog naming them. The
 system stays `active_path=hw` rather than failing wholesale for one excess
@@ -327,34 +221,14 @@ attributes support it on every platform — see §7.12) and is tracked as a
 
 #### Partial-create failure handling
 
-Programming a collector is a sequence: `TAM_TRANSPORT` (or a refcount bump
-on an existing one) → `TAM_COLLECTOR` → sFlow session object → port
-binding. If any step fails, `HwSflow` unwinds in reverse, deleting only
-what this collector created and decrementing the shared `TAM_TRANSPORT`
-refcount (objects shared with other collectors stay intact) — so no
-partial graph is ever left bound to a port. The failed collector is
+`HwSflow` must handle partial-create failure. The failed collector is
 flagged `SFLOW_COLLECTOR_STATE.PROGRAMMED=false` with the SAI error in
-`LAST_ERROR`; others are unaffected. A structural failure (e.g. capability
-lost) escalates to the system-wide `SFLOW_STATE.active_path=failed` path
-instead.
-
-Lifecycle gaps in the resolver, not specific to HW sFlow:
-
-* **Egress port programming.** The resolver resolves the egress port but
-does not pass it into a SAI attribute today; silicon IP route lookup
-determines egress at emit time. Whether HW sFlow needs explicit
-egress-port pinning is a vendor-contract question (§7.12, §14).
-* **ECMP and LAG distribution.** The resolver picks the first nexthop and
-the first LAG member. Must be resolved in Phase I alongside LAG support
-(§5 requirement 9, §14 open item).
-* **L4 source port stability.** The resolver uses a random ephemeral port
-per session. Phase I HW sFlow accepts random-per-session; stable-port is
-tracked in §14.
+`LAST_ERROR`; others are unaffected. 
 
 #### Agent address coupling
 
 Every sFlow v5 datagram carries an *Agent Address*: the IP the collector
-uses as primary key to group a switch's samples (distinct from the
+uses a primary key to group a switch's samples (distinct from the
 arbitrary-integer `sub_agent_id` — §14 item 2). In the CPU path, `hsflowd`
 sets it from `SFLOW|global:agent_id`, decoupled from transport. On the HW
 path the silicon reuses the encap source IP and exposes no separate Agent
@@ -373,15 +247,6 @@ routes to any collector normally. The cost is a documented limitation
 from transport source; such a config still works, it just emits with both
 equal to `agent_id`'s IP.
 
-#### Syncd
-
-No SAI API additions are needed today. The relevant enums and attributes
-(`SAI_MIRROR_SESSION_TYPE_SFLOW`,
-`SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION`,
-`SAI_MIRROR_SESSION_ATTR_SAMPLE_RATE`), and the TAM transport/collector
-attributes are all existing standard enums. If the SAI surface for
-sampling migrates to the TAM namespace, `HwSflow` picks up the new APIs
-through the standard sairedis surface; no syncd changes are anticipated.
 
 ### 7.6 DB and Schema changes
 
