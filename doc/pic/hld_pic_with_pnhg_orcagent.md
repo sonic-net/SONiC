@@ -1,6 +1,6 @@
 # Protection NHG for Primary/Standby ECMP Routes
 
-Rev v1.0
+Rev v1.1
 
 ## Table of Contents
 
@@ -30,6 +30,7 @@ Rev v1.0
 | Rev | Date | Author(s) | Notes |
 | :---- | :---- | :---- | :---- |
 | v1.0 | 2026-05-06 | Prashanth (Nexthop AI) | Capability-driven N:M protection NHG; covers expected behavior in all paths. |
+| v1.1 | 2026-07-17 | Prashanth (Nexthop AI) | Two-level realization: the protection NHG is an ECMP-of-ECMPs — one inner ECMP per role subset — with the protection NHG limited to switchover. Producer contract unchanged. |
 
 ---
 
@@ -81,11 +82,13 @@ Out of scope:
 
 ## 5\. Overview
 
-A traditional ECMP NHG treats every member as an equal peer; loss of a member only redistributes flows across the survivors. While it provides high-availability, it does not provide a mechanism to create a hierarchy of these members where one set of paths is preferred and a backup set to take over on failure of the preferred set.
+A traditional ECMP NHG treats every member as an equal peer; loss of a member only redistributes flows across the survivors. While it provides high-availability, it does not provide a mechanism to create a hierarchy of these members where one set of paths is preferred and a backup set to take over on failure of the preferred set. Adding this capability allows for a quick datapath convergence when the primary path fails, until the control plane can determine the new optimal path and update the routes accordingly.
 
 A **protection NHG** introduces that framework. The route producer marks the first *N* of the route's *N+M* next hops as **primary** and the remaining *M* as **standby**. When all primaries are unreachable, traffic is steered to the standbys; when at least one primary becomes reachable again, traffic returns to the primaries. Since these NHGs are shared by multiple routes, on failure it provides a faster convergence to all the routes using this group.
 
 This design supports any **N:M** ratio, including 1:1, subject only to the platform's NHG capacity limit. The transition from primary to standby and back is driven by orchagent, which issues `SAI_NEXT_HOP_GROUP_ATTR_SET_SWITCHOVER` based on next-hop liveness reported by NeighOrch.
+
+**Structure — an ECMP of ECMPs.** The protection NHG is realized as a two-level group. Each role subset is itself an ECMP next-hop group — a *primary inner ECMP* over the primary next hops and a *standby inner ECMP* over the standby next hops — and the protection NHG has just two members, one per role, each pointing at its inner ECMP. (An inner ECMP is created only when the subset has more than one next hop; a subset with a single next hop is used directly as the member.) The protection NHG's only responsibility is the **switchover**: selecting which inner group is the active subset. Per-next-hop liveness *within* a subset — an individual member going down or recovering — is handled by that subset's inner ECMP exactly as an ordinary ECMP handles it (the inner ECMP shrinks or grows and re-hashes over its survivors), with no change to the protection NHG's own two members. This split keeps the protection NHG stable across neighbor flaps, reuses the standard, well-exercised ECMP liveness path for intra-subset changes, and limits orchagent-issued `SET_SWITCHOVER` to the moments an entire subset crosses the all-down / first-up boundary.
 
 Hardware/SDK-driven switchover (for example, via SAI monitored objects that track interface or BFD session state) is **out of scope** for this design; see §17.
 
@@ -113,9 +116,9 @@ As mentioned earlier, this HLD is the platform complement of the feature describ
 
 ### 6.3 Scalability
 
-- There is no change to scale numbers due to this feature.  The number of distinct protection NHGs in the system is bounded by the SAI/SDK NHG capacity.  
-- The max member count per group is also similar to the ECMP behavior, except in case of Protection NHGs, the max member count could be enforced on the total size including primary and standby members.    
-- Routes with identical primary+standby sets share one NHG (refcounted).
+- The two-level structure consumes more NHG objects than a single flat group would: one NHG for the protection group itself, plus one inner ECMP NHG per role subset that has **more than one** next hop. So an N:M group with N>1 and M>1 uses **three** NHG objects (protection + primary inner ECMP + standby inner ECMP); a 1:1 group uses **one** (both subsets are single next hops used directly, so no inner ECMP is created). The number of protection groups the system can hold is bounded by the SAI/SDK NHG capacity, which now also accounts for these inner ECMPs.  
+- The max member count is similar to plain ECMP; for a protection group the relevant per-subset limit is the member count of each inner ECMP (each an ordinary ECMP over that role's next hops).  
+- Routes with identical primary+standby sets share one protection NHG (refcounted); its inner ECMPs are private to it (§7.4) and are not shared with plain-ECMP routes.
 
 ### 6.4 Boot and Replay
 
@@ -242,11 +245,14 @@ Protection NHGs are produced by flat-list `ROUTE_TABLE` entries (carrying `prima
 
 The protection-NHG object (`ProtNhg`) encapsulates:
 
-- the SAI NHG OID,  
-- per-member SAI OIDs (one per resolved primary or standby NH),  
-- the *active subset* state (whether the group is currently forwarding on primaries or standbys).
+- the SAI OID of the protection NHG,  
+- its (up to) two members — one per role — where a role subset with more than one next hop is realized as a **private inner ECMP NHG** and a subset with a single next hop uses that next hop directly,  
+- the SAI OIDs of the inner ECMPs and their per-next-hop members,  
+- the *active subset* state (whether the group is currently forwarding on the primary or the standby inner group).
 
-Existing fan-out hooks in `NhgOrch::validateNextHop` and `NhgOrch::invalidateNextHop` (driven by `NeighOrch`) are extended to consult `m_protNhgs` on every NH liveness change and to call into the protection-NHG object so it can re-evaluate its active subset.
+**Inner ECMPs are private to the protection NHG — they are not shared with plain-ECMP routes** that happen to carry the same member set. The reason is lifecycle divergence on an empty subset: a plain-ECMP NHG is destroyed when its last member is withdrawn (SONiC does not keep a zero-member group; the route is reprogrammed), whereas a protection subset must *persist* even when all its members are down — an empty primary subset is precisely the switchover trigger, and the inner group must survive so the protection NHG can switch **back** when a primary recovers. Sharing an inner ECMP with a plain route would let that route's "last member down → destroy" tear down an object the protection NHG still depends on, and would couple the two consumers' membership churn. Individual next-hop objects are still shared per-IP; only the ECMP *group* is private.
+
+Existing fan-out hooks in `NhgOrch::validateNextHop` and `NhgOrch::invalidateNextHop` (driven by `NeighOrch`) are extended to consult `m_protNhgs` on every NH liveness change and to call into the protection-NHG object so it can re-evaluate its active subset. A liveness change on an individual next hop updates the relevant **inner ECMP**; the protection NHG re-evaluates the active subset (and issues `SET_SWITCHOVER` only if an entire subset crossed the all-down / first-up boundary).
 
 ### 7.5 NeighOrch Integration
 
@@ -263,6 +269,8 @@ In addition, when a *fresh* NH is added to `NeighOrch`'s map (for example after 
 
 This section walks through the expected control flow for the situations the design must handle. *Primary live count* below means the count of primary NHs that `NeighOrch` reports as resolved and not `NHFLAGS_IFDOWN`.
 
+Recall from §5 and §7.4 that each role subset (of more than one next hop) is an inner ECMP NHG. A member going down or recovering *within* a subset is applied to that subset's **inner ECMP** — the inner group shrinks or grows and re-hashes over its survivors — and does **not** change the protection NHG's own two members. The protection NHG itself changes only on **switchover** (`SET_SWITCHOVER`). Accordingly, the `create_next_hop_group_member` / `remove_next_hop_group_member` calls in the flows below operate on the relevant **inner ECMP**, unless stated otherwise.
+
 ### 8.1 Steady state — all paths up
 
 
@@ -278,12 +286,15 @@ This section walks through the expected control flow for the situations the desi
     |           |           +---------->|          |        |
     |           |           |           |  sync    |        |
     |           |           |           +--------->|        |
+    |           |           |           |          | create inner ECMP(primary)=[p1,p2]
+    |           |           |           |          | create inner ECMP(standby)=[s1,s2]
+    |           |           |           |          +------->|
     |           |           |           |          | create_next_hop_group(type=PROTECTION)
     |           |           |           |          +------->|
-    |           |           |           |          | create_next_hop_group_member x4
-    |           |           |           |          | (CONFIGURED_ROLE per member)
+    |           |           |           |          | create_next_hop_group_member x2
+    |           |           |           |          | (member -> inner ECMP OID, CONFIGURED_ROLE per role)
     |           |           |           |          +------->|
-    |           |           |           |          |  ** NHG OID assigned, primary subset active **
+    |           |           |           |          |  ** NHG OID assigned, primary inner group active **
     |           |           |           |   ok     |        |
     |           |           |           |<---------+        |
     |           |           |   NHG OID |          |        |
@@ -317,44 +328,53 @@ The primary subset is programmed in SAI to reflect **only the live primaries**. 
 
 ### 8.3 All primaries down — switchover to standbys
 
-This is the **last-live-primary** case. The design issues `SET_SWITCHOVER=true` to SAI **before** removing the dead primary, so that the active subset is never empty at the moment of the SAI member-delete. After SAI accepts the switchover, the dead primary is removed from the (now inactive) primary subset.
+This is the **last-live-primary** case. When the last live primary's neighbor goes down, its next hop is removed from the **primary inner ECMP** (the same intra-subset shrink as §8.2), leaving that inner group with no live members. The protection NHG observes that the primary subset is now empty of live members and issues `SET_SWITCHOVER=true`, making the **standby inner ECMP** the active subset.
+
+Two things distinguish this from the flat model:
+
+- The dead primary is removed from the **inner primary ECMP**, not from the protection NHG. The protection NHG's two members (the two inner ECMPs) are unchanged; the switchover simply flips **which of the two is active**. The flat model's "issue `SET_SWITCHOVER` before deleting the dead member, so the active subset is never empty" ordering does not apply here, because no member of the protection NHG is deleted on this event — the protection NHG's members are stable and only their active selection changes.
+- The now-empty **primary inner ECMP persists** (§7.4) rather than being destroyed, so a later primary recovery (§8.4) repopulates it and the group switches back.
+
+If, at this moment, the standby subset has no programmed members, the switchover is **not** issued — that is the all-paths-dead case in §8.7.
 
 ```
-   NeighOrch    NhgOrch    ProtNhg    SAI
-       |           |          |        |
+   NeighOrch    NhgOrch      ProtNhg    SAI
+       |           |            |        |
        | invalidateNextHop(p2)  ** p2 is the last live primary **
-       +---------->|          |        |
-       |           | invalidate primary p2
-       |           +--------->|        |
-       |           |          | ** detect: would empty live primaries **
-       |           |          | set_next_hop_group_attribute(SET_SWITCHOVER=true)
-       |           |          +------->|
-       |           |          |  ** standbys are now the active subset **
-       |           |          | remove_next_hop_group_member(p2)
-       |           |          +------->|
-       |           |   ok     |        |
-       |           |<---------+        |
+       +---------->|            |        |
+       |           | remove p2 from the primary inner ECMP
+       |           +--------------------->|
+       |           |            |         | ** primary inner ECMP now has no live members **
+       |           | re-evaluate protection NHG
+       |           +----------->|         |
+       |           |            | ** primary subset empty; standby subset is programmed **
+       |           |            | set_next_hop_group_attribute(SET_SWITCHOVER=true)
+       |           |            +-------->|
+       |           |            | ** standby inner ECMP is now the active subset **
+       |           |   ok       |         |
+       |           |<-----------+         |
 ```
 
-After this, the route forwards across the standby subset. `m_switched_over` is `true` in the protection-NHG object.
+After this, the route forwards across the standby inner ECMP. `m_switched_over` is `true` in the protection-NHG object; the primary inner ECMP remains in place (empty of live members), ready for switchback.
 
 ### 8.4 At least one primary recovers — switch back
 
-The first primary recovery causes a switchback. The recovered primary is added to (or refreshed in) the primary subset in SAI; the active subset flips back via `SET_SWITCHOVER=false`.
+The first primary recovery causes a switchback. The recovered primary is added back to the **primary inner ECMP** (repopulating it, §8.3); the protection NHG then flips the active subset back via `SET_SWITCHOVER=false`.
 
 ```
-   NeighOrch    NhgOrch    ProtNhg    SAI
-       |           |          |        |
+   NeighOrch    NhgOrch      ProtNhg    SAI
+       |           |            |        |
        | validateNextHop(p1)
-       +---------->|          |        |
-       |           | validate primary p1
-       |           +--------->|        |
-       |           |          | create_next_hop_group_member(p1, role=PRIMARY)
-       |           |          +------->|
-       |           |          | ** primary live count > 0 -> wanted=Primary_Active **
-       |           |          | set_next_hop_group_attribute(SET_SWITCHOVER=false)
-       |           |          +------->|
-       |           |          |  ** primary subset is now active again **
+       +---------->|            |        |
+       |           | add p1 to the primary inner ECMP
+       |           +--------------------->|
+       |           |            |         | ** primary inner ECMP now has a live member **
+       |           | re-evaluate protection NHG
+       |           +----------->|         |
+       |           |            | ** primary live count > 0 -> wanted=Primary_Active **
+       |           |            | set_next_hop_group_attribute(SET_SWITCHOVER=false)
+       |           |            +-------->|
+       |           |            | ** primary inner ECMP is the active subset again **
 ```
 
 ### 8.5 Standby flap while not switched over
@@ -395,7 +415,7 @@ When the last live primary goes down, orchagent first checks the standby subset 
 
 - `SET_SWITCHOVER=true` is **not** issued: orchagent pre-checks that the target subset is non-empty (see §9.4), so it does not rely on a SAI/SDK error code to detect this case;  
 - `m_switched_over` is **not** flipped — the group stays `Primary_Active`;  
-- the dead primary is **not** removed from SAI. (Contrast §8.3, where the switchover succeeds and the dead primary is removed *after* it; here the operation is aborted, so the removal that would have followed the switchover does not happen either.)
+- the primary inner ECMP is left as the active subset, with its last (now-dead) member in place — orchagent does not empty the active subset (the §8.6 guard). (Contrast §8.3, where a standby is available: the switchover makes the standby inner ECMP the active subset, so the primary inner ECMP is no longer active and may drop to empty and persist for switchback.)
 
 Traffic that hashes onto the dead primary FEC is dropped. This is the same end-state as a regular ECMP NHG with all members dead. The system is **self-healing**: when any primary or standby returns, the next neighbor event re-runs the active-subset evaluation and either restores primary forwarding (if a primary recovers) or now successfully switches over (if a standby recovers, so the target subset is no longer empty).
 
@@ -468,18 +488,20 @@ SAI_NEXT_HOP_GROUP_ATTR_TYPE = SAI_NEXT_HOP_GROUP_TYPE_PROTECTION
 
 The `TYPE` attribute is set once at creation time and is immutable. The OID returned is stable for the life of the protection NHG; routes pin to it across switchover and member churn.
 
-### 9.3 Member add/remove
+### 9.3 Members
 
-Each member is created with:
+The protection NHG has (up to) two members, one per role. Each is created with:
 
 ```c
-SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID = <NHG OID>
-SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID       = <NH SAI OID>
+SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID = <protection NHG OID>
+SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID       = <inner ECMP NHG OID>   // or a plain <NH SAI OID> when the subset has a single next hop
 SAI_NEXT_HOP_GROUP_MEMBER_ATTR_CONFIGURED_ROLE   = SAI_NEXT_HOP_GROUP_MEMBER_CONFIGURED_ROLE_PRIMARY
                                                 or _CONFIGURED_ROLE_STANDBY
 ```
 
-orchagent expects that adding a member to either subset does **not** disturb the currently-active subset, and that removing a member from a subset also does not disturb the other subset.
+The inner ECMPs are ordinary `SAI_NEXT_HOP_GROUP_TYPE_*ECMP` groups; their members are the individual next-hop OIDs of that role subset and are added/removed as those next hops resolve or go down (§8). Because per-next-hop liveness is applied at the inner-ECMP level, the protection NHG's own two members change only when a role subset appears or disappears entirely, not on individual neighbor flaps.
+
+orchagent expects that adding or removing a member of one inner ECMP does **not** disturb the other inner ECMP or the protection NHG's active-subset selection.
 
 ### 9.4 Active-subset selection
 
@@ -546,56 +568,54 @@ $ redis-cli -n 0 hgetall 'ROUTE_TABLE:100.0.0.0/24'
 
 ASIC\_DB representation is the standard SAI representation of:
 
-- one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP` per protection NHG, with `SAI_NEXT_HOP_GROUP_ATTR_TYPE` \= `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION`,  
-- one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER` per resolved member, carrying `CONFIGURED_ROLE`,  
-- the route entry pointing to the NHG OID via `SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID`.
+- one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP` for the protection NHG, with `SAI_NEXT_HOP_GROUP_ATTR_TYPE` \= `SAI_NEXT_HOP_GROUP_TYPE_PROTECTION`,  
+- up to two `SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER` of the protection NHG (one per role), each carrying `CONFIGURED_ROLE` and pointing via `NEXT_HOP_ID` at an inner ECMP NHG — or directly at a next hop when that subset has a single next hop,  
+- one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP` per inner ECMP (an ordinary ECMP type), each with one `SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER` per resolved next hop in that subset,  
+- the route entry pointing to the protection NHG OID via `SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID`.
 
 No ASIC\_DB schema is introduced.
 
-Here is an example of the ASIC\_DB contents for the Protection NHG group example above.
+Here is an example of the ASIC\_DB contents for the Protection NHG group example above (2 primary + 2 standby). The protection NHG has two members, each pointing at an inner ECMP NHG (one per role); the leaf next hops are the members of the inner ECMPs.
 
 ```
+# Protection NHG: two members, one per role
 $ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP:oid:0x5800000000c401'
   1) "SAI_NEXT_HOP_GROUP_ATTR_TYPE"
   2) "SAI_NEXT_HOP_GROUP_TYPE_PROTECTION"
   3) "SAI_NEXT_HOP_GROUP_ATTR_SET_SWITCHOVER"
-  4) "false"                                        # primaries are active
+  4) "false"                                        # primary inner group is active
 
-# Primary member: 10.0.0.1 / PortChannel102
-  $ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:oid:0x2d00000000c405'
+# Protection member -> PRIMARY inner ECMP
+$ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:oid:0x2d00000000c405'
   1) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID"
-  2) "oid:0x5800000000c401"
+  2) "oid:0x5800000000c401"                         # the protection NHG
   3) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID"
-  4) "oid:0x4000000000a311"
+  4) "oid:0x5800000000c402"                         # the PRIMARY inner ECMP NHG
   5) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_CONFIGURED_ROLE"
   6) "SAI_NEXT_HOP_GROUP_MEMBER_CONFIGURED_ROLE_PRIMARY"
 
-  # Primary member: 10.0.0.2 / PortChannel103
-  $ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:oid:0x2d00000000c406'
+# Protection member -> STANDBY inner ECMP
+$ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:oid:0x2d00000000c406'
   1) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID"
-  2) "oid:0x5800000000c401"
+  2) "oid:0x5800000000c401"                         # the protection NHG
   3) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID"
-  4) "oid:0x4000000000a312"
-  5) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_CONFIGURED_ROLE"
-  6) "SAI_NEXT_HOP_GROUP_MEMBER_CONFIGURED_ROLE_PRIMARY"
-
-  # Standby member: 10.0.0.3 / Ethernet68
-  $ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:oid:0x2d00000000c407'
-  1) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID"
-  2) "oid:0x5800000000c401"
-  3) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID"
-  4) "oid:0x4000000000a313"
+  4) "oid:0x5800000000c403"                         # the STANDBY inner ECMP NHG
   5) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_CONFIGURED_ROLE"
   6) "SAI_NEXT_HOP_GROUP_MEMBER_CONFIGURED_ROLE_STANDBY"
 
-  # Standby member: 10.0.0.5 / PortChannel105
-  $ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER:oid:0x2d00000000c408'
-  1) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_GROUP_ID"
-  2) "oid:0x5800000000c401"
-  3) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID"
-  4) "oid:0x4000000000a314"
-  5) "SAI_NEXT_HOP_GROUP_MEMBER_ATTR_CONFIGURED_ROLE"
-  6) "SAI_NEXT_HOP_GROUP_MEMBER_CONFIGURED_ROLE_STANDBY"
+# PRIMARY inner ECMP NHG (ordinary ECMP over the primary next hops)
+$ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP:oid:0x5800000000c402'
+  1) "SAI_NEXT_HOP_GROUP_ATTR_TYPE"
+  2) "SAI_NEXT_HOP_GROUP_TYPE_DYNAMIC_UNORDERED_ECMP"
+  # member 10.0.0.1 / PortChannel102 -> NEXT_HOP_GROUP_ID=oid:0x5800000000c402, NEXT_HOP_ID=oid:0x4000000000a311
+  # member 10.0.0.2 / PortChannel103 -> NEXT_HOP_GROUP_ID=oid:0x5800000000c402, NEXT_HOP_ID=oid:0x4000000000a312
+
+# STANDBY inner ECMP NHG (ordinary ECMP over the standby next hops)
+$ redis-cli -n 1 hgetall 'ASIC_STATE:SAI_OBJECT_TYPE_NEXT_HOP_GROUP:oid:0x5800000000c403'
+  1) "SAI_NEXT_HOP_GROUP_ATTR_TYPE"
+  2) "SAI_NEXT_HOP_GROUP_TYPE_DYNAMIC_UNORDERED_ECMP"
+  # member 10.0.0.3 / Ethernet68     -> NEXT_HOP_GROUP_ID=oid:0x5800000000c403, NEXT_HOP_ID=oid:0x4000000000a313
+  # member 10.0.0.5 / PortChannel105 -> NEXT_HOP_GROUP_ID=oid:0x5800000000c403, NEXT_HOP_ID=oid:0x4000000000a314
 ```
 
 ---
@@ -669,21 +689,27 @@ No explicit warm-boot serialization is introduced by this design.
   - `primary_nh_count` absent / `0` / equal / greater-than `len(nexthop)`: exercise each branch.  
   - Capability supported vs. not supported (mock `NhgOrch::isSwProtectionSupported`).  
   - Primary set, standby set canonicalization (two routes with different producer orderings dedupe).  
+- Two-level structure:  
+  - A role subset with more than one next hop materializes an **inner ECMP** member; a single-next-hop subset uses that next hop directly as the member (no inner ECMP).  
+  - The protection NHG has (up to) two members, each carrying `CONFIGURED_ROLE` and referencing its inner ECMP OID (or the NH OID for a single-NH subset).  
+  - Inner ECMPs are **private**: a protection route and a plain-ECMP route with the same member set resolve to **distinct** group OIDs (the inner ECMP is not shared).  
 - `ProtNhg` member lifecycle:  
-  - Create with all members resolved \-\> all members synced in SAI.  
+  - Create with all members resolved \-\> the two role members and their inner-ECMP members are synced in SAI.  
   - Create with some unresolved \-\> sync proceeds, members synced as they resolve later.  
-  - Refcount-driven destroy.
+  - Refcount-driven destroy (the protection NHG and its private inner ECMPs are released at refcount zero).
 
 ### 16.2 Functional / integration tests
 
 - 1+1, N+1, 1+M, and N+M topologies, with N and M up to a small but representative bound.  
-- Primary down (non-last) \-\> shrink primary subset; verify no `SET_SWITCHOVER`.  
-- Last live primary down \-\> single `SET_SWITCHOVER=true` immediately followed by the dead-member remove; verify ordering at SAI.  
-- Primary recovery from switched-over state \-\> single `SET_SWITCHOVER=false`; verify primary set is current.  
-- Standby down while not switched over \-\> standby subset shrinks; verify no `SET_SWITCHOVER`.  
-- Standby down while switched over (not the last) \-\> active standby subset shrinks; verify no `SET_SWITCHOVER`. Last live standby down \-\> all-paths-dead handling (§8.7).  
-- All-paths-dead \-\> verify orchagent pre-check aborts the switchover (no `SET_SWITCHOVER` issued, dead primary left in place); verify recovery on either side.  
-- Route update that changes the NH set \-\> verify deterministic key, refcount transitions, and old-NHG destroy when refcount==0.  
+- **Two-level layout** \-\> verify the protection NHG has two role members referencing inner ECMP OIDs (or a plain NH OID for a single-NH subset), and each inner ECMP holds its subset's leaf next hops (see §10.2).  
+- **Intra-subset liveness stays in the inner ECMP** \-\> a member flap within a subset changes only that inner ECMP; the protection NHG's two members and switchover state are unchanged.  
+- Primary down (non-last) \-\> the primary **inner ECMP** shrinks (protection NHG members unchanged); verify no `SET_SWITCHOVER`.  
+- Last live primary down \-\> the dead primary is removed from the primary inner ECMP and the protection NHG issues a single `SET_SWITCHOVER=true` (standby inner ECMP becomes active); verify the primary inner ECMP **persists** (empty of live members) for switchback.  
+- Primary recovery from switched-over state \-\> the recovered primary is (re)added to the primary inner ECMP and the group issues a single `SET_SWITCHOVER=false`; verify the primary inner ECMP is current.  
+- Standby down while not switched over \-\> the standby **inner ECMP** shrinks; verify no `SET_SWITCHOVER`.  
+- Standby down while switched over (not the last) \-\> the active standby **inner ECMP** shrinks; verify no `SET_SWITCHOVER`. Last live standby down \-\> all-paths-dead handling (§8.7).  
+- All-paths-dead \-\> verify orchagent pre-check aborts the switchover (no `SET_SWITCHOVER` issued, primary inner ECMP left in place); verify recovery on either side.  
+- Route update that changes the NH set \-\> verify deterministic key, refcount transitions, and old protection-NHG (with its private inner ECMPs) destroyed when refcount==0.  
 - Back-to-back primary flaps (rapid up\-\>down\-\>up\-\>down) \-\> verify OA/SAI resource churn is bounded (no NHG/member OID leak, switchover count tracks the flaps) and the group converges to the correct active subset; stress at a high flap rate to constrain OA and HW resource usage.
 
 ### 16.3 Negative tests
