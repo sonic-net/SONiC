@@ -186,6 +186,9 @@ We propose the following structure:
 - At the beginning of Phase 1: A nightly, post-merge job that tests the Bazel builds only. There are no expectations to keep this job green, but it will be useful in spotting regressions.
 - Throughout Phase 1:
     - We will add tests to the Bazel CI pipeline to ensure that Bazel and Make produce similar-enough artifacts. We define similar-enough as "produce the same file names in the same locations with the same permissions". We cannot check that the files are byte-by-byte equivalent, because the Make-based build system is less hermetic than Bazel.
+    - We will also add a checks to handle version drift:
+        - Changes in versions of third party dependencies (Bazel modules, apt deps, or Python deps) will be flagged by a CI job.
+        - Whenever a version of a third party dependency differs between Bazel and Make (in `files/build/versions-public/build/build-sonic-slave-trixie`), the CI job will fail.
     - The build working group will keep an eye on changes to the Make-based build system, and try to incorporate them into the Bazel system quickly. This will prevent technical debt from building up in preparation for Phase 2.
 - At the beginning of Phase 2: Bazel builds are blocking pre-submit. When we flip the default of `BUILD_WITH_BAZEL_WHEN_AVAILABLE`, the components that are migrated to Bazel will now be blocking the pre-submit checks.
 
@@ -313,6 +316,7 @@ As part of preparing the repository for the migration, we have done the followin
 
 - Define a hermetic gcc toolchain, so that we always use the same version for every build. [Source](https://github.com/blorente/sonic-build-infra/tree/master/toolchains/gcc). The toolchain will be chosen to be compatible with the apt packages downloaded for that Debian version. The one in the source, for instance, is ABI-compatible with Bookworm. This version can be changed as we discover more facts. For instance, if we discover that we need a more specific gcc to maintain ABI compatibility for a particular vendor's SAI implementation, we can generate new toolchains at will through [blorente/gcc-builds](https://github.com/blorente/gcc-builds).
 - Fetch Debian packages deterministically, instead of relying on `apt install`. We do that by using `rules_distroless` to fetch from a Debian snapshot. [Source](https://github.com/sonic-net/sonic-buildimage/blob/e09be005b19c3521c674e4415d08a25648fc15f4/MODULE.bazel#L23-L56). Please note that this only refers to the Bazel ruleset, and is **unrelated to distroless containers** as a concept. Switching to distroless containers is out of the scope of this document.
+- Centralize Python and `apt` third-party dependencies into `@sonic-build-infra//deps` (which lives in `<sonic-buildimage>/src/sonic-build-infra/deps`), for easy reference. Components will have to use dependencies from this centralized list (they won't be able to fetch their own Python and `apt` dependencies).
 
 > [!warning]
 > During the transition, Bazel will consume base layers from the Make-based build. This can lead to discrepancies in runtime dependencies if we don't keep the `rules_distroless` dependencies up to date.
