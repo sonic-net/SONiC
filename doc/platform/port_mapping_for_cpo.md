@@ -136,8 +136,8 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
       "device_type": "optical_engine",
       // The number of CMIS banks associated with this device.
       "max_banks": 4,
-      // The overall number of physical lanes available in this device.
-      "lanes": "41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,...",
+      // The ASIC lanes this device is responsible for
+      "asic_lanes": "41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,...",
       // If a vendor needs to encode I2C mapping information, that information
       // can be included here. However, this is platform dependent and may be
       // achieved via other mechanisms.
@@ -148,8 +148,8 @@ We can achieve modeling of complex multi-device topologies via the **platform.js
       // Number of individual lasers this device provides.
       "lasers": 8,
       "max_banks": 1,
-      // laser_to_lane_mapping provides a mapping of laser to which lane it is powering.
-      "laser_to_lane_mapping": {
+      // laser_to_asic_lane_mapping provides a mapping of laser to which ASIC lane it is powering.
+      "laser_to_asic_lane_mapping": {
         "1": "41,42",
         "2": "43,44",
         "3": "45,46",
@@ -295,20 +295,20 @@ class ChassisBase:
   ...
   def __init__(self):
     ...
-    # List of SfpBase-derived objects representing all sfps
+    # List of CpoBase-derived objects representing all CPO ports
     # available on the chassis
-    self._sfp_list = []
+    self._cpo_list = []
     cpo_data = device_info.get_cpo_data()
     if cpo_data:
-      self.construct_sfp_list_for_topology(cpo_data)
+      self.construct_cpo_devices(cpo_data)
 
-  def construct_sfp_list_for_topology(self, cpo_data):
-    """Subclasses should implement this method to create sfp objects based on topology data in cpo.json"""
+  def construct_cpo_devices(self, cpo_data):
+    """Subclasses should implement this method to create CPO objects based on topology data in cpo.json"""
     raise NotImplementedError
 
 class VendorCpoChassis(ChassisBase):
   ...
-  def construct_sfp_list_for_topology(self, cpo_data):
+  def construct_cpo_devices(self, cpo_data):
       for interface in cpo_data.interfaces:
         assert len(interface.associated_devices) == 2, "We expect 2 devices per interface on this CPO hardware platform"
 
@@ -325,9 +325,19 @@ class VendorCpoChassis(ChassisBase):
         # Create a CpoBase-derived object to represent this interface
         assert oe, "No optical engine found for this interface"
         assert elsfp, "No ELSFP found for this interface"
-        # VendorCpoSfp would be a subclass of CpoSfpBase here.
-        self._sfp_list.append(VendorCpo(hardware_id=self.hw_id, oe=oe, els=elsfp))
+        # VendorCpo would be a subclass of CpoBase here.
+        self._cpo_list.append(VendorCpo(hardware_id=self.hw_id, oe=oe, els=elsfp))
 ```
+
+Additionally, CPO devices will be stored separately to traditional `SfpBase`-derived objects on a Chassis object in `self._cpo_list`. Accessors like
+`get_num_cpos`, `get_cpo` and `get_all_cpos` will be implemented on `ChassisBase`, the same as are available for accessing `self._sfp_list`.
+
+Any non-CPO ports will contain `None` at the index in `self._cpo_list` corresponding to the physical port -- the inverse is true for
+`self._sfp_list`. For example, on a device that had the following port layout:
+```
+[cpo, cpo, cpo, cpo, sfp, sfp]
+```
+`_cpo_list` would be `[CpoObject, CpoObject, CpoObject, CpoObject, None, None]` and `_sfp_list` would be `[None, None, None, None, SfpObject, SfpObject]`
 
 ##### 7.3.3 CPO Joint Mode
 There is a mode of operation for CPO hardware called "joint mode" where a single I2C device called an "MCU" handles all reads/writes, redirecting them to the optical engine EEPROM or the ELSFP EEPROM appropriately.
