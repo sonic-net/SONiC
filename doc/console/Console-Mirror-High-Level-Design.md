@@ -1044,7 +1044,7 @@ The following items can be added in later revisions:
 * Recording file encryption.
 * gNOI APIs for remote start and stop.
 * Optional inclusion of console-monitor internal heartbeat frames for debugging.
-* Optional redaction filters for known sensitive patterns.
+* Optional redaction filters for known sensitive patterns (including usernames, passwords, etc.).
 
 ---
 
