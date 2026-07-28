@@ -75,6 +75,7 @@ Non-Bazel Definitions:
 We have already implemented large parts of this document as proofs of concept.
 
 Please see these publications about our work:
+- Talk from OCP SONiC Workshop 2025: https://www.youtube.com/watch?v=1YNmuzMqV24
 - Talk from OCP EMEA Summit 2026: https://www.youtube.com/watch?v=uSKCNDWuXjc
 - Blog article about our work: https://aspect.build/blog/bazel-for-sonic
 
