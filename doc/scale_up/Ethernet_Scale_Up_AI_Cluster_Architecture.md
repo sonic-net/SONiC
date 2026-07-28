@@ -62,9 +62,7 @@
 
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
-| 0.1 | 07/27/2025  |     Niranjan Vaidyam, Joy Qin, Eddie Ruan  | Initial version                   |
-| 0.2 | 11/17/2025  |     Haiyang Zheng  | Update rack system model and related software module changes                  |
-| 0.3 | 01/25/2026  |     Eddie Ruan | Update based on WG discussions |
+| 1.0 | 07/27/2026  |     Niranjan Vaidyam, Joy Qin, Eddie Ruan, Haiyang Zheng, Sean Kao | Define Ethernet-based scale-up AI cluster architecture, covering scale-up fabric requirements, reference rack system model, multi-ASIC switch design, protocol stack (LLR/CBFC/UFH), GPU-to-GPU packet flow, resiliency, cluster provisioning and SONiC software module changes |
 
 
 ## Terminologyies
