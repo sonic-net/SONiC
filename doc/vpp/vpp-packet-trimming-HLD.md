@@ -47,16 +47,20 @@ the SONiC scheduler rate and buffer-profile capacity, installed on the
 `interface-output` feature arc — plus a trim action node that truncates the
 rejected copy, rewrites its DSCP, and retries it on the configured static trim
 queue. SAI-VPP translates the existing packet-trimming SAI attributes onto that
-datapath and, once the translation is complete and validated end to end,
+datapath and, for the symmetric core that is complete and validated end to end,
 advertises the capability truthfully as **supported**
-(`SWITCH_TRIMMING_CAPABLE=true`), at which point the `sonic-mgmt` suite runs.
+(`SWITCH_TRIMMING_CAPABLE=true`), at which point the `sonic-mgmt` symmetric suite
+runs.
 
-Until that SAI-VPP translation is complete and validated, the platform continues
-to advertise packet trimming as **not supported** so the advertised capability
-never runs ahead of the datapath. The shared `sonic-sairedis` virtual-switch
-base over-advertises the capability today; that over-advertisement is corrected
-on VPP as the interim state and is raised to *supported* when the datapath wiring
-lands (see [7.12](#712-capability-advertisement)).
+The capability stays honest by narrowing *what* is advertised rather than gating
+the switch capability off: SAI-VPP advertises only the enum values the datapath
+honors (`DSCP_VALUE` DSCP resolution, `STATIC` queue resolution), so orchagent
+never programs the asymmetric `FROM_TC` or `DYNAMIC` modes VPP does not implement.
+Cases that exercise unimplemented behavior are deferred in `sonic-mgmt` through
+conditional_mark skips keyed on `asic_type == vpp`. The shared `sonic-sairedis`
+virtual-switch base over-advertises every trim enum today; that enum
+over-advertisement is corrected on VPP (see
+[7.12](#712-capability-advertisement)).
 
 The target design covers:
 
@@ -181,11 +185,13 @@ hangs off that failure. Because the shim is generic — it carries no
 packet-trimming SAI policy or test constants — it is the minimal substrate
 needed and keeps the SONiC-specific logic in SAI-VPP and the plugin control path.
 
-While the SAI-VPP translation that drives this datapath is being completed and
-validated end to end, the platform still corrects the base over-advertisement and
-reports packet trimming as *not* supported, so capability never leads the
-datapath; the advertisement is raised to *supported* when the wiring lands (see
-[7.12](#712-capability-advertisement)).
+The SAI-VPP translation that drives this datapath is completed and validated for
+the symmetric core, so the platform advertises packet trimming as *supported*
+(`SWITCH_TRIMMING_CAPABLE=true`). To keep the advertisement honest, VPP corrects
+the base's enum over-advertisement — narrowing the advertised trim enum values to
+the modes the datapath honors (`DSCP_VALUE`, `STATIC`) so orchagent never
+programs an unimplemented mode — rather than gating the switch capability off
+(see [7.12](#712-capability-advertisement)).
 
 ## 5. Requirements
 
@@ -286,9 +292,9 @@ flowchart TD
 |---|---|
 | VPP admission integration | Software per-`{port, queue}` token-bucket admission shim on the `interface-output` arc that turns a rate-limited (blocked) queue into a recoverable admission failure; generic, carrying no packet-trimming SAI policy |
 | VPP packet-trim plugin | Eligibility lookup, truncation, DSCP rewrite, static trim-queue retry with one-shot `interface-output-arc-end` re-injection, counters, binary API, and debug CLI |
-| SAI-VPP | Translate the packet-trimming SAI attributes and object relationships onto the plugin (global policy, per-queue eligibility from the buffer profile, scheduler rate/capacity, TC-to-DSCP map), source trim counters through `getStatsExt`, and — once wired and validated — raise the capability advertisement from *not supported* to the modes the datapath honors. The interim over-advertisement correction keeps `SWITCH_TRIMMING_CAPABLE=false` until then |
+| SAI-VPP | Translate the packet-trimming SAI attributes and object relationships onto the plugin (global policy, per-queue eligibility from the buffer profile, scheduler rate/capacity, TC-to-DSCP map) and advertise the capability truthfully — narrowing the advertised trim enum values to the modes the datapath honors (`DSCP_VALUE`, `STATIC`) so `SWITCH_TRIMMING_CAPABLE=true` is honest for the symmetric core. Sourcing trim counters through `getStatsExt` is deferred ([7.11](#711-counters)) |
 | sonic-swss | No VPP-specific change expected; the generic packet-trimming orchestration and capability publication already function on VPP |
-| sonic-mgmt | No suite code change: the `skip_if_packet_trimming_not_supported` capability fixture gates the suite on `SWITCH_TRIMMING_CAPABLE`, so it skips while the capability is *false* and runs automatically once SAI-VPP raises it to *true* |
+| sonic-mgmt | No suite code change: the `skip_if_packet_trimming_not_supported` capability fixture gates the suite on `SWITCH_TRIMMING_CAPABLE` (`true` on VPP, so it runs), and conditional_mark skips the out-of-scope cases on `asic_type == vpp` ([14.3](#143-enablement-gating)) |
 
 ## 7. High-Level Design
 
@@ -531,9 +537,10 @@ and hardware-specific threshold behavior remain outside this design.
 ### 7.11 Counters
 
 The VPP plugin maintains packet-trim counters in the dataplane and exposes them
-through the binary API; SAI-VPP maps them onto the existing SAI statistics and
-serves them from `getStatsExt`. Counters are kept at three scopes so the SAI
-switch, port, and queue stat IDs can all be sourced:
+through the binary API (`sonic_ext_trim_counters_get`). The **target** design
+maps them onto the existing SAI statistics and serves them from `getStatsExt`,
+kept at three scopes so the SAI switch, port, and queue stat IDs can all be
+sourced:
 
 | Event | Counter attribution |
 |---|---|
@@ -552,16 +559,20 @@ per-queue counters, and the feature-toggle test reads the queue-level
 The plugin's per-`{port, queue}` counter model is defined to satisfy those
 cross-checks directly.
 
-Before this design, the shared virtual-switch base advertised the trim stats as
-supported but returned zero for them; sourcing real values from the plugin
-through `getStatsExt` is part of raising the capability to *supported*.
+**Delivered scope (initial enablement).** The plugin maintains the counters and
+serves them over the binary API, but SAI-VPP does **not** yet source them through
+`getStatsExt` — `SwitchVpp::getStatsExt` still delegates trim stat IDs to the
+shared virtual-switch base, which returns zero. SAI stat sourcing is deferred
+(see [13.1](#131-integration-status)), and the `sonic-mgmt` trim-counter cases
+are skipped on `vpp` via conditional_mark until it lands. Raising the base's
+zero-valued trim stats to real plugin values is future work, not part of this
+enablement.
 
 ### 7.12 Capability Advertisement
 
-Packet-trimming capability on VPP must track the datapath: advertised *supported*
-only for the modes the plugin actually honors, and *not supported* until the
-SAI-VPP translation that drives the datapath is wired and validated. Today the
-shared virtual-switch base advertises packet trimming unconditionally on VPP:
+Packet-trimming capability on VPP must track the datapath: `sonic-swss` must be
+told which trim modes VPP can actually satisfy so orchagent never programs one it
+cannot. The shared virtual-switch base advertises packet trimming on VPP:
 
 - `SwitchStateBase::queryAttrEnumValuesCapability` returns the DSCP modes
   (`DSCP_VALUE`, `FROM_TC`), the queue modes (`STATIC`, `DYNAMIC`), and the
@@ -571,29 +582,28 @@ shared virtual-switch base advertises packet trimming unconditionally on VPP:
 - `SwitchVpp::queryAttributeCapability` reports every switch trim attribute as
   create/set/get implemented.
 
-Together these make `sonic-swss` publish `SWITCH_TRIMMING_CAPABLE=true`
-unconditionally — including while the datapath integration is incomplete. Two
-`SwitchVpp` overrides make the advertisement track the datapath instead:
+Together these make `sonic-swss` publish `SWITCH_TRIMMING_CAPABLE=true`. The
+initial enablement **keeps** trimming advertised as supported — the symmetric
+datapath is wired and validated ([13.1](#131-integration-status)) — but narrows
+the advertised *enum values* to exactly what the software admission shim honors:
 
-| Seam | Behavior |
+| Seam | Delivered behavior |
 |---|---|
-| `SwitchVpp::queryAttributeCapability` | Reports the six `SAI_SWITCH_ATTR_PACKET_TRIM_*` attributes (size, DSCP mode, DSCP value, TC value, queue mode, queue index) as create/set/get implemented **only when the trim datapath is active**; otherwise gates them to `false`. `sonic-swss`'s `isSwitchTrimmingSupported()` follows the `set` capability |
-| `SwitchVpp::queryAttrEnumValuesCapability` | Advertises exactly the enum values the datapath honors — `STATIC` queue resolution, the supported DSCP modes, and `DROP`/`DROP_AND_TRIM` — while returning `SAI_STATUS_NOT_SUPPORTED` for `DYNAMIC` queue resolution, which is out of scope for the initial implementation |
+| `SwitchVpp::queryAttributeCapability` | Inherits the base: the six `SAI_SWITCH_ATTR_PACKET_TRIM_*` attributes (size, DSCP mode, DSCP value, TC value, queue mode, queue index) stay create/set/get implemented, so `sonic-swss`'s `isSwitchTrimmingSupported()` follows the `set` capability and `SWITCH_TRIMMING_CAPABLE` is `true` |
+| `SwitchVpp::queryAttrEnumValuesCapability` | Overrides the base to advertise a single value per trim enum — `DSCP_VALUE` for `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` and `STATIC` for `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` — so orchagent never programs the asymmetric `FROM_TC` or `DYNAMIC` modes VPP does not implement. `DROP`/`DROP_AND_TRIM` buffer-profile actions are left to the base metadata |
 
-**Interim state (integration incomplete).** Both overrides report *not supported*,
-so `sonic-swss`'s `writeCapabilitiesToDb()` publishes
-`STATE_DB SWITCH_CAPABILITY|switch:SWITCH_TRIMMING_CAPABLE=false`, the base
-over-advertisement is corrected, and the `sonic-mgmt` suite skips through its
-capability fixture instead of running against a datapath that is not yet fully
-driven from SAI. No swss or sonic-mgmt change is required.
+Because the capability stays `true`, the symmetric `packet_trimming` PTF suite
+runs on sonic-vpp. Cases that exercise unimplemented behavior — asymmetric
+per-port DSCP (`FROM_TC`), `DYNAMIC` queue resolution, ACL disable-trim, trim
+counters, port mirroring with trim, and reload/reboot persistence — are deferred
+in `sonic-mgmt` through conditional_mark skips keyed on `asic_type == vpp`
+([14.3](#143-enablement-gating)), rather than by gating the switch capability to
+`false`. This keeps the supported symmetric core enabled while excluding the
+out-of-scope cases from the run.
 
-**End state (datapath wired and validated).** The overrides advertise the
-implemented modes (initially `STATIC` queue resolution and both DSCP modes, with
-`DROP_AND_TRIM` eligibility and the switch/port/queue trim stats), so
-`SWITCH_TRIMMING_CAPABLE` becomes `true` and the suite runs. The flip is a change
-of the gating predicate, made once the SAI-VPP translation
-([13.1](#131-integration-status)) and counter sourcing are validated end to end
-on the testbed.
+The enum-advertisement decision is factored into a small pure predicate
+(`SwitchVpp::getTrimEnumValuesCapability`) that the override calls, so it is
+covered directly by a SAI-VPP unit test ([14.1](#141-unit-and-component-tests)).
 
 ### 7.13 Update and Remove Ordering
 
@@ -748,12 +758,18 @@ trim`) after pushing configuration through CONFIG_DB:
 
 The remaining integration work, tracked by the feature story, is:
 
-4. Source the switch/port/queue trim counters through `getStatsExt`.
-5. Raise the [7.12](#712-capability-advertisement) overrides to advertise the
-   supported modes, flipping `SWITCH_TRIMMING_CAPABLE` to `true`.
+4. Source the switch/port/queue trim counters through `getStatsExt`
+   ([7.11](#711-counters)) instead of returning the base's zero values, and
+   enable the deferred `sonic-mgmt` trim-counter cases.
+5. Extend the datapath to the deferred modes — asymmetric per-port DSCP
+   (`FROM_TC`), `DYNAMIC` queue resolution, ACL disable-trim, port mirroring with
+   trim, and reload/reboot persistence — and remove the corresponding
+   conditional_mark skips ([14.3](#143-enablement-gating)).
 
-The capability is advertised as supported and the `sonic-mgmt` suite enabled only
-once the end-to-end `packet_trimming` PTF cases pass on the `t1-lag` testbed.
+Capability is advertised as supported (`SWITCH_TRIMMING_CAPABLE=true`) and the
+symmetric `packet_trimming` suite is enabled now that its end-to-end PTF cases
+pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
+`vpp` until each is implemented and validated.
 
 ### 13.2 Design limitations
 
@@ -799,29 +815,38 @@ generic VPP admission-failure integration through FD.io.
 
 ### 14.1 Unit and Component Tests
 
-VPP tests cover:
+**Target coverage.** The full trim design is intended to be covered by VPP
+framework tests and SAI-VPP unit tests:
 
-- IPv4 and IPv6 TCP/UDP packets.
-- Packets larger than, equal to, and smaller than the trim size.
-- Symmetric and asymmetric DSCP resolution.
-- ECN preservation.
-- Ineligible buffer profiles.
-- ACL trim disable.
-- Original-queue and trim-queue admission failure.
-- One-shot retry behavior.
-- Physical and LAG-member egress attribution.
-- Chained-buffer truncation.
-- Counter read and clear behavior.
+- VPP dataplane: IPv4/IPv6 TCP/UDP packets; packets larger than, equal to, and
+  smaller than the trim size; symmetric and asymmetric DSCP resolution; ECN
+  preservation; ineligible buffer profiles; ACL trim disable; original-queue and
+  trim-queue admission failure; one-shot retry behavior; physical and LAG-member
+  egress attribution; chained-buffer truncation; counter read and clear behavior.
+- SAI-VPP: capability query results; switch attribute validation and update
+  ordering; buffer-profile-to-queue relationship changes; QoS map create,
+  replace, and remove; ACL action create, update, and remove; VPP failure
+  rollback; switch, port, and queue statistic mapping.
 
-SAI-VPP tests cover:
+**Delivered in this enablement.** The datapath itself was validated on standalone
+VPP and on the `t1-lag` dev VM by reading the plugin state directly (`show
+sonic-ext trim`, [13.1](#131-integration-status)); no automated VPP framework
+tests are added for `sonic_ext` yet. The SAI-VPP unit tests
+(`unittest/vslib/TestSwitchVpp.cpp`, built under `USE_VPP`) cover the pure
+decision logic that gates the enablement:
 
-- Capability query results.
-- Switch attribute validation and update ordering.
-- Buffer-profile-to-queue relationship changes.
-- QoS map create, replace, and remove.
-- ACL action create, update, and remove.
-- VPP failure rollback.
-- Switch, port, and queue statistic mapping.
+- `getTrimEnumValuesCapability` — the trim enum-values advertisement
+  ([7.12](#712-capability-advertisement)): `DSCP_VALUE` for the DSCP mode,
+  `STATIC` for the queue mode, and no match for unrelated attributes or object
+  types.
+- `isTrimDataplaneAttr` — the set/create attribute classification that triggers a
+  per-queue trim re-resolve, including the port QoS-map bindings and QoS-map
+  edits.
+- `getLagMemberEgressDisableAction` — pre-existing LAG-member egress logic.
+
+The remaining target coverage (VPP framework tests, counter/rollback/QoS-map SAI
+tests) is future work tracked with the deferred datapath modes
+([13.1](#131-integration-status)).
 
 ### 14.2 System Tests
 
@@ -876,26 +901,29 @@ With both fixes the three in-scope cases pass with zero setup/teardown errors.
 
 ### 14.3 Enablement Gating
 
-The suite is gated by two mechanisms that must agree:
+The suite is gated by two mechanisms that act at different granularities:
 
 1. The `sonic-mgmt` `conditional_mark` packet-trimming rule (OR-combined
    conditions). On the VPP testbed `asic_type` is `vpp` (not `vs`) and `hwsku`
    is `Force10-S6000`, so the hardware-SKU allowlist disjunct is the one that
    would otherwise skip the suite; it is amended to exempt VPP (see the
-   implemented enablement below).
+   implemented enablement below). This is the primary gate for **scoping** the
+   suite on VPP: it selects exactly the in-scope symmetric cases to run and
+   defers every out-of-scope case, keyed on `asic_type == vpp`.
 2. The suite's own `skip_if_packet_trimming_not_supported` fixture, which reads
-   `STATE_DB SWITCH_CAPABILITY|switch:SWITCH_TRIMMING_CAPABLE` and skips when it
-   is not `true`.
+   `STATE_DB SWITCH_CAPABILITY|switch:SWITCH_TRIMMING_CAPABLE` and skips the
+   whole suite when it is not `true`.
 
-Mechanism 2 is the primary gate and stays honest automatically: while the
-SAI-VPP integration ([13.1](#131-integration-status)) is incomplete the
-capability is `false` and the fixture skips the whole suite, so the suite is never
-run against a datapath that is not yet fully driven from SAI. When the integration
-is validated and the [7.12](#712-capability-advertisement) overrides are raised,
-`SWITCH_TRIMMING_CAPABLE` becomes `true`, the fixture stops skipping, and the
-suite runs. The suite is brought up in the stages listed in
-[14.2](#142-system-tests), enabling each stage as its datapath and counter
-behavior is validated.
+Mechanism 2 is a coarse on/off switch, and it is **satisfied** on VPP:
+`SWITCH_TRIMMING_CAPABLE` is `true` (the shared virtual-switch base reports the
+switch trim capability as implemented; VPP narrows only the advertised trim
+*enum values* to the modes the datapath honors — see
+[7.12](#712-capability-advertisement)), so the fixture does not skip. Case-level
+scoping is therefore performed entirely by Mechanism 1: `conditional_mark` runs
+the in-scope symmetric cases on VPP and defers the rest. The suite is brought up
+in the stages listed in [14.2](#142-system-tests), deferring each
+not-yet-validated stage through `conditional_mark` rather than by gating the
+switch capability off.
 
 **Implemented enablement (2026-07-30).** The `packet_trimming` `conditional_mark`
 rule is updated so exactly the three in-scope symmetric cases run on VPP:
@@ -951,8 +979,13 @@ resolved during end-to-end validation ([13.1](#131-integration-status)):
    assertions (which read `trimpacket` on the trim-queue index) against the
    plugin's per-`{port, queue}` counters and `getStatsExt` sourcing
    ([7.11](#711-counters)).
-3. Confirm the point at which the [7.12](#712-capability-advertisement) overrides
-   are raised, gated on validated datapath readiness.
+3. **Resolved.** The [7.12](#712-capability-advertisement) enum-narrowing
+   override is in place: `SWITCH_TRIMMING_CAPABLE` is advertised `true` for the
+   symmetric core, with the trim enum values restricted to `DSCP_VALUE` and
+   `STATIC` so orchagent never programs the asymmetric modes VPP does not
+   implement. Out-of-scope cases are deferred in `sonic-mgmt` via
+   `conditional_mark` rather than by gating the capability off
+   ([14.3](#143-enablement-gating)).
 
 These items do not change the SONiC configuration or SAI contract, nor the
 generic packet-trimming design described above.
