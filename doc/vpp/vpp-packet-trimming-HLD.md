@@ -26,9 +26,10 @@
 | v0.1 | 2026-07-23 | Aaron Bernardino | Initial SONiC-VPP packet-trimming design |
 | v0.2 | 2026-07-23 | Aaron Bernardino | Corrected current-state analysis: SAI-VPP already advertises trimming capability; clarified that advertisement must be *reduced* to match the datapath; identified KVM egress backend and refined counter and enablement details |
 | v0.3 | 2026-07-23 | Aaron Bernardino | Feasibility spike (Gate 0) on the live `vms-kvm-vpp-t1-lag` testbed: confirmed VPP has no egress QoS / queue-admission substrate, so the test's blocking scheduler is a dataplane no-op and trimming cannot occur. Corrected the KVM egress backend to DPDK virtio + LCP TAP. Scoped this increment to **capability truthfulness** (VPP advertises trimming as *not* supported); retained the datapath design as the target architecture and a tracked prerequisite (future work) |
-| v0.4 | 2026-07-25 | Aaron Bernardino | Gate 0 resolved **positively**: instead of deferring the datapath, this increment supplies the missing admission substrate in software. The `sonic_ext` plugin gains a generic per-`{port, queue}` software admission shim (a token bucket driven by the SONiC scheduler rate and buffer-profile capacity) on the `interface-output` arc, plus a trim action node (truncate → DSCP rewrite → static trim-queue retry → counters), validated end to end on standalone VPP. Reframed the datapath from *tracked prerequisite* to *delivered design*; SAI-VPP raises the advertised capability to `SWITCH_TRIMMING_CAPABLE=true` once the translation is wired and validated. Corrected the header-checksum (§7.4) and one-shot guard (§7.6, now an `interface-output-arc-end` bypass) descriptions to match the implementation |
+| v0.4 | 2026-07-25 | Aaron Bernardino | Gate 0 resolved **positively**: instead of deferring the datapath, this increment supplies the missing admission substrate in software. The `sonic_ext` plugin gains a generic per-`{port, queue}` token-bucket admission shim on the `interface-output` arc, plus a trim action node (truncate → DSCP rewrite → static trim-queue retry → counters), validated end to end on standalone VPP. Reframed the datapath from *tracked prerequisite* to *delivered design*; SAI-VPP raises the advertised capability to `SWITCH_TRIMMING_CAPABLE=true` once the translation is wired and validated. Corrected the header-checksum (§7.4) and one-shot guard (§7.6, now an `interface-output-arc-end` bypass) descriptions to match the implementation |
 | v0.5 | 2026-07-30 | Aaron Bernardino | Root-caused and fixed a multi-segment (jumbo) trim defect on the KVM/DPDK backend: truncation cleared the VLIB chain flag but left the backing `rte_mbuf` `->next`/`nb_segs` stale, so the virtio PMD re-appended the freed tail (5000→256 egressed as 1208 = 256 + 952). Fix clears `VLIB_BUFFER_EXT_HDR_VALID` on the severed segment (§7.4). Validated end to end on `vms-kvm-vpp-t1-lag`: `test_packet_size_after_trimming` passes for single-segment (400→256) and jumbo/multi-segment (5000→4084, 3000→256). Bumped `VPP_VERSION` suffix for the plugin content change |
 | v0.6 | 2026-07-30 | Aaron Bernardino | Made the `sonic-mgmt` suite self-sufficient and enabled it on VPP. Test helpers now create the `queue{1,3}_{uplink,downlink}_lossy_profile` BUFFER_PROFILEs when absent (they ship only in real SN5640/7060X6 QoS templates) and clear test-created `BUFFER_QUEUE` trim-queue refs in teardown so post-test YANG validation stays clean — the three in-scope cases pass with zero setup/teardown errors and no manual `redis-cli` (§14.2). Implemented the `conditional_mark` enablement (§14.3): exempted `asic_type == 'vpp'` from the hwsku skip and added `asic_type in ['vpp']` skips for the deferred asymmetric module and symmetric cases (ACL, SRv6, counters ×2, mirror, reload/reboot, stability/port-admin toggles). Validated the rule against the plugin's own decision logic with the DUT's real facts across VPP / real-SKU / non-listed-SKU / `vs` |
+| v0.7 | 2026-07-30 | Aaron Bernardino | Reconciled the full document with the delivered code after the review-hardening commits. Distinguished the pre-change baseline, delivered symmetric core, and deferred target behavior throughout. Corrected the admission model (buffer profiles select eligibility; SAI-VPP maps scheduler state to binary blocked/unlimited buckets rather than deriving proportional rate/capacity), DSCP-to-queue classification, global-only plugin counters, update/create/remove ordering, capability behavior, CLI output, warmboot status, and the exact `sonic-mgmt` enablement and teardown changes. Marked asymmetric `FROM_TC`, `DYNAMIC`, ACL disable-trim, SAI counter sourcing, GCU config validation, toggles, persistence, mirroring, and SRv6 as deferred |
 
 ## 2. Scope
 
@@ -42,13 +43,17 @@ dataplane has no native egress QoS / queue-admission model, so a blocking SONiC
 scheduler cannot by itself produce the admission failure that packet trimming
 hangs off. Rather than defer the datapath, this increment **supplies the missing
 substrate in software**: the `sonic_ext` VPP plugin gains a generic
-per-`{egress port, queue}` software admission shim — a token bucket sized from
-the SONiC scheduler rate and buffer-profile capacity, installed on the
-`interface-output` feature arc — plus a trim action node that truncates the
-rejected copy, rewrites its DSCP, and retries it on the configured static trim
-queue. SAI-VPP translates the existing packet-trimming SAI attributes onto that
-datapath and, for the symmetric core that is complete and validated end to end,
-advertises the capability truthfully as **supported**
+per-`{egress port, queue}` token-bucket admission shim on the
+`interface-output` feature arc, plus a trim action node that truncates the
+rejected packet, rewrites its DSCP, and retries it on the configured static trim
+queue. The binary API accepts generic rate and capacity values, while the
+delivered SAI-VPP translation intentionally programs only the two states needed
+by the supported topology: an unlimited bucket for a queue with no effective
+rate limit and an empty, non-refilling bucket for a queue with any nonzero
+scheduler `PIR`. Buffer profiles determine trim eligibility; their size is not
+used as bucket depth in this increment. For the symmetric core that is complete
+and validated end to end, SAI-VPP advertises the capability truthfully as
+**supported**
 (`SWITCH_TRIMMING_CAPABLE=true`), at which point the `sonic-mgmt` symmetric suite
 runs.
 
@@ -62,17 +67,22 @@ virtual-switch base over-advertises every trim enum today; that enum
 over-advertisement is corrected on VPP (see
 [7.12](#712-capability-advertisement)).
 
-The target design covers:
+The delivered increment covers:
 
-- Translating the existing packet-trimming SAI attributes into VPP state.
-- Detecting a failed admission to a trim-eligible egress queue.
-- Truncating eligible IPv4 and IPv6 packets and remapping their DSCP.
-- Sending the shortened packet through a configured static trim queue.
-- Supporting symmetric `DSCP_VALUE` and asymmetric `FROM_TC` modes.
-- Supporting per-buffer-profile eligibility and ACL `DISABLE_TRIM`.
-- Reporting switch, port, and queue packet-trimming counters.
-- Preserving the selected physical egress member for LAG traffic.
-- Rebuilding packet-trimming state after configuration replay.
+- Translating the symmetric packet-trimming switch attributes into VPP state.
+- Selecting eligibility from the buffer profile attached to the original queue.
+- Classifying the original queue through a switch-wide DSCP-to-queue table.
+- Producing a recoverable admission failure from the scheduler's binary
+  blocked/unlimited state.
+- Truncating eligible IPv4 and IPv6 packets and writing the configured symmetric
+  DSCP value.
+- Sending the shortened packet through a configured static trim queue on the
+  selected physical egress member.
+
+The full target design additionally includes asymmetric `FROM_TC`, dynamic
+trim-queue resolution, ACL `DISABLE_TRIM`, SAI switch/port/queue counter
+sourcing, and validated replay/persistence behavior. Those items are deferred
+as listed in [13.1](#131-integration-status).
 
 This document is a VPP platform adaptation. It does not redefine the existing
 SONiC CLI, Config DB schema, YANG model, orchestration, or SAI contract.
@@ -88,12 +98,12 @@ base currently advertises the dynamic mode as supported; VPP advertises only the
 
 | Term | Meaning |
 |---|---|
-| Admission failure | A packet cannot be accepted by its selected egress queue because the queue has reached its configured capacity |
+| Admission failure | The selected egress queue's admission provider rejects the packet. In the delivered VPP mapping this means the queue is trim-eligible and has a nonzero scheduler `PIR`, which is represented by an empty, non-refilling bucket |
 | Original queue | The egress queue selected for the unmodified packet |
 | Trim queue | The egress queue selected for the shortened packet |
 | Trim attempt | An eligible original packet reaches the packet-trimming path after original-queue admission fails |
 | Trimmed packet | A packet processed by the trim path, whether or not its original length exceeded the configured trim size |
-| Admission provider | The VPP component that enforces queue capacity and hands rejected buffers to packet-trimming policy |
+| Admission provider | The VPP feature node that evaluates the programmed per-queue token-bucket state and diverts rejected buffers to packet-trimming policy |
 | DSCP | Differentiated Services Code Point |
 | TC | Traffic Class |
 | LAG | Link Aggregation Group, represented by a VPP BondEthernet interface |
@@ -128,8 +138,8 @@ syncd
 platform SAI
 ```
 
-The current SAI-VPP state is important to state precisely, because it is not a
-blank slate:
+The **pre-change SAI-VPP baseline** is important to state precisely, because the
+control-plane capability already existed before this increment:
 
 - The shared `sonic-sairedis` virtual-switch base already advertises full
   packet-trimming capability. It reports the switch, buffer-profile, and stats
@@ -137,20 +147,22 @@ blank slate:
   buffer action `DROP`/`DROP_AND_TRIM`, and the switch/port/queue trim stats),
   and `SwitchVpp::queryAttributeCapability` reports every attribute as
   create/set/get implemented.
-- As a result, `sonic-swss` already computes `isSwitchTrimmingSupported() == true`
-  and publishes `SWITCH_CAPABILITY|switch:SWITCH_TRIMMING_CAPABLE=true` on VPP.
-  The configuration path is fully functional today: switch, buffer-profile, QoS,
-  and ACL objects are accepted and stored as virtual object state.
-- What is missing is entirely below SAI: VPP performs no trimming, and the trim
-  statistics read back as zero because the base returns no values for them.
+- As a result, `sonic-swss` already computed
+  `isSwitchTrimmingSupported() == true` and published
+  `SWITCH_CAPABILITY|switch:SWITCH_TRIMMING_CAPABLE=true` on VPP. The
+  configuration path was functional at the virtual-object layer: switch,
+  buffer-profile, QoS, and ACL objects were accepted and stored.
+- What was missing was entirely below SAI: VPP performed no trimming, and the
+  trim statistics read back as zero because the base returned no values for
+  them.
 
 VPP also has no native equivalent of
 `SAI_BUFFER_PROFILE_PACKET_ADMISSION_FAIL_ACTION_DROP_AND_TRIM`.
 
-Because capability is already advertised while the datapath does nothing, VPP
-currently reports support it does not provide. A Gate 0 feasibility spike on the
-live `vms-kvm-vpp-t1-lag` testbed confirmed *why* the datapath does nothing and
-established the near-term direction:
+Because capability was already advertised while the datapath did nothing, the
+pre-change platform reported support it did not provide. A Gate 0 feasibility
+spike on the live `vms-kvm-vpp-t1-lag` testbed confirmed *why* and established
+the implementation direction:
 
 - **Forwarding path (measured).** Front-panel transit egresses through
   `BondEthernetXXX` (mode `xor`, load-balance `l34-inner`) onto member
@@ -173,13 +185,14 @@ established the near-term direction:
   would never fire.
 
 Consequently, real trimming on VPP first requires an egress per-queue admission
-model that honors the SONiC scheduler rate, so that a blocked queue can actually
-reach a *cannot-admit* state. Rather than treat that as a separate prerequisite,
-this design **provides it in software**: a generic per-`{port, queue}`
-token-bucket admission shim on the `interface-output` arc (see
-[7.1](#71-admission-provider)), sized from the SONiC scheduler rate and
-buffer-profile capacity, so the test's `PIR=1` blocking scheduler drains the
-bucket and yields a real, recoverable admission failure. The trim action node
+model that reacts to the SONiC scheduler state, so that a blocked queue can
+produce a *cannot-admit* result. Rather than treat that as a separate
+prerequisite, this design **provides it in software**: a generic
+per-`{port, queue}` token-bucket admission shim on the `interface-output` arc
+(see [7.1](#71-admission-provider)). The delivered SAI-VPP mapping represents
+the test's nonzero `PIR` blocking scheduler with a zero-rate, zero-capacity
+bucket, yielding a real, recoverable admission failure; a queue without a rate
+limit receives an always-admitting bucket. The trim action node
 ([7.4](#74-truncation-and-header-handling)–[7.6](#76-static-trim-queue-and-retry))
 hangs off that failure. Because the shim is generic — it carries no
 packet-trimming SAI policy or test constants — it is the minimal substrate
@@ -197,20 +210,20 @@ programs an unimplemented mode — rather than gating the switch capability off
 
 ### 5.1 Functional Requirements
 
-| ID | Requirement |
-|---|---|
-| REQ-1 | VPP must trim only after admission to the original queue fails |
-| REQ-2 | Trimming eligibility must follow the buffer profile attached to the original queue |
-| REQ-3 | `DROP` must retain normal drop behavior; `DROP_AND_TRIM` must invoke trim policy |
-| REQ-4 | The trim size must be runtime configurable |
-| REQ-5 | Symmetric mode must write the configured DSCP value |
-| REQ-6 | Asymmetric mode must resolve DSCP from the configured trim TC and the selected egress port's TC-to-DSCP map |
-| REQ-7 | The initial implementation must transmit through the configured static trim queue |
-| REQ-8 | ACL `DISABLE_TRIM` must suppress trimming for matching packets |
-| REQ-9 | A packet must enter the trim path no more than once |
-| REQ-10 | Trim attempts, successful trim transmissions, and trim-queue drops must be counted at the required SAI scopes |
-| REQ-11 | LAG traffic must remain associated with the physical member selected before original-queue admission |
-| REQ-12 | Runtime updates must not leave SAI object state and VPP policy state divergent |
+| ID | Requirement | Increment status |
+|---|---|---|
+| REQ-1 | VPP must trim only after admission to the original queue fails | Delivered |
+| REQ-2 | Trimming eligibility must follow the buffer profile attached to the original queue | Delivered |
+| REQ-3 | `DROP` must retain normal drop behavior; `DROP_AND_TRIM` must invoke trim policy | Delivered |
+| REQ-4 | The trim size must be runtime configurable | Delivered |
+| REQ-5 | Symmetric mode must write the configured DSCP value | Delivered |
+| REQ-6 | Asymmetric mode must resolve DSCP from the configured trim TC and the selected egress port's TC-to-DSCP map | Deferred |
+| REQ-7 | The initial implementation must transmit through the configured static trim queue | Delivered |
+| REQ-8 | ACL `DISABLE_TRIM` must suppress trimming for matching packets | Deferred |
+| REQ-9 | A packet must enter the trim path no more than once | Delivered |
+| REQ-10 | Trim attempts, successful trim transmissions, and trim-queue drops must be counted at the required SAI scopes | Plugin summary counters delivered; SAI scope attribution deferred |
+| REQ-11 | LAG traffic must remain associated with the physical member selected before original-queue admission | Delivered |
+| REQ-12 | A failed runtime VPP update must be surfaced so orchagent can retry the idempotent full policy and converge SAI and VPP state | Delivered for set; create refresh is best effort |
 
 ### 5.2 Non-Functional Requirements
 
@@ -236,14 +249,12 @@ programs an unimplemented mode — rather than gating the switch capability off
 
 ## 6. Architecture
 
-> **Scope note.** Sections [6](#6-architecture)–[9](#9-behavioral-details)
-> describe the delivered datapath: a software egress admission shim plus the trim
-> action node in the `sonic_ext` plugin, driven by SAI-VPP. The datapath is
-> validated on standalone VPP; the SAI-VPP translation that programs it from live
-> SONiC configuration is completed and validated end to end before the capability
-> is advertised as supported (see [7.12](#712-capability-advertisement)). Genuine
-> remaining limitations and future work are in
-> [13](#13-limitations-and-future-work).
+> **Scope note.** Sections [6](#6-architecture)–[9](#9-configuration-and-management)
+> describe both the full target architecture and the delivered symmetric core.
+> Status labels in the detailed sections are authoritative. The delivered path
+> is the software admission shim, symmetric DSCP rewrite, static trim queue,
+> binary API/CLI, and SAI-VPP programming validated end to end. Deferred behavior
+> is summarized in [13](#13-limitations-and-future-work).
 
 ### 6.1 Control-Plane Flow
 
@@ -256,17 +267,21 @@ flowchart TD
     E --> F[VPP packet-trim binary API]
     F --> G[Packet-trim plugin policy]
     E --> H[Egress admission provider configuration]
-    E --> I[Capability and counter mapping]
+    E --> I[Capability mapping; SAI counter sourcing deferred]
 ```
 
 SAI-VPP owns object relationships and translates the platform-independent SAI
 contract into compact VPP policy:
 
-- Global trim size, DSCP mode/value, TC value, and static trim queue.
+- Global trim size, symmetric DSCP value, and static trim queue. The DSCP mode
+  and TC value are stored, but `FROM_TC` is not honored in this increment.
 - Effective eligibility for each `{egress port, original queue}` pair.
-- TC-to-DSCP maps associated with egress ports.
-- ACL rules that set trim-disable metadata.
-- Queue rate and capacity inputs required by the admission provider.
+- A switch-wide DSCP-to-queue table composed from the first front-panel port
+  that has both `DSCP_TO_TC` and `TC_TO_QUEUE` maps.
+- Binary blocked/unlimited admission state derived from the effective scheduler.
+
+ACL trim-disable programming, per-port TC-to-DSCP resolution, and SAI trim
+counter sourcing are deferred.
 
 ### 6.2 Dataplane Flow
 
@@ -286,15 +301,23 @@ flowchart TD
     K -->|No| M[Drop and increment trim-drop counters]
 ```
 
+This flowchart is the full conceptual design. In the delivered increment the
+"ACL disabled" branch and the asymmetric-DSCP step are deferred: the datapath
+applies symmetric `DSCP_VALUE` only and does not yet honor an ACL trim-disable
+flag ([7.5](#75-dscp-resolution), [7.9](#79-acl-disable-trim),
+[13.1](#131-integration-status)). The delivered counters are switch-global
+plugin summaries; the port/queue increments shown are target SAI attribution
+([7.11](#711-counters)).
+
 ### 6.3 Component Responsibilities
 
 | Component | Responsibility |
 |---|---|
 | VPP admission integration | Software per-`{port, queue}` token-bucket admission shim on the `interface-output` arc that turns a rate-limited (blocked) queue into a recoverable admission failure; generic, carrying no packet-trimming SAI policy |
 | VPP packet-trim plugin | Eligibility lookup, truncation, DSCP rewrite, static trim-queue retry with one-shot `interface-output-arc-end` re-injection, counters, binary API, and debug CLI |
-| SAI-VPP | Translate the packet-trimming SAI attributes and object relationships onto the plugin (global policy, per-queue eligibility from the buffer profile, scheduler rate/capacity, TC-to-DSCP map) and advertise the capability truthfully — narrowing the advertised trim enum values to the modes the datapath honors (`DSCP_VALUE`, `STATIC`) so `SWITCH_TRIMMING_CAPABLE=true` is honest for the symmetric core. Sourcing trim counters through `getStatsExt` is deferred ([7.11](#711-counters)) |
+| SAI-VPP | Translate the delivered symmetric policy onto the plugin: global size/DSCP/static queue, per-queue eligibility from the buffer profile, binary blocked/unlimited state from the scheduler, and a switch-wide DSCP-to-queue table. Advertise only `DSCP_VALUE` and `STATIC`, while leaving SAI trim-counter sourcing and the asymmetric/ACL modes deferred |
 | sonic-swss | No VPP-specific change expected; the generic packet-trimming orchestration and capability publication already function on VPP |
-| sonic-mgmt | No suite code change: the `skip_if_packet_trimming_not_supported` capability fixture gates the suite on `SWITCH_TRIMMING_CAPABLE` (`true` on VPP, so it runs), and conditional_mark skips the out-of-scope cases on `asic_type == vpp` ([14.3](#143-enablement-gating)) |
+| sonic-mgmt | Make the test setup self-sufficient on the minimal VPP config, clean up test-created buffer bindings/profiles, exempt VPP from the hardware-SKU gate, and skip deferred files/cases on `asic_type == vpp` ([14.2](#142-system-tests), [14.3](#143-enablement-gating)) |
 
 ## 7. High-Level Design
 
@@ -317,16 +340,15 @@ queue's software token bucket:
 | Eligible queue, bucket admits | within rate | continue the arc (normal egress) |
 | Eligible queue, bucket rejects | recoverable admission failure | divert to the trim action node ([7.4](#74-truncation-and-header-handling)) |
 
-The token bucket is driven by generic rate/capacity inputs only, supplied by
-SAI-VPP from the queue's scheduler and buffer profile. A queue with no effective
-rate limit (a scheduler `PIR` of `0`, SONiC's "unlimited") keeps the bucket
-permanently full, so its traffic is always admitted and normal forwarding is
-never perturbed. A queue whose scheduler imposes a nonzero `PIR` — the mechanism
-SONiC's blocking scheduler (`PIR=1`) uses to hold a data-plane queue closed —
-empties the bucket, so every eligible packet on that queue hits a real admission
-failure and is trimmed. The shim recognizes no packet-trimming scheduler names or
-test constants; it is pure rate/capacity accounting, so it never carries SONiC
-SAI policy and never perturbs a queue that is not trim-eligible.
+The plugin API and token-bucket implementation accept generic rate/capacity
+inputs. The delivered SAI-VPP translation deliberately binarizes them: a queue
+with no effective rate limit receives `UINT64_MAX` rate and capacity (always
+admit), while any nonzero scheduler `PIR` — including the
+`SCHEDULER_BLOCK_DATA_PLANE` profile's `PIR=1` — receives zero rate and capacity
+(always reject). The attached buffer profile controls only whether the queue is
+trim-eligible; its size does not set the bucket depth in this increment. The
+plugin recognizes no scheduler names or test constants, and non-eligible queues
+are never policed.
 
 Because the shim is a normal feature-arc node, no VPP core change is required for
 the KVM DPDK-virtio backend. Backends that cannot be policed on the
@@ -339,18 +361,21 @@ The VPP plugin maintains:
 
 - One global packet-trimming configuration.
 - One eligibility record per effective egress-port/original-queue binding.
-- One TC-to-DSCP map reference per egress port for asymmetric mode.
-- Switch, port, and queue counters.
+- One switch-wide DSCP-to-queue table used for original-queue classification.
+- Three switch-global summary counters: admission failures, trimmed packets
+  sent, and trimmed packets dropped.
+
+Per-port TC-to-DSCP state for `FROM_TC` and per-port/per-queue counter
+attribution are target behavior, not delivered state.
 
 The global configuration contains:
 
 | Field | Meaning |
 |---|---|
 | `trim_size` | Maximum number of bytes retained |
-| `dscp_mode` | Direct configured value or `FROM_TC` |
+| `dscp_mode` | Stored DSCP mode; only direct `DSCP_VALUE` is honored |
 | `dscp_value` | Symmetric DSCP value |
-| `trim_tc` | TC used for asymmetric egress-map lookup |
-| `queue_mode` | Static in the initial implementation |
+| `trim_tc` | Stored TC for the deferred asymmetric egress-map lookup |
 | `trim_queue` | Queue index used for the shortened packet |
 
 An eligibility record is active only when the queue's effective buffer profile
@@ -369,14 +394,14 @@ The plugin diverts the packet to the trim action node only when the global
 configuration is valid and the original queue is trim-eligible; otherwise the
 packet stays on the normal arc (admitted) or follows the existing drop path.
 Re-entry is prevented **structurally** rather than with a per-buffer flag: the
-trimmed copy is re-injected at `interface-output-arc-end`, past the admission
+trimmed packet is re-injected at `interface-output-arc-end`, past the admission
 feature, so it can never re-enter admission and be trimmed twice (see
 [7.6](#76-static-trim-queue-and-retry)). This avoids depending on `opaque2` being
 cleared on buffer recycle, which VPP does not guarantee.
 
-ACL-driven trim suppression (`SAI_ACL_ENTRY_ATTR_ACTION_PACKET_TRIM_DISABLE`,
-[7.9](#79-acl-disable-trim)) sets a per-buffer flag that this decision also
-honors when that path is enabled.
+The target ACL-driven trim-suppression path would add a per-buffer flag to this
+decision. It is not present in the delivered node
+([7.9](#79-acl-disable-trim)).
 
 ### 7.4 Truncation and Header Handling
 
@@ -400,8 +425,8 @@ rides onto the wire — a 5000-byte frame trimmed to 256 was observed egressing 
 256 + 952 = 1208 bytes. The trim path fixes this by clearing
 `VLIB_BUFFER_EXT_HDR_VALID` on the severed segment, forcing the mbuf header to be
 rebuilt cleanly so only the retained bytes are transmitted. This case is covered
-end to end by `test_packet_size_after_trimming` (jumbo 5000 → 4084 and, with a
-larger default packet, 3000 → 256).
+end to end by `test_packet_size_after_trimming` (jumbo 5000 → 4084 and a second
+multi-segment case, 3000 → 256).
 
 The trim path deliberately preserves the original L3/L4 length fields as the
 congestion signal — it does **not** recalculate:
@@ -428,11 +453,17 @@ while preserving ECN bits.
 | Mode | Resolution |
 |---|---|
 | `DSCP_VALUE` | Use the global configured `dscp_value` |
-| `FROM_TC` | Use `trim_tc` to look up DSCP in the TC-to-DSCP map attached to the selected egress port |
+| `FROM_TC` (deferred) | Use `trim_tc` to look up DSCP in the TC-to-DSCP map attached to the selected egress port |
 
-If asymmetric mode has no usable egress map entry, the trim operation fails,
-the packet is dropped, and a configuration/runtime error counter is incremented.
-SAI-VPP should reject configurations that are invalid at programming time.
+The delivered datapath implements **only** the symmetric `DSCP_VALUE` mode and
+always rewrites with the global `dscp_value`; asymmetric `FROM_TC` is deferred
+and omitted from the advertised DSCP-resolution enum
+([7.12](#712-capability-advertisement), [13.1](#131-integration-status)), so
+orchagent never programs it. The `FROM_TC` behavior below is the target design
+for a future increment: if asymmetric mode has no usable egress map entry, the
+trim operation fails, the packet is dropped, and a configuration/runtime error
+counter is incremented. SAI-VPP should reject configurations that are invalid at
+programming time.
 
 ### 7.6 Static Trim Queue and Retry
 
@@ -441,18 +472,18 @@ The initial implementation uses
 
 The trim action node:
 
-1. Rewrites the DSCP of the copy ([7.5](#75-dscp-resolution)) and truncates it
+1. Rewrites the packet DSCP ([7.5](#75-dscp-resolution)) and truncates it
    ([7.4](#74-truncation-and-header-handling)).
-2. Steers the copy to the configured static `trim_queue` on the **same** physical
+2. Steers the shortened packet to the configured static `trim_queue` on the **same** physical
    egress interface (`VLIB_TX` is unchanged) and runs that queue's token bucket.
-3. If the trim queue admits, transmits the copy by enqueuing it directly to
+3. If the trim queue admits, transmits the packet by enqueuing it directly to
    `interface-output-arc-end` — the node the `interface-output` feature arc
    terminates at — so it goes straight to the port TX, *past* the admission
-   feature. If the trim queue rejects (it is itself congested), the copy is
+   feature. If the trim queue rejects (it is itself congested), the packet is
    dropped.
 
-Enqueuing the transmitted copy to the arc end is what makes the one-shot
-guarantee **structural**: a trimmed copy never re-enters the admission feature,
+Enqueuing the transmitted packet to the arc end is what makes the one-shot
+guarantee **structural**: a trimmed packet never re-enters the admission feature,
 so it can never be trimmed a second time and no per-buffer "already trimmed" flag
 is needed. This is deliberately more robust than a buffer flag, because VPP does
 not zero `opaque2` on buffer recycle, so a flag could survive into an unrelated
@@ -466,12 +497,14 @@ For a LAG egress, VPP bond selection occurs before queue admission. The
 admission provider records the selected physical member. The trim retry uses
 that member directly instead of re-entering bond hashing, which:
 
-- Keeps original-queue and trim-queue counters on one physical port.
+- Keeps the original and trimmed packet on one physical port; future
+  per-port/per-queue counter sourcing can therefore use that member.
 - Avoids moving a congestion notification to a different LAG member.
 - Prevents a second flow-hash decision from changing packet ordering.
 
-The logical LAG identity remains available for diagnostics, but SAI port and
-queue trim counters are attributed to the physical member and its queues.
+The delivered plugin records the selected physical `VLIB_TX` member. SAI
+port/queue trim counters are not sourced yet; the target attribution is the
+physical member and its queues.
 
 ### 7.8 Buffer Profile and Queue Relationships
 
@@ -488,16 +521,22 @@ front-panel port that currently exists, including ports created after the first
 trim-relevant attribute was observed, and a late buffer-profile binding is picked
 up by the next recompute rather than being missed.
 
-The update sequence is:
-
-1. Validate the referenced SAI objects.
-2. Program the new VPP eligibility.
-3. Update stored SAI object state only after VPP accepts the change.
-
-Removing or replacing a buffer profile first disables affected eligibility,
-then removes the VPP policy state.
+On a trim-relevant set, SAI-VPP first commits the virtual object attribute, then
+rebuilds and pushes the complete eligibility state. A push failure is returned
+to orchagent for retry; the committed attribute is retained. On create, the
+object is committed and the trim refresh is best effort. Normal orchagent remove
+sequencing first unbinds a profile or scheduler through a set (which refreshes
+eligibility), then removes the now-unreferenced object; direct object removal
+does not itself trigger a trim refresh ([7.13](#713-update-and-remove-ordering)).
 
 ### 7.9 ACL Disable Trim
+
+> **Status: deferred (target design).** The ACL trim-disable path is not
+> implemented in this increment; SAI-VPP accepts and stores the ACL objects as
+> virtual state but does not yet program a per-buffer trim-disable flag into the
+> VPP datapath. The `sonic-mgmt` `test_acl_action_with_trimming` case is skipped
+> on `vpp` ([14.3](#143-enablement-gating)). The design below is the target for a
+> future increment ([13.1](#131-integration-status)).
 
 SAI-VPP extends the existing VPP ACL translation for
 `SAI_ACL_ENTRY_ATTR_ACTION_PACKET_TRIM_DISABLE`.
@@ -506,41 +545,41 @@ A matching ACL rule sets a per-buffer `trim_disabled` flag. The flag is metadata
 only and does not change the packet action by itself. If original-queue admission
 later fails, trim policy observes the flag and follows normal drop behavior.
 
-ACL rule create, update, and remove operations program VPP before stored SAI
-state is committed.
+The target implementation must use the same explicit failure propagation and
+retry/convergence model as other trim-relevant updates.
 
 ### 7.10 Scheduler and Capacity Inputs
 
-The admission provider requires a controllable rate and queue capacity for the
-KVM dataplane.
+The plugin admission API supports a byte rate and byte capacity, but the
+delivered SAI-VPP translation does not model proportional scheduling or derive a
+capacity from the buffer profile. It resolves the queue's effective scheduler
+(direct queue binding first, then the parent leaf scheduler group used by
+QosOrch) and programs one of two states:
 
-SAI-VPP translates the subset of scheduler and buffer configuration required by
-the selected provider:
+| Effective scheduler | Programmed rate | Programmed capacity | Behavior |
+|---|---:|---:|---|
+| No scheduler or `MAX_BANDWIDTH_RATE=0` | `UINT64_MAX` | `UINT64_MAX` | Always admit |
+| Any nonzero `MAX_BANDWIDTH_RATE` | `0` | `0` | Always reject when trim-eligible |
 
-- The effective egress scheduling rate attached to a queue.
-- The effective queue capacity derived from its buffer profile.
-- Queue-to-port and queue-index relationships.
-
-This translation is generic but binarized to the two states the supported
-topology exercises: a queue whose scheduler imposes no rate limit (`PIR=0`,
-SONiC's "unlimited") is mapped to an always-admitting bucket, and a queue whose
-scheduler imposes any nonzero `PIR` — the form SONiC's
-`SCHEDULER_BLOCK_DATA_PLANE` profile uses to close a data-plane queue — is mapped
-to a bucket that cannot admit, producing the recoverable admission failure that
-drives trim. Modeling a proportional sub-line-rate `PIR` (a partial rate limit
-rather than open/closed) is future work; the KVM testbed only ever drives a
-data-plane queue as unlimited or closed.
+The buffer profile contributes only
+`PACKET_ADMISSION_FAIL_ACTION=DROP_AND_TRIM` eligibility. Modeling a
+proportional sub-line-rate `PIR`, actual queue occupancy, or buffer-profile
+capacity as token-bucket depth is future work.
 
 Full SAI scheduler hierarchy, shared-buffer accounting across ports, headroom,
 and hardware-specific threshold behavior remain outside this design.
 
 ### 7.11 Counters
 
-The VPP plugin maintains packet-trim counters in the dataplane and exposes them
-through the binary API (`sonic_ext_trim_counters_get`). The **target** design
-maps them onto the existing SAI statistics and serves them from `getStatsExt`,
-kept at three scopes so the SAI switch, port, and queue stat IDs can all be
-sourced:
+The VPP plugin currently maintains three switch-global summary counters and
+exposes them through `sonic_ext_trim_counters_get` and `show sonic-ext trim`:
+
+- `trim_admit_fail` — eligible original-queue admission failures.
+- `trim_sent` — shortened packets transmitted.
+- `trim_drop` — shortened packets rejected by the trim queue.
+
+The **target** design adds the per-port/per-queue accounting needed to map these
+events onto the existing SAI statistics and serve them from `getStatsExt`:
 
 | Event | Counter attribution |
 |---|---|
@@ -551,22 +590,19 @@ sourced:
 Counter reads must be monotonic and safe while workers update them, and a clear
 operation resets only the requested scope and statistics.
 
-The exact queue-index attribution must match the `sonic-mgmt` counter
+The target queue-index attribution must match the `sonic-mgmt` counter
 assertions: the suite verifies that the switch-level trim-sent counter equals the
 sum of the per-port counters and that each port's counter is consistent with its
 per-queue counters, and the feature-toggle test reads the queue-level
 `trimpacket` counter on the *trim* queue index (`UC` + configured trim queue).
-The plugin's per-`{port, queue}` counter model is defined to satisfy those
-cross-checks directly.
 
-**Delivered scope (initial enablement).** The plugin maintains the counters and
-serves them over the binary API, but SAI-VPP does **not** yet source them through
-`getStatsExt` — `SwitchVpp::getStatsExt` still delegates trim stat IDs to the
-shared virtual-switch base, which returns zero. SAI stat sourcing is deferred
-(see [13.1](#131-integration-status)), and the `sonic-mgmt` trim-counter cases
-are skipped on `vpp` via conditional_mark until it lands. Raising the base's
-zero-valued trim stats to real plugin values is future work, not part of this
-enablement.
+**Delivered scope (initial enablement).** The global plugin summaries are
+available through the binary API/CLI, but SAI-VPP does **not** source them
+through `getStatsExt`, and the plugin does not yet maintain the per-port and
+per-queue breakdown required by the SAI contract. `SwitchVpp::getStatsExt`
+delegates trim stat IDs to the shared virtual-switch base, which returns zero.
+SAI stat sourcing and scoped accounting are deferred, and the `sonic-mgmt`
+trim-counter cases are skipped on `vpp`.
 
 ### 7.12 Capability Advertisement
 
@@ -595,8 +631,9 @@ the advertised *enum values* to exactly what the software admission shim honors:
 Because the capability stays `true`, the symmetric `packet_trimming` PTF suite
 runs on sonic-vpp. Cases that exercise unimplemented behavior — asymmetric
 per-port DSCP (`FROM_TC`), `DYNAMIC` queue resolution, ACL disable-trim, trim
-counters, port mirroring with trim, and reload/reboot persistence — are deferred
-in `sonic-mgmt` through conditional_mark skips keyed on `asic_type == vpp`
+counters, GCU config validation, feature/port toggles, port mirroring, SRv6, and
+reload/reboot persistence — are deferred in `sonic-mgmt` through
+conditional_mark skips keyed on `asic_type == vpp`
 ([14.3](#143-enablement-gating)), rather than by gating the switch capability to
 `false`. This keeps the supported symmetric core enabled while excluding the
 out-of-scope cases from the run.
@@ -607,21 +644,27 @@ covered directly by a SAI-VPP unit test ([14.1](#141-unit-and-component-tests)).
 
 ### 7.13 Update and Remove Ordering
 
-For create or set operations:
+For set operations on a trim-relevant object, SAI-VPP:
 
-1. Validate SAI input and object references.
-2. Build the complete replacement VPP policy.
-3. Apply it to VPP.
-4. Commit the SAI virtual object state.
+1. Receives the metadata-validated SAI attribute and resolves available object
+   references.
+2. Commits the SAI virtual object state.
+3. Rebuilds the affected VPP policy from the committed state (the global policy,
+   or the full per-`{port, queue}` admission/eligibility set) and pushes it.
+4. If the VPP push fails, returns the failure so orchagent retries the set. The
+   committed SAI state is intentionally left in place; because each push is a
+   full idempotent re-send, the retry re-pushes the same state and converges. The
+   switch-global trim attributes program VPP first and then commit, but likewise
+   surface a push failure to the caller.
 
-For remove operations:
+For create operations, the SAI object is created unconditionally and a trim
+re-program failure is **not** propagated (the object exists regardless); the
+subsequent set path is where a dataplane push failure is reported.
 
-1. Disable or detach dependent VPP policy.
-2. Remove the VPP object or mapping.
-3. Remove the SAI virtual object state.
-
-If VPP programming fails, the SAI operation fails and the previous stored state
-is retained.
+For remove operations, the generic `remove_internal` path removes only the
+virtual object state and does not invoke a trim refresh. Normal orchagent
+sequencing must first unbind trim-relevant references through a set operation,
+which refreshes the VPP policy, and then remove the unreferenced object.
 
 ## 8. SAI API Mapping
 
@@ -630,11 +673,11 @@ is retained.
 | SAI attribute | VPP mapping |
 |---|---|
 | `SAI_SWITCH_ATTR_PACKET_TRIM_SIZE` | Global `trim_size` |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` | Global DSCP mode |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` | Stored globally; only `DSCP_VALUE` is advertised and honored |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE` | Symmetric DSCP value |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE` | Asymmetric trim TC |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` | Accept `STATIC`; reject `DYNAMIC` with `SAI_STATUS_NOT_SUPPORTED` and omit it from the advertised enum |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX` | Global static trim queue |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE` | Stored for the deferred asymmetric path; not used by the delivered trim node |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` | Accept `STATIC`; `DYNAMIC` is omitted from the advertised enum ([7.12](#712-capability-advertisement)) so orchagent never programs it. A stored `DYNAMIC` value is not honored by the datapath (an explicit set is accepted as a no-op) |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX` | Global static trim queue; the plugin stores the low three bits (`queue & 7`). The validated configuration uses queue 6 |
 
 ### 8.2 Buffer Profile and ACL
 
@@ -642,12 +685,18 @@ is retained.
 |---|---|
 | `SAI_BUFFER_PROFILE_ATTR_PACKET_ADMISSION_FAIL_ACTION=DROP` | Disable trim eligibility for queues using the profile |
 | `SAI_BUFFER_PROFILE_ATTR_PACKET_ADMISSION_FAIL_ACTION=DROP_AND_TRIM` | Enable trim eligibility for queues using the profile |
-| `SAI_ACL_ENTRY_ATTR_ACTION_PACKET_TRIM_DISABLE` | Set per-buffer trim-disable metadata for matching packets |
+| `SAI_ACL_ENTRY_ATTR_ACTION_PACKET_TRIM_DISABLE` | **Deferred** — the ACL trim-disable path is not implemented in this increment ([7.9](#79-acl-disable-trim), [13.1](#131-integration-status)); the corresponding `sonic-mgmt` case is skipped on `vpp` |
 
 ### 8.3 Statistics
 
-The implementation maps the existing switch, port, and queue trim statistics,
-including:
+The trim statistics below are listed as supported by the shared virtual-switch
+stats capability, so `sonic-swss` reads them. The VPP plugin maintains the
+global summary counters in the dataplane and exposes them over its binary API
+and debug CLI, but **SAI sourcing through `getStatsExt` is deferred**
+([7.11](#711-counters),
+[13.1](#131-integration-status)): trim stat IDs currently delegate to the shared
+virtual-switch base, which returns zero, and the `sonic-mgmt` trim-counter cases
+are skipped on `vpp` until real sourcing lands.
 
 - `SAI_SWITCH_STAT_DROPPED_TRIM_PACKETS`
 - `SAI_SWITCH_STAT_TX_TRIM_PACKETS`
@@ -666,71 +715,79 @@ This design introduces no new CLI, Config DB, APP DB, State DB, YANG, REST, or
 gNMI schema. SONiC-VPP uses the configuration and capability fields defined by
 the generic packet-trimming HLD.
 
-The VPP plugin adds diagnostic commands for:
+The VPP plugin adds `show sonic-ext trim`, which reports:
 
-- Current global trim configuration.
-- Effective eligible egress queues.
-- Port TC-to-DSCP map resolution.
-- Admission-provider status.
-- Switch, port, and queue trim counters.
+- The current global trim configuration.
+- Configured per-port/per-queue admission buckets, including eligibility,
+  binary rate/capacity, and current tokens.
+- The three global plugin counters (`sent`, `drop`, and `admit-fail`).
+
+The CLI does not expose per-port TC-to-DSCP resolution or SAI-scoped counters in
+this increment.
 
 These commands are for serviceability and do not replace the standard SONiC CLI.
 
 ## 10. Warmboot and Fastboot
 
-Packet-trimming policy is rebuilt from normal SONiC configuration replay.
+Reload, warmboot, and fastboot persistence are **not validated in this
+increment**; `test_trimming_with_reload_and_reboot` is skipped on `vpp`.
 
-- Global configuration, object relationships, QoS maps, ACL rules, and queue
-  eligibility are reprogrammed through SAI.
-- Transient queue occupancy and per-buffer metadata are not restored.
-- Trim counters follow the existing SAI-VPP counter persistence behavior.
-- A packet in the trim retry path during restart may be dropped.
+The expected replay behavior is that switch attributes, queue/profile bindings,
+scheduler bindings, and QoS maps trigger the same full-state programming used
+at runtime. ACL trim-disable state is deferred and therefore is not rebuilt.
+Plugin counters and token-bucket state are process-local and reset when VPP
+restarts; no SAI counter persistence is provided. A packet in flight during a
+restart may be dropped.
 
-The feature adds no sleeps, file I/O, or CPU-heavy processing to the boot
-critical path when unused. Initialization creates only the plugin state and
-capability check. Fastboot behavior is otherwise unchanged.
+The implementation adds no sleeps or file I/O to the boot path. Broader
+warmboot/fastboot behavior remains future validation work.
 
 ## 11. Memory and Performance
 
-Persistent state is proportional to configured ports, queues, buffer-profile
-bindings, and QoS maps:
+The per-port state is a vector indexed by VPP `sw_if_index`, with eight fixed
+queue slots per entry, plus one switch-wide DSCP-to-queue table:
 
 ```text
-O(number of ports * queues per port + configured maps + ACL policy)
+O((maximum programmed sw_if_index + 1) * SONIC_EXT_TRIM_MAX_QUEUES + 64)
 ```
 
-The per-buffer trim metadata (the resolved original queue, and the ACL
-trim-disable flag when that path is used) reuses existing VPP buffer opaque
-space; the one-shot guarantee is structural (arc-end re-injection), not a stored
-flag. The dataplane performs no heap allocation.
+The per-buffer trim metadata currently stores only the resolved original queue
+in existing VPP buffer opaque space. The target ACL trim-disable flag is not
+implemented. The one-shot guarantee is structural (arc-end re-injection), not a
+stored flag, and the dataplane performs no per-packet heap allocation.
 
-When trimming is disabled or no eligible profile is bound, the additional
-dataplane cost is one predictable eligibility check at the admission-failure
-path. Packets admitted to their original queue do not enter packet mutation.
+When no eligible profile is bound, the admission feature is disabled on that
+port, so there is no per-packet feature-node cost. If eligible queues remain but
+the global trim policy is disabled, the node executes one early configuration
+check and bypasses. Packets admitted to their original queue do not enter packet
+mutation.
 
-The software admission shim, if required for the KVM backend, must use bounded
-queues and worker-local state. It must not introduce unbounded buffering or a
-global lock in the packet path.
+The software admission shim does not buffer packets; it only accounts byte
+credits and immediately admits or rejects each buffer. Each `{port, queue}` has
+one shared bucket with no synchronization. This is safe for the supported
+single-worker topology; per-worker buckets or atomic accounting are deferred.
 
 ## 12. Error Handling
 
 | Error case | Handling |
 |---|---|
-| Invalid trim size, DSCP, TC, or queue index | Return `SAI_STATUS_INVALID_PARAMETER`; do not update VPP or stored SAI state |
-| Unsupported dynamic queue mode | Return `SAI_STATUS_NOT_SUPPORTED` |
-| Referenced queue, port, buffer profile, or QoS map is missing | Return an appropriate SAI object/reference failure |
-| VPP plugin or admission provider is unavailable | Keep trimming capability false and reject trimming configuration |
-| VPP binary API update fails | Return failure and retain previous SAI object state |
-| Asymmetric DSCP cannot be resolved at runtime | Drop the trim packet and increment a diagnostic error counter |
+| Out-of-range scalar values reaching the vendor layer | The vendor code performs no additional rejection: trim size is narrowed to `u16`, DSCP is masked to six bits by the plugin, and the static trim queue is masked to three bits. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
+| Queue is multicast or has an out-of-range unicast index | Multicast queues are skipped by `SAI_QUEUE_ATTR_TYPE` so a colliding multicast index cannot overwrite the corresponding unicast admission slot. Unicast indices at or above `SONIC_EXT_TRIM_MAX_QUEUES` (8) are skipped as SUCCESS. Every eligible lossy queue in the supported configuration is unicast and below the cap ([13.2](#132-design-limitations)) |
+| `DYNAMIC` queue-resolution mode | Omitted from the advertised enum so orchagent never programs it; a stored value is not honored by the datapath ([7.12](#712-capability-advertisement)) |
+| Queue attributes or bindings are not present during replay | Skip the incomplete queue for that refresh; a later trim-relevant set triggers another full recompute |
+| No front-panel port currently has both DSCP-to-TC and TC-to-queue maps | Keep the plugin's last-good switch-wide DSCP-to-queue table rather than replacing it with an all-zero table |
+| VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the VPP API failure for orchagent retry; create refresh remains best effort |
+| VPP binary API update fails on a set | Commit the SAI object state and return the failure so orchagent retries; the next retry re-pushes the same full (idempotent) policy ([7.13](#713-update-and-remove-ordering)) |
+| Asymmetric DSCP cannot be resolved at runtime (deferred `FROM_TC`) | Target design: drop the trim packet and increment a diagnostic error counter. Not reachable in this increment — only symmetric `DSCP_VALUE` is advertised and honored ([7.5](#75-dscp-resolution)) |
 | Egress metadata is missing at admission failure | Use the normal drop path; do not guess an interface or queue |
-| Trim queue rejects the packet | Drop once, increment trim-drop counters, and do not retry |
-| Counter read fails | Return the SAI failure; do not return a success-shaped zero |
+| Trim queue rejects the packet | Drop once, increment the plugin trim-drop counter, and do not retry |
+| SAI trim counter read | Trim stat IDs currently delegate to the shared virtual-switch base and return zero; SAI sourcing through `getStatsExt` is deferred ([7.11](#711-counters)) |
 
 ## 13. Limitations and Future Work
 
 ### 13.1 Integration status
 
-The datapath in [6](#6-architecture)–[9](#9-behavioral-details) — the software
+The datapath in [6](#6-architecture)–[9](#9-configuration-and-management) — the software
 admission shim, the trim action node, the binary API, and the debug CLI — is
 implemented in the `sonic_ext` plugin and validated on standalone VPP
 (happy-path trim plus the recycled-buffer regression that confirms the arc-end
@@ -746,25 +803,26 @@ trim`) after pushing configuration through CONFIG_DB:
    queue↔buffer-profile binding. **Validated:** with `egress_lossy_profile` set
    to `DROP_AND_TRIM`, VPP reports the lossy queues (`0,1,2,5,6`) eligible and
    the lossless queues (`3,4,7`) bypassed on every front-panel port.
-2. **Scheduler rate and buffer-profile capacity** map onto the admission shim's
-   token bucket — unlimited when the queue has no rate limit, closed when a
-   blocking scheduler holds it ([7.10](#710-scheduler-and-capacity-inputs)).
-   **Validated:** unlimited eligible queues report an always-admitting bucket in
-   VPP; the closed-queue branch is the one the `packet_trimming` suite's blocking
-   scheduler drives to force the trim.
-3. **The global trim policy and DSCP-to-queue table** are pushed and confirmed in
-   VPP. **Validated:** `show sonic-ext trim` reports `size=256, dscp=48
-   (symmetric), queue=6`.
+2. **Scheduler state** maps onto the admission shim as binary unlimited/blocked;
+   the buffer profile controls eligibility but does not provide bucket depth
+   ([7.10](#710-scheduler-and-capacity-inputs)). **Validated:** unlimited
+   eligible queues report `UINT64_MAX` rate/capacity and always admit; a queue
+   with any nonzero scheduler `PIR` reports zero rate/capacity and drives the
+   admission-failure branch.
+3. **The global trim policy and switch-wide DSCP-to-queue table** are pushed and
+   confirmed in VPP. **Validated:** `show sonic-ext trim` reports `size=256,
+   dscp=48 (symmetric), queue=6`.
 
 The remaining integration work, tracked by the feature story, is:
 
 4. Source the switch/port/queue trim counters through `getStatsExt`
    ([7.11](#711-counters)) instead of returning the base's zero values, and
    enable the deferred `sonic-mgmt` trim-counter cases.
-5. Extend the datapath to the deferred modes — asymmetric per-port DSCP
-   (`FROM_TC`), `DYNAMIC` queue resolution, ACL disable-trim, port mirroring with
-   trim, and reload/reboot persistence — and remove the corresponding
-   conditional_mark skips ([14.3](#143-enablement-gating)).
+5. Complete or validate the deferred surfaces — asymmetric per-port DSCP
+   (`FROM_TC`), `DYNAMIC` queue resolution, ACL disable-trim, GCU config,
+   feature/port toggles, port mirroring, SRv6, and reload/reboot persistence —
+   and remove the corresponding conditional_mark skips
+   ([14.3](#143-enablement-gating)).
 
 Capability is advertised as supported (`SWITCH_TRIMMING_CAPABLE=true`) and the
 symmetric `packet_trimming` suite is enabled now that its end-to-end PTF cases
@@ -775,16 +833,19 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
 
 - Dynamic trim-queue resolution is not supported in the initial implementation;
   only `STATIC` queue resolution is advertised and honored.
+- The plugin masks the configured static trim queue to the range 0–7. The
+  supported configuration uses queue 6; explicit values above 7 are not rejected
+  by the vendor path.
 - The admission shim models only the token-bucket behavior needed to produce a
   recoverable admission failure; it is not full hardware-MMU or multi-level HQoS
   emulation.
-- SAI-VPP programs eligibility to the admission shim only for queue indices below
-  the plugin's `SONIC_EXT_TRIM_MAX_QUEUES` (8). sonic-vpp creates additional
-  per-port unicast/multicast queue objects at indices ≥ 8; these are never
-  trim-eligible in the supported configuration — the trim queue and every
-  eligible lossy queue are below the cap — so they are intentionally not pushed
-  to the shim, which also avoids per-queue programming errors for out-of-range
-  indices.
+- SAI-VPP programs only unicast (or `ALL`) queue objects into the admission
+  shim. Multicast queues are skipped by type regardless of index so a colliding
+  multicast index cannot overwrite the same-indexed unicast admission slot.
+  Unicast queue indices at or above the plugin's
+  `SONIC_EXT_TRIM_MAX_QUEUES` (8) are also skipped. The configured trim queue
+  and every eligible lossy queue in the supported topology are unicast and below
+  the cap.
 - Eligibility is recomputed on each trim-relevant attribute change rather than
   cached at initialization ([7.8](#78-buffer-profile-and-queue-relationships)),
   so a binding that lands after an earlier recompute (for example while buffer
@@ -823,10 +884,10 @@ framework tests and SAI-VPP unit tests:
   preservation; ineligible buffer profiles; ACL trim disable; original-queue and
   trim-queue admission failure; one-shot retry behavior; physical and LAG-member
   egress attribution; chained-buffer truncation; counter read and clear behavior.
-- SAI-VPP: capability query results; switch attribute validation and update
+- SAI-VPP: capability query results; switch attribute handling and update
   ordering; buffer-profile-to-queue relationship changes; QoS map create,
   replace, and remove; ACL action create, update, and remove; VPP failure
-  rollback; switch, port, and queue statistic mapping.
+  propagation/retry; switch, port, and queue statistic mapping.
 
 **Delivered in this enablement.** The datapath itself was validated on standalone
 VPP and on the `t1-lag` dev VM by reading the plugin state directly (`show
@@ -844,8 +905,9 @@ decision logic that gates the enablement:
   edits.
 - `getLagMemberEgressDisableAction` — pre-existing LAG-member egress logic.
 
-The remaining target coverage (VPP framework tests, counter/rollback/QoS-map SAI
-tests) is future work tracked with the deferred datapath modes
+The remaining target coverage (VPP framework tests and
+counter/failure-propagation/QoS-map SAI tests) is future work tracked with the
+deferred datapath modes
 ([13.1](#131-integration-status)).
 
 ### 14.2 System Tests
@@ -853,7 +915,8 @@ tests) is future work tracked with the deferred datapath modes
 The packet-trimming suite is enabled on the VPP `t1-lag` KVM topology in
 stages:
 
-1. Configuration and capability tests.
+1. Runtime configuration and capability tests (not the deferred GCU config
+   modules).
 2. Symmetric packet size and DSCP tests.
 3. Asymmetric `FROM_TC` tests.
 4. Feature and port-state toggles.
@@ -863,8 +926,9 @@ stages:
 8. Reload and reboot persistence.
 9. Mirror and SRv6 interactions.
 
-Regression coverage includes normal forwarding, LAG hashing and failover, QoS
-mapping, ACL actions, and existing VPP plugin tests.
+Target regression coverage includes normal forwarding, LAG hashing and
+failover, QoS mapping, ACL actions, and the existing SONiC-VPP regression
+suites.
 
 **Validation status (2026-07-30).** Stages 1–2 are validated end to end on the
 live `vms-kvm-vpp-t1-lag` testbed with the delivered `sonic_ext` datapath and the
@@ -878,13 +942,14 @@ SAI-VPP capability raised to `true`:
 | `test_dscp_remapping_after_trimming` (trimmed and small-untrimmed) | pass |
 
 The jumbo case exercised the multi-segment DPDK mbuf fix in
-[7.4](#74-truncation-and-header-handling). Stages 3–9 (asymmetric `FROM_TC`,
-counters, ACL disable-trim, reload/reboot persistence, mirror, SRv6) remain
-out of scope for this increment and are tracked as future work in
+[7.4](#74-truncation-and-header-handling). The asymmetric module, both GCU
+config modules, counters, ACL disable-trim, feature/port toggles, reload/reboot
+persistence, mirror, and SRv6 remain out of scope for this increment and are
+tracked as future work in
 [13.1](#131-integration-status).
 
 **Test-layer self-sufficiency (2026-07-30).** The suite now runs unattended on
-VPP with no manual `redis-cli` preparation. Two `sonic-mgmt` gaps surfaced on the
+VPP with no manual `redis-cli` preparation. Three `sonic-mgmt` gaps surfaced on the
 minimal `Force10-S6000` config and were closed in the test helpers:
 
 - The per-block-queue `queue{1,3}_{uplink,downlink}_lossy_profile` BUFFER_PROFILEs
@@ -896,8 +961,11 @@ minimal `Force10-S6000` config and were closed in the test helpers:
   `BUFFER_QUEUE|<intf>|<trim-queue>` reference is not removed on platforms whose
   base config lacks it (VPP). Teardown now clears those references before
   deleting `trim_queue_test_profile`, so post-test YANG validation stays clean.
+- The blocking-queue setup can also create lossy buffer profiles and
+  `BUFFER_QUEUE` bindings on VPP. Teardown records those bindings, removes them,
+  and deletes only profiles created by the fixture before restoring the backup.
 
-With both fixes the three in-scope cases pass with zero setup/teardown errors.
+With these fixes the three in-scope cases pass with zero setup/teardown errors.
 
 ### 14.3 Enablement Gating
 
@@ -934,6 +1002,8 @@ rule is updated so exactly the three in-scope symmetric cases run on VPP:
   behavior.
 - The deferred cases are skipped on VPP with per-test / per-file rules keyed on
   `asic_type in ['vpp']`: the whole `test_packet_trimming_asymmetric.py` module,
+  both `test_packet_trimming_config_asymmetric.py` and
+  `test_packet_trimming_config_symmetric.py`,
   and the symmetric `test_acl_action_with_trimming`, `test_trimming_with_srv6`,
   `test_stability_during_feature_toggles`,
   `test_trimming_during_port_admin_toggle`,
@@ -967,17 +1037,18 @@ trim action on top of it. The former open question — whether the backend could
 supply recoverable admission directly or needed a software shim — is answered:
 the shim approach is implemented and validated on standalone VPP.
 
-The remaining items are integration details, tracked by the feature story and
-resolved during end-to-end validation ([13.1](#131-integration-status)):
+The remaining integration details and their current status are tracked by the
+feature story ([13.1](#131-integration-status)):
 
-1. **Resolved.** SAI-VPP maps the SONiC scheduler `PIR` onto the shim's token
-   bucket as open/closed — `PIR=0` (unlimited) admits, any nonzero `PIR` (the
-   `SCHEDULER_BLOCK_DATA_PLANE` close) rejects — with buffer-profile capacity as
-   the bucket depth ([7.10](#710-scheduler-and-capacity-inputs)). A proportional
-   sub-line-rate `PIR` is not modeled.
-2. Confirm the queue-index attribution expected by the `sonic-mgmt` counter
-   assertions (which read `trimpacket` on the trim-queue index) against the
-   plugin's per-`{port, queue}` counters and `getStatsExt` sourcing
+1. **Resolved.** SAI-VPP maps the SONiC scheduler onto the shim as open/closed:
+   no effective rate limit admits, while any nonzero
+   `MAX_BANDWIDTH_RATE` (including `SCHEDULER_BLOCK_DATA_PLANE`) programs a
+   zero-rate, zero-capacity bucket and rejects. The buffer profile controls
+   eligibility only. A proportional sub-line-rate `PIR` and real buffer capacity
+   are not modeled ([7.10](#710-scheduler-and-capacity-inputs)).
+2. Add the target per-`{port, queue}` counters and `getStatsExt` sourcing, then
+   confirm the queue-index attribution expected by the `sonic-mgmt` counter
+   assertions (which read `trimpacket` on the trim-queue index)
    ([7.11](#711-counters)).
 3. **Resolved.** The [7.12](#712-capability-advertisement) enum-narrowing
    override is in place: `SWITCH_TRIMMING_CAPABLE` is advertised `true` for the
