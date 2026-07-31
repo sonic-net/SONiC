@@ -1913,8 +1913,7 @@ Ethernet1    Laser            False/                     False/                 
 #### 4.2.1 `show interfaces transceiver vdm PORT`
 
 This CLI shows the transceiver VDM and threshold values for a given port.
-The CLI will show VDM data for observables which are supported by the module vendor. If the module vendor does not support a particular observable, the CLI will not show data for that observable. Both VDM basic and statistic type observables will be displayed, and corresponding basic and statistic observables of the same field will be displayed in the same row (curr, min, max, avg).
-For unsupported observables, the CLI will show `--` for the data.
+The CLI will show VDM data for observables which are supported by the module vendor. Both VDM basic and statistic type observables will be displayed, and corresponding basic and statistic observables of the same field will be displayed in the same row (current, min, avg, max). For unsupported observables, the CLI will show `--` for the data.
 
 
 ```plaintext
