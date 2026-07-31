@@ -107,7 +107,7 @@ The design divides port-channel traffic into classes and defines, for each,
 |---------------|-------------|--------------------------|--------------------|
 | **ARP** (main interface) | member phy | member netdev → kernel bond → `PortChannel10` | `linux-cp-punt-xc` → `be10` tap → **`sonic-ext-aggr-tap-redirect` → member tap** |
 | **IPv4 unicast for-us** (main interface) | member phy | member netdev → kernel bond → `PortChannel10` | same as ARP |
-| **ARP** (sub-interface) | member phy (tagged) | member netdev → bond → 8021q → `PortChannel10.1` | `linux-cp-punt-xc` → `be10.1` tap → **`sonic-ext-aggr-tap-redirect` → member tap (re-push .1Q)** |
+| **ARP** (sub-interface) | member phy (tagged) | member netdev → bond → 8021q → `PortChannel10.1` | `linux-cp-punt-xc` → `be10.1` tap → **`sonic-ext-aggr-tap-redirect` → member tap ** |
 | **IPv4 unicast for-us** (sub-interface) | member phy (tagged) | member netdev → bond → 8021q → `PortChannel10.1` | same as sub-if ARP |
 | **LLDP** | member phy | member netdev directly | member's own linux-cp punt (**unchanged**) |
 | **LACP** | member phy | member netdev directly (teamd) | member's own linux-cp punt (**unchanged**) |
