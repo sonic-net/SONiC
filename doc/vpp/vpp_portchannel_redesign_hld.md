@@ -95,7 +95,7 @@ Resulting objects:
 
 ## 3. Design Principles (Punt Strategy Summary)
 
-The design utilizes the punt-via-member infra in sonic-exe plugin introduced for VLAN/BVI. It uses
+The design utilizes the punt-via-member infra in sonic-ext plugin introduced for VLAN/BVI. It uses
 sonic-ext-capture node to record the original rx interface. Then uses sonic-ext-aggr-tap-redirect
 node attached to output path of aggregate tap interface (bvi, bond etc) to restore the vlan tag in
 the packet and redirect it to the original member tap interface.
