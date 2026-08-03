@@ -208,7 +208,7 @@ programs an unimplemented mode — rather than gating the switch capability off
 |---|---|---|
 | REQ-1 | VPP must trim only after admission to the original queue fails | Delivered |
 | REQ-2 | Trimming eligibility must follow the buffer profile attached to the original queue | Delivered |
-| REQ-3 | `DROP` must retain normal drop behavior; `DROP_AND_TRIM` must invoke trim policy | Delivered |
+| REQ-3 | `DROP` must retain normal drop behavior; `DROP_AND_TRIM` must invoke trim policy | Delivered — a `DROP` (or unbound) queue is never made trim-eligible, so the shim does not police it and existing forwarding is unchanged; `DROP_AND_TRIM` marks the queue eligible and invokes trim policy |
 | REQ-4 | The trim size must be runtime configurable | Delivered |
 | REQ-5 | Symmetric mode must write the configured DSCP value | Delivered |
 | REQ-6 | Asymmetric mode must resolve DSCP from the configured trim TC and the selected egress port's TC-to-DSCP map | Deferred |
@@ -301,7 +301,12 @@ applies symmetric `DSCP_VALUE` only and does not yet honor an ACL trim-disable
 flag ([7.5](#75-dscp-resolution), [7.9](#79-acl-disable-trim),
 [13.1](#131-integration-status)). The delivered counters are switch-global
 plugin summaries; the port/queue increments shown are target SAI attribution
-([7.11](#711-counters)).
+([7.11](#711-counters)). The `Normal original-packet drop` node likewise
+represents the conceptual/hardware admission model: on the delivered VPP
+datapath a non-eligible (or unconfigured) queue is never policed by the shim —
+the admission node passes it straight through on the `interface-output` arc to
+normal port TX — so the shim implements no separate original-packet drop of its
+own, and existing forwarding is preserved unchanged.
 
 ### 6.3 Component Responsibilities
 
@@ -773,7 +778,7 @@ single-worker topology; per-worker buckets or atomic accounting are deferred.
 | VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the VPP API failure for orchagent retry; create refresh remains best effort |
 | VPP binary API update fails on a set | Commit the SAI object state and return the failure so orchagent retries; the next retry re-pushes the same full (idempotent) policy ([7.13](#713-update-and-remove-ordering)) |
 | Asymmetric DSCP cannot be resolved at runtime (deferred `FROM_TC`) | Target design: drop the trim packet and increment a diagnostic error counter. Not reachable in this increment — only symmetric `DSCP_VALUE` is advertised and honored ([7.5](#75-dscp-resolution)) |
-| Egress metadata is missing at admission failure | Use the normal drop path; do not guess an interface or queue |
+| Egress metadata is missing at admission failure | Pass the packet through unpoliced on the normal `interface-output` arc rather than guessing an interface or queue; the shim adds no drop of its own |
 | Trim queue rejects the packet | Drop once, increment the plugin trim-drop counter, and do not retry |
 | SAI trim counter read | Trim stat IDs currently delegate to the shared virtual-switch base and return zero; SAI sourcing through `getStatsExt` is deferred ([7.11](#711-counters)) |
 
@@ -855,6 +860,13 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
 - The global trim policy and the DSCP-to-queue table are switch-wide; per-port
   QoS-map variation is not modeled in the initial implementation, which matches
   the uniform testbed configuration.
+- When no front-panel port currently has both a `DSCP_TO_TC` and a `TC_TO_QUEUE`
+  map bound, SAI-VPP keeps the plugin's last-good switch-wide DSCP-to-queue table
+  rather than pushing an all-zero table (which would collapse every DSCP onto
+  queue 0). A stale mapping only changes behavior if a misclassified queue is
+  both trim-eligible and blocking, and normal orchagent sequencing removes the
+  QoS maps together with the eligibility that would make the mapping matter
+  ([12](#12-error-handling)).
 - The first implementation targets the DPDK virtio egress backend used by the
   supported VPP KVM topology. Additional backends (for example the AF_PACKET
   `host-interface` path used for veth ports) may reuse the same generic admission
