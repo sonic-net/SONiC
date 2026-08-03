@@ -17,9 +17,11 @@
       - [Changes in COUNTERS_DB](#changes-in-counters_db)
       - [Changes in Orchagent](#changes-in-orchagent)
       - [CLI Changes](#cli-changes)
-        - [CLI output on a WRED and ECN queue statistics supported platform](#cli-output-on-a-wred-and-ECN-queue-statistics-supported-platform)
+        - [CLI output on a WRED and ECN queue statistics supported platform](#cli-output-on-a-wred-and-ecn-queue-statistics-supported-platform)
         - [CLI output on a platform which supports WRED drop statistics and does not support ECN statistics](#cli-output-on-a-platform-which-supports-wred-drop-statistics-and-does-not-support-ecn-statistics)
         - [CLI output on a platform which supports ECN statistics and does not support WRED statistics](#cli-output-on-a-platform-which-supports-ecn-statistics-and-does-not-support-wred-statistics)
+        - [CLI output on a VOQ-chassis platform](#cli-output-on-a-voq-chassis-platform)
+        - [Clear CLI output on a VOQ-chassis platform](#clear-cli-output-on-a-voq-chassis-platform)
         - [show interface counters CLI output on a WRED drop statistics supported platform](#show-interface-counters-cli-output-on-a-wred-drop-statistics-supported-platform)
         - [show interface counters on a platform which does not support WRED drop statistics](#show-interface-counters-cli-output-on-a-platform-which-does-not-support-wred-drop-statistics)
     - [SAI API](#sai-api)
@@ -35,6 +37,7 @@
 | Rev | Date     | Author                      | Change Description |
 |:---:|:--------:|:---------------------------:|--------------------|
 | 0.1 |23/Feb/23 | Rajesh Perumal **(Marvell)**| Initial Version    |
+| 0.2 |04/May/26 | Abhishek Rawat **(Nexthop)**| Added VOQ-chassis support for WRED queue counters. |
 
 ### Scope
 
@@ -157,11 +160,19 @@ The default capability will be isSupported=false for all the above statistics.
 The flexcounter groups need to be created for polling the required statistics. Two new flex counter groups will be introduced for this feature. These are created during Orchagent startup.
 
 On supported platforms,
-* The WRED and ECN queue counters will use the new flexcounter group WRED_ECN_QUEUE for following list of counters,
-    * SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS
-    * SAI_QUEUE_STAT_WRED_ECN_MARKED_BYTES
-    * SAI_QUEUE_STAT_WRED_DROPPED_PACKETS
-    * SAI_QUEUE_STAT_WRED_DROPPED_BYTES
+* The WRED and ECN queue counters will use the new flexcounter group WRED_ECN_QUEUE. The exact stat list registered against a queue object depends on the queue type:
+
+    * For egress queue objects (`SAI_QUEUE_TYPE_UNICAST` / `MULTICAST` / `ALL`):
+        * SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS
+        * SAI_QUEUE_STAT_WRED_ECN_MARKED_BYTES
+        * SAI_QUEUE_STAT_WRED_DROPPED_PACKETS
+        * SAI_QUEUE_STAT_WRED_DROPPED_BYTES
+
+    * For VOQ objects (`SAI_QUEUE_TYPE_UNICAST_VOQ`) on VOQ-chassis platforms:
+        * SAI_QUEUE_STAT_WRED_DROPPED_PACKETS
+        * SAI_QUEUE_STAT_WRED_DROPPED_BYTES
+
+  ECN marking is performed on the egress side; the `SAI_QUEUE_STAT_WRED_ECN_MARKED_*` counters are exposed only on egress queue objects and are therefore omitted from the VOQ stat list.
 
 * The WRED port counters will use the new flex counter group WRED_ECN_PORT for following list of counters,
     * SAI_PORT_STAT_GREEN_WRED_DROPPED_PACKETS
@@ -182,7 +193,7 @@ The following new port counters will be added along with existing counters on su
     * SAI_PORT_STAT_WRED_DROPPED_PACKETS
     * SAI_PORT_STAT_ECN_MARKED_PACKETS [to be supported in next phase of Enhancement]
 
-For every egress queue, the following statistics will be added along with existing queue conters on supported platforms
+For every egress queue, the following statistics will be added along with existing queue counters on supported platforms
 
 * COUNTERS:oid:queue_oid
     * SAI_QUEUE_STAT_WRED_ECN_MARKED_PACKETS
@@ -190,9 +201,19 @@ For every egress queue, the following statistics will be added along with existi
     * SAI_QUEUE_STAT_WRED_DROPPED_PACKETS
     * SAI_QUEUE_STAT_WRED_DROPPED_BYTES
 
+On VOQ-chassis platforms, the following statistics will additionally be added for every VOQ object:
+
+* COUNTERS:oid:voq_oid
+    * SAI_QUEUE_STAT_WRED_DROPPED_PACKETS
+    * SAI_QUEUE_STAT_WRED_DROPPED_BYTES
+
 
 ### Changes in Orchagent
 Orchagent gets the WRED and ECN statistics capability during the startup and updates the STATE_DB with supported statistics. If a counter is supported, respective capability will be set to true. Otherwise the capability will be set to false.  Based on the capability in STATE_DB, FLEXCOUNTER_DB will be updated with supported statistics for polling.
+
+On VOQ-chassis platforms (where the switch type is `voq`), Orchagent additionally registers each port's VOQ objects with the WRED_ECN_QUEUE flexcounter group. VOQ-object counters are always enabled on VOQ-chassis platforms and do not honor the per-queue counter-enabled gating that applies to egress queues.
+
+The stat list registered against a queue object is selected by queue type as described in [Changes in FLEX_COUNTER_DB](#changes-in-flex_counter_db).
 <p align=center>
 <img src="ecn-wred-stats-images/orchagent_db_state_flow.png" alt="StateDB syncd interactions">
 </p>
@@ -219,8 +240,10 @@ There are few new CLIs and new CLI tokens are introduced for this feature. And a
     * Display the status of the counters : ```counterpoll show```
 
 * Following new CLIs are introduced for Per-queue WRED and ECN Statistics
-    * Statistics are cleared on user request : ```sonic-clear queue wredcounters```
-    * Display the statistics on the console      : ```show queue wredcounters [interface-name]```
+    * Clear egress queue statistics on user request : ```sonic-clear queue wredcounters```
+    * Clear VOQ statistics on user request (VOQ-chassis platforms) : ```sonic-clear queue wredcounters --voq```
+    * Display the egress queue statistics on the console : ```show queue wredcounters [interface-name]```
+    * Display the VOQ statistics on the console (VOQ-chassis platforms) : ```show queue wredcounters --voq [interface-name]```
 
 
 * Following existing CLIs are used for Per-port WRED statistics
@@ -272,6 +295,64 @@ Ethernet16    UC6             N/A              N/A                 0            
 Ethernet16    UC7             N/A              N/A                 0                  0
 
 ```
+#### CLI output on a VOQ-chassis platform
+
+On VOQ-chassis platforms, WRED drop counters and ECN-marked counters are exposed at different queue objects: WRED drop counts accumulate at the ingress VOQ, while ECN marking is performed and reported at the egress queue. Two CLI variants surface these:
+
+* `show queue wredcounters [interface-name]` reads the egress queue counters. `WredDrp/*` columns are always `0` on VOQ-chassis platforms because WRED drops are not exposed at the egress queue object; `EcnMarked/*` columns show the actual ECN-marked traffic.
+
+```
+sonic-dut:~# show queue wredcounters Ethernet4
+     Port    TxQ    WredDrp/pkts    WredDrp/bytes    EcnMarked/pkts    EcnMarked/bytes
+---------  -----  --------------  ---------------  ----------------  -----------------
+Ethernet4    UC0               0                0                 0                  0
+Ethernet4    UC1               0                0                 0                  0
+Ethernet4    UC2               0                0                 0                  0
+Ethernet4    UC3               0                0                74            303,104
+Ethernet4    UC4               0                0                 0                  0
+Ethernet4    UC5               0                0                 0                  0
+Ethernet4    UC6               0                0                 0                  0
+Ethernet4    UC7               0                0                 0                  0
+```
+
+* `show queue wredcounters --voq [interface-name]` reads the per-port VOQ counters. `WredDrp/*` columns show the drops at the ingress VOQ; `EcnMarked/*` columns show `N/A` because ECN marking is not exposed at the VOQ object.
+
+```
+sonic-dut:~# show queue wredcounters --voq Ethernet4
+                     Port    Voq    WredDrp/pkts    WredDrp/bytes    EcnMarked/pkts    EcnMarked/bytes
+-------------------------  -----  --------------  ---------------  ----------------  -----------------
+sonic-dut|Asic0|Ethernet4   VOQ0               0                0               N/A                N/A
+sonic-dut|Asic0|Ethernet4   VOQ1               0                0               N/A                N/A
+sonic-dut|Asic0|Ethernet4   VOQ2               0                0               N/A                N/A
+sonic-dut|Asic0|Ethernet4   VOQ3          303142        317692816               N/A                N/A
+sonic-dut|Asic0|Ethernet4   VOQ4               0                0               N/A                N/A
+sonic-dut|Asic0|Ethernet4   VOQ5               0                0               N/A                N/A
+sonic-dut|Asic0|Ethernet4   VOQ6               0                0               N/A                N/A
+sonic-dut|Asic0|Ethernet4   VOQ7               0                0               N/A                N/A
+```
+
+`sonic-clear queue wredcounters` resets the egress-queue counters shown above; `sonic-clear queue wredcounters --voq` resets the VOQ-side counters.
+
+#### Clear CLI output on a VOQ-chassis platform
+
+The two clear variants are symmetric with the corresponding `show` variants: the default form iterates egress queue objects, and the `--voq` form iterates per-port VOQ objects.
+
+```
+sonic-dut:~# sonic-clear queue wredcounters
+Clear and update saved counters for Ethernet0
+Clear and update saved counters for Ethernet4
+Clear and update saved counters for Ethernet8
+...
+```
+
+```
+sonic-dut:~# sonic-clear queue wredcounters --voq
+Clear and update saved counters for sonic-dut|Asic0|Ethernet0
+Clear and update saved counters for sonic-dut|Asic0|Ethernet4
+Clear and update saved counters for sonic-dut|Asic0|Ethernet8
+...
+```
+
 #### show interface counters CLI output on a WRED drop statistics supported platform
 ```
 root@sonic-dut:~# show interfaces counters detailed Ethernet8
