@@ -253,7 +253,7 @@ programs an unimplemented mode — rather than gating the switch capability off
 ### 6.1 Control-Plane Flow
 
 <p align="center">
-  <img src="images/packet-trimming-control-plane-flow.png" width="480"
+  <img src="images/packet-trimming-control-plane-flow.png" width="680"
        alt="Control-plane flow: Config DB packet-trimming configuration flows through SONiC orchagent, SAI switch/buffer/QoS/ACL objects, syncd, and SAI-VPP, which fans out to the VPP packet-trim binary API and plugin policy, egress admission provider configuration, and capability mapping (SAI counter sourcing deferred).">
 </p>
 
@@ -273,7 +273,7 @@ counter sourcing are deferred.
 ### 6.2 Dataplane Flow
 
 <p align="center">
-  <img src="images/packet-trimming-dataplane-flow.png" width="340"
+  <img src="images/packet-trimming-dataplane-flow.png" width="520"
        alt="Dataplane flow: after a packet reaches final egress classification and the physical egress and original queue are resolved, the original queue is checked for admission. If it admits, the original packet is transmitted. If not, and the queue is trim-eligible and not ACL-disabled, trim-attempt counters increment, the packet is truncated to the configured size, DSCP is applied, and the configured static trim queue on the same physical egress is selected; if that trim queue admits, the packet is transmitted and trim-sent counters increment, otherwise it is dropped and trim-drop counters increment. Non-eligible queues take the normal original-packet path.">
 </p>
 
