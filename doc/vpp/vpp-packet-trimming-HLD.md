@@ -252,17 +252,10 @@ programs an unimplemented mode — rather than gating the switch capability off
 
 ### 6.1 Control-Plane Flow
 
-```mermaid
-flowchart TD
-    A[Config DB packet-trimming configuration] --> B[SONiC orchagent]
-    B --> C[SAI switch, buffer, QoS, ACL objects]
-    C --> D[syncd]
-    D --> E[SAI-VPP]
-    E --> F[VPP packet-trim binary API]
-    F --> G[Packet-trim plugin policy]
-    E --> H[Egress admission provider configuration]
-    E --> I[Capability mapping; SAI counter sourcing deferred]
-```
+<p align="center">
+  <img src="images/packet-trimming-control-plane-flow.png" width="480"
+       alt="Control-plane flow: Config DB packet-trimming configuration flows through SONiC orchagent, SAI switch/buffer/QoS/ACL objects, syncd, and SAI-VPP, which fans out to the VPP packet-trim binary API and plugin policy, egress admission provider configuration, and capability mapping (SAI counter sourcing deferred).">
+</p>
 
 SAI-VPP owns object relationships and translates the platform-independent SAI
 contract into compact VPP policy:
@@ -279,21 +272,10 @@ counter sourcing are deferred.
 
 ### 6.2 Dataplane Flow
 
-```mermaid
-flowchart TD
-    A[Packet reaches final egress classification] --> B[Resolve physical egress and original queue]
-    B --> C{Original queue admits packet?}
-    C -->|Yes| D[Transmit original packet]
-    C -->|No| E{Eligible and not ACL disabled?}
-    E -->|No| F[Normal original-packet drop]
-    E -->|Yes| G[Increment trim-attempt counters on original queue and port]
-    G --> H[Truncate to configured size when needed]
-    H --> I[Apply symmetric or asymmetric DSCP]
-    I --> J[Select configured static trim queue on same physical egress]
-    J --> K{Trim queue admits packet?}
-    K -->|Yes| L[Transmit and increment trim-sent counters]
-    K -->|No| M[Drop and increment trim-drop counters]
-```
+<p align="center">
+  <img src="images/packet-trimming-dataplane-flow.png" width="340"
+       alt="Dataplane flow: after a packet reaches final egress classification and the physical egress and original queue are resolved, the original queue is checked for admission. If it admits, the original packet is transmitted. If not, and the queue is trim-eligible and not ACL-disabled, trim-attempt counters increment, the packet is truncated to the configured size, DSCP is applied, and the configured static trim queue on the same physical egress is selected; if that trim queue admits, the packet is transmitted and trim-sent counters increment, otherwise it is dropped and trim-drop counters increment. Non-eligible queues take the normal original-packet path.">
+</p>
 
 This flowchart is the full conceptual design. In the delivered increment the
 "ACL disabled" branch and the asymmetric-DSCP step are deferred: the datapath
