@@ -26,7 +26,8 @@
   - [7.4. Config DB](#74-config-db)
     - [7.4.1. DEVICE\_METADATA](#741-device_metadata)
     - [7.4.2. HIGH\_FREQUENCY\_TELEMETRY\_PROFILE](#742-high_frequency_telemetry_profile)
-    - [7.4.3. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#743-high_frequency_telemetry_group)
+    - [7.4.3. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR](#743-high_frequency_telemetry_aggregator)
+    - [7.4.4. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#744-high_frequency_telemetry_group)
   - [7.5. StateDb](#75-statedb)
     - [7.5.1. HIGH\_FREQUENCY\_TELEMETRY\_SESSION](#751-high_frequency_telemetry_session)
   - [7.6. Work Flow](#76-work-flow)
@@ -52,6 +53,7 @@
 | --- | ---------- | ------ | ------------------ |
 | 0.1 | 09/06/2024 | Ze Gan | Initial version    |
 | 0.2 | 03/01/2025 | Janet Cui | Initial version    |
+| 0.3 | 06/21/2026 | Ze Gan | Add aggregator configuration |
 
 ## 2. Scope
 
@@ -85,11 +87,13 @@ In the context of AI scenarios, we are encountering challenges with switches tha
 - The vendor SDK should support querying the minimal polling interval for each counter.
 - When reconfiguring any high frequency telemetry settings, whether it is the polling interval or the stats list, the existing high frequency telemetry will be interrupted and regenerated.
 - If any of monitored objects is deleted, the existing high frequency telemetry will be interrupted and regenerated.
+- The collector is designed to handle single-cycle counter rollovers; however, vendors must ensure that the data does not roll over twice between two collection intervals.
 
 ### 5.2. Phase 2
 
 - Replace the existing solution by integrating the new high-frequency telemetry architecture into the Counter DB, ensuring compatibility with the current system and ecosystem.
 - Supports updating configuration without interrupting the stream of high frequency telemetry
+- Support stats of tam telemetry for debugging purpose
 
 ## 6. Architecture Design
 
@@ -128,6 +132,7 @@ flowchart LR
     asic[\ASIC\]
 
     config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
+                HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
                 HIGH_FREQUENCY_TELEMETRY_GROUP--> hft_orch
     state_db --HIGH_FREQUENCY_TELEMETRY_SESSION--> counter_syncd
     hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION--> state_db
@@ -167,6 +172,7 @@ flowchart LR
     swss_act((Swss actor: Handle swss message))
     netlink_act((Netlink actor: Receive netlink message from kernel))
     ipfix_act((Ipfix actor: Handle IPFix message))
+    aggregate_act((Aggregator actor: Aggregates samples and handles data rollover))
     cdb_act((Counter DB actor: Store counters to counter DB))
     otel_act((OpenTelemetry actor: Send counters to OpenTelemetry collector))
     cdb[(Counter DB)]
@@ -174,13 +180,22 @@ flowchart LR
 
     swss_act -- IPFix Template --> ipfix_act
     netlink_act -- IPFix Record --> ipfix_act
-    ipfix_act -- Counters --> cdb_act
-    ipfix_act -- Counters --> otel_act
+    ipfix_act -- Counters --> aggregate_act
+    aggregate_act -- Counters --> cdb_act
+    aggregate_act -- Counters --> otel_act
     cdb_act -- ObjectID-Counters Pair --> cdb
     cdb -. Lazy load: COUNTERS_*_MAP(ObjectID-Name Map) .-> cdb_act
     otel_act -- OpenTelemetry Message --> otel
 
 ```
+
+The Aggregator actor applies optional per-profile aggregation after IPFIX records are parsed and before counters are exported to Counter DB or OpenTelemetry. A profile selects an aggregator by setting `HIGH_FREQUENCY_TELEMETRY_PROFILE.aggregator`; if no aggregator is selected, Counter Syncd forwards the lower-layer reported samples without extra aggregation, rollover correction, or heatmap handling.
+
+An aggregator supports the following methods and can be extended with more methods later:
+
+- Reporting rate aggregation: aggregates the lower-layer reported samples into the configured aggregator reporting interval. The unit is microseconds. If `reporting_rate` is not configured, the aggregator uses the lower-layer reporting interval and does not aggregate samples.
+- Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. The list is empty by default, so no counters are corrected for rollover unless configured.
+- Heatmap counters: marks the group and counter pairs configured in `heatmap_counters` as heatmap data. The list is empty by default.
 
 #### 7.1.2. High frequency telemetry Orch
 
@@ -189,6 +204,7 @@ The `High frequency telemetry Orch` is a new object within the Orchagent. It has
 1. Maintain the TAM SAI objects according to the high frequency telemetry configuration in the config DB.
 2. Generate a unique template ID for each high frequency telemetry profile to ensure distinct identification and management.
 3. Register and activate streams on counter syncd.
+4. Resolve the aggregator configuration referenced by each profile and publish it with the session metadata for Counter Syncd.
 
 `High frequency telemetry Orch` leverages `tam_counter_subscription` objects to bind monitoring objects, such as ports, buffers, or queues, to streams. Therefore, this orch must ensure that the lifecycle of `tam_counter_subscription` objects is within the lifecycle of their respective monitoring objects.
 
@@ -505,6 +521,7 @@ HIGH_FREQUENCY_TELEMETRY_PROFILE|{{profile_name}}
     "poll_interval": {{uint32}}
     "otel_endpoint": {{string of endpoint}} (Optional)
     "otel_certs": {{string of path}} (Optional)
+    "aggregator": {{string of aggregator name}} (Optional)
 ```
 
 ```
@@ -516,9 +533,38 @@ otel_endpoint      = string ; The endpoint of OpenTelemetry collector. E.G. 192.
                      It will use the local OpenTelemetry collector if this value isn't provided.
 otel_certs         = string ; The path of certificates for OpenTelemetry collector. E.G. /etc/sonic/otel/cert.private
                      If this value isn't provided, we will use a non-secure channel.
+aggregator         = string ; The optional name of the HIGH_FREQUENCY_TELEMETRY_AGGREGATOR entry that this profile applies.
+                     If this value isn't provided, no aggregator configuration is applied.
 ```
 
-#### 7.4.3. HIGH_FREQUENCY_TELEMETRY_GROUP
+#### 7.4.3. HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
+
+```
+HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|{{aggregator_name}}
+    "reporting_rate": {{uint32}} (Optional)
+    "rollover_counters": {{comma-separated list of group and counter pairs}} (Optional)
+    "heatmap_counters": {{comma-separated list of group and counter pairs}} (Optional)
+```
+
+```
+key                  = HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|aggregator_name a string as the identifier of aggregator configuration
+; field              = value
+reporting_rate       = uint32 ; The reporting interval after aggregation, unit microseconds.
+                       It aggregates lower-layer reported samples within each reporting window.
+                       If this value isn't provided, the aggregator uses the lower-layer reporting interval and does not aggregate samples.
+rollover_counters    = A comma-separated list of group and counter pairs that require rollover correction.
+                       The syntax is the same list format used by object_names and object_counters.
+                       Each item uses group_name|object_counter.
+                       The group_name must match HIGH_FREQUENCY_TELEMETRY_GROUP.group_name, and object_counter must be valid for that group.
+                       An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
+                       The default value is empty, meaning no counters are corrected for rollover.
+heatmap_counters     = A comma-separated list of group and counter pairs that should be treated as heatmap data.
+                       The syntax is the same as rollover_counters.
+                       An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
+                       The default value is empty.
+```
+
+#### 7.4.4. HIGH_FREQUENCY_TELEMETRY_GROUP
 
 ```
 HIGH_FREQUENCY_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
@@ -539,7 +585,7 @@ object_names    = A list of object name.
 object_counters = A list of stats of object;
 ```
 
-For the schema of `HIGH_FREQUENCY_TELEMETRY_GROUP`, please refer to its [YANG model](sonic-high-frequency-telemetry.yang).
+For the schemas of high frequency telemetry config tables, please refer to their [YANG model](sonic-high-frequency-telemetry.yang).
 
 ### 7.5. StateDb
 
@@ -552,6 +598,7 @@ HIGH_FREQUENCY_TELEMETRY_SESSION|{{profile_name}}|{{group_name}}
     "object_ids": {{list of uint16_t}}
     "session_type": {{ipfix}}
     "session_config": {{binary array}}
+    "aggregator_config": {{serialized aggregator configuration}} (Optional)
     "config_version": {{uint32_t}}
 ```
 
@@ -567,6 +614,9 @@ object_ids          = A list of object ID;
 session_type        = ipfix ; Specified the session type.
 session_config      = binary array;
                       If the session type is IPFIX, This field stores the IPFIX template to interpret the message of this session.
+aggregator_config   = string;
+                      The serialized HIGH_FREQUENCY_TELEMETRY_AGGREGATOR configuration applied by this session.
+                      If this value isn't provided, Counter Syncd does not apply aggregation to this session.
 config_version      = uint32_t; Indicates which version is being used. The default value is 0.
                       This value will be increased once the new config was applied by CounterSyncd.
 ```
@@ -602,6 +652,7 @@ sequenceDiagram
     hft_orch ->> syncd: Initialize <br/>HOSTIF<br/>TAM_TRANSPORT<br/>TAM_collector<br/>
 
     config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_PROFILE
+    config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
     config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_GROUP
     port_orch ->> hft_orch: Port/Queue/Buffer ... object
 
@@ -639,6 +690,7 @@ sequenceDiagram
     end
     loop Receive IPFIX message of stats from genetlink
         alt Have this template of IPFIX been registered?
+            counter ->> counter: Apply aggregator configuration
             counter ->> otel: Push message to OpenTelemetry Collector
         else
             counter ->> counter: Discard this message
@@ -668,6 +720,12 @@ sudo config high_frequency_telemetry profile add $profile_name --stream_state=$s
 
 # Change stream state
 sudo config high_frequency_telemetry profile set $profile_name --stream_state=$stream_state
+
+# Bind an aggregator to a profile
+sudo config high_frequency_telemetry profile set $profile_name --aggregator=$aggregator_name
+
+# Add an aggregator
+sudo config high_frequency_telemetry aggregator add $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4"
 
 # Add a monitor group
 sudo config high_frequency_telemetry group "$profile|$group_name" --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
