@@ -62,7 +62,7 @@ The infrastructure provides:
 
 1. **A code-defined encryption registry** (`master_key_manager/master_key_encryption_config.py`) that statically declares which tables and fields are subject to automatic encryption. Adding a new encrypted field requires a code change (not a YANG model edit or CLI registration), which is deliberate: any new use of encryption must also involve feature-specific handling code (e.g., decryption in `frrcfgd` before rendering to FRR).
 2. **A master key management library and CLI tool** (`master-key-manager`) to provision master keys, activate/deactivate encryption, and inspect status.
-3. **An AES-256-GCM encryption library** (`master_key_manager/master_key_encryption.py`) offering authenticated symmetric encryption (Type-6, reversible).
+3. **An AES-256-GCM encryption library** (`master_key_manager/master_key_manager.py`) offering authenticated symmetric encryption (Type-6, reversible).
 4. **A transparent ConfigDB interception layer** so that standard SONiC tools (`config`, `sonic-cfggen`) automatically encrypt sensitive fields on write without requiring application-level changes.
 5. **Extensibility** so that additional features (TACACS, RADIUS, LDAP) can be supported by adding an entry to the registry and the corresponding decrypt/render code in the feature daemon.
 
@@ -97,7 +97,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 5. **FR-5**: When encryption is activated, all plaintext secret fields in registered tables shall be re-encrypted automatically; when deactivated, they shall be decrypted.
 6. **FR-6**: Encryption shall apply only to ConfigDB. FRR running configuration continues to use cleartext passwords.
 7. **FR-7**: The master key file shall be accessible only to root (mode 0600), protected by filesystem permissions.
-8. **FR-8**: The infrastructure shall retain up to 8 historical master keys to enable decryption of values encrypted under a previous key.
+8. **FR-8**: The infrastructure shall retain up to 8 historical master keys. The retained history preserves older keys so they remain available for explicit-key decryption (via `decrypt_string(..., key_idx=N)`) and for future automated rolling-rotation support; automatic decryption of old ciphertexts with the historical keys is called out as Future Work.
 9. **FR-9**: BGP MD5 passwords shall be the first feature protected by this infrastructure.
 10. **FR-10**: The catalog of tables and fields subject to encryption shall be defined in code (`master_key_encryption_config.py`). Adding encryption to a new table requires a code change, not a YANG model edit or CLI command, because any new encrypted field also requires feature-specific decrypt/render code in the consuming daemon.
 11. **FR-11**: A single table may declare multiple encrypted fields (e.g., both `auth_password` and `md5_key`).
@@ -160,7 +160,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 
 ### Master Key File
 
-The master key file is a JSON document (e.g., `/etc/sonic/bgp_master_key`) with mode 0600 (readable only by root). It holds a named key set and retains up to **8 historical master keys** in descending timestamp order, so that values encrypted under older keys remain decryptable after rotation.
+The master key file is a JSON document (e.g., `/etc/sonic/bgp_master_key`) with mode 0600 (readable only by root). It holds a named key set and retains up to **8 historical master keys** in descending timestamp order. The retained history preserves older keys so they remain available for explicit-key decryption (via `decrypt_string(..., key_idx=N)`) and for future automated rolling-rotation support; automatic decryption of values encrypted under an older key using the history is Future Work (see [Future Work](#future-work)).
 
 Example:
 
@@ -197,7 +197,7 @@ Two modes are supported:
 Saved master key to /etc/sonic/bgp_master_key
 ```
 
-The `set` command accepts any string, pads or truncates it to 32 bytes for AES-256, and prepends a new `MasterKey` entry to the list. The previous key remains in history for decryption of older values.
+The `set` command accepts any string, pads or truncates it to 32 bytes for AES-256, and prepends a new `MasterKey` entry to the list. The previous key is retained in the history list; it remains available for explicit-key decryption via `decrypt_string(..., key_idx=N)` and for future automated rolling-rotation support. Automatic decryption of old ciphertexts using the historical keys is Future Work.
 
 This is the primary model for enterprise deployments where a controller pushes a deterministic key to a fleet of devices.
 
@@ -221,9 +221,11 @@ When a new master key is set with `set`, the old key is retained in the history 
 
 Deactivation decrypts all fields back to plaintext, then activation re-encrypts them with the current (newest) master key. Because FRR reads decrypted passwords via the interception layer, no BGP flap occurs during rotation.
 
+> **Note:** The safe rotation procedure above re-encrypts *all* values with the new key by first decrypting to plaintext (`deactivate`) and then re-encrypting (`activate`), so every value ends up under the current key. Automatic decryption of values that were encrypted under an older key — i.e. a rolling rotation where `set` is called without a preceding `deactivate` — is **not** supported in this version: `decrypt_string` and `is_encrypted` only consult the current key (index 0) by default. Performing a rolling `set` without `deactivate` first will cause `is_encrypted` to misclassify old-key ciphertexts as cleartext, leading to double-encryption. Operators must follow the `deactivate` → `activate` sequence. Automatic historical-key decryption during rolling rotation is tracked as Future Work.
+
 ### Encryption Library
 
-File: `sonic-utilities/utilities_common/master_key_encryption.py`
+File: `sonic-utilities/master_key_manager/master_key_manager.py`
 
 The library implements **AES-256-GCM** encryption, referred to as **Type-6** in this document, consistent with Cisco's designation for reversible AES password storage.
 
@@ -255,7 +257,7 @@ An encrypted value is a base64-encoded blob with the following internal layout:
 
 - **Nonce** (12 bytes): Randomly generated per encryption operation.
 - **Ciphertext**: The encrypted plaintext, same length as the original.
-- **AAD** (16 bytes, zero-padded): The table name (e.g., `BGP_NEIGHBOR`) used as Additional Authenticated Data. This binds the encrypted blob to its table, preventing cross-table replay.
+- **AAD** (16 bytes, zero-padded): The key-file basename (e.g., `bgp_master_key`), taken from `MasterKeyConfig.key_file`. Used as Additional Authenticated Data. This binds each ciphertext blob to its master key file, so a blob encrypted under one key file cannot be decrypted (GCM tag will not validate) under a different key file. Tables that share the same `master_key_file` (e.g., `BGP_NEIGHBOR` and `BGP_PEER_GROUP` both pointing at `/etc/sonic/bgp_master_key`) therefore share the same AAD; the AAD does **not** distinguish tables within the same key file, so cross-table replay within a single key file is not prevented by the AAD alone.
 
 #### Detecting Encrypted Values
 
@@ -504,7 +506,12 @@ def bgp_neighbor_handler(self, table, key, data):
     if data:
         try:
             from master_key_manager import MasterKeyManager, master_key_registries
-            registry = master_key_registries.get("BGP", None)
+            # master_key_registries() returns a list of registry dicts, each
+            # with a "name" key. Find the BGP entry by name.
+            registry = next(
+                (r for r in master_key_registries() if r.get("name") == "BGP"),
+                None,
+            )
             if registry and table in registry["fields"]:
                 key_mgr = MasterKeyManager(registry["master_key_file"])
                 for field in registry["fields"][table]:
@@ -612,7 +619,7 @@ A separate proposal (`sonic-py-common/sonic_py_common/security_cipher.py`) was s
 
 **Key history and rotation**
 - *Prior*: Single key per feature. `set_feature_password()` silently refuses to overwrite an existing key; `rotate_feature_passwd()` is required and re-encrypts all entries in one shot with no key history.
-- *This HLD*: Up to 8 historical keys retained. `master-key-manager set` always accepts and prepends the new key so old ciphertexts remain decryptable during a rolling rotation.
+- *This HLD*: Up to 8 historical keys retained. `master-key-manager set` always accepts and prepends the new key, and the previous keys remain available for explicit-key decryption (`decrypt_string(..., key_idx=N)`). Automatic decryption of old ciphertexts with the historical keys during a rolling rotation is Future Work; in this version the supported rotation procedure is `deactivate` → `activate`, which re-encrypts every value under the current key.
 
 **Key distribution from a central controller**
 - *Prior*: No clean path. A controller cannot simply push a new key; it must first call `rotate_feature_passwd()`, which requires decrypting all existing entries with the old key.
@@ -707,3 +714,5 @@ A separate proposal (`sonic-py-common/sonic_py_common/security_cipher.py`) was s
 4. **Key distribution protocol**: A controller-facing gRPC or RESTCONF endpoint could push master keys to devices on demand, integrating with enterprise key management systems (HashiCorp Vault, AWS KMS, etc.).
 
 5. **Audit log**: Record encrypt/decrypt events (timestamp, table, key index) to a tamper-evident log for compliance reporting.
+
+6. **Automatic historical-key decryption (rolling rotation)**: This version retains up to 8 historical master keys and exposes them via `decrypt_string(..., key_idx=N)`, but `decrypt_string` and `is_encrypted` only consult the current key (index 0) by default. As a result, a rolling rotation (`set` without a preceding `deactivate`) is not safe: old-key ciphertexts are misclassified as cleartext and get double-encrypted. Future work is to make `decrypt_string`/`is_encrypted` iterate the full key history (newest-first, returning the first successful decryption) so that old ciphertexts are recognized and decrypted transparently after a `set`, enabling true rolling rotation without the `deactivate` → `activate` dance.
