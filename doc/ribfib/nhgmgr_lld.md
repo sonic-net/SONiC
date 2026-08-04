@@ -397,6 +397,17 @@ Add SONIC\_NHG\_OBJ\_TYPE\_NHG\_WITH\_SRV6\_PIC type to indicate the SRv6 VPN RI
 
     5.  Update SONiC PIC Content object if SRv6 fields changed
 
+**Note on update assumptions:** The update path does not handle NHG ownership
+transitions, i.e. an NHG changing between single nexthop and multiple
+nexthops, or between a non-SRv6 (non-shared) object and an SRv6 (shared)
+object. This relies on the zebra behavior that such transitions are never
+delivered as an in-place update: zebra always allocates a **new** NHG id for
+the changed group and sends a create for the new id followed by a delete of
+the old id. Therefore updateExistingNHGFull() only needs to handle field-level
+updates within the same ownership model. Any future change to this zebra
+behavior requires revisiting the SONiC object release logic in the update
+path.
+
 
 ## delNHGFull Flow
 ![deletion_diagram.svg](images/deletion_diagram.svg)
