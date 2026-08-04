@@ -17,6 +17,13 @@
   - [new FIB's functionalities](#new-fibs-functionalities)
   - [FIB's location](#fibs-location)
 - [FIB High Level Design](#fib-high-level-design)
+  - [Route-event NHG derivation (current design)](#route-event-nhg-derivation-current-design)
+    - [Enabling](#enabling)
+    - [Why route events instead of NHG events](#why-route-events-instead-of-nhg-events)
+    - [What PR #19252 adds to the route's deep-copied tree](#what-pr-19252-adds-to-the-routes-deep-copied-tree)
+    - [Why derive dplane NHGs in the plugin, not in fpmsyncd](#why-derive-dplane-nhgs-in-the-plugin-not-in-fpmsyncd)
+    - [Resolving-prefix tracking for PIC](#resolving-prefix-tracking-for-pic)
+    - [SRv6 specifics](#srv6-specifics)
   - [A global knob to enable/disable FIB](#a-global-knob-to-enabledisable-fib)
   - [Process Model](#process-model)
   - [FIB Block](#fib-block)
@@ -53,7 +60,7 @@
 
 | Rev  |   Date    |           Author           | Change Description      |
 | :-- | :------- | :------------------------ | :--------------------- |
-| 0.1  | 08/20/2025  | Eddie Ruan <br>Lingyu Zhang <br>Songnan Lin <br>Yuqing Zhao |  Initial version        |
+| 1    | 08/04/2026  | Eddie Ruan <br>Lingyu Zhang <br>Songnan Lin <br>Yuqing Zhao |  Version 1 RIBFIB       |
 
 # Definition/Abbreviation
 
@@ -196,6 +203,100 @@ There are couple rounds disucssions in the Routing Working Group, the current co
 * Consistency of APPDB objects – APPDB continues to store SONiC objects, preserving the current architectural behavior.
 
 # FIB High Level Design
+
+## Route-event NHG derivation (current design)
+
+> **This is the current design.** The fpmsyncd FIB Block and its tables (§[FIB Block](#fib-block), §[SONiC zebra NHG table](#sonic-zebra-nhg-table)) are **reused essentially unchanged**. What this section changes is *upstream* of fpmsyncd: NHGs are now derived from **route events in the dplane plugin**, and the `RTM_NEWNHGFIB` / `RTM_DELNHGFIB` messages carry a **plugin-allocated dplane NHG id** instead of the zebra NHG id. fpmsyncd keys its tables by that id, and its existing `zebra NHG id` field is kept as-is — it simply holds the dplane id now.
+
+The FIB is realized in the **`dplane_fpm_sonic` plugin**, running in zebra's FNC thread, and is driven by **route events**. For each route the plugin decomposes the route's deep-copied nexthop tree into a deduplicated set of **dplane NHG objects**, allocates a stable `uint32` **dplane NHG id** for each, and delivers them to fpmsyncd over the existing `RTM_NEWNHGFIB` / `RTM_DELNHGFIB` messages. fpmsyncd is reused essentially unchanged: it maps each dplane NHG to a SONiC NHG / PIC-context object and keys its tables by the **dplane NHG id**.
+
+The change is confined to what feeds fpmsyncd. Previously an **NHG event** drove the flow and the plugin merely encapsulated the message; now a **route event** drives it and the plugin does the decomposition, so the wire id changes from the zebra NHG id to the plugin-allocated dplane NHG id — fpmsyncd itself is unchanged:
+
+```mermaid
+graph LR
+    subgraph prev["Previous (NHG-event driven)"]
+        direction LR
+        PNH["NHG event<br/>(DPLANE_OP_NH_*)"] --> PPL["dplane_fpm_sonic:<br/>encapsulate only"]
+        PPL -->|"RTM_NEWNHGFIB / DELNHGFIB<br/>(<b>zebra NHG id</b>)"| PFS["fpmsyncd"]
+        PFS --> PAPP["APPL_DB"]
+    end
+    subgraph cur["Current (route-event driven)"]
+        direction LR
+        CRE["route event<br/>(deep-copied NHG tree)"] --> CPL["dplane_fpm_sonic:<br/>decompose + dedup +<br/>allocate dplane ids"]
+        CPL -->|"RTM_NEWNHGFIB / DELNHGFIB<br/>(<b>dplane NHG id</b>)"| CFS["fpmsyncd<br/>(unchanged)"]
+        CFS --> CAPP["APPL_DB"]
+    end
+```
+
+Reading the two rows: the trigger changes (NHG event → route event), the plugin's role changes (encapsulate-only → decompose/dedup/allocate), and the id on `RTM_NEWNHGFIB` / `RTM_DELNHGFIB` changes (zebra NHG id → dplane NHG id). fpmsyncd's consumption of those messages is identical in both.
+
+### Enabling
+
+nhg-fib mode is selected by the vtysh configuration:
+
+```
+no fpm use-next-hop-groups
+fpm use-nhg-fib
+```
+
+`fpm use-nhg-fib` and `fpm use-next-hop-groups` are mutually exclusive. With `use-next-hop-groups` off, the plugin drops `DPLANE_OP_NH_*` on the FPM path (`fpm_nl_enqueue()` returns early), so **no NHG events reach fpmsyncd** — the fpmsyncd-facing path carries only route events. (Zebra still generates `DPLANE_OP_NH_*` internally for the kernel provider that programs kernel NHGs; those are simply not forwarded to FPM.)
+
+### Why route events instead of NHG events
+
+The `DPLANE_OP_NH_*` events do **not** carry the recursive NHG and received NHG information the FIB needs — they describe only the kernel-facing NHG. Adding recursive / received NHG detail as new NHG events on the **FPM path but not the kernel path** would mean feeding the two data planes divergent NHG streams. Since this would add complexity in zebra, the FRR community pushed back on it.
+
+Instead, Mark Stapp and Donald Sharp recommended deriving from the **route's dplane ctx**, which `dplane_ctx_route_init()` already populates with a **deep copy of the full NHG tree — including recursive and received information**. Nothing new has to be threaded through zebra: the plugin reconstructs received, recursive, and resolved NHGs from what the route event already carries.
+
+### What PR #19252 adds to the route's deep-copied tree
+
+"Resolve through / resolve via" (see §[Resolve through and Resolve via](#resolve-through-and-resolve-via)) is realized by **PR #19252**, which adds two fields to `struct nexthop`, populated on each **resolved child** (not on the recursive parent):
+
+| Field | Meaning |
+|---|---|
+| `resolved_via` | the resolving NHG id — the installed group the recursive nexthop resolved through |
+| `resolved_addr` / `resolved_len` | the resolving **prefix** |
+
+Zebra sets these in `get_resolving_info()`, on the children created by `nexthop_set_resolved()`. Because the whole tree — recursive parents, their resolved children, and these fields — is deep-copied into the route ctx, the plugin reconstructs the entire dependency graph from the route event alone; zebra sends no separate dependency structure.
+
+> **Caveat.** `resolved_via` is *post-resolution*: `zebra_nhg_resolve()` collapses several distinct received NHEs onto one installed id, so a single `resolved_via` value can correspond to more than one dplane object. It is a label, not a unique key.
+
+### Why derive dplane NHGs in the plugin, not in fpmsyncd
+
+The decomposition runs in the plugin because that is where the full recursive tree already exists (`dplane_ctx_get_ng()`), in zebra's thread, before anything is serialized. This yields a clean split:
+
+- **Plugin: tree → dplane NHG objects.** Post-order DFS over the tree, content-addressed dedup (64-bit Merkle hash, plugin-internal only), `uint32` dplane-id allocation, refcounted lifecycle. Emits the **existing** `RTM_NEWNHGFIB` JSON schema — children before parents on create, parents before children on delete.
+- **fpmsyncd: dplane NHG → SONiC objects.** Reused unchanged (`onNextHopGroupFullMsg`, `NHGMgr`, SONiC-ID allocation, gateway-NHG + PIC-context creation). It keys its tables by the dplane NHG id.
+
+This confines all new logic to one plugin, keeps the wire contract and fpmsyncd stable, and puts dedup where the tree walk happens. It refines §[FIB's location](#fibs-location): the *object model* is derived pre-APPDB in the plugin, while SONiC object **creation** stays in fpmsyncd.
+
+It also keeps each route message small on the wire: a route references its NHG by a 32-bit dplane id (`RTA_NH_ID`) instead of carrying a nexthop list, and each NHG tree is sent once (via `RTM_NEWNHGFIB`) and shared by every route that dedups to it — so a tree's cost is paid once per unique group, not repeated in every route message.
+
+The plugin builds a 3-level object model:
+
+```mermaid
+graph TD
+    LA["L-A: the route's top group<br/>(referenced by RTA_NH_ID)"]
+    LB["L-B: per recursive-NH resolved group<br/>(RECURSIVE flag + resolving prefix)"]
+    LC["L-C: leaf singleton<br/>(one installable nexthop)"]
+    LA --> LB
+    LB --> LC
+    LA --> LC
+```
+
+Ids on the wire are the plugin's dplane ids (`RTA_NH_ID`, NHGFIB id/depends); the Merkle hash never leaves the plugin.
+
+### Resolving-prefix tracking for PIC
+
+Each L-B object (and each SRv6 leaf) records the **resolving prefix** from `resolved_addr/len`. The plugin thereby maintains a **resolving-prefix → set of dplane NHG ids** relation — the exact blast radius of a prefix withdrawal — exposed today via `show fpm nhg-fib resolved-via`.
+
+On an NHT signal that a prefix is gone, the repair updates precisely the dplane NHGs bound to that prefix (drop the dead members, keep forwarding on the survivors), buying time for full reconvergence. This is the plugin-side analog of the [backwalk](#backwalk-infra), but keyed on the **resolving prefix** rather than a zebra NHG id — which sidesteps the `resolved_via` collapse noted above.
+
+> **Status.** The plugin *tracks* resolving prefixes and exposes them; the binding-table / repair itself is **not yet implemented** (design present, implementation deferred). Observability is in place; the repair is future work.
+
+### SRv6 specifics
+
+For SRv6 VPN the plugin derives **only the top-level object** and stamps it `RECEIVED`; it does not walk the resolved subtree. fpmsyncd turns SRv6 + `RECEIVED` into the gateway-NHG + PIC-context pair exactly as §[Handle SRv6 VPN routing information](#handle-srv6-vpn-routing-information) describes — that behavior is unchanged, now driven by the `RECEIVED` flag on the dplane object rather than by a received NHG event. A route with several SRv6 nexthops gets a top group over those leaves, which inherits the PIC object from its members.
+
 ## A global knob to enable/disable FIB
 Since it is a new design, we need to introduce a global knob to enable/disable FIB. This knob would only be used at device initialization time and not be allowed to modify at run time.
 
@@ -219,6 +320,9 @@ The following diagram shows NHG information stored in fpmsyncd between current a
 In general, the FIB is responsible for handling both NHG and route events. However, since SONiC’s slow path relies on the Linux kernel and does not process route information in fpmsyncd, the SONiC FIB block primarily handles NHG events. The code in fpmsyncd responsible for processing Zebra NHG events is referred to as the FIB block.
 
 ## FIB Block
+
+> **Note.** The FIB Block and its tables below are **reused** in the current design; only the id changes. Previously the `RTM_NEWNHGFIB` / `RTM_DELNHGFIB` messages were keyed by the **zebra NHG id**; now they are keyed by the plugin-allocated **dplane NHG id**, produced from route events (see §[Route-event NHG derivation (current design)](#route-event-nhg-derivation-current-design)). The fpmsyncd logic — the SONiC zebra NHG table, SONiC NHG ID manager, gateway NHG + PIC context, received-vs-resolved handling — is unchanged, and the `zebra NHG id` naming is kept as-is: that field now holds the dplane NHG id.
+
 ![image](images/FIB_block.png)
 
 ### Tables in FIB Block
