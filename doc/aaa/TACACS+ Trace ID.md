@@ -25,6 +25,7 @@
 | --- | --- | --- | --- |
 | 0.1 | 2026-05-28 | Rod Persky | Initial TraceId proposal. |
 | 0.2 | 2026-07-09 | Rod Persky | Changed TraceId environment variable to `SSH_CLIENT_TRACEID` and added YANG configuration support. |
+| 0.3 | 2026-08-05 | Rod Persky | Changed TraceId authorization to disabled by default and added `config tacacs` and `show tacacs` CLI support. |
 
 ## 2. Introduction and Motivation
 
@@ -123,6 +124,7 @@ The detailed server configuration, client syntax, configuration knob, bash guard
 | FR7 | The implementation must be idempotent and must not duplicate sshd configuration entries. |
 | FR8 | SONiC must provide a TACPLUS global configuration option to enable or disable adding `traceid` to TACACS+ authorization requests. |
 | FR9 | `bash_tacplus` must omit `traceid` when the configuration option is disabled, even if `SSH_CLIENT_TRACEID` is present and valid. |
+| FR10 | SONiC must provide CLI commands to enable, disable, and restore the default `traceid_authorization` configuration and must report its configured or default state. |
 
 ### 6.2 Security requirements
 
@@ -134,7 +136,7 @@ The detailed server configuration, client syntax, configuration knob, bash guard
 | SR4 | Do not transform, truncate, or normalize a supplied `SSH_CLIENT_TRACEID`; either send the exact valid value or omit the attribute. |
 | SR5 | Do not log raw invalid `SSH_CLIENT_TRACEID` values at info, warning, or error levels. |
 | SR6 | Clearly document that the selected design provides only best-effort protection against accidental shell changes. |
-| SR7 | The `traceid_authorization` option must default to enabled and allow operators to explicitly disable honoring client-supplied correlation metadata. |
+| SR7 | The `traceid_authorization` option must default to disabled so client-supplied correlation metadata is sent only after an operator explicitly enables it. |
 
 ### 6.3 Compatibility requirements
 
@@ -143,7 +145,7 @@ The detailed server configuration, client syntax, configuration knob, bash guard
 | CR1 | SSH login must continue to work for clients that do not send `SSH_CLIENT_TRACEID`. |
 | CR2 | TACACS+ authorization must continue to work with servers that ignore unknown attributes. |
 | CR3 | Existing OpenSSH hardening settings must remain intact. |
-| CR4 | Existing TACACS+ server configuration and AAA CLI behavior must not change. |
+| CR4 | Existing TACACS+ server configuration and existing AAA/TACACS+ CLI commands must remain behavior-compatible. |
 
 ## 7. Architecture Design
 
@@ -177,23 +179,26 @@ This design makes a small, server-side change in the SSH-to-bash path and a smal
 | --- | --- |
 | sshd configuration | Accept the client-supplied TraceId environment variable; see [8.1 SSH server configuration](#81-ssh-server-configuration). |
 | SSH client usage | Use stock OpenSSH environment propagation; see [8.2 Client usage](#82-client-usage). |
-| TACPLUS configuration | Enable by default and allow explicit opt-out; see [8.3 Feature configuration](#83-feature-configuration). |
+| TACPLUS configuration | Disable by default and allow explicit opt-in; see [8.3 Feature configuration](#83-feature-configuration). |
 | bash startup | Apply a best-effort readonly guard; see [8.4 Best-effort bash guard](#84-best-effort-bash-guard). |
 | `bash_tacplus` | Validate the environment value and add the optional `traceid` AV attribute; see [8.6 TraceId validation](#86-traceid-validation) and [8.7 `bash_tacplus` implementation](#87-bash_tacplus-implementation). |
 | TACACS+ server | No protocol change; servers may use or ignore the new AV pair. |
 
 ### 7.3 Repositories and modules
 
-The implementation is expected in the SONiC build and TACACS+ code paths.
+The implementation spans the SONiC image build, host configuration service, TACACS+ authorization plugin, and management CLI.
 
 | Repository area | Expected file or area | Purpose |
 | --- | --- | --- |
-| `sonic-buildimage` host services | `src/sonic-host-services/scripts/hostcfgd` and `data/templates/tacplus_nss.conf.j2` | Render the `traceid_authorization` setting into `/etc/tacplus_nss.conf`. |
+| `sonic-host-services` | `scripts/hostcfgd` and `data/templates/tacplus_nss.conf.j2` | Render the `traceid_authorization` setting into `/etc/tacplus_nss.conf`. |
 | `sonic-buildimage` YANG model | `src/sonic-yang-models/yang-models/sonic-system-tacacs.yang` | Expose the TACPLUS global `traceid_authorization` configuration field. |
 | `sonic-buildimage` image build | sshd config generation | Add `AcceptEnv SSH_CLIENT_TRACEID` idempotently. |
 | `sonic-buildimage` host config | `files/image_config/bash/bash.bashrc` | Add best-effort `readonly SSH_CLIENT_TRACEID` guard. |
 | TACACS+ bash plugin | `src/tacacs/bash_tacplus/bash_tacplus.c` | Add validation helper and authorization attribute. |
 | TACACS+ bash plugin tests | `src/tacacs/bash_tacplus/unittest/` | Add unit test coverage. |
+| `sonic-utilities` configuration CLI | `config/aaa.py` | Add `config tacacs traceid-authorization enable|disable|default`. |
+| `sonic-utilities` show CLI | `show/main.py` | Report the configured or default `traceid_authorization` state. |
+| `sonic-utilities` tests and documentation | `tests/aaa_test.py` and `doc/Command-Reference.md` | Cover and document the new CLI behavior. |
 
 ### 7.4 Architecture non-impact
 
@@ -207,7 +212,6 @@ No changes are required in:
 - APP_DB
 - STATE_DB
 - COUNTERS_DB
-- CONFIG_DB
 - platform drivers
 - containers
 
@@ -251,19 +255,27 @@ SSH_CLIENT_TRACEID=<trace-id> ssh -o SendEnv=SSH_CLIENT_TRACEID user@sonic
 
 ### 8.3 Feature configuration
 
-The feature is enabled by default. No TACPLUS configuration field is required for SONiC to include a valid `SSH_CLIENT_TRACEID` value in TACACS+ command authorization requests.
-
-Operators can explicitly disable the feature with the TACPLUS global configuration field:
+The feature is disabled by default. SONiC includes a valid `SSH_CLIENT_TRACEID` value in TACACS+ command authorization requests only when an operator explicitly enables the TACPLUS global configuration field:
 
 ```json
 "TACPLUS": {
   "global": {
-    "traceid_authorization": false
+    "traceid_authorization": true
   }
 }
 ```
 
-The default is `true`. When the field is absent or set to `true`, `hostcfgd` enables TraceId authorization metadata in `/etc/tacplus_nss.conf`. To opt out, set the field to `false`; SONiC accepts normal SSH sessions and command authorization continues unchanged, but `bash_tacplus` does not add the `traceid` AV pair even if the SSH environment contains `SSH_CLIENT_TRACEID`.
+The default is `false`. When the field is absent or set to `false`, SONiC accepts normal SSH sessions and command authorization continues unchanged, but `bash_tacplus` does not add the `traceid` AV pair even if the SSH environment contains `SSH_CLIENT_TRACEID`. When the field is set to `true`, `hostcfgd` enables TraceId authorization metadata in `/etc/tacplus_nss.conf`.
+
+Operators configure the field through the TACACS+ CLI:
+
+```text
+config tacacs traceid-authorization enable
+config tacacs traceid-authorization disable
+config tacacs traceid-authorization default
+```
+
+`enable` stores `true`, `disable` stores `false`, and `default` removes the explicit field so the disabled default applies. `show tacacs` reports the configured value and displays `traceid_authorization false (default)` when the field is absent.
 
 `hostcfgd` renders the enabled state into `/etc/tacplus_nss.conf` as:
 
@@ -271,7 +283,7 @@ The default is `true`. When the field is absent or set to `true`, `hostcfgd` ena
 traceid_authorization
 ```
 
-`bash_tacplus` reads `/etc/tacplus_nss.conf` through the existing TACACS+ parser and sends `traceid` only when this flag is present. Operators and automation can determine whether the feature is supported by checking for the `traceid_authorization` leaf in the TACPLUS YANG/ConfigDB schema. On a running switch, the feature is enabled when `TACPLUS|global traceid_authorization` is absent or `true`, and disabled only when it is explicitly `false`; the rendered `traceid_authorization` token in `/etc/tacplus_nss.conf` shows the effective enabled state consumed by `bash_tacplus`.
+`bash_tacplus` reads `/etc/tacplus_nss.conf` through the existing TACACS+ parser and sends `traceid` only when this flag is present. Operators and automation can determine whether the feature is supported by checking for the `traceid_authorization` leaf in the TACPLUS YANG/ConfigDB schema or the `traceid-authorization` subcommand. On a running switch, the rendered `traceid_authorization` token in `/etc/tacplus_nss.conf` shows the effective enabled state consumed by `bash_tacplus`.
 
 ### 8.4 Best-effort bash guard
 
@@ -438,17 +450,29 @@ Not applicable. This is not a SONiC Application Extension.
 
 ### 10.2 CLI/YANG model enhancements
 
-Add a TACPLUS global YANG leaf named `traceid_authorization` with default `true`.
+Add a TACPLUS global YANG leaf named `traceid_authorization` with default `false`.
 
 ```yang
 leaf traceid_authorization {
     type boolean;
-    default true;
-    description "Enable adding validated SSH TraceId values to TACACS+ command authorization requests.";
+    default false;
+    description "Enable adding validated SSH_CLIENT_TRACEID values as the TACACS+ traceid command authorization attribute.";
 }
 ```
 
-No CLI command is required for the initial implementation; operators may configure the field through existing ConfigDB/YANG management paths. The default and opt-out semantics are defined in [8.3 Feature configuration](#83-feature-configuration).
+Add the following TACACS+ configuration command:
+
+```text
+config tacacs traceid-authorization (enable | disable | default)
+```
+
+Add `traceid_authorization` to `show tacacs`. When no explicit field exists, the output reports:
+
+```text
+TACPLUS global traceid_authorization false (default)
+```
+
+The CLI and opt-in semantics are defined in [8.3 Feature configuration](#83-feature-configuration).
 
 ### 10.3 Config DB enhancements
 
@@ -464,7 +488,7 @@ Add an optional `traceid_authorization` boolean field to `TACPLUS|global`.
 }
 ```
 
-No new table is added. Existing TACACS+ and AAA configuration commands remain unchanged unless a future CLI enhancement chooses to expose this field directly. Effective runtime behavior is described in [8.3 Feature configuration](#83-feature-configuration).
+No new table is added. Existing TACACS+ and AAA commands remain behavior-compatible; the new `config tacacs traceid-authorization` subcommand manages this field. Effective runtime behavior is described in [8.3 Feature configuration](#83-feature-configuration).
 
 ### 10.4 REST, gNMI, and SNMP
 
@@ -476,7 +500,7 @@ No warmboot or fastboot functional impact is expected.
 
 Reasons:
 
-- No database state is added.
+- No new database or table is added; the optional field uses normal CONFIG_DB persistence.
 - No hardware state is added.
 - No new service is added.
 - No warmboot reconciliation is needed.
@@ -506,7 +530,7 @@ No growing memory consumption is expected when `traceid_authorization` is disabl
 
 - This design is best-effort only and does not prevent deliberate user tampering with process environments.
 - The initial bash `readonly` guard can be bypassed by starting a child process with a custom environment; see [8.4 Best-effort bash guard](#84-best-effort-bash-guard).
-- `traceid_authorization` is enabled by default and can be disabled explicitly; see [8.3 Feature configuration](#83-feature-configuration).
+- `traceid_authorization` is disabled by default and must be enabled explicitly; see [8.3 Feature configuration](#83-feature-configuration).
 - `SSH_CLIENT_TRACEID` is treated as a non-secret correlation identifier. Users must not put credentials, tokens, or other sensitive data in it.
 - The `traceid` AV pair is only added to TACACS+ command authorization requests generated by `bash_tacplus`; see [8.7 `bash_tacplus` implementation](#87-bash_tacplus-implementation).
 - Invalid `SSH_CLIENT_TRACEID` values are omitted rather than rejected at login time; see [8.6 TraceId validation](#86-traceid-validation).
@@ -516,11 +540,14 @@ No growing memory consumption is expected when `traceid_authorization` is disabl
 
 ### 14.1 Unit test cases
 
-Add or update tests under:
+Add or update tests in each affected repository:
 
-```text
-src/tacacs/bash_tacplus/unittest/
-```
+| Repository | Test location | Coverage |
+| --- | --- | --- |
+| `sonic-buildimage` | `src/tacacs/bash_tacplus/unittest/` | TraceId validation and TACACS+ authorization attribute behavior. |
+| `sonic-buildimage` | `src/sonic-yang-models/tests/yang_model_tests/` | `traceid_authorization` schema validation and default behavior. |
+| `sonic-host-services` | `tests/hostcfgd/` | Explicitly enabled, explicitly disabled, and field-absent rendering of `/etc/tacplus_nss.conf`. |
+| `sonic-utilities` | `tests/aaa_test.py` | `config tacacs traceid-authorization` and `show tacacs` behavior. |
 
 Recommended unit test cases:
 
@@ -537,8 +564,12 @@ Recommended unit test cases:
 | Consecutive calls | Change or unset env between calls | No stale value from earlier call. |
 | Existing success path | No `SSH_CLIENT_TRACEID` | Existing authorization success behavior unchanged. |
 | Existing failure path | No `SSH_CLIENT_TRACEID` | Existing authorization failure behavior unchanged. |
+| CLI default state | `traceid_authorization` is absent and `show tacacs` is run | Show output reports `traceid_authorization false (default)`. |
+| CLI enable | Run `config tacacs traceid-authorization enable`, then `show tacacs` | Show output reports `traceid_authorization True`. |
+| CLI disable | Run `config tacacs traceid-authorization disable`, then `show tacacs` | Show output reports `traceid_authorization False`. |
+| CLI restore default | Run `config tacacs traceid-authorization default`, then `show tacacs` | The field is removed and show output reports `traceid_authorization false (default)`. |
 
-Mocking requirements:
+`bash_tacplus` mocking requirements:
 
 - record `tac_add_attrib()` calls;
 - verify `traceid` is present exactly once when valid;
@@ -552,10 +583,11 @@ Run on a SONiC image with TACACS+ command authorization configured.
 | Test | Steps | Expected result |
 | --- | --- | --- |
 | Login without SSH_CLIENT_TRACEID | `ssh user@sonic` and run an authorized command | Command authorization behaves as before; no `traceid` AV pair. |
-| Login with SetEnv | `ssh -o SetEnv=SSH_CLIENT_TRACEID=trace-123 user@sonic` and run a command | TACACS+ authorization request includes `traceid=trace-123`. |
-| Login with SendEnv | `SSH_CLIENT_TRACEID=trace-456 ssh -o SendEnv=SSH_CLIENT_TRACEID user@sonic` and run a command | TACACS+ authorization request includes `traceid=trace-456`. |
-| Feature disabled | Set `TACPLUS\|global traceid_authorization=false`, send a valid `SSH_CLIENT_TRACEID`, and run a command | Login and command authorization continue; `traceid` is omitted. |
-| Invalid value | Send `SSH_CLIENT_TRACEID` with a space or equals sign | Login and command authorization continue; `traceid` is omitted. |
+| Feature default | Run `config tacacs traceid-authorization default` and `show tacacs` | Show output reports `traceid_authorization false (default)`. |
+| Login with SetEnv | Enable TraceId authorization, then run `ssh -o SetEnv=SSH_CLIENT_TRACEID=trace-123 user@sonic` and a command | TACACS+ authorization request includes `traceid=trace-123`. |
+| Login with SendEnv | Enable TraceId authorization, then run `SSH_CLIENT_TRACEID=trace-456 ssh -o SendEnv=SSH_CLIENT_TRACEID user@sonic` and a command | TACACS+ authorization request includes `traceid=trace-456`. |
+| Feature disabled | Run `config tacacs traceid-authorization disable`, send a valid `SSH_CLIENT_TRACEID`, and run a command | Login and command authorization continue; `traceid` is omitted. |
+| Invalid value | Enable TraceId authorization, then send `SSH_CLIENT_TRACEID` with a space or equals sign | Login and command authorization continue; `traceid` is omitted. |
 | Bash readonly guard | Attempt `unset SSH_CLIENT_TRACEID` in the initial shell | Bash rejects the unset operation. |
 | Best-effort limitation | Run `env SSH_CLIENT_TRACEID=other bash` | Child shell can alter the value; limitation is documented. |
 
