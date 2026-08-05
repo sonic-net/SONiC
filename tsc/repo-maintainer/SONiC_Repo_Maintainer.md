@@ -68,6 +68,7 @@
 |  | Yilan Ji (Google) | baxia-lan | enabled |
 |  | Praveen Elagala (BRCM) | Praveen-Brcm | Approved on 5/3/2023 and enabled |
 |  | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
+|  | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
 | sonic-mgmt | Ying Xie (Microsoft) | yxieca | enabled |
 |  | Xin Wang (Microsoft) | wangxin | enabled |
 |  | Bhavani Parise (Cisco) | bpar9 | enabled |
