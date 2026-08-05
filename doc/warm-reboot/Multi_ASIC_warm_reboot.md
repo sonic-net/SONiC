@@ -49,13 +49,14 @@
 
 ### 1. Revision  
 
-| Revision | Author           |
-| -------- | ---------------- |
-| 1.0      | Stepan Blyshchak |
+| Revision | Author           | Content |
+| -------- | ---------------- |---------------- |
+| 1.0      | Stepan Blyshchak | Warm-reboot multi-asic support | 
+| 2.0      | Yair Raviv | Fast-reboot multi-asic support |
 
 ### 2. Scope  
 
-This document covers warm-reboot support on Multi-ASIC devices.
+This document covers warm and fast reboot support on Multi-ASIC devices.
 
 ### 3. Definitions/Abbreviations 
 
@@ -784,3 +785,38 @@ TBD
 #### 12.2. System Test cases
 
 ### 13. Open/Action items - if any 
+
+
+
+
+
+
+## Multi-ASIC Fast-Reboot Support
+
+This section extends the Multi-ASIC warm-reboot design to cover fast reboot, reusing the same namespace model and keeping the baseline warm-reboot flow unchanged.
+
+
+### Fast-reboot shutdown
+- To apply fast-reboot correctly on all ASICs, the fast-reboot flag must be set in each ASIC namespace's STATE_DB.
+- fast-reboot-filter-routes.py should be enhanced to support a namespace parameter, so that the fast-reboot script can call this script for each ASIC.
+- xcvrd should decide whether to skip port deletion based on each namespace's STATE_DB.
+
+![Shutdown flow1](images/fast-reboot-masic-shutdown-flow-1.png)
+![Shutdown flow2](images/fast-reboot-masic-shutdown-flow-2.png)
+
+### Fast-reboot Startup
+- All namespace services should evaluate fast-reboot state from the correct STATE_DB (e.g., swss2 should check FAST_RESTART_ENABLE_TABLE in asic2's STATE_DB).
+- xcvrd should evaluate fast-reboot state and skip DP re-init only for ASICs that perform fast-reboot.
+
+![Startup flow](images/fast-reboot-masic-startup-flow.png)
+
+### Affected components (summary)
+
+- **sonic-utilities scripts:** `fast-reboot`, `fast-reboot-filter-routes.py`
+  - Setting fast-reboot state for all ASIC namespaces STATE_DBs
+  - Preserve routed from all ASIC namespaces
+- **xcvrd:** `xcvrd.py`, `cmis_manager_task.py`
+  - Deinit - Skip deleting ports info from DB in case of fast reboot – per asic
+  - Reinit - Skip DP re-init – per asic
+- **systemd services start scripts:** `swss.sh`, `syncd_common.sh`, `teamd.sh`, `service_mgmt.sh`, `bgp.sh`, `bmp.sh`
+  - Evaluate fast-reboot state based on the correct STATE_DB
