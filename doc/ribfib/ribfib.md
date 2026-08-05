@@ -22,7 +22,8 @@
     - [Why route events instead of NHG events](#why-route-events-instead-of-nhg-events)
     - [What PR #19252 adds to the route's deep-copied tree](#what-pr-19252-adds-to-the-routes-deep-copied-tree)
     - [Why derive dplane NHGs in the plugin, not in fpmsyncd](#why-derive-dplane-nhgs-in-the-plugin-not-in-fpmsyncd)
-    - [Resolving-prefix tracking for PIC](#resolving-prefix-tracking-for-pic)
+    - [Dplane NHG table and hash-based identity](#dplane-nhg-table-and-hash-based-identity)
+    - [Resolve-via route to dplane NHG mapping table](#resolve-via-route-to-dplane-nhg-mapping-table)
     - [SRv6 specifics](#srv6-specifics)
   - [A global knob to enable/disable FIB](#a-global-knob-to-enabledisable-fib)
   - [Process Model](#process-model)
@@ -271,7 +272,7 @@ This confines all new logic to one plugin, keeps the wire contract and fpmsyncd 
 
 It also keeps each route message small on the wire: a route references its NHG by a 32-bit dplane id (`RTA_NH_ID`) instead of carrying a nexthop list, and each NHG tree is sent once (via `RTM_NEWNHGFIB`) and shared by every route that dedups to it — so a tree's cost is paid once per unique group, not repeated in every route message.
 
-The plugin builds a 3-level object model:
+The plugin builds objects in **three roles**:
 
 ```mermaid
 graph TD
@@ -283,15 +284,80 @@ graph TD
     LA --> LC
 ```
 
+| Role | What it is | Why it is a distinct object |
+| :-- | :-- | :-- |
+| L-A | the group a route points at | it is what `RTA_NH_ID` carries — one per route's nexthop set |
+| L-B | one recursive nexthop's resolution | carries the `RECURSIVE` flag **and the resolving prefix**; it is both the PIC unit and the unit two routes share when they use the same BGP nexthop |
+| L-C | one installable nexthop | the dedup atom — identical leaves collapse across the whole RIB |
+
 Ids on the wire are the plugin's dplane ids (`RTA_NH_ID`, NHGFIB id/depends); the Merkle hash never leaves the plugin.
 
-### Resolving-prefix tracking for PIC
+**Levels are roles, not recursion depth.** Deeper recursion does not add levels, because zebra flattens it: a resolved child is never itself recursive (`nexthop_valid_resolve()` rejects that), so **L-B never nests** and the model is structurally at most three deep. This is the same property §[NHG forwarding chain graph](#nhg-forwarding-chain-graph) notes — the NHG structure holds top-level nexthops and *final* resolved nexthops, not the intermediate `via` hops.
 
-Each L-B object (and each SRv6 leaf) records the **resolving prefix** from `resolved_addr/len`. The plugin thereby maintains a **resolving-prefix → set of dplane NHG ids** relation — the exact blast radius of a prefix withdrawal — exposed today via `show fpm nhg-fib resolved-via`.
+For example, with
 
-On an NHT signal that a prefix is gone, the repair updates precisely the dplane NHGs bound to that prefix (drop the dead members, keep forwarding on the survivors), buying time for full reconvergence. This is the plugin-side analog of the [backwalk](#backwalk-infra), but keyed on the **resolving prefix** rather than a zebra NHG id — which sidesteps the `resolved_via` collapse noted above.
+```
+ipv6 route 1::1/128 2::2
+ipv6 route 2::2/128 3::3
+ipv6 route 3::3/128 4::4
+ipv6 route 4::4/128 fc06::2 Ethernet12
+```
 
-> **Status.** The plugin *tracks* resolving prefixes and exposes them; the binding-table / repair itself is **not yet implemented** (design present, implementation deferred). Observability is in place; the repair is future work.
+route `1::1/128`'s ctx tree holds the top-level nexthop `2::2` (recursive) and, as its resolution, the **final** nexthop `fc06::2, Ethernet12`. `3::3` and `4::4` never appear. The derived objects are therefore just `L-A(1::1) → L-B(2::2, resolved via 2::2/128) → L-C(fc06::2/Ethernet12)`.
+
+The intermediate hops are represented instead by the **resolving prefix** and `resolved_via` on the L-B object — which is what PIC needs, and what "resolve through / resolve via" was added to supply.
+
+> **Deep-chain caveat.** Because only the *immediate* resolving route is recorded (`2::2/128` above), a failure deeper in the chain — say `4::4`'s underlay — does **not** produce a resolve-via route delete: `2::2/128` still exists. Zebra re-resolves and re-sends the route with different resolved children, so the L-B hash changes and the change surfaces as a **new dplane NHG** instead. Both paths are handled, but by different mechanisms: delete-trigger for the immediate resolving route, changed-identity for anything deeper.
+
+### Dplane NHG table and hash-based identity
+
+The plugin keeps its derived objects in a **dplane NHG table**, with three indexes:
+
+| Index | Key | Purpose |
+| :-- | :-- | :-- |
+| by hash | 64-bit Merkle hash | dedup — decide whether a subtree already exists |
+| by id | dplane NHG id | lookup by the id used on the wire |
+| route map | (table id, afi, prefix, src prefix) | which object a given route references |
+
+Each object holds its hash, dplane id, role (L-A / L-B / L-C), NHG flags, the defining nexthop, the resolving prefix (when known), a refcount, and its child list.
+
+**Identity is the content hash.** The hash is computed bottom-up, Merkle style:
+
+* **leaf (L-C)** — digest of the canonical nexthop fields: vrf, type, gate / blackhole type, ifindex, src, rmap\_src, the hashed flag subset, MPLS label stack, and the SRv6 fields (seg6local action + context, SID list, encap behavior).
+* **group (L-A / L-B)** — digest of the `role` tag, the NHG flag subset, and the **child hashes with their weights**, sorted so that member order from zebra never affects identity. For **L-B** the digest additionally covers the **resolving prefix and vrf**.
+
+Derivation walks the tree post-order and looks up each computed hash before creating anything:
+
+* **hash hit** → the identical subtree already exists; reuse that object, bump its refcount, emit nothing.
+* **hash miss** → create the object, allocate a dplane id, and queue an `RTM_NEWNHGFIB`.
+
+Because a parent's hash folds in its children's hashes, an identical subtree anywhere in the RIB collapses onto one object: 100k routes sharing a nexthop set share one L-A, and two different L-A sets sharing one BGP nexthop share that nexthop's L-B and its L-C children. Objects are refcounted (parents + routes); the last dereference emits `RTM_DELNHGFIB` and frees the id.
+
+Correctness never depends on hash uniqueness: every hash hit is verified by comparing the full candidate content against the stored object, and a genuine 64-bit collision re-probes under a perturbed key.
+
+**Consequence for a changed resolution.** Since the resolving prefix and vrf are part of an **L-B** object's identity, a recursive nexthop whose resolving route changes produces a **different hash**, hence a **new dplane NHG** with a new id — the old one drains by refcount. The same holds if the resolution's member set changes, because the child hashes change. This is what makes "resolution changed" observable as a create/delete pair rather than an in-place edit.
+
+**SRv6 is deliberately different.** An SRv6 nexthop is hashed only at the first level, as the **received** NHG, and the dplane treats it as a **tunnel nexthop** that the SDK resolves. Its identity is therefore the endpoint plus SID list — the resolving route is *not* part of the leaf hash, so the tunnel nexthop does **not** change when the underlay resolution changes, and its dplane id stays stable. The resolving route is still recorded, and is used to trigger the **PIC edge** case for SRv6 VPN (below).
+
+### Resolve-via route to dplane NHG mapping table
+
+Alongside the object table the plugin maintains a **resolve-via route → dplane NHG** mapping table: for every object that has a resolving route, an entry from that route (prefix + vrf) to the object's dplane id. One route maps to a set of dplane NHGs. It is exposed today by `show fpm nhg-fib resolved-via`.
+
+**Lifecycle: entries follow the NHG, not the route.** Entries are created and deleted **only** as the referencing dplane NHG is created and deleted. The table is deliberately **not** updated on resolve-via route add / delete events — those events are used purely as *triggers*, never to mutate the mapping:
+
+| Event on a resolve-via route | Action |
+| :-- | :-- |
+| **delete** | trigger PIC convergence — send to fpmsyncd: **(a)** the impacted nexthop, **(b)** the resolve-via route, **(c)** the dplane NHG id of that nexthop |
+| **add** | trigger **recovery** — zebra has revived the previously deleted resolution, so the earlier fix-up must be undone |
+
+This split is what keeps the table consistent under churn: the mapping only ever changes when an NHG genuinely appears or disappears, so a flapping resolving route cannot desynchronize it. And because a changed resolution yields a *new* L-B object (previous subsection), the mapping self-corrects through the ordinary create/delete path rather than needing an update path at all.
+
+On **delete**, fpmsyncd applies the quick fix-up: drop the dead paths from the affected NHGs and keep forwarding on the survivors, buying time for the protocols to reconverge. On **add**, the fix-up is reverted so the NHG returns to its full path set.
+
+Mapping this onto the [backwalk](#backwalk-infra) vocabulary:
+
+* **PIC core** — an underlay recursion changes. The L-B hash changes, so this surfaces as a new dplane NHG; the impacted set is found from the resolve-via route entry.
+* **PIC edge** — an SRv6 VPN tunnel nexthop's underlay changes. The tunnel NH (received NHG) is unchanged and keeps its dplane id, so the resolve-via route is the only trigger available — which is precisely why it is recorded for SRv6 leaves.
 
 ### SRv6 specifics
 
