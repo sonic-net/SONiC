@@ -38,6 +38,10 @@ accelerated sFlow. On ASICs that support it, the switch builds sFlow v5
 datagrams in silicon and sends them straight to the collector rather than
 punting every sampled packet to the CPU.
 
+Hardware acceleration applies to **flow samples only**. Counter samples, the
+hsflowd agent, and every other part of the sFlow subsystem continue to operate
+unchanged on the CPU path regardless of the selected mode.
+
 ### 3. Definitions/Abbreviations
 
 | Term | Definition |
@@ -184,16 +188,20 @@ sFlow Global Information:
   sFlow Sample Direction:     rx
   sFlow Polling Interval:     default
   sFlow AgentID:              Loopback0
-  sFlow Datapath Mode:        hw-accelerated
+  sFlow Sampling Mode:        hw-accelerated
+  sFlow Sampling Status:      operational
 
   1 Collectors configured:
     Name: collector0          IP addr: 10.0.0.1       UDP port: 6343   VRF: default
       Programmed: true        Dst MAC: 0c:42:a1:5e:3b:07   Src IP: 10.1.0.32   Egress: Ethernet48
 ```
 
-Selecting `hw-accelerated` on a platform that does not support it is rejected:
-`config sflow mode` reports the reason, `mode` stays `cpu-path`, and the failure
-is logged to syslog.
+On a platform that cannot support the configured mode:
+
+```text
+  sFlow Sampling Mode:        hw-accelerated
+  sFlow Sampling Status:      non-operational (platform not capable)
+```
 
 `sonic-sflow.yang`:
 
@@ -233,7 +241,7 @@ leaf mode {
 }
 ```
 
-One new STATE_DB table, written by `SflowOrch`:
+Two new STATE_DB tables, written by `SflowOrch`:
 
 ```text
 key           = SFLOW_COLLECTOR_STATE|<collector_name>
@@ -241,6 +249,12 @@ programmed    = "true" / "false"
 resolved_dst_mac, resolved_src_mac, resolved_src_ip, egress_port
 last_error    = string
 last_updated  = timestamp
+```
+
+```text
+key          = SFLOW_STATE|global
+operational  = "true" / "false"
+reason       = string (empty when operational)
 ```
 
 Configuration without `mode` behaves as `cpu-path`, so nothing is migrated and
@@ -278,7 +292,7 @@ Nothing is allocated while `mode` is `cpu-path`.
 | 1 | `TAM_SFLOW_CAPABLE` is published from the SAI capability query |
 | 2 | Default `mode=cpu-path` uses the CPU path and creates no TAM objects |
 | 3 | `mode=hw-accelerated` on a capable platform creates the six-object graph with expected attributes and binds it to enabled ports |
-| 4 | `mode=hw-accelerated` on an incapable platform is rejected: `mode` stays `cpu-path` and the reason is logged |
+| 4 | `mode=hw-accelerated` on an incapable platform: config is retained, flow sampling stops (no CPU fallback), `SFLOW_STATE|global` reports non-operational with a reason, and a WARN is logged |
 | 5 | A neighbor or route change re-resolves and reprograms the collector; a burst collapses into one reprogram |
 | 6 | Two ports at the same sample rate share one graph; different rates get distinct graphs |
 | 7 | Bindings are removed on session delete; a mode change tears down one path before standing up the other |
