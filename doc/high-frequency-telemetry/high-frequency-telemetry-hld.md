@@ -392,7 +392,45 @@ The IPFIX template should be provided by vendors. This document does not restric
 
 #### 7.2.4. Netlink message
 
-We expect all control messages and out-of-band information to be transmitted by the SAI. Therefore, it is unnecessary to read the attribute header of netlink and the message header of Genetlink from the socket. Instead, we can insert a bulk of IPFIX recordings as the payload of the netlink message. The sample code for building the message from the kernel side is as follows:
+The netlink message consists of a netlink header, a genetlink header, and IPFIX message as the payload. All control messages and out-of-band information are transmitted by the SAI. The IPFIX recordings are directly placed as the payload without additional netlink attributes.
+
+The message structure is as follows:
+
+``` mermaid
+
+---
+title: Netlink message structure
+---
+packet-beta
+0-31: "nlmsg_len: 16+4+payload length"
+32-47: "nlmsg_type: family ID"
+48-63: "nlmsg_flags: 0x0000"
+64-95: "nlmsg_seq: 0x00000000"
+96-127: "nlmsg_pid: 0x00000000"
+128-135: "cmd: 0x01 (STEL_CMD_IPFIX_DATA)"
+136-143: "version: protocol version"
+144-159: "reserved: 0x0000"
+160-191: "IPFIX Message Payload"
+192-223: "..."
+
+```
+
+**Netlink Header (16 bytes):**
+- `nlmsg_len` (4 bytes): Total message length including headers = 16 (nlheader) + 4 (genheader) + payload length
+- `nlmsg_type` (2 bytes): Message type = family ID (assigned by kernel when family is registered)
+- `nlmsg_flags` (2 bytes): Message flags = 0x0000 (no special flags for multicast data)
+- `nlmsg_seq` (4 bytes): Sequence number = 0x00000000 (not used for multicast messages)
+- `nlmsg_pid` (4 bytes): Process ID = 0x00000000 (kernel originated message)
+
+**Generic Netlink Header (4 bytes):**
+- `cmd` (1 byte): Command type = 0x01 (STEL_CMD_IPFIX_DATA)
+- `version` (1 byte): Protocol version (implementation dependent)
+- `reserved` (2 bytes): Reserved for future use = 0x0000
+
+**IPFIX Message Payload:**
+- Direct IPFIX message content without netlink attributes
+
+The sample code for building the message from the kernel side is as follows:
 
 ``` c
 
@@ -409,21 +447,53 @@ static struct genl_family stel_family = {
     .n_mcgrps = ARRAY_SIZE(stel_mcgrps),
 };
 
+#define STEL_CMD_IPFIX_DATA 1
 
 void send_msgs_to_user(/* ... */)
 {
-    struct sk_buff *skb_out = nlmsg_new(ipfix_msg_len, GFP_KERNEL);
-
-    for (size_t i = 0; i < bulk_count; i++)
-    {
-        struct ipfix *msg = ring_buffer.pop();
-        if (msg == NULL)
-        {
+    struct sk_buff *skb_out;
+    void *msg_head;
+    size_t total_ipfix_len = 0;
+    
+    // Calculate total IPFIX payload length
+    for (size_t i = 0; i < bulk_count; i++) {
+        struct ipfix *msg = ring_buffer.peek(i);
+        if (msg == NULL) {
             break;
         }
-        nla_append(skb_out, msg->data, msg->len);
+        total_ipfix_len += msg->len;
     }
-
+    
+    // Allocate netlink message (netlink header + genetlink header + IPFIX payload)
+    skb_out = nlmsg_new(GENL_HDRLEN + total_ipfix_len, GFP_KERNEL);
+    if (!skb_out) {
+        return;
+    }
+    
+    // Add genetlink header with cmd = STEL_CMD_IPFIX_DATA (1)
+    msg_head = genlmsg_put(skb_out, 0, 0, &stel_family, 0, STEL_CMD_IPFIX_DATA);
+    if (!msg_head) {
+        nlmsg_free(skb_out);
+        return;
+    }
+    
+    // Append IPFIX messages directly as payload (no netlink attributes)
+    for (size_t i = 0; i < bulk_count; i++) {
+        struct ipfix *msg = ring_buffer.pop();
+        if (msg == NULL) {
+            break;
+        }
+        // Directly append IPFIX data to the skb
+        if (skb_put_data(skb_out, msg->data, msg->len) != 0) {
+            // Handle error
+            break;
+        }
+    }
+    
+    // Finalize the message
+    genlmsg_end(skb_out, msg_head);
+    
+    // Send to multicast group
     genlmsg_multicast(&stel_family, skb_out, 0, 0/* group_id to ipfix group */, GFP_KERNEL);
 }
 
