@@ -9,6 +9,7 @@
 |  | Saikrishna Arcot (Microsoft) | saiarcot895 | enabled |
 |  | Propose add Jie Cai (Microsoft) - Nominated by Ying Xie | jcaiMR | enabled |
 |  | Ying Xie (Microsoft) | yxieca | enabled |
+|  | Ashutosh Agrawal (Cisco) | ashutosh-agrawal | |
 | sonic-bmp | Syed Hasan Raza Naqvi (BRCM) | hasan-brcm | enabled |
 |  | Prince Sunny (Microsoft) | prsunny | enabled |
 |  | Sudharsan Dhamal Gopalarathnam (Nvidia) | dgsudharsan | enabled |
