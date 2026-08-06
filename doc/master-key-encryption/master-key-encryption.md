@@ -34,6 +34,7 @@
 | Rev | Date       | Author    | Change Description |
 |-----|------------|-----------|--------------------|
 | 0.1 | 2026-06-16 | Fred Xia  | Initial draft      |
+| 0.2 | 2026-08-06 | Fred Xia  | Second draft       |
 
 ---
 
@@ -93,7 +94,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 1. **FR-1**: ConfigDB fields designated as sensitive shall be stored encrypted using AES-256-GCM with a device-local master key.
 2. **FR-2**: Encryption and decryption shall be transparent to standard SONiC configuration tools (`config load`, `config reload`, `config apply`).
 3. **FR-3**: The system shall support master keys supplied by a central controller, enabling enterprise key management integration.
-4. **FR-4**: A CLI tool (`master-key-manager`) shall allow the operator to set master keys and activate/deactivate encryption.
+4. **FR-4**: A CLI tool (`master-key-manager`) shall allow the operator to set master keys (by key file path or registry entry name) and activate/deactivate encryption per registry entry (`--name`) or for all registry entries (`--all`).
 5. **FR-5**: When encryption is activated, all plaintext secret fields in registered tables shall be re-encrypted automatically; when deactivated, they shall be decrypted.
 6. **FR-6**: Encryption shall apply only to ConfigDB. FRR running configuration continues to use cleartext passwords.
 7. **FR-7**: The master key file shall be accessible only to root (mode 0600), protected by filesystem permissions.
@@ -119,9 +120,9 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
  │  ┌───────────────────────────────────┐   ┌───────────────────────────────┐  │
  │  │    master-key-manager CLI         │   │   Encryption Library          │  │
  │  │                                   │   │ (master_key_manager.py)       │  │
- │  │  set  --master-key-file  <key>    │   │  AES-256-GCM (Type-6)         │  │
+ │  │  set --master-key-file | --name   │   │  AES-256-GCM (Type-6)         │  │
  │  │  encrypt --table / decrypt --table│   │  Nonce + CT + AAD             │  │
- │  │  activate / deactivate            │   │  base64-encoded output        │  │
+ │  │  activate/deactivate --name|--all │   │  base64-encoded output        │  │
  │  │  status / list                    │   └────────────────┬──────────────┘  │
  │  └──────────────┬────────────────────┘                    │                 │
  │                 │ reads                  ┌────────────────▼──────────────┐  │
@@ -182,7 +183,7 @@ Key design points:
 
 - **`key_file`**: The basename of the key file path (e.g., `bgp_master_key`). Used as the AES-GCM AAD to bind each ciphertext blob to its key file.
 - **`master_keys`**: A flat list of `MasterKey` objects, newest first. There is no per-feature or per-table sub-keying; one file covers one logical key set regardless of how many tables share it.
-- **`enabled`**: Activation state for the feature. Set to `true` by `master-key-manager activate` and `false` by `deactivate`. Stored in the key file rather than in ConfigDB, so no ConfigDB table registry is required.
+- **`enabled`**: Activation state for the feature. Set to `true` by `master-key-manager activate --name <NAME>` (or `--all`) and `false` by the corresponding `deactivate`. Stored in the key file rather than in ConfigDB, so no ConfigDB table registry is required.
 
 The file is written atomically: a temporary file is written, its contents are verified, and then it is renamed over the production path to prevent partial writes.
 
@@ -194,6 +195,13 @@ Two modes are supported:
 
 ```
 # master-key-manager set --master-key-file /etc/sonic/bgp_master_key <KEY>
+Saved master key to /etc/sonic/bgp_master_key
+```
+
+The key file may also be selected by registry entry name instead of an explicit path; `--master-key-file` and `--name` are mutually exclusive and one of them is required:
+
+```
+# master-key-manager set --name BGP <KEY>
 Saved master key to /etc/sonic/bgp_master_key
 ```
 
@@ -215,8 +223,8 @@ Saved master key to /etc/sonic/bgp_master_key
 When a new master key is set with `set`, the old key is retained in the history list. To re-encrypt all ConfigDB values with the new key:
 
 ```
-# master-key-manager deactivate
-# master-key-manager activate
+# master-key-manager deactivate --name BGP
+# master-key-manager activate --name BGP
 ```
 
 Deactivation decrypts all fields back to plaintext, then activation re-encrypts them with the current (newest) master key. Because FRR reads decrypted passwords via the interception layer, no BGP flap occurs during rotation.
@@ -416,12 +424,16 @@ Usage: master-key-manager [--config-file <JSON>] [--registry-config <JSON>]
                           [-s <socket>] [-v] [--force] COMMAND
 
 Commands:
-  set --master-key-file <PATH> <KEY>
-      Provision or rotate the master key stored in the given key file.
+  set (--master-key-file <PATH> | --name <NAME>) <KEY>
+      Provision or rotate the master key stored in a key file.
+      The target key file is either given directly with --master-key-file
+      or resolved from the registry entry named by --name; the two options
+      are mutually exclusive and one of them is required.
       The key is padded/truncated to 32 bytes for AES-256 and prepended
       to the key history (up to 8 entries).
-      Example:
+      Examples:
         master-key-manager set --master-key-file /etc/sonic/bgp_master_key mySecretKey
+        master-key-manager set --name BGP mySecretKey
 
   encrypt --table <TABLE> [-o <OUTPUT>]
       Read all entries of <TABLE> from ConfigDB (or --config-file),
@@ -432,27 +444,28 @@ Commands:
       Read all entries of <TABLE>, decrypt every registered secret field,
       and print the result as JSON (or write to -o).
 
-  activate
-      Activate encryption for all registered tables:
-        1. Verify every registered table has a master key provisioned.
-        2. Bulk-encrypt all plaintext secret fields in each registered table
-           by reading from ConfigDB, encrypting, and writing back.
+  activate (--name <NAME> | --all)
+      Activate encryption for the registry entry selected by --name, or for
+      every registry entry with --all (mutually exclusive; one is required):
+        1. Verify the master key is provisioned for each targeted registry
+           entry (with --all, every entry's key is verified up front, before
+           any table is modified).
+        2. Bulk-encrypt all plaintext secret fields in each targeted entry's
+           tables by reading from ConfigDB, encrypting, and writing back.
         3. Set enabled=true in each affected master key file.
 
-  deactivate
-      Deactivate encryption: decrypt all registered tables back to plaintext,
-      then set enabled=false in each affected master key file.
+  deactivate (--name <NAME> | --all)
+      Deactivate encryption for the targeted registry entry (or entries):
+      decrypt all of their tables back to plaintext, then set enabled=false
+      in each affected master key file.
 
   status
-      Print JSON status per registered table:
+      Print JSON status per registry entry (keyed by the entry's name):
         {
-          "BGP_NEIGHBOR": {
+          "BGP": {
+            "name": "BGP",
             "master_key_file": "/etc/sonic/bgp_master_key",
-            "master_key_configured": true,
-            "encryption_enabled": true
-          },
-          "BGP_PEER_GROUP": {
-            "master_key_file": "/etc/sonic/bgp_master_key",
+            "tables": ["BGP_NEIGHBOR", "BGP_PEER_GROUP"],
             "master_key_configured": true,
             "encryption_enabled": true
           }
@@ -497,7 +510,7 @@ _BGP_REGISTRY = {
 _MasterKeyEncryptionRegistries = [ _BGP_REGISTRY ]
 ```
 
-Both tables share the same key file. `master-key-manager activate/deactivate` iterates over the registry to bulk-encrypt or decrypt all entries.
+Both tables share the same key file. `master-key-manager activate/deactivate --name BGP` bulk-encrypts or decrypts all entries of the BGP registry entry's tables; `--all` targets every registry entry.
 
 The decrypt-and-render step for FRR is handled explicitly in `frrcfgd`.
 
@@ -550,7 +563,7 @@ Saved master key to /etc/sonic/bgp_master_key
 #### Step 2: Activate Encryption
 
 ```
-# master-key-manager activate
+# master-key-manager activate --name BGP
 ```
 
 The `activate` command:
@@ -584,11 +597,11 @@ Similarly, `config load`, `config reload`, and `config apply` all go through `mo
 #### Step 4: Key Rotation
 
 ```
-# master-key-manager set --master-key-file /etc/sonic/bgp_master_key newKey2026
+# master-key-manager set --name BGP newKey2026
 Saved master key to /etc/sonic/bgp_master_key
 
-# master-key-manager deactivate --master-key-file /etc/sonic/bgp_master_key
-# master-key-manager activate --master-key-file /etc/sonic/bgp_master_key
+# master-key-manager deactivate --name BGP
+# master-key-manager activate --name BGP
 ```
 
 Deactivation decrypts all `auth_password` fields to plaintext; activation re-encrypts them with the new key. BGP sessions are unaffected during rotation.
@@ -686,7 +699,7 @@ A separate proposal (`sonic-py-common/sonic_py_common/security_cipher.py`) was s
 |-----------|-------------|
 | `tests/master_key_encryption_test.py` | AES-GCM deterministic test vectors; `MasterKeyManager` key update, encrypt, decrypt, history; max 8 keys; file permission enforcement |
 | `tests/config_db_encryptor_test.py` | `ConfigDBEncryptor` interception: `set_entry`, `mod_entry`, `mod_config` hooks; encryption activated/deactivated; multiple field names |
-| `tests/master_key_manager_test.py` | All CLI subcommands: `set`, `encrypt --table`, `decrypt --table`, `activate`, `deactivate`, `status`, `list`; custom registry via `--registry-config` |
+| `tests/master_key_manager_test.py` | All CLI subcommands: `set` (`--master-key-file`/`--name`), `encrypt --table`, `decrypt --table`, `activate`/`deactivate` (`--name`/`--all`), `status`, `list`; custom registry via `--registry-config` |
 
 ### System Tests (Testbed)
 
