@@ -225,6 +225,11 @@ PRs implementing this:
   the staged batch reaches `gMaxBulkSize` (so the main loop wakes to a real
   batch), and the `ZmqRouteServer` poll loop otherwise wakes the main loop at
   most once per burst (the 2-tier poll timeout described in §6.3).
+- Deferral is bounded: a stream that never pauses for the burst-quiesce
+  window and never reaches `gMaxBulkSize` distinct keys would otherwise defer
+  notification indefinitely, so the poll loop also flushes any handler that
+  has been dirty for more than `BURST_MAX_HOLDOFF_MS` (50 ms)
+  ([sonic-swss-common#1234](https://github.com/sonic-net/sonic-swss-common/pull/1234)).
 
 ### 7.3. Split `drain()` into 3 independent operations
 
@@ -239,6 +244,9 @@ PRs implementing this:
   3. `responseHandlingTask` state
 - For incremental implementation, initial PRs can focus on splitting the
   `doTask()` code into independent functions and calling them serially.
+- All 3 tasks run on the orch main thread. Per the threading model in §7.2,
+  `m_toSync` is owned exclusively by that thread and `m_ingress` is the only
+  cross-thread surface, so none of the tasks require locking.
 
 ### 7.4. Enable the 3 tasks to be capable of yield/resume
 
@@ -249,20 +257,34 @@ PRs implementing this:
 - It also stores any additional checkpoint information so the task can resume
   where it left off.
 - It gets rescheduled by posting a notification event to self.
-- When the Selectable is scheduled again, `doTask()` looks at the previous
-  state and calls the appropriate function. The checkpoint information helps
-  it start from where it left off.
+- When the Selectable is scheduled again, `execute()` runs first and performs
+  the §7.2 hand-off: it moves whatever `mqPollThread` staged into `m_ingress`
+  while the task was yielded into `m_toSync` (under the staging lock, held
+  only for the move). `doTask()` then looks at the previous state and calls
+  the appropriate function; the checkpoint information helps it start from
+  where it left off.
+- `m_ingress` persists across yield/resume increments. The poll thread keeps
+  staging into it throughout; because both maps coalesce by key, an update
+  arriving mid-increment simply supersedes the staged entry for that key and
+  is picked up by the next `execute()`. A key already moved to `toBulk` in
+  the current increment is reprocessed on a later pass if a newer update for
+  it arrives — last writer wins end to end.
 
 ### 7.5. Task processing adheres to time quanta
 
-- To keep `m_toSync` independent and allow `mqPollThread` to keep updating
-  (and coalescing) it, `toBulkTask` consults `m_toSync` in a manner that
-  allows concurrent access.
+- `m_toSync` is owned exclusively by the orch main thread (§7.2);
+  `mqPollThread` never touches it, so `toBulkTask` walks it with no locking.
+  Coalescing of in-flight updates happens upstream in `m_ingress`.
 - `toBulkTask` does not walk through the entire `m_toSync` collection like it
   does today. It walks some bounded number of entries (until a fixed time
   quantum is over).
 - While walking, it removes those items from `m_toSync` and updates the
   `toBulk` data structure.
+- The `m_ingress` → `m_toSync` hand-off in `execute()` stays uncapped by
+  design: it is one map-entry move per staged key with no SAI or Redis work,
+  and coalescing bounds the staged size by the number of distinct in-flight
+  route keys. The time quanta apply to the three tasks above, which do the
+  real work.
 - `flushTask` does not need access to `m_toSync` at all.
 - `responseHandlingTask` normally does not need access to `m_toSync` if there
   are no failures. If there is a failure, it does the following:
