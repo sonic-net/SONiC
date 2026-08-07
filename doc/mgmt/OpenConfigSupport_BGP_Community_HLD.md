@@ -45,7 +45,6 @@
 | Rev | Date | Author | Change Description |
 |:---:|:----:|:------:|:-------------------|
 | 0.1 | 01/28/2026 | Venkata Krishna Rao Gorrepati | Initial version |
-| 0.2 | 08/03/2026 | Venkata Krishna Rao Gorrepati | Added set_type field derivation documentation |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration of BGP Community Sets and Extended Community Sets in SONiC.
@@ -54,6 +53,7 @@ This document provides general information about the OpenConfig configuration of
 * This document describes the high level design of configuration of BGP Community Sets using OpenConfig models via REST & gNMI.
 * This does not cover the SONiC KLISH CLI.
 * This covers only the BGP Community Set and Extended Community Set configuration within routing policies.
+* **Note:** Large Community configuration (e.g., `set-large-community` in route-map policy statements) is not covered in this document. See the [OpenConfig Route Map HLD](https://github.com/rajakushwah/SONiC/blob/5fede12d9e1a25c93d7564742e9fe5b9cc131230/doc/mgmt/OpenConfig_RouteMap.md).
 * Supported attributes in OpenConfig YANG tree:
 
 ```
@@ -207,6 +207,40 @@ The `community-member` leaf is mapped to CONFIG_DB field `community_member`. Dur
    * Members without these prefixes (e.g., regex patterns) → treated as **EXPANDED**.
 
 2. The same numeric community-set-name constraints (0–99, 100–500), evaluation order, and update immutability rules apply. For numeric names **0–99**, expanded members are rejected before default derivation; for **100–500**, final `set_type` is determined by member format.
+
+**Note — FRR CLI correlation:**
+
+The `set_type` derivation logic aligns with how FRR defines BGP community lists and extended community lists. When community sets are applied to FRR via the BGP config manager, `set_type` determines whether the set is programmed as a **standard** or **expanded** list.
+
+FRR CLI for BGP community lists:
+
+```
+sonic(config)# bgp community-list
+  (1-99)     Community list number (standard)
+  (100-500)  Community list number (expanded)
+  expanded   Add an expanded community-list entry
+  standard   Add a standard community-list entry
+```
+
+FRR CLI for BGP extended community lists:
+
+```
+sonic(config)# bgp extcommunity-list
+  (1-99)     Extended Community list number (standard)
+  (100-500)  Extended Community list number (expanded)
+  expanded   Specify expanded extcommunity-list
+  standard   Specify standard extcommunity-list
+
+```
+
+| FRR concept | `set_type` | Member format |
+|:------------|:-----------|:--------------|
+| Community list number **1–99** / `standard` keyword | `STANDARD` | Literal values: `AS:NN`, well-known communities |
+| Community list number **100–500** / `expanded` keyword | `EXPANDED` | Regular-expression patterns |
+| Extcommunity list `standard` | `STANDARD` | `route-target:` / `site-of-origin:` prefixed values (`rt`, `soo` in CONFIG_DB) |
+| Extcommunity list `expanded` | `EXPANDED` | Regular-expression (`LINE`) patterns |
+
+This is why numeric set names **0–99** reject expanded members: FRR reserves that range for standard community lists only. Non-numeric set names map to FRR named lists (`standard` or `expanded` keyword), with `set_type` derived from the member format.
 
 **Example CONFIG_DB entries after OpenConfig SET:**
 
