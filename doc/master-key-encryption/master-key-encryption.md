@@ -35,6 +35,7 @@
 |-----|------------|-----------|--------------------|
 | 0.1 | 2026-06-16 | Fred Xia  | Initial draft      |
 | 0.2 | 2026-08-06 | Fred Xia  | Second draft       |
+| 0.3 | 2026-08-06 | Fred Xia  | Third draft        |
 
 ---
 
@@ -121,7 +122,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
  │  │    master-key-manager CLI         │   │   Encryption Library          │  │
  │  │                                   │   │ (master_key_manager.py)       │  │
  │  │  set --master-key-file | --name   │   │  AES-256-GCM (Type-6)         │  │
- │  │  encrypt --table / decrypt --table│   │  Nonce + CT + AAD             │  │
+ │  │  encrypt/decrypt --file|--string  │   │  Nonce + CT + AAD             │  │
  │  │  activate/deactivate --name|--all │   │  base64-encoded output        │  │
  │  │  status / list                    │   └────────────────┬──────────────┘  │
  │  └──────────────┬────────────────────┘                    │                 │
@@ -435,14 +436,21 @@ Commands:
         master-key-manager set --master-key-file /etc/sonic/bgp_master_key mySecretKey
         master-key-manager set --name BGP mySecretKey
 
-  encrypt --table <TABLE> [-o <OUTPUT>]
-      Read all entries of <TABLE> from ConfigDB (or --config-file),
-      encrypt every registered secret field, and print the result as JSON
-      (or write to -o).  Table must appear in the encryption registry.
+  encrypt (--file <JSON> | --name <NAME> --string <STRING>) [-o <OUTPUT>]
+      Two mutually exclusive forms:
+      --file <JSON>
+          Read a CONFIG DB JSON file, encrypt every registered secret field
+          (all registry entries are applied; entries whose tables are absent
+          from the file are skipped), and print the resulting JSON (or write
+          it to -o).  The input file is not modified.  Every registry entry
+          with a table present in the file must have a provisioned master key.
+      --name <NAME> --string <STRING>
+          Encrypt a single string with the master key of the registry entry
+          named <NAME> and print the resulting blob (or write it to -o).
 
-  decrypt --table <TABLE> [-o <OUTPUT>]
-      Read all entries of <TABLE>, decrypt every registered secret field,
-      and print the result as JSON (or write to -o).
+  decrypt (--file <JSON> | --name <NAME> --string <STRING>) [-o <OUTPUT>]
+      Same two forms, decrypting instead: a CONFIG DB JSON file back to
+      plaintext, or a single encrypted blob back to its plaintext string.
 
   activate (--name <NAME> | --all)
       Activate encryption for the registry entry selected by --name, or for
@@ -699,7 +707,7 @@ A separate proposal (`sonic-py-common/sonic_py_common/security_cipher.py`) was s
 |-----------|-------------|
 | `tests/master_key_encryption_test.py` | AES-GCM deterministic test vectors; `MasterKeyManager` key update, encrypt, decrypt, history; max 8 keys; file permission enforcement |
 | `tests/config_db_encryptor_test.py` | `ConfigDBEncryptor` interception: `set_entry`, `mod_entry`, `mod_config` hooks; encryption activated/deactivated; multiple field names |
-| `tests/master_key_manager_test.py` | All CLI subcommands: `set` (`--master-key-file`/`--name`), `encrypt --table`, `decrypt --table`, `activate`/`deactivate` (`--name`/`--all`), `status`, `list`; custom registry via `--registry-config` |
+| `tests/master_key_manager_test.py` | All CLI subcommands: `set` (`--master-key-file`/`--name`), `encrypt`/`decrypt` (`--file` or `--name` + `--string`), `activate`/`deactivate` (`--name`/`--all`), `status`, `list`; custom registry via `--registry-config` |
 
 ### System Tests (Testbed)
 
