@@ -1,4 +1,4 @@
-# Software for Open Networking in the Cloud (SONiC)
+ # Software for Open Networking in the Cloud (SONiC)
 
 This repository contains documentation, Wiki, master project management, and website for the Software for Open Networking in the Cloud (SONiC).
 
