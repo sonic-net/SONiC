@@ -136,10 +136,11 @@ Below diagram illustrates the integration of Dual Home PON (Passive Optical Netw
 | Label | Path | Description |
 | --- | --- | --- |
 | A | CONFIG_DB → ponprotd | Config updates for PEER_SWITCH and PON_OLT_INTF_PROTECTION. |
-| B | STATE_DB → ponprotd | State change updates for OLT interface and associated switch port. |
-| C | ponprotd → APPL_DB | Composite protection state updates from ponprotd FSM. |
-| D | APPL_DB → PonProtOrch | Protection state change updates for the OLT interface. |
-| E | PonProtOrch → ASIC_DB | Route updates based on OLT interface protection state. |
+| B | STATE_DB → ponprotd | State change updates for OLT/PON interface and associated switch port. |
+| C | ponprotd → APPL_DB | Composite protection state updates from pon-protd FSM. |
+| D | APPL_DB → PonProtOrch | Protection state change updates for the OLT/PON interface. |
+| E | PonProtOrch → ASIC_DB | Next hop updates based on OLT/PON interface protection state. |
+| F | ASIC_DB → syncd | Programming to hardware forwarding tables via SAI. |
 
 ## 7. Configuration and management
 
@@ -411,7 +412,7 @@ The key Dual Homed PON Gateway components involved in a traffic forwarding and s
 2. PON sync daemon (dcpon-syncd)
 3. PON protection orchestrator (PonProtOrch)
 
-Note: The REDIS tables (`PON_OLT_INTF_STATE_LIST`, `protection-status`) and its values referenced in below sections are defined in the companion `pon_hld.md`; this document only describes their consumption by the Dual Homed PON Gateway protection flow.
+Note: The REDIS table (`PON_OLT_INTF_STATE_LIST`) and its values referenced in below sections are defined in the companion `pon_hld.md`; this document only describes their consumption by the Dual Homed PON Gateway protection flow.
 
 #### 8.1.1 PON Protection Daemon (ponprotd)
 
@@ -468,7 +469,7 @@ Health definition:
    → set mComponentInitState bit0 (ConfigLoaded)
 3. Subscribe STATE_DB:
      PON_OLT_INTF_PROTECTION_STATE           → OLT interface State(Dimension 1, written by PonOrch)
-     PORT_TABLE                              → Link State (Dimension 2, written by orchagent/portsyncd)
+     PORT_TABLE                         → Link State (Dimension 2, written by orchagent/portsyncd)
      HW_PON_OLT_INTF_PROTECTION_TABLE        → HwOltStateEvent (SAI ACK feedback from PonProtOrch)
    Subscribe CONFIG_DB:
      BGP_DEVICE_GLOBAL|STATE → TSA event handler (field: tsa_enabled)
@@ -494,17 +495,6 @@ Health definition:
 ##### 8.1.2.1 Data flow diagram
 
 ![Data Flow diagram](images/Data%20Flow%20diagram.png)
-
-##### 8.1.2.2 Operations
-
-| # | Operation | STATE_DB data |
-| --- | --- | --- |
-| 1. | OLT interface config added | Table PON_OLT_INTF_STATE_LIST is updated with port name and OLT Interface state as Standby/Unknown. |
-| 2. | OLT interface config removed | Corresponding port entry is removed from PON_OLT_INTF_STATE_LIST . |
-| 3. | OLT Interface State active | Table protection-status is updated with port name and OLT Interface state as Active. |
-| 4. | OLT Interface State standby | Table protection-status is updated with port name and OLT interface state as Standby. |
-| 5. | OLT plug pulled out/port admin down | The FSM will move based on link state (DOWN). |
-| 6. | OLT plug inserted/port admin up | The FSM will move based on link status (UP). |
 
 #### 8.1.3 PON Protection Orchestrator (PonProtOrch)
 
@@ -560,8 +550,8 @@ The diagram below provides a configuration example of Gateway (G-B) with an OLT 
   - ponprotd changes the healthy to be unhealthy immediately on any FSM state entry.
   - PonProtOrch provides an acknowledgement after the SAI API successfully updates routes for directly connected interfaces or IP-in-IP tunnels.
   - ponprotd changes the health to be healthy when:
-    - Active OLT interface - APPL_DB reports state as Active, SAI API have successfully programmed direct routes and protection-status is Armed.
-    - Standby OLT interface - APPL_DB reports state as Standby, SAI API have successfully programmed IPinIP tunnel routes and protection-status is Armed.
+    - Active OLT interface - APPL_DB reports state as Active, and SAI API have successfully programmed direct routes.
+    - Standby OLT interface - APPL_DB reports state as Standby, and SAI API have successfully programmed IPinIP tunnel routes.
 
 ![Component Interaction Flow — Boot and Steady States](images/Component%20Interaction%20Flow%20%E2%80%94%20Boot%20and%20Steady%20States.png)
 
@@ -654,7 +644,7 @@ Traffic Shift Away (TSA) is a SONiC-wide drain mechanism. This is the standard S
 - This OLT interface state change from Standby to Active fires an event up to the software stack.
 - ponprotd on the peer Gateway receives OLT interface state change event confirming it is now the active forwarder.
 - ponprotd changes forwarding: it removes the IPinIP tunnel routes and switches to direct forwarding — traffic now flows locally to ONUs without encapsulation.
-- Once the SAI acknowledgment for deletion of IPinIP tunnel route arrives, the drain flag is not set and the protection status is Armed on this OLT interface, ponprotd marks the health as healthy.
+- Once the SAI acknowledgment for deletion of IPinIP tunnel route arrives and the drain flag is not set on this OLT interface, ponprotd marks the health as healthy.
 
 ![TSA Event Handler — Traffic Shift Away (Gateway-A drains)](images/TSA%20Event%20Handler%20%E2%80%94%20Traffic%20Shift%20Away%20%28Gateway-A%20drains%29.png)
 
