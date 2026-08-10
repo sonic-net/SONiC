@@ -36,6 +36,7 @@
 | 0.1 | 2026-06-16 | Fred Xia  | Initial draft      |
 | 0.2 | 2026-08-06 | Fred Xia  | Second draft       |
 | 0.3 | 2026-08-06 | Fred Xia  | Third draft        |
+| 0.4 | 2026-08-10 | Fred Xia  | Introduce the "default" registry entry; BGP registers under it; `--name` defaults to `"default"` when omitted |
 
 ---
 
@@ -94,7 +95,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 1. **FR-1**: ConfigDB fields designated as sensitive shall be stored encrypted using AES-256-GCM with a device-local master key.
 2. **FR-2**: Encryption and decryption shall be transparent to standard SONiC configuration tools (`config load`, `config reload`, `config apply`).
 3. **FR-3**: The system shall support master keys supplied by a central controller, enabling enterprise key management integration.
-4. **FR-4**: A CLI tool (`master-key-manager`) shall allow the operator to set master keys (by key file path or registry entry name) and activate/deactivate encryption per registry entry (`--name`) or for all registry entries (`--all`).
+4. **FR-4**: A CLI tool (`master-key-manager`) shall allow the operator to set master keys (by key file path or registry entry name) and activate/deactivate encryption per registry entry (`--name`) or for all registry entries (`--all`). When `--name` is omitted, the command applies to the reserved `"default"` registry entry. The `set` command shall also support generating a random master key in-process (`--generate`), as an alternative to supplying one on the command line.
 5. **FR-5**: When encryption is activated, all plaintext secret fields in registered tables shall be re-encrypted automatically; when deactivated, they shall be decrypted.
 6. **FR-6**: Encryption shall apply only to ConfigDB. FRR running configuration continues to use cleartext passwords.
 7. **FR-7**: The master key file shall be accessible only to root (mode 0600), protected by filesystem permissions.
@@ -130,7 +131,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
  │  ┌───────────────────────────────────┐   │   /etc/<feature>_master_key   │  │
  │  │  master_key_encryption_config.py  │   │   mode 0600, JSON             │  │
  │  │  (code-defined, static registry)  │   │   selections A and B          │  │
- │  │  • name  (e.g. "BGP")             │   │   enabled: "A"|"B"|None       │  │
+ │  │  • name  (e.g. "default")         │   │   enabled: "A"|"B"|None       │  │
  │  │  • master_key_file                │   │   one instance per file       │  │
  │  │  • fields: {TABLE: [field, ...]}  │   └───────────────────────────────┘  │
  │  └──────────────┬────────────────────┘                                      │
@@ -161,13 +162,13 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 
 ### Master Key File
 
-The master key file is a JSON document (e.g., `/etc/sonic/bgp_master_key`) with mode 0600 (readable only by root). It holds exactly two named key selections, `A` and `B`, each with its own timestamp, plus an `enabled` field naming which selection (if any) is currently protecting data at rest. There is no per-feature or per-table sub-keying; one file covers one logical key set regardless of how many tables share it.
+The master key file is a JSON document (e.g., `/etc/sonic/default_master_key`) with mode 0600 (readable only by root). It holds exactly two named key selections, `A` and `B`, each with its own timestamp, plus an `enabled` field naming which selection (if any) is currently protecting data at rest. There is no per-feature or per-table sub-keying; one file covers one logical key set regardless of how many tables share it.
 
 Example:
 
 ```json
 {
-  "key_file": "bgp_master_key",
+  "key_file": "default_master_key",
   "selection_a": {
     "master_key": "my-secret-32-byte-key-padded-to-32",
     "algorithm": "aes-gcm",
@@ -180,7 +181,7 @@ Example:
 
 Key design points:
 
-- **`key_file`**: The basename of the key file path (e.g., `bgp_master_key`). Used as the AES-GCM AAD to bind each ciphertext blob to its key file.
+- **`key_file`**: The basename of the key file path (e.g., `default_master_key`). Used as the AES-GCM AAD to bind each ciphertext blob to its key file.
 - **`selection_a`** / **`selection_b`**: There are two candidate selections for master keys. Each is `null` until `set` has written to it; the file above shows `selection_a` populated and `selection_b` not yet used.
 - **`enabled`**: The selection currently protecting data at rest — `"A"`, `"B"`, or `null` (no encryption active; ConfigDB values are cleartext). Set by `master-key-manager activate --name <NAME>` (or `--all`) to the selection it rotates to, and to `null` by the corresponding `deactivate`. Stored in the key file rather than in ConfigDB, so no ConfigDB table registry is required.
 
@@ -195,15 +196,18 @@ Two modes are supported:
 #### 1. Key Distribution from Central Controller (Primary Model)
 
 ```
-# master-key-manager set --master-key-file /etc/sonic/bgp_master_key <KEY>
-Saved master key to selection A of /etc/sonic/bgp_master_key
+# master-key-manager set --master-key-file /etc/sonic/default_master_key <KEY>
+Saved master key to selection A of /etc/sonic/default_master_key
 ```
 
-The key file may also be selected by registry entry name instead of an explicit path; `--master-key-file` and `--name` are mutually exclusive and one of them is required:
+The key file may also be selected by registry entry name instead of an explicit path; `--master-key-file` and `--name` are mutually exclusive. If neither is given, `--name` defaults to `"default"` — the registry entry that BGP registers under:
 
 ```
-# master-key-manager set --name BGP <KEY>
-Saved master key to selection A of /etc/sonic/bgp_master_key
+# master-key-manager set <KEY>
+Saved master key to selection A of /etc/sonic/default_master_key
+
+# master-key-manager set --name default <KEY>
+Saved master key to selection A of /etc/sonic/default_master_key
 ```
 
 The `set` command accepts any string, pads or truncates it to 32 bytes for AES-256, and writes it as a new `MasterKey` into whichever selection is currently *not* active:
@@ -218,11 +222,18 @@ This is the primary model for enterprise deployments where a controller pushes a
 
 #### 2. Local Random Key (Ad-hoc)
 
-For standalone devices without a central key management system, the operator can supply any high-entropy string:
+For standalone devices without a central key management system, the operator can supply any high-entropy string, or let `set` generate one with `--generate`:
 
 ```
-# master-key-manager set --master-key-file /etc/sonic/bgp_master_key $(openssl rand -hex 32)
-Saved master key to selection A of /etc/sonic/bgp_master_key
+# master-key-manager set --master-key-file /etc/sonic/default_master_key --generate
+Saved master key to selection A of /etc/sonic/default_master_key
+```
+
+`--generate` is mutually exclusive with passing `<KEY>` on the command line; the two are alternative ways to supply the same argument. It produces a random master key equivalent to running `openssl rand -hex 32` — 32 random bytes.
+
+```
+# master-key-manager set --master-key-file /etc/sonic/default_master_key $(openssl rand -hex 32)
+Saved master key to selection A of /etc/sonic/default_master_key
 ```
 
 ### Key Rotation
@@ -230,9 +241,11 @@ Saved master key to selection A of /etc/sonic/bgp_master_key
 `set` only stages a new key in the inactive selection; it has no effect on encrypted data until `activate` is run:
 
 ```
-# master-key-manager set --name BGP newKey2026
-# master-key-manager activate --name BGP
+# master-key-manager set newKey2026
+# master-key-manager activate
 ```
+
+(`--name` is omitted in both commands, so it defaults to `"default"` — the registry entry BGP registers under. `--name default` may be given explicitly instead.)
 
 `activate` performs the entire rotation as one atomic step:
 
@@ -241,7 +254,7 @@ Saved master key to selection A of /etc/sonic/bgp_master_key
 3. Re-encrypts all of those fields using the target selection's key.
 4. Sets `enabled` to the target selection.
 
-`deactivate --name BGP` remains available to turn encryption off entirely: it decrypts all registered fields back to plaintext using the currently-enabled selection's key and sets `enabled` to `null`.
+`deactivate` (or, explicitly, `deactivate --name default`) remains available to turn encryption off entirely: it decrypts all registered fields back to plaintext using the currently-enabled selection's key and sets `enabled` to `null`.
 
 ### Encryption Library
 
@@ -278,7 +291,7 @@ An encrypted value is a base64-encoded blob with the following internal layout:
 
 - **Nonce** (12 bytes): Randomly generated per encryption operation.
 - **Ciphertext**: The encrypted plaintext, same length as the original.
-- **AAD** (16 bytes, zero-padded): The key-file basename (e.g., `bgp_master_key`). Used as Additional Authenticated Data. This binds each ciphertext blob to its master key file, so a blob encrypted under one key file cannot be decrypted (GCM tag will not validate) under a different key file. Tables that share the same `master_key_file` (e.g., `BGP_NEIGHBOR` and `BGP_PEER_GROUP` both pointing at `/etc/sonic/bgp_master_key`) therefore share the same AAD; the AAD does **not** distinguish tables within the same key file, so cross-table replay within a single key file is not prevented by the AAD alone.
+- **AAD** (16 bytes, zero-padded): The key-file basename (e.g., `default_master_key`). Used as Additional Authenticated Data. This binds each ciphertext blob to its master key file, so a blob encrypted under one key file cannot be decrypted (GCM tag will not validate) under a different key file. Tables that share the same `master_key_file` (e.g., `BGP_NEIGHBOR` and `BGP_PEER_GROUP` both pointing at `/etc/sonic/default_master_key`) therefore share the same AAD; the AAD does **not** distinguish tables within the same key file, so cross-table replay within a single key file is not prevented by the AAD alone.
 
 #### Detecting Encrypted Values
 
@@ -295,14 +308,14 @@ If `enabled` is `None`, there is no active key to test against, so `is_encrypted
 
 ```python
 # Singleton per filename — one instance shared across all callers for the same file
-mgr = MasterKeyManager("/etc/sonic/bgp_master_key")
+mgr = MasterKeyManager("/etc/sonic/default_master_key")
 
 # Store a new master key into the currently inactive selection (or the
 # older-timestamped selection, if neither is active). Does not touch `enabled`.
 mgr.update_master_key("my-secret-key")          # returns bool
 
 # Encrypt with the currently-enabled selection's key
-# (AAD is the key_file basename from MasterKeyConfig, e.g. "bgp_master_key")
+# (AAD is the key_file basename from MasterKeyConfig, e.g. "default_master_key")
 encrypted = mgr.encrypt_string("plaintext")
 
 # Decrypt with the currently-enabled selection's key (AAD is read from the blob)
@@ -394,31 +407,35 @@ The catalog of CONFIG DB tables and fields subject to encryption is defined as a
 
 Because a YANG-model-only change would leave the framework unaware of how to decrypt and consume the value, a purely config-driven approach was considered insufficient. By requiring a code change for registration, reviewers are reminded to add the corresponding decrypt handling.
 
+#### The "default" Registry Entry
+
+One registry entry is named `"default"`. It is not tied to any single feature: any application can register its tables and fields under it, and it is the entry every `master-key-manager` command falls back to when `--name` is not given. BGP is the first application to use this infrastructure, and it registers its tables under `"default"` rather than defining a `"BGP"`-specific entry — there is nothing BGP-specific about the entry itself, only about the tables/fields it lists. A future application (e.g., TACACS) can either add its tables to the same `"default"` entry (sharing its master key file), or define its own separately named entry and always pass `--name <its-name>` explicitly.
+
 #### Registry Format
 
 ```python
-BGP_MASTER_KEY_FILE = "/etc/sonic/bgp_master_key"
+DEFAULT_MASTER_KEY_FILE = "/etc/sonic/default_master_key"
 
-_BGP_REGISTRY = {
-    "name": "BGP",
-    "master_key_file": BGP_MASTER_KEY_FILE,
+_DEFAULT_REGISTRY = {
+    "name": "default",
+    "master_key_file": DEFAULT_MASTER_KEY_FILE,
     "fields": {
         "BGP_NEIGHBOR":   ["auth_password"],
         "BGP_PEER_GROUP": ["auth_password"],
     },
 }
 
-_MasterKeyEncryptionRegistries = [ _BGP_REGISTRY ]
+_MasterKeyEncryptionRegistries = [ _DEFAULT_REGISTRY ]
 ```
 
 Each registry entry has:
-- **`name`**: Human-readable label for the group (e.g., `"BGP"`).
+- **`name`**: Human-readable label for the group (e.g., `"default"`). `master-key-manager` commands operate on the entry named `"default"` when `--name` is omitted.
 - **`master_key_file`**: Absolute path to the master key file shared by all tables in this group.
 - **`fields`**: A `dict` mapping CONFIG DB table names to a list of field names whose values are subject to encryption.
 
 Key design points:
 - **Multiple fields per table**: A table can list more than one encrypted field (e.g., `["auth_password", "md5_key"]`).
-- **Shared key file**: `BGP_NEIGHBOR` and `BGP_PEER_GROUP` share `/etc/sonic/bgp_master_key`.
+- **Shared key file**: `BGP_NEIGHBOR` and `BGP_PEER_GROUP` share `/etc/sonic/default_master_key`.
 - **No YANG model changes needed**: Adding a new encrypted field does not touch `sonic-device_metadata.yang`.
 - **Testability**: `set_master_key_registries()` allows tests to inject a custom registry at runtime without touching the filesystem.
 
@@ -435,6 +452,8 @@ Anyone extending encryption coverage must:
 
 The CLI reads the encryption registry from `master_key_encryption_config.py` at startup. There is no `register` command — tables and fields are defined in code, not configured at runtime.
 
+Wherever a command below takes `--name <NAME>`, omitting it is equivalent to `--name default` — every command falls back to the `"default"` registry entry (see [The "default" Registry Entry](#the-default-registry-entry)). BGP is registered under `"default"`, so BGP operations never need to pass `--name` explicitly.
+
 The CLI can operate against:
 - A live Redis instance (default) via `sonic-cfggen`.
 - A local JSON file via `--config-file` (used in testing and offline provisioning).
@@ -444,21 +463,29 @@ Usage: master-key-manager [--config-file <JSON>] [--registry-config <JSON>]
                           [-s <socket>] [-v] [--force] COMMAND
 
 Commands:
-  set (--master-key-file <PATH> | --name <NAME>) <KEY>
+  set [--master-key-file <PATH> | --name <NAME>] (<KEY> | --generate)
       Stage a new master key in a key file, without changing which key is
       currently protecting data at rest.
       The target key file is either given directly with --master-key-file
       or resolved from the registry entry named by --name; the two options
-      are mutually exclusive and one of them is required.
+      are mutually exclusive. If neither is given, --name defaults to
+      "default".
+      The key itself is either given as <KEY> or generated with --generate,
+      which are mutually exclusive; one of them is required.
+      --generate produces a random key equivalent to `openssl rand -hex 32`
+      (32 random bytes as 64 hex characters), generated in-process via
+      Python's `secrets.token_hex(32)` rather than an openssl subprocess.
       The key is padded/truncated to 32 bytes for AES-256 and written into
       whichever selection ("A" or "B") is not currently enabled; if neither
       selection is enabled, the older-timestamped selection is overwritten.
       Run `activate` to rotate to the newly-staged key.
       Examples:
-        master-key-manager set --master-key-file /etc/sonic/bgp_master_key mySecretKey
-        master-key-manager set --name BGP mySecretKey
+        master-key-manager set --master-key-file /etc/sonic/default_master_key mySecretKey
+        master-key-manager set --master-key-file /etc/sonic/default_master_key --generate
+        master-key-manager set mySecretKey                  # --name default, implied
+        master-key-manager set --name default --generate    # --name default, explicit
 
-  encrypt (--file <JSON> | --name <NAME> --string <STRING>) [-o <OUTPUT>]
+  encrypt (--file <JSON> | [--name <NAME>] --string <STRING>) [-o <OUTPUT>]
       Two mutually exclusive forms:
       --file <JSON>
           Read a CONFIG DB JSON file, encrypt every registered secret field
@@ -467,20 +494,21 @@ Commands:
           it to -o).  The input file is not modified.  Entries without a
           provisioned master key are skipped with a warning; their fields are
           left unchanged.
-      --name <NAME> --string <STRING>
+      [--name <NAME>] --string <STRING>
           Encrypt a single string with the master key of the registry entry
-          named <NAME> and print the resulting blob (or write it to -o).
-          --name is only valid with --string (enforced at parse time as a
-          usage error, exit 2).
+          named <NAME> (default: "default") and print the resulting blob (or
+          write it to -o). --name is only valid with --string (enforced at
+          parse time as a usage error, exit 2).
 
-  decrypt (--file <JSON> | --name <NAME> --string <STRING>) [-o <OUTPUT>]
+  decrypt (--file <JSON> | [--name <NAME>] --string <STRING>) [-o <OUTPUT>]
       Same two forms, decrypting instead: a CONFIG DB JSON file back to
       plaintext, or a single encrypted blob back to its plaintext string.
+      --name defaults to "default", as in encrypt.
 
-  activate (--name <NAME> | --all)
+  activate [--name <NAME> | --all]
       Rotate to the newest staged key and activate encryption for the
-      registry entry selected by --name, or for every registry entry with
-      --all (mutually exclusive; one is required):
+      registry entry selected by --name (default: "default"), or for every
+      registry entry with --all (mutually exclusive):
         1. Pick the rotation target: whichever of selections "A"/"B" has the
            newer timestamp (with --all, this is done independently per
            targeted registry entry's key file).
@@ -490,18 +518,18 @@ Commands:
            with the target selection's key, and write back.
         3. Set enabled=<target selection> in each affected master key file.
 
-  deactivate (--name <NAME> | --all)
-      Deactivate encryption for the targeted registry entry (or entries):
-      decrypt all of their tables back to plaintext using the presently-
-      enabled selection's key, then set enabled=None in each affected
-      master key file.
+  deactivate [--name <NAME> | --all]
+      Deactivate encryption for the targeted registry entry (default:
+      "default") or entries (--all): decrypt all of their tables back to
+      plaintext using the presently-enabled selection's key, then set
+      enabled=None in each affected master key file.
 
   status
       Print JSON status per registry entry (keyed by the entry's name):
         {
-          "BGP": {
-            "name": "BGP",
-            "master_key_file": "/etc/sonic/bgp_master_key",
+          "default": {
+            "name": "default",
+            "master_key_file": "/etc/sonic/default_master_key",
             "tables": ["BGP_NEIGHBOR", "BGP_PEER_GROUP"],
             "enabled": "A"
           }
@@ -529,24 +557,24 @@ BGP MD5 authentication (RFC 2385) requires a shared plaintext secret between BGP
 
 ### Registration
 
-BGP password encryption is registered statically in `master_key_manager/master_key_encryption_config.py` — no CLI command is needed. The relevant entries are:
+BGP password encryption is registered statically in `master_key_manager/master_key_encryption_config.py` — no CLI command is needed. BGP registers its tables under the `"default"` registry entry (see [The "default" Registry Entry](#the-default-registry-entry)) rather than a BGP-specific one. The relevant entries are:
 
 ```python
-BGP_MASTER_KEY_FILE = "/etc/sonic/bgp_master_key"
+DEFAULT_MASTER_KEY_FILE = "/etc/sonic/default_master_key"
 
-_BGP_REGISTRY = {
-    "name": "BGP",
-    "master_key_file": BGP_MASTER_KEY_FILE,
+_DEFAULT_REGISTRY = {
+    "name": "default",
+    "master_key_file": DEFAULT_MASTER_KEY_FILE,
     "fields": {
         "BGP_NEIGHBOR":   ["auth_password"],
         "BGP_PEER_GROUP": ["auth_password"],
     },
 }
 
-_MasterKeyEncryptionRegistries = [ _BGP_REGISTRY ]
+_MasterKeyEncryptionRegistries = [ _DEFAULT_REGISTRY ]
 ```
 
-Both tables share the same key file. `master-key-manager activate/deactivate --name BGP` bulk-encrypts or decrypts all entries of the BGP registry entry's tables; `--all` targets every registry entry.
+Both tables share the same key file. `master-key-manager activate/deactivate` (or, explicitly, `--name default`) bulk-encrypts or decrypts all entries of the `"default"` registry entry's tables; `--all` targets every registry entry.
 
 The decrypt-and-render step for FRR is handled explicitly in `frrcfgd`.
 
@@ -556,9 +584,9 @@ def bgp_neighbor_handler(self, table, key, data):
         try:
             from master_key_manager import MasterKeyManager, master_key_registries
             # master_key_registries() returns a list of registry dicts, each
-            # with a "name" key. Find the BGP entry by name.
+            # with a "name" key. BGP's tables are registered under "default".
             registry = next(
-                (r for r in master_key_registries() if r.get("name") == "BGP"),
+                (r for r in master_key_registries() if r.get("name") == "default"),
                 None,
             )
             if registry and table in registry["fields"]:
@@ -592,22 +620,22 @@ ConfigDB stores passwords in cleartext.
 #### Step 1: Provision the Master Key
 
 ```
-# master-key-manager set --master-key-file /etc/sonic/bgp_master_key mySecretKey
-Saved master key to selection A of /etc/sonic/bgp_master_key
+# master-key-manager set --master-key-file /etc/sonic/default_master_key mySecretKey
+Saved master key to selection A of /etc/sonic/default_master_key
 ```
 
-Both selections start empty, so this fills `A`.
+Both selections start empty, so this fills `A`. (`--name` is omitted, so this is equivalent to `--name default`.)
 
 #### Step 2: Activate Encryption
 
 ```
-# master-key-manager activate --name BGP
+# master-key-manager activate
 ```
 
-The `activate` command:
+`--name` is omitted, so this activates the `"default"` registry entry — the one BGP is registered under. The `activate` command:
 1. Determines the rotation target: `A` is the only populated selection, so it is the target.
 2. Reads all `BGP_NEIGHBOR` and `BGP_PEER_GROUP` entries from ConfigDB, encrypts each `auth_password` with selection `A`'s key (the fields are cleartext, since `enabled` was `None`), and writes back.
-3. Sets `enabled="A"` in `/etc/sonic/bgp_master_key` (the `MasterKeyConfig.enabled` field).
+3. Sets `enabled="A"` in `/etc/sonic/default_master_key` (the `MasterKeyConfig.enabled` field).
 
 After activation the ConfigDB data looks like:
 
@@ -627,7 +655,7 @@ When the operator runs:
 # config bgp neighbor add 10.0.0.33 remote-as 65001 password mysecret
 ```
 
-The `config` command uses `ConfigDBConnector.mod_entry()`, which is intercepted. Because `enabled="A"` for the BGP registry entry, the interceptor encrypts `mysecret` with selection `A`'s key before writing to Redis.
+The `config` command uses `ConfigDBConnector.mod_entry()`, which is intercepted. Because `enabled="A"` for the `"default"` registry entry, the interceptor encrypts `mysecret` with selection `A`'s key before writing to Redis.
 
 Similarly, `config load`, `config reload`, and `config apply` all go through `mod_config()`, which calls `encrypt_config()`. The lazy-copy optimization means there is no deep-copy overhead when loading large config files that contain no registered secret tables.
 
@@ -635,10 +663,10 @@ Similarly, `config load`, `config reload`, and `config apply` all go through `mo
 #### Step 4: Key Rotation
 
 ```
-# master-key-manager set --name BGP newKey2026
-Saved master key to selection B of /etc/sonic/bgp_master_key
+# master-key-manager set newKey2026
+Saved master key to selection B of /etc/sonic/default_master_key
 
-# master-key-manager activate --name BGP
+# master-key-manager activate
 ```
 
 `set` stages `newKey2026` into `B`, since `A` is currently enabled; nothing in ConfigDB changes yet. `activate` then finds `B` is now the newer selection, decrypts all `auth_password` fields using `A`'s key, re-encrypts them using `B`'s key, and sets `enabled="B"`. BGP sessions are unaffected during rotation.
@@ -680,4 +708,3 @@ Saved master key to selection B of /etc/sonic/bgp_master_key
 4. **Key distribution protocol**: A controller-facing gRPC or RESTCONF endpoint could push master keys to devices on demand, integrating with enterprise key management systems (HashiCorp Vault, AWS KMS, etc.).
 
 5. **Audit log**: Record encrypt/decrypt events (timestamp, table, key index) to a tamper-evident log for compliance reporting.
-
