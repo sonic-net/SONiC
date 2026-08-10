@@ -98,7 +98,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 5. **FR-5**: When encryption is activated, all plaintext secret fields in registered tables shall be re-encrypted automatically; when deactivated, they shall be decrypted.
 6. **FR-6**: Encryption shall apply only to ConfigDB. FRR running configuration continues to use cleartext passwords.
 7. **FR-7**: The master key file shall be accessible only to root (mode 0600), protected by filesystem permissions.
-8. **FR-8**: The infrastructure shall retain up to 8 historical master keys. The retained history preserves older keys so they remain available for explicit-key decryption (via `decrypt_string(..., key_idx=N)`) and for future automated rolling-rotation support; automatic decryption of old ciphertexts with the historical keys is called out as Future Work.
+8. **FR-8**: The infrastructure shall maintain exactly two master key selections, `A` and `B`, per master key file. `set` provisions the selection that is *not* currently active (or, when neither selection is active, the selection with the older timestamp), without altering which selection is currently protecting data at rest. `activate` performs the rotation: it re-encrypts all registered fields from the presently active selection's key (if any) to the newer of the two selections' keys, and then updates `enabled` to that selection. Explicit access to a specific selection's key (e.g. `decrypt_string(..., selection="A")`) remains available for manual/forensic use.
 9. **FR-9**: BGP MD5 passwords shall be the first feature protected by this infrastructure.
 10. **FR-10**: The catalog of tables and fields subject to encryption shall be defined in code. Adding encryption to a new table requires a code change, not a YANG model edit or CLI command, because any new encrypted field also requires feature-specific decrypt/render code in the consuming daemon.
 11. **FR-11**: A single table may declare multiple encrypted fields (e.g., both `auth_password` and `md5_key`).
@@ -129,8 +129,8 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
  │                 ▼                        │   MasterKeyManager            │  │
  │  ┌───────────────────────────────────┐   │   /etc/<feature>_master_key   │  │
  │  │  master_key_encryption_config.py  │   │   mode 0600, JSON             │  │
- │  │  (code-defined, static registry)  │   │   up to 8 historical keys     │  │
- │  │  • name  (e.g. "BGP")             │   │   enabled flag (on/off state) │  │
+ │  │  (code-defined, static registry)  │   │   selections A and B          │  │
+ │  │  • name  (e.g. "BGP")             │   │   enabled: "A"|"B"|None       │  │
  │  │  • master_key_file                │   │   one instance per file       │  │
  │  │  • fields: {TABLE: [field, ...]}  │   └───────────────────────────────┘  │
  │  └──────────────┬────────────────────┘                                      │
@@ -161,29 +161,30 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 
 ### Master Key File
 
-The master key file is a JSON document (e.g., `/etc/sonic/bgp_master_key`) with mode 0600 (readable only by root). It holds a named key set and retains up to **8 historical master keys** in descending timestamp order. The retained history preserves older keys so they remain available for explicit-key decryption (via `decrypt_string(..., key_idx=N)`) and for future automated rolling-rotation support; automatic decryption of values encrypted under an older key using the history is Future Work (see [Future Work](#future-work)).
+The master key file is a JSON document (e.g., `/etc/sonic/bgp_master_key`) with mode 0600 (readable only by root). It holds exactly two named key selections, `A` and `B`, each with its own timestamp, plus an `enabled` field naming which selection (if any) is currently protecting data at rest. There is no per-feature or per-table sub-keying; one file covers one logical key set regardless of how many tables share it.
 
 Example:
 
 ```json
 {
   "key_file": "bgp_master_key",
-  "master_keys": [
-    {
-      "master_key": "my-secret-32-byte-key-padded-to-32",
-      "algorithm": "aes-gcm",
-      "timestamp": "2026-05-20T10:00:00+00:00"
-    }
-  ],
-  "enabled": false
+  "selection_a": {
+    "master_key": "my-secret-32-byte-key-padded-to-32",
+    "algorithm": "aes-gcm",
+    "timestamp": "2026-05-20T10:00:00+00:00"
+  },
+  "selection_b": null,
+  "enabled": null
 }
 ```
 
 Key design points:
 
 - **`key_file`**: The basename of the key file path (e.g., `bgp_master_key`). Used as the AES-GCM AAD to bind each ciphertext blob to its key file.
-- **`master_keys`**: A flat list of `MasterKey` objects, newest first. There is no per-feature or per-table sub-keying; one file covers one logical key set regardless of how many tables share it.
-- **`enabled`**: Activation state for the feature. Set to `true` by `master-key-manager activate --name <NAME>` (or `--all`) and `false` by the corresponding `deactivate`. Stored in the key file rather than in ConfigDB, so no ConfigDB table registry is required.
+- **`selection_a`** / **`selection_b`**: There are two candidate selections for master keys. Each is `null` until `set` has written to it; the file above shows `selection_a` populated and `selection_b` not yet used.
+- **`enabled`**: The selection currently protecting data at rest — `"A"`, `"B"`, or `null` (no encryption active; ConfigDB values are cleartext). Set by `master-key-manager activate --name <NAME>` (or `--all`) to the selection it rotates to, and to `null` by the corresponding `deactivate`. Stored in the key file rather than in ConfigDB, so no ConfigDB table registry is required.
+
+`set` never modifies `enabled` — it only writes a `MasterKey` into a selection. Rotation to that key happens only when `activate` is run (see [Key Rotation](#key-rotation)).
 
 The file is written atomically: a temporary file is written, its contents are verified, and then it is renamed over the production path to prevent partial writes.
 
@@ -195,17 +196,23 @@ Two modes are supported:
 
 ```
 # master-key-manager set --master-key-file /etc/sonic/bgp_master_key <KEY>
-Saved master key to /etc/sonic/bgp_master_key
+Saved master key to selection A of /etc/sonic/bgp_master_key
 ```
 
 The key file may also be selected by registry entry name instead of an explicit path; `--master-key-file` and `--name` are mutually exclusive and one of them is required:
 
 ```
 # master-key-manager set --name BGP <KEY>
-Saved master key to /etc/sonic/bgp_master_key
+Saved master key to selection A of /etc/sonic/bgp_master_key
 ```
 
-The `set` command accepts any string, pads or truncates it to 32 bytes for AES-256, and prepends a new `MasterKey` entry to the list. The previous key is retained in the history list; it remains available for explicit-key decryption via `decrypt_string(..., key_idx=N)` and for future automated rolling-rotation support. Automatic decryption of old ciphertexts using the historical keys is Future Work.
+The `set` command accepts any string, pads or truncates it to 32 bytes for AES-256, and writes it as a new `MasterKey` into whichever selection is currently *not* active:
+
+- If `enabled` is `"A"`, the new key goes into `B`.
+- If `enabled` is `"B"`, the new key goes into `A`.
+- If `enabled` is `null` (no encryption active), the new key overwrites whichever selection has the older timestamp (or either one, if a selection has never been written).
+
+Whatever key was previously in the targeted selection is overwritten and lost — calling `set` twice in a row before running `activate` discards the first of the two keys. `set` does not change `enabled` and does not touch ConfigDB; the newly stored key only takes effect once `activate` is run.
 
 This is the primary model for enterprise deployments where a controller pushes a deterministic key to a fleet of devices.
 
@@ -215,21 +222,26 @@ For standalone devices without a central key management system, the operator can
 
 ```
 # master-key-manager set --master-key-file /etc/sonic/bgp_master_key $(openssl rand -hex 32)
-Saved master key to /etc/sonic/bgp_master_key
+Saved master key to selection A of /etc/sonic/bgp_master_key
 ```
 
 ### Key Rotation
 
-When a new master key is set with `set`, the old key is retained in the history list. To re-encrypt all ConfigDB values with the new key:
+`set` only stages a new key in the inactive selection; it has no effect on encrypted data until `activate` is run:
 
 ```
-# master-key-manager deactivate --name BGP
+# master-key-manager set --name BGP newKey2026
 # master-key-manager activate --name BGP
 ```
 
-Deactivation decrypts all fields back to plaintext, then activation re-encrypts them with the current (newest) master key. Because FRR reads decrypted passwords via the interception layer, no BGP flap occurs during rotation.
+`activate` performs the entire rotation as one atomic step:
 
-> **Note:** The safe rotation procedure above re-encrypts *all* values with the new key by first decrypting to plaintext (`deactivate`) and then re-encrypting (`activate`), so every value ends up under the current key. Automatic decryption of values that were encrypted under an older key — i.e. a rolling rotation where `set` is called without a preceding `deactivate` — is **not** supported in this version: `decrypt_string` and `is_encrypted` only consult the current key (index 0) by default. Performing a rolling `set` without `deactivate` first will cause `is_encrypted` to misclassify old-key ciphertexts as cleartext, leading to double-encryption. Operators must follow the `deactivate` → `activate` sequence. Automatic historical-key decryption during rolling rotation is tracked as Future Work.
+1. Compares the timestamps of selections `A` and `B` and picks the newer one as the rotation target.
+2. If a selection is currently enabled, decrypts all registered fields using that selection's key. If `enabled` is `null`, the fields are assumed to already be cleartext.
+3. Re-encrypts all of those fields using the target selection's key.
+4. Sets `enabled` to the target selection.
+
+`deactivate --name BGP` remains available to turn encryption off entirely: it decrypts all registered fields back to plaintext using the currently-enabled selection's key and sets `enabled` to `null`.
 
 ### Encryption Library
 
@@ -244,13 +256,14 @@ The library implements **AES-256-GCM** encryption, referred to as **Type-6** in 
 class MasterKey:
     master_key: str            # plaintext key string (padded to 32 bytes for AES-256)
     algorithm: AlgorithmName   # currently only "aes-gcm"
-    timestamp: datetime        # creation time (UTC)
+    timestamp: datetime        # time this selection was last written by `set`
 
 @dataclass
 class MasterKeyConfig:
-    key_file: str                  # basename of the key file path; used as AES-GCM AAD
-    master_keys: list[MasterKey]   # newest first, max 8 entries
-    enabled: bool                  # whether encryption is currently active for this key set
+    key_file: str                       # basename of the key file path; used as AES-GCM AAD
+    selection_a: Optional[MasterKey]    # None until `set` targets selection "A"
+    selection_b: Optional[MasterKey]    # None until `set` targets selection "B"
+    enabled: Optional[str]              # "A", "B", or None — the selection currently protecting data at rest
 ```
 
 #### Encrypted Password Format
@@ -272,11 +285,11 @@ An encrypted value is a base64-encoded blob with the following internal layout:
 Whether a stored value is already encrypted is determined by runtime probing — no separate flag field is needed:
 
 1. Check if the value is valid base64.
-2. Attempt AES-GCM decryption with the current master key.
+2. Attempt AES-GCM decryption with the currently-enabled selection's master key (`MasterKeyConfig.enabled`).
    - If decryption succeeds (GCM tag validates): the value is **encrypted**.
    - If decryption fails: treat as **cleartext**.
 
-The GCM authentication tag provides cryptographically strong assurance: the probability of a cleartext string accidentally passing both checks is negligible.
+If `enabled` is `None`, there is no active key to test against, so `is_encrypted()` returns `False` unconditionally. Because `activate` always migrates every registered value to the newly-enabled selection's key as one atomic step, normal operation never needs to probe both selections — only the currently-enabled one is ever consulted implicitly. The GCM authentication tag provides cryptographically strong assurance: the probability of a cleartext string accidentally passing both checks is negligible.
 
 #### API Reference
 
@@ -284,24 +297,31 @@ The GCM authentication tag provides cryptographically strong assurance: the prob
 # Singleton per filename — one instance shared across all callers for the same file
 mgr = MasterKeyManager("/etc/sonic/bgp_master_key")
 
-# Store a new master key (prepends to history)
+# Store a new master key into the currently inactive selection (or the
+# older-timestamped selection, if neither is active). Does not touch `enabled`.
 mgr.update_master_key("my-secret-key")          # returns bool
 
-# Encrypt (AAD is the key_file basename from MasterKeyConfig, e.g. "bgp_master_key")
+# Encrypt with the currently-enabled selection's key
+# (AAD is the key_file basename from MasterKeyConfig, e.g. "bgp_master_key")
 encrypted = mgr.encrypt_string("plaintext")
 
-# Decrypt (AAD is read from the blob — no need to pass it)
+# Decrypt with the currently-enabled selection's key (AAD is read from the blob)
 plaintext = mgr.decrypt_string(encrypted)
 
-# Check if already encrypted with the current master key
+# Check if already encrypted with the currently-enabled selection's key
 already_enc = mgr.is_encrypted(value)           # returns bool
 
-# Historical key access (for cross-key decryption)
-plaintext = mgr.decrypt_string(encrypted, key_idx=1)
+# Explicit-selection access, e.g. to read a value still encrypted under the
+# selection that was just rotated out (manual/forensic use)
+plaintext = mgr.decrypt_string(encrypted, selection="A")
 
 # Activation state — stored in the key file, not in ConfigDB
-mgr.is_enabled()                                # returns bool
-mgr.set_enabled(True)                           # returns bool
+mgr.enabled_selection()                         # returns "A", "B", or None
+mgr.is_enabled()                                # returns bool (enabled_selection() is not None)
+
+# Rotation: pick the newer selection, migrate all consumers' data to it via the
+# caller-supplied re-encrypt callback, then flip `enabled` to that selection.
+mgr.activate(reencrypt_callback)                # returns bool
 ```
 
 #### Singleton Pattern
@@ -312,7 +332,7 @@ mgr.set_enabled(True)                           # returns bool
 
 File: `sonic-utilities/master_key_manager/config_db_encryption.py`
 
-`ConfigDBEncryptor` is loaded lazily by `ConfigDBConnector` on first write. It reads `master_key_registries()` from `master_key_encryption_config.py` at construction time to discover which tables and fields require encryption. Encryption on/off is controlled by the `enabled` flag in each master key file (`MasterKeyConfig.enabled`), not by a ConfigDB table.
+`ConfigDBEncryptor` is loaded lazily by `ConfigDBConnector` on first write. It reads `master_key_registries()` from `master_key_encryption_config.py` at construction time to discover which tables and fields require encryption. Encryption on/off is controlled by the `enabled` selection in each master key file (`MasterKeyConfig.enabled`), not by a ConfigDB table.
 
 #### Encryptor API
 
@@ -322,8 +342,8 @@ class ConfigDBEncryptor:
     def is_loaded(self) -> bool: ...
 
     def entry_need_encryption(self, table, key, data) -> bool:
-        """True when encryption is enabled (key file enabled=true) for table
-        and any registered field in data is plaintext."""
+        """True when encryption is active (key file enabled is not None) for
+        table and any registered field in data is plaintext."""
 
     def encrypt_data(self, table, key, data) -> dict:
         """Return a new dict with all registered secret fields in data encrypted.
@@ -425,12 +445,15 @@ Usage: master-key-manager [--config-file <JSON>] [--registry-config <JSON>]
 
 Commands:
   set (--master-key-file <PATH> | --name <NAME>) <KEY>
-      Provision or rotate the master key stored in a key file.
+      Stage a new master key in a key file, without changing which key is
+      currently protecting data at rest.
       The target key file is either given directly with --master-key-file
       or resolved from the registry entry named by --name; the two options
       are mutually exclusive and one of them is required.
-      The key is padded/truncated to 32 bytes for AES-256 and prepended
-      to the key history (up to 8 entries).
+      The key is padded/truncated to 32 bytes for AES-256 and written into
+      whichever selection ("A" or "B") is not currently enabled; if neither
+      selection is enabled, the older-timestamped selection is overwritten.
+      Run `activate` to rotate to the newly-staged key.
       Examples:
         master-key-manager set --master-key-file /etc/sonic/bgp_master_key mySecretKey
         master-key-manager set --name BGP mySecretKey
@@ -455,19 +478,23 @@ Commands:
       plaintext, or a single encrypted blob back to its plaintext string.
 
   activate (--name <NAME> | --all)
-      Activate encryption for the registry entry selected by --name, or for
-      every registry entry with --all (mutually exclusive; one is required):
-        1. Verify the master key is provisioned for each targeted registry
-           entry (with --all, every entry's key is verified up front, before
-           any table is modified).
-        2. Bulk-encrypt all plaintext secret fields in each targeted entry's
-           tables by reading from ConfigDB, encrypting, and writing back.
-        3. Set enabled=true in each affected master key file.
+      Rotate to the newest staged key and activate encryption for the
+      registry entry selected by --name, or for every registry entry with
+      --all (mutually exclusive; one is required):
+        1. Pick the rotation target: whichever of selections "A"/"B" has the
+           newer timestamp (with --all, this is done independently per
+           targeted registry entry's key file).
+        2. Bulk re-encrypt all secret fields in each targeted entry's tables:
+           read from ConfigDB, decrypt with the presently-enabled selection's
+           key (or treat as already-cleartext if enabled is None), re-encrypt
+           with the target selection's key, and write back.
+        3. Set enabled=<target selection> in each affected master key file.
 
   deactivate (--name <NAME> | --all)
       Deactivate encryption for the targeted registry entry (or entries):
-      decrypt all of their tables back to plaintext, then set enabled=false
-      in each affected master key file.
+      decrypt all of their tables back to plaintext using the presently-
+      enabled selection's key, then set enabled=None in each affected
+      master key file.
 
   status
       Print JSON status per registry entry (keyed by the entry's name):
@@ -476,14 +503,13 @@ Commands:
             "name": "BGP",
             "master_key_file": "/etc/sonic/bgp_master_key",
             "tables": ["BGP_NEIGHBOR", "BGP_PEER_GROUP"],
-            "master_key_configured": true,
-            "encryption_enabled": true
+            "enabled": "A"
           }
         }
 
   list
-      Print master key metadata (timestamps and algorithm, not key values)
-      for all registered tables.
+      Print master key metadata (timestamp and algorithm per selection, not
+      key values) for all registered tables.
 
 Options:
   --config-file  <JSON FILE>   Read/write CONFIG DB tables from a JSON file
@@ -567,8 +593,10 @@ ConfigDB stores passwords in cleartext.
 
 ```
 # master-key-manager set --master-key-file /etc/sonic/bgp_master_key mySecretKey
-Saved master key to /etc/sonic/bgp_master_key
+Saved master key to selection A of /etc/sonic/bgp_master_key
 ```
+
+Both selections start empty, so this fills `A`.
 
 #### Step 2: Activate Encryption
 
@@ -577,9 +605,9 @@ Saved master key to /etc/sonic/bgp_master_key
 ```
 
 The `activate` command:
-1. Verifies a master key exists in `/etc/sonic/bgp_master_key`.
-2. Reads all `BGP_NEIGHBOR` and `BGP_PEER_GROUP` entries from ConfigDB, encrypts each `auth_password`, and writes back.
-3. Sets `enabled=true` in `/etc/sonic/bgp_master_key` (the `MasterKeyConfig.enabled` field).
+1. Determines the rotation target: `A` is the only populated selection, so it is the target.
+2. Reads all `BGP_NEIGHBOR` and `BGP_PEER_GROUP` entries from ConfigDB, encrypts each `auth_password` with selection `A`'s key (the fields are cleartext, since `enabled` was `None`), and writes back.
+3. Sets `enabled="A"` in `/etc/sonic/bgp_master_key` (the `MasterKeyConfig.enabled` field).
 
 After activation the ConfigDB data looks like:
 
@@ -599,7 +627,7 @@ When the operator runs:
 # config bgp neighbor add 10.0.0.33 remote-as 65001 password mysecret
 ```
 
-The `config` command uses `ConfigDBConnector.mod_entry()`, which is intercepted. Because `encryption_activated=true` for `BGP_NEIGHBOR`, the interceptor encrypts `mysecret` before writing to Redis.
+The `config` command uses `ConfigDBConnector.mod_entry()`, which is intercepted. Because `enabled="A"` for the BGP registry entry, the interceptor encrypts `mysecret` with selection `A`'s key before writing to Redis.
 
 Similarly, `config load`, `config reload`, and `config apply` all go through `mod_config()`, which calls `encrypt_config()`. The lazy-copy optimization means there is no deep-copy overhead when loading large config files that contain no registered secret tables.
 
@@ -608,13 +636,12 @@ Similarly, `config load`, `config reload`, and `config apply` all go through `mo
 
 ```
 # master-key-manager set --name BGP newKey2026
-Saved master key to /etc/sonic/bgp_master_key
+Saved master key to selection B of /etc/sonic/bgp_master_key
 
-# master-key-manager deactivate --name BGP
 # master-key-manager activate --name BGP
 ```
 
-Deactivation decrypts all `auth_password` fields to plaintext; activation re-encrypts them with the new key. BGP sessions are unaffected during rotation.
+`set` stages `newKey2026` into `B`, since `A` is currently enabled; nothing in ConfigDB changes yet. `activate` then finds `B` is now the newer selection, decrypts all `auth_password` fields using `A`'s key, re-encrypts them using `B`'s key, and sets `enabled="B"`. BGP sessions are unaffected during rotation.
 
 ---
 
@@ -637,6 +664,8 @@ Deactivation decrypts all `auth_password` fields to plaintext; activation re-enc
 4. **Master key is not itself encrypted**: The master key is stored in plaintext in the key file, protected only by filesystem permissions (mode 0600). Physical/root access to the host can expose the master key. A TPM-backed or HSM-backed key store is out of scope for this version.
 
 5. **Config file (`config_db.json`) at rest**: When the running configuration is saved to `config_db.json` (e.g., via `config save`), the encrypted values from Redis are written to the file. The file therefore contains encrypted (not cleartext) passwords, which is the desired behavior.
+
+6. **Only one staged key at a time**: With just two selections, calling `set` a second time before running `activate` overwrites the previously-staged (inactive) key — it cannot be recovered. Operators must `activate` a staged key (or otherwise no longer need it) before staging another.
 
 ---
 
