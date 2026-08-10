@@ -50,8 +50,7 @@ This document describes the design of a **Master Key Encryption Infrastructure**
 | Term               | Meaning                                                              |
 |--------------------|----------------------------------------------------------------------|
 | AES-GCM  | Advanced Encryption Standard in Galois/Counter Mode       |
-| AAD      | Additional Authenticated Data (used in AES-GCM)          |
-| Type-6   | Cisco-compatible password encryption type: reversible AES |
+| AAD      | Additional Authenticated Data (used in AES-GCM)           |
 | ConfigDB | SONiC configuration database (Redis)                      |
 
 ---
@@ -62,9 +61,9 @@ SONiC stores all configuration — including protocol passwords such as BGP MD5 
 
 The infrastructure provides:
 
-1. **A code-defined encryption registry** (`master_key_manager/master_key_encryption_config.py`) that statically declares which tables and fields are subject to automatic encryption. Adding a new encrypted field requires a code change (not a YANG model edit or CLI registration), which is deliberate: any new use of encryption must also involve feature-specific handling code (e.g., decryption in `frrcfgd` before rendering to FRR).
+1. **A code-defined encryption registry** that statically declares which tables and fields are subject to automatic encryption. Adding a new encrypted field requires a code change (not a YANG model edit or CLI registration), which is deliberate: any new use of encryption must also involve feature-specific handling code (e.g., decryption in `frrcfgd` before rendering to FRR).
 2. **A master key management library and CLI tool** (`master-key-manager`) to provision master keys, activate/deactivate encryption, and inspect status.
-3. **An AES-256-GCM encryption library** (`master_key_manager/master_key_manager.py`) offering authenticated symmetric encryption (Type-6, reversible).
+3. **An AES-256-GCM encryption library** offering authenticated symmetric encryption (a.k.a Type-6, reversible).
 4. **A transparent ConfigDB interception layer** so that standard SONiC tools (`config`, `sonic-cfggen`) automatically encrypt sensitive fields on write without requiring application-level changes.
 5. **Extensibility** so that additional features (TACACS, RADIUS, LDAP) can be supported by adding an entry to the registry and the corresponding decrypt/render code in the feature daemon.
 
@@ -101,7 +100,7 @@ Our implementation follows the Type-6 (reversible AES) model, using AES-256-GCM 
 7. **FR-7**: The master key file shall be accessible only to root (mode 0600), protected by filesystem permissions.
 8. **FR-8**: The infrastructure shall retain up to 8 historical master keys. The retained history preserves older keys so they remain available for explicit-key decryption (via `decrypt_string(..., key_idx=N)`) and for future automated rolling-rotation support; automatic decryption of old ciphertexts with the historical keys is called out as Future Work.
 9. **FR-9**: BGP MD5 passwords shall be the first feature protected by this infrastructure.
-10. **FR-10**: The catalog of tables and fields subject to encryption shall be defined in code (`master_key_encryption_config.py`). Adding encryption to a new table requires a code change, not a YANG model edit or CLI command, because any new encrypted field also requires feature-specific decrypt/render code in the consuming daemon.
+10. **FR-10**: The catalog of tables and fields subject to encryption shall be defined in code. Adding encryption to a new table requires a code change, not a YANG model edit or CLI command, because any new encrypted field also requires feature-specific decrypt/render code in the consuming daemon.
 11. **FR-11**: A single table may declare multiple encrypted fields (e.g., both `auth_password` and `md5_key`).
 
 ### Non-Functional Requirements
@@ -266,7 +265,7 @@ An encrypted value is a base64-encoded blob with the following internal layout:
 
 - **Nonce** (12 bytes): Randomly generated per encryption operation.
 - **Ciphertext**: The encrypted plaintext, same length as the original.
-- **AAD** (16 bytes, zero-padded): The key-file basename (e.g., `bgp_master_key`), taken from `MasterKeyConfig.key_file`. Used as Additional Authenticated Data. This binds each ciphertext blob to its master key file, so a blob encrypted under one key file cannot be decrypted (GCM tag will not validate) under a different key file. Tables that share the same `master_key_file` (e.g., `BGP_NEIGHBOR` and `BGP_PEER_GROUP` both pointing at `/etc/sonic/bgp_master_key`) therefore share the same AAD; the AAD does **not** distinguish tables within the same key file, so cross-table replay within a single key file is not prevented by the AAD alone.
+- **AAD** (16 bytes, zero-padded): The key-file basename (e.g., `bgp_master_key`). Used as Additional Authenticated Data. This binds each ciphertext blob to its master key file, so a blob encrypted under one key file cannot be decrypted (GCM tag will not validate) under a different key file. Tables that share the same `master_key_file` (e.g., `BGP_NEIGHBOR` and `BGP_PEER_GROUP` both pointing at `/etc/sonic/bgp_master_key`) therefore share the same AAD; the AAD does **not** distinguish tables within the same key file, so cross-table replay within a single key file is not prevented by the AAD alone.
 
 #### Detecting Encrypted Values
 
@@ -442,11 +441,14 @@ Commands:
           Read a CONFIG DB JSON file, encrypt every registered secret field
           (all registry entries are applied; entries whose tables are absent
           from the file are skipped), and print the resulting JSON (or write
-          it to -o).  The input file is not modified.  Every registry entry
-          with a table present in the file must have a provisioned master key.
+          it to -o).  The input file is not modified.  Entries without a
+          provisioned master key are skipped with a warning; their fields are
+          left unchanged.
       --name <NAME> --string <STRING>
           Encrypt a single string with the master key of the registry entry
           named <NAME> and print the resulting blob (or write it to -o).
+          --name is only valid with --string (enforced at parse time as a
+          usage error, exit 2).
 
   decrypt (--file <JSON> | --name <NAME> --string <STRING>) [-o <OUTPUT>]
       Same two forms, decrypting instead: a CONFIG DB JSON file back to
@@ -616,71 +618,10 @@ Deactivation decrypts all `auth_password` fields to plaintext; activation re-enc
 
 ---
 
-## Comparison With Prior Proposal
-
-A separate proposal (`sonic-py-common/sonic_py_common/security_cipher.py`) was submitted to encrypt TACACS shared secrets using a different approach. This section compares the two designs.
-
-### Design Comparison
-
-**Encryption algorithm**
-- *Prior*: AES-128-CBC via `openssl` subprocess.
-- *This HLD*: AES-256-GCM using the Python `cryptography` library — stronger cipher, no subprocess.
-
-**Authentication / integrity**
-- *Prior*: None. A corrupted or tampered ciphertext decrypts silently to garbage.
-- *This HLD*: AES-GCM authentication tag (AEAD) — any tampering or key mismatch is detected and rejected.
-
-**Encryption flag**
-- *Prior*: A separate `key_encrypt: "true"` field must be present in the ConfigDB entry to signal that the value is encrypted.
-- *This HLD*: Inferred at runtime by attempting decryption; no extra flag field needed.
-
-**Master key source**
-- *Prior*: The original HLD used the device MAC address as the AES encryption password — a non-secret, publicly visible value. After review feedback this was revised to an admin-provided string, but still with no fleet distribution model.
-- *This HLD*: Operator-provisioned via `master-key-manager set`; designed to accept a key pushed from a central controller.
-
-**Key history and rotation**
-- *Prior*: Single key per feature. `set_feature_password()` silently refuses to overwrite an existing key; `rotate_feature_passwd()` is required and re-encrypts all entries in one shot with no key history.
-- *This HLD*: Up to 8 historical keys retained. `master-key-manager set` always accepts and prepends the new key, and the previous keys remain available for explicit-key decryption (`decrypt_string(..., key_idx=N)`). Automatic decryption of old ciphertexts with the historical keys during a rolling rotation is Future Work; in this version the supported rotation procedure is `deactivate` → `activate`, which re-encrypts every value under the current key.
-
-**Key distribution from a central controller**
-- *Prior*: No clean path. A controller cannot simply push a new key; it must first call `rotate_feature_passwd()`, which requires decrypting all existing entries with the old key.
-- *This HLD*: `master-key-manager set` unconditionally stores the new key. A controller can push a key to a fresh device or rotate it at any time with a single command.
-
-**Config portability**
-- *Prior*: Encrypted blobs are device-specific because the key is stored only locally. A pre-baked encrypted `config_db.json` cannot be pushed fleet-wide; each device must have its passkeys re-set individually after copying the config.
-- *This HLD*: If all devices share the same controller-distributed master key, encrypted config snippets are fully portable across the fleet.
-
-**Key file write safety**
-- *Prior*: `_save_registry()` does a plain `open(..., 'w')` write with no file lock and no atomic rename. Concurrent writers can corrupt `cipher_pass.json`.
-- *This HLD*: Exclusive `fcntl.flock` held for the duration of the write, data written to a temp file, content verified, then atomically renamed over the target path.
-
-**Key file blast radius**
-- *Prior*: A single `/etc/cipher_pass.json` holds the master keys for all features (TACACS, RADIUS, LDAP…). One corrupt file is a systemic failure.
-- *This HLD*: One key file per feature group. A corrupt BGP key file does not affect AAA features.
-
-**Activation and deactivation scope**
-- *Prior*: `rotate_feature_passwd()` processes only the specific `TABLE|entry` pairs explicitly registered, one at a time, with the field name `"passkey"` hard-coded.
-- *This HLD*: `activate`/`deactivate` scan entire CONFIG DB tables generically, handling multiple tables and multiple fields per table as declared in the registry.
-
-**Hard-coded field names**
-- *Prior*: Field names `"passkey"` and `"key_encrypt"`, and the `"TABLE|entry"` string split, are scattered as literals throughout the code.
-- *This HLD*: Field names are declared once in `master_key_encryption_config.py`; no field-specific code exists in the framework.
-
-**ConfigDB interception**
-- *Prior*: Not implemented. Each caller must invoke encryption/decryption explicitly.
-- *This HLD*: Transparent via `ConfigDBConnector` hooks — standard tools (`config`, `sonic-cfggen`) encrypt on write automatically.
-
-**Registration**
-- *Prior*: Runtime API calls (`register` / `deregister`) that write to `cipher_pass.json`.
-- *This HLD*: Code-level entry in `master_key_encryption_config.py`; no runtime registration step.
-
-
----
-
 ## Warmboot and Fastboot Design Impact
 
-- The master key file (`/etc/sonic/bgp_master_key`) is a host filesystem file. It persists across warmboot/fastboot cycles; no special handling is required.
-- During warmboot, `bgpcfgd`/`frrcfgd` start and read ConfigDB. The interception layer decrypts passwords transparently. No warmboot-specific code path is needed.
+- The master key file is a host filesystem file. It persists across warmboot/fastboot cycles; no special handling is required.
+- For BGP, during warmboot, `bgpcfgd`/`frrcfgd` start and read ConfigDB. The interception layer decrypts passwords transparently. No warmboot-specific code path is needed.
 - If the master key file is missing or corrupted during boot, decryption will fail and `frrcfgd` will use the raw (encrypted) string as the BGP password, resulting in BGP authentication failures. Operators should include the master key file in backup/restore procedures.
 
 ---
@@ -699,36 +640,11 @@ A separate proposal (`sonic-py-common/sonic_py_common/security_cipher.py`) was s
 
 ---
 
-## Test Plan
-
-### Unit Tests
-
-| Test File | Description |
-|-----------|-------------|
-| `tests/master_key_encryption_test.py` | AES-GCM deterministic test vectors; `MasterKeyManager` key update, encrypt, decrypt, history; max 8 keys; file permission enforcement |
-| `tests/config_db_encryptor_test.py` | `ConfigDBEncryptor` interception: `set_entry`, `mod_entry`, `mod_config` hooks; encryption activated/deactivated; multiple field names |
-| `tests/master_key_manager_test.py` | All CLI subcommands: `set` (`--master-key-file`/`--name`), `encrypt`/`decrypt` (`--file` or `--name` + `--string`), `activate`/`deactivate` (`--name`/`--all`), `status`, `list`; custom registry via `--registry-config` |
-
-### System Tests (Testbed)
-
-| Test | Description |
-|------|-------------|
-| No BGP flap on activation | Activate encryption on live switch; confirm no BGP session reset |
-| No BGP flap on key rotation | Rotate master key; confirm no BGP session reset |
-| FRR password delivery | Activate encryption; confirm FRR receives cleartext via `vtysh show running-config` |
-| Redis dump confidentiality | After activation, `redis-cli HGETALL BGP_NEIGHBOR:10.0.0.1` shows encrypted blob |
-| Boot persistence | Reboot with encryption active; confirm BGP sessions re-establish |
-| Missing key file | Remove master key file; reload; confirm BGP auth fails gracefully (no crash) |
-| Two tables, one key file | Register both `BGP_NEIGHBOR` and `BGP_PEER_GROUP`; confirm both encrypted by single `activate` |
-| Large config load performance | Load config with 10,000 route entries; confirm no deep-copy overhead (lazy copy) |
-
----
-
 ## Future Work
 
-1. **C++ and Rust ConfigDB interception**: Extend the C++ `ConfigDBConnector` in `sonic-swss-common` to load an encryption plugin. This is required before any C++ or Rust daemon is trusted to write sensitive ConfigDB fields.
+1. **C++, Go and Rust ConfigDB interception**: Extend encryption hook to other languages, for use cases such as gNMI.
 
-2. **TACACS, RADIUS, LDAP integration**: Each feature adds an entry to `master_key_encryption_config.py` and adds `MasterKeyManager.decrypt_string()` calls in its consuming daemon. Key management, rotation, and ConfigDB interception are inherited from the framework at zero framework cost.
+2. **TACACS, RADIUS, LDAP integration**: Each feature adds an entry to and add calls in its consuming daemon. Key management, rotation, and ConfigDB interception are inherited from the framework at zero framework cost.
 
 3. **TPM-backed master key**: For highest-assurance deployments, the master key could be sealed to a TPM's Platform Configuration Registers (PCRs), ensuring it is accessible only when the system boots into a trusted state.
 
@@ -736,4 +652,3 @@ A separate proposal (`sonic-py-common/sonic_py_common/security_cipher.py`) was s
 
 5. **Audit log**: Record encrypt/decrypt events (timestamp, table, key index) to a tamper-evident log for compliance reporting.
 
-6. **Automatic historical-key decryption (rolling rotation)**: This version retains up to 8 historical master keys and exposes them via `decrypt_string(..., key_idx=N)`, but `decrypt_string` and `is_encrypted` only consult the current key (index 0) by default. As a result, a rolling rotation (`set` without a preceding `deactivate`) is not safe: old-key ciphertexts are misclassified as cleartext and get double-encrypted. Future work is to make `decrypt_string`/`is_encrypted` iterate the full key history (newest-first, returning the first successful decryption) so that old ciphertexts are recognized and decrypted transparently after a `set`, enabling true rolling rotation without the `deactivate` → `activate` dance.
