@@ -274,14 +274,16 @@ counter sourcing are deferred.
 
 <p align="center">
   <img src="images/packet-trimming-dataplane-flow.png" width="520"
-       alt="Dataplane flow: after a packet reaches final egress classification and the physical egress and original queue are resolved, the original queue is checked for admission. If it admits, the original packet is transmitted. If not, and the queue is trim-eligible and not ACL-disabled, trim-attempt counters increment, the packet is truncated to the configured size, DSCP is applied, and the configured static trim queue on the same physical egress is selected; if that trim queue admits, the packet is transmitted and trim-sent counters increment, otherwise it is dropped and trim-drop counters increment. Non-eligible queues take the normal original-packet path.">
+       alt="Dataplane flow: after a packet reaches final egress classification, the physical egress and original queue are resolved and the original queue is checked for admission. If it admits, the original packet is transmitted. If admission fails, the queue is checked for trim eligibility (buffer profile DROP_AND_TRIM); non-eligible queues take the normal original-packet path. Eligible queues pass through a deferred (dashed) ACL trim-disable gate, then trim-attempt counters increment, the packet is truncated to the configured size, the configured symmetric DSCP value is applied (with a deferred, dashed asymmetric FROM_TC alternative that resolves DSCP from a trim TC per egress port), and the configured static trim queue on the same physical egress is selected; if that trim queue admits, the packet is transmitted and trim-sent counters increment, otherwise it is dropped and trim-drop counters increment. Dashed amber nodes are deferred target-design elements per the legend.">
 </p>
 
-This flowchart is the full conceptual design. In the delivered increment the
-"ACL disabled" branch and the asymmetric-DSCP step are deferred: the datapath
-applies symmetric `DSCP_VALUE` only and does not yet honor an ACL trim-disable
-flag ([7.5](#75-dscp-resolution), [7.9](#79-acl-disable-trim),
-[13.1](#131-integration-status)). The delivered counters are switch-global
+This flowchart is the full conceptual design; **dashed amber nodes mark elements
+deferred in this increment** (see the diagram legend). Specifically, the ACL
+trim-disable gate and the asymmetric-DSCP (`FROM_TC`) alternative are deferred:
+the datapath applies the symmetric `DSCP_VALUE` only and does not yet honor an
+ACL trim-disable flag ([7.5](#75-dscp-resolution), [7.9](#79-acl-disable-trim),
+[13.1](#131-integration-status)). Trim eligibility itself (buffer profile
+`DROP_AND_TRIM`) is delivered. The delivered counters are switch-global
 plugin summaries; the port/queue increments shown are target SAI attribution
 ([7.11](#711-counters)). The `Normal original-packet drop` node likewise
 represents the conceptual/hardware admission model: on the delivered VPP
