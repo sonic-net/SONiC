@@ -273,7 +273,7 @@ counter sourcing are deferred.
 ### 6.2 Dataplane Flow
 
 <p align="center">
-  <img src="images/packet-trimming-dataplane-flow.png" width="520"
+  <img src="images/packet-trimming-dataplane-flow.png" width="560"
        alt="Dataplane flow: after a packet reaches final egress classification, the physical egress and original queue are resolved and the original queue is checked for admission. If it admits, the original packet is transmitted. If admission fails, the queue is checked for trim eligibility (buffer profile DROP_AND_TRIM); non-eligible queues take the normal original-packet path. Eligible queues pass through a deferred (dashed) ACL trim-disable gate, then trim-attempt counters increment, the packet is truncated to the configured size, the configured symmetric DSCP value is applied (with a deferred, dashed asymmetric FROM_TC alternative that resolves DSCP from a trim TC per egress port), and the configured static trim queue on the same physical egress is selected; if that trim queue admits, the packet is transmitted and trim-sent counters increment, otherwise it is dropped and trim-drop counters increment. Dashed amber nodes are deferred target-design elements per the legend.">
 </p>
 
