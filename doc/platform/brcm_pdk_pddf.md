@@ -41,6 +41,7 @@
 	     * [FPGAPCIe Component](#pddf-fpgapcie-component)
 		 * [Multi-FPGAPCIe Component](#3413-multi-fpgapcie-component)
 		 * [Multi-Protocol Support Design](#3414-multi-protocol-support-design)
+		 * [Child-Card Discovery via Card EEPROM](#3415-child-card-discovery-via-card-eeprom)
 	 * [PDDF BMC Component Design](#pddf-bmc-component-design)
 		 * [PSU JSON](#psu-json)
 		 * [FAN JSON](#fan-json)
@@ -81,6 +82,7 @@
 | 0.8 | 03/17/2023  |  Fuzail Khan, Precy Lee     | S3IP SysFS support        |
 | 0.9 | 05/31/2025  |  Nexthop AI                 | Multi-FPGAPCIe component support  |
 | 1.0 | 10/26/2025  |  Nexthop AI                 | Multi-FPGAPCIe Multi-Protocol support |
+| 1.1 | 08/04/2026  |  Nexthop AI                 | Child-card discovery via card EEPROM |
 
 # About this Manual
 Platform Driver Development Framework (PDDF) is part of SONiC Platform Development Kit (PDK), which enables rapid development of platform drivers and APIs for SONiC platforms. PDK consists of
@@ -1675,6 +1677,111 @@ Each protocol module must:
 5. Support graceful cleanup during device removal
 
 This modular approach decouples the core driver from protocol-specific implementations, reducing complexity and improving maintainability by allowing protocols to be developed and maintained independently.
+
+#### 3.4.15 Child-Card Discovery via Card EEPROM
+
+Some platforms host *child cards* (field-replaceable daughter cards on a parent I2C mux channel) whose device population depends on the installed variant — for example a power-delivery card whose DC-DC converters may be sourced from multiple vendors. The exact vendor/model in each slot is only known at runtime. More generally, the problem applies to any component whose instantiation depends on information read from an EEPROM. PDDF supports discovering these devices at boot by decoding the card's EEPROM and instantiating the matching per-variant devices, instead of shipping a static `pddf-device.json` per BOM combination.
+
+The base image ships only the always-present devices, a `CHILD_CARDS` descriptor, and one templated device fragment per supported variant. The variant-specific devices are never present in the committed `pddf-device.json`; they are merged in at boot from the EEPROM.
+
+##### CHILD_CARDS descriptor
+
+An optional top-level object in `pddf-device.json`. Each entry describes one slot:
+
+```
+"CHILD_CARDS": {
+  "CARD1": {
+    "eeprom_device": "CARD1-EEPROM",
+    "decoder": "card1",
+    "slot": 0,
+    "dev_addr": "0x60",
+    "parent": "CPLDMUX0",
+    "parent_chan": "2",
+    "parent_bus": "0x1",
+    "variants": [
+      { "match": {"vendor": "VENDOR-X", "model": "MODEL-A"},
+        "pddf_json": "card1/vendorx_modela.json.j2" },
+      { "match": {"vendor": "VENDOR-Y",  "model": "MODEL-B"},
+        "pddf_json": "card1/vendory_modelb.json.j2" }
+    ]
+  }
+}
+```
+
+- **eeprom_device**: PDDF device name of the identifying EEPROM (part of the static tree; its sysfs path is resolved through the normal PDDF `get_path()`).
+- **decoder**: opaque decoder-family id handed verbatim to the platform hook (below); common PDDF code does not interpret it.
+- **slot / dev_addr / parent / parent_bus / parent_chan**: slot context passed to the chosen fragment as Jinja variables (`{{ slot }}`, `{{ dev_addr }}`, `{{ parent }}`, `{{ parent_bus }}`).
+- **variants[]**: candidate fragments. The one whose `match` object is a subset of the decoded identity record is selected; exactly one must match.
+
+##### Platform decode hook
+
+The EEPROM format is platform-defined, so decoding is delegated to a platform override rather than baked into PDDF. A base class in `sonic-platform-pddf-base` (`sonic_platform_pddf_base/pddf_platform_hooks.py`):
+
+```python
+class ChildCardEepromUnprogrammed(Exception):
+    """Raised by ``decode_eeprom`` when a child-card EEPROM has no decodable
+    inventory at all -- i.e. it is blank/unprogrammed (or the card is absent).
+
+    pddfparse.expand_child_cards treats this as "the child card is not
+    present": it skips the CHILD_CARDS entry (that card's telemetry is
+    unavailable) and logs an error, rather than hard-failing platform init.
+
+    This is deliberately distinct from a *populated* EEPROM that is merely
+    missing the requested record -- decoders should signal that as a hard
+    error (e.g. KeyError), since it indicates a programming/hardware fault on
+    an otherwise-present card.
+    """
+
+
+class PddfPlatformHooks:
+    def decode_eeprom(self, decoder: str, eeprom_bytes: bytes, slot: int) -> dict:
+        """Decode an EEPROM blob into a single identity record.
+
+        ``decoder`` is the CHILD_CARDS entry's ``decoder`` id, passed through
+        verbatim; implementations dispatch on it to select the matching decode
+        routine.
+
+        The return dict's keys are vendor-defined; the only contract is that
+        whatever keys appear in any ``variants[].match`` block in
+        pddf-device.json's CHILD_CARDS entry must be present. The returned
+        record is merged into the Jinja context for fragment rendering.
+
+        Raise :class:`ChildCardEepromUnprogrammed` when the EEPROM carries no
+        inventory at all so that pddfparse can skip the (absent/unprogrammed)
+        card instead of failing platform init.
+        """
+        raise NotImplementedError(decoder)
+```
+
+The vendor overrides this at the stable import path `sonic_platform.pddf_hooks.PlatformHooks`. `pddfparse` imports it once and calls `decode_eeprom` only for platforms whose `pddf-device.json` declares `CHILD_CARDS`.
+
+The `decoder` parameter is the `CHILD_CARDS` entry's `decoder` id, passed through verbatim. The hook is expected to dispatch on it to select the matching decode routine, so a single `PlatformHooks` implementation can support multiple card families (and future format revisions) from one entry point. `pddfparse` never interprets the id itself.
+
+##### Boot-time expansion
+
+`pddfparse` gains an `expand_child_cards()` step, invoked from `pddf_post_device_create.sh` (`pddfparse.py --expand-child-cards`) after the static device tree is up. For each entry under `CHILD_CARDS` it:
+
+1. reads the identifying EEPROM;
+2. calls `decode_eeprom(decoder, blob, slot)` to get the identity record;
+3. finds the single variant whose match-criteria are all satisfied by the decoded EEPROM record, erroring out if none or more than one qualifies;
+4. renders the variant fragment with the slot context;
+5. merges the fragment's `devices` into `pddf-device.json` — renumbering sensor keys (`TEMP<N>`/`VOLTAGE<N>`/`CURRENT<N>`) against the running platform counts and attaching each device under `parent`/`parent_chan` — and appends the fragment's thermals/counts into `platform.json`.
+
+Error handling:
+
+- A card whose EEPROM cannot be read or decoded — blank/unprogrammed (`ChildCardEepromUnprogrammed`), physically absent/unreadable, or undecodable — is skipped with a logged error; that slot's telemetry is unavailable and the remaining (healthy) slots are unaffected.
+- A configuration/contract error is a hard failure (fail loudly): a `CHILD_CARDS` entry missing a required key, a decoded record that matches zero or more than one variant, or a decoder returning a record for the wrong slot.
+
+##### Base/canonical file pairs
+
+`expand_child_cards` mutates `pddf-device.json` and `platform.json` to add the discovered devices and thermals. To avoid drifting the on-disk configurations across boots and to preserve the state for debuggability, each file uses a **base/canonical** pair:
+
+- `<file>.base` — the pre-merge source of truth.
+- `<file>` — the post-merge view that all existing readers consume, unchanged.
+
+A platform adopting `CHILD_CARDS` must ensure the canonical `pddf-device.json` and `platform.json` equal their `.base` siblings **before** `pddf_util.py install` runs, so the pre-expansion PDDF steps operate on valid input. The recommended way is `install -m 0644 <file>.base <file>` in `pre_pddf_init.sh` (a build-time `<file> -> <file>.base` symlink also satisfies this). `expand_child_cards` then reads `.base`, merges, and atomically writes the canonical `<file>` — so every reader transparently sees the merged view and `.base` preserves the pre-merge view for debugging.
+
+Platforms that declare no `CHILD_CARDS` are unaffected — the step is a no-op.
 
 ### 3.6 PDDF BMC Component Design
 
