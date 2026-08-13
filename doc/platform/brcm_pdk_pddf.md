@@ -1779,7 +1779,14 @@ Error handling:
 - `<file>.base` — the pre-merge source of truth.
 - `<file>` — the post-merge view that all existing readers consume, unchanged.
 
-A platform adopting `CHILD_CARDS` must ensure the canonical `pddf-device.json` and `platform.json` equal their `.base` siblings **before** `pddf_util.py install` runs, so the pre-expansion PDDF steps operate on valid input. The recommended way is `install -m 0644 <file>.base <file>` in `pre_pddf_init.sh` (a build-time `<file> -> <file>.base` symlink also satisfies this). `expand_child_cards` then reads `.base`, merges, and atomically writes the canonical `<file>` — so every reader transparently sees the merged view and `.base` preserves the pre-merge view for debugging.
+A platform adopting `CHILD_CARDS` must ensure the canonical `pddf-device.json` and `platform.json` equal their `.base` siblings **before** `pddf_util.py install` runs, so the pre-expansion PDDF steps operate on valid input. The recommended setup is:
+
+1. Rename both files to `<file>.base` in the source tree (`pddf-device.json` -> `pddf-device.json.base`, `platform.json` -> `platform.json.base`), so `.base` becomes the checked-in pristine source.
+2. Keep the canonical `<file>` equal to `<file>.base` before install. The method depends on whether PDDF reads the file *before* `expand_child_cards` runs:
+   - `pddf-device.json` — seed it from `.base` on every boot (e.g. `install -m 0644 pddf-device.json.base pddf-device.json` in pre-PDDF init). `device_install` consumes the canonical before `expand_child_cards`, and `expand` then replaces it with a merged file, so it must be reset to the pristine base each boot; a one-time committed symlink would leave a stale merged file on the next boot.
+   - `platform.json` — a committed `platform.json -> platform.json.base` symlink is sufficient.
+
+`expand_child_cards` then reads `.base`, merges, and atomically writes the to the canonical `<file>` (via `os.replace`, leaving `.base` intact) — so every reader transparently sees the merged view and `.base` preserves the pre-merge view for debugging.
 
 Platforms that declare no `CHILD_CARDS` are unaffected — the step is a no-op.
 
