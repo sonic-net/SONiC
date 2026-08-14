@@ -281,7 +281,7 @@ Each YAML mapping that describes a Firmware Load includes the following fields:
 - VendorName: mandatory, exact match
 - *ComponentClass: mandatory, either ExternalLaserSource or OpticalEngine. **This field is a `cpoutil` extension to the OIF package which allows `cpoutil` to select the correct CPO component as the upgrade target**.
 - FwLoadName: mandatory, unique, identifies the filename of the Firmware Load
-- FwLoadVersion: optional, identifies the version of the Firmware Load. An informational attribute SHALL NOT be used as a firmware matching attribute and SHALL NOT be interpreted as part of CMIS-reported active or inactive firmware version information. When multiple Firmware Metadata entries match, a host may use FwLoadVersion as a tie-break policy (e.g., selecting the highest FwLoadVersion) or may prompt the operator to select among candidates.
+- FwLoadVersion: optional, version string, identifies the version of the Firmware Load, e.g. "1.2.3". An informational attribute SHALL NOT be used as a firmware matching attribute and SHALL NOT be interpreted as part of CMIS-reported active or inactive firmware version information. When multiple Firmware Metadata entries match, a host may use FwLoadVersion as a tie-break policy (e.g., selecting the highest FwLoadVersion) or may prompt the operator to select among candidates.
 - FwUpdateLoadChecksumSHA256: optional, checksum of the Firmware Load. `cpoutil` should verify the checksum when this field is present.
 - FwUpdateLoadChecksumSHA512: optional, checksum of the Firmware Load. `cpoutil` should verify the checksum when this field is present.
 - Firmware match attributes: optional except VendorName. They shall be retrievable by the host from the module via CMIS and made available for comparison. Simple regular expression wildcards are supported for matching FW match attributes, except VendorName, which SHALL be an exact match:
@@ -387,16 +387,16 @@ For each `discover_entry`, select zero or one `parsing_entry` and generate a `pl
 Tie-break policy (Phase 1):
 
 1. highest `FwLoadVersion` wins;
-2. user choose;
+2. otherwise, prompt the operator to select from the candidate list, skip the target, or exit.
 
 Matching stage outputs a list of `plan_entries`:
 
 ```
 plan_entry {
-  cpo_module_index
+  cpo_module_index     # index of CPO object
   component_class      # OpticalEngine | ExternalLaserSource
-  component_index
-  matching_decision    # no match - None; match - FW Load file path
+  component_index      # index of OE or ELS, skipped for now as there is only one OE and one ELS
+  matching_decision    # no match - None (for logging a mismatch entry); match - FW Load file path
 }
 ```
 
@@ -602,7 +602,7 @@ def get_fw_ops_match_attrs(self, fields: list[str]) -> dict[str, object]:
 ##### 7.6.3 ELS API
 
 - Add a new function `get_fw_ops_match_attrs` to get all the FW operation matching attributes on demand.
-- `ElsfpApi` should be updated to inherit from, or mix in, `CmisCdbFw` so that it can support CDB-based firmware operations. (Or, should each vendor provide a `VendorCdbFw`?)
+- `ElsfpApi` should be updated to mix in `CmisCdbFw` so that it can support CDB-based firmware operations. (Or, should each vendor provide a `VendorCdbFw`?)
 
 > Note: currently, ElsfpApi is not inherit from CmisApi, each vendor has to implement `get_fw_ops_match_attrs` by their own.
 
