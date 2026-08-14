@@ -817,7 +817,7 @@ def get_midplane_down_reason(self):
         Retrieves the cause of the midplane down reason
 
         Returns:
-            A tuple (string, string) where the first element is a string containing the cause of midplane down reason. This string must be one of the REBOOT_CAUSE_* strings predefined in ChassisBase, the same list used by get_reboot_cause. If the first string is "REBOOT_CAUSE_HARDWARE_OTHER", the second string can be used to pass a description of the midplane down reason.
+            A tuple (string, string) with the same return contract as get_reboot_cause(). The first element contains the midplane-down cause and must be one of the REBOOT_CAUSE_* strings predefined in ChassisBase. If the first element is "REBOOT_CAUSE_HARDWARE_OTHER", the second element can be used to provide a description of the midplane-down cause.
 ```
 
 #### DPU_STATE Use Case
