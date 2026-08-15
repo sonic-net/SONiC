@@ -29,7 +29,7 @@
 
 | Revision | Date | Author | Change Description |
 | ----- | ----- | ----- | ----- |
-| 0.1 | 2026-06-01 | darius-nexthop | Initial Proposal |
+| 0.1 | 2026-08-15 | darius-nexthop | Initial Proposal |
 
 ### 2. Scope
 
@@ -50,17 +50,18 @@ unchanged on the CPU path regardless of the selected mode.
 | HW sFlow | Hardware accelerated sFlow: the ASIC builds and sends the datagram |
 | CPU sFlow | The existing sample-and-punt datapath described in [`sflow_hld.md`](https://github.com/sonic-net/SONiC/blob/master/doc/sflow/sflow_hld.md) |
 | SAI | Switch Abstraction Interface |
-| TAM | Telemetry and Monitoring, the SAI namespace for telemetry objects |
 | hsflowd | [InMon host-sflow](https://github.com/sflow/host-sflow) agent, SONiC's userspace sFlow agent |
 
 ### 4. Overview
 
-This document proposes a hardware accelerated sFlow datapath for SONiC.
-`SflowOrch` now programs a SAI TAM telemetry graph, rather than a samplepacket
-object. Also, because a datagram built in silicon needs its encapsulation
-supplied up front, it takes a dependency on `NeighOrch` and `RouteOrch` to
-provide automatic next-hop resolution. The path also verifies the platform is
-capable.
+This document proposes an alternative flow-sampling datapath for SONiC:
+hardware accelerated sFlow. When it is selected, `SflowOrch` creates a SAI
+mirror session of type sFlow and binds it to sampled ports; the ASIC then
+samples, aggregates, and emits sFlow v5 datagrams without CPU involvement.
+Because the datagram is built in silicon, its encapsulation must be supplied
+up front, so `SflowOrch` takes a dependency on `NeighOrch` and `RouteOrch` to
+resolve the path to the collector and to refresh it on change. The path is
+gated on platform capability.
 
 ### 5. Requirements
 
@@ -83,71 +84,75 @@ Not supported:
 ### 6. Architecture Design
 
 This design does not change the SONiC architecture. `SflowOrch` gains a
-`HwSflow` class that owns the SAI TAM objects and the per-port binding for the
-hardware datapath. The existing CPU path is untouched and remains the default.
-Other sFlow features, such as counter samples and MOD, will remain unimpacted on
-the CPU path regardless of `mode` configuration.
+`HwSflow` class that owns the sFlow mirror session and the per-port sample
+bindings for the hardware datapath. The existing CPU path is untouched and
+remains the default. Other sFlow features, such as counter samples and MOD,
+will remain unimpacted on the CPU path regardless of `mode` configuration.
 
 ### 7. High-Level Design
 
 #### 7.1 SAI object flow
 
-For each collector, `HwSflow` creates the TAM objects below and binds the
-resulting `SAI_OBJECT_TYPE_TAM` object to every sampled port.
+For each collector, `HwSflow` creates one mirror session of type sFlow and
+binds it to every sampled port.
+
+Throughout this document, the **collector-facing port** is the port sFlow
+datagrams egress towards the collector on. It is programmed as
+`SAI_MIRROR_SESSION_ATTR_MONITOR_PORT` and is unrelated to egress sampling,
+which the hardware path does not support.
 
 ```mermaid
 flowchart TB
     CFG["CONFIG_DB<br/>SFLOW · SFLOW_COLLECTOR · SFLOW_SESSION"] --> ORCH
-    NR["NeighOrch / RouteOrch"] -->|"next-hop MAC, src MAC, egress port"| ORCH
-    ORCH["HwSflow (SflowOrch, sonic-swss)"] ==>|creates| TAM
-    TAM["TAM<br/>BIND_POINT_TYPE_LIST = PORT"] --> TLM["TAM_TELEMETRY"]
-    TLM --> TT["TAM_TEL_TYPE<br/>TELEMETRY_TYPE = FLOW"]
-    TLM --> COL["TAM_COLLECTOR<br/>SRC/DST_IP, SRC/DST_MAC<br/>TRUNCATE_SIZE, DSCP<br/>DESTINATION = port or LAG"]
-    TT --> RPT["TAM_REPORT<br/>TYPE = SFLOW<br/>REPORT_MODE = SAMPLING<br/>SAMPLE_RATE = 1-in-N"]
-    COL --> TRN["TAM_TRANSPORT<br/>UDP, DST_PORT = 6343"]
-    ORCH ==>|"binds TAM oid"| PORT["Sampled port<br/>SAI_PORT_ATTR_TAM_OBJECT"]
+    NR["NeighOrch / RouteOrch"] -->|"collector-facing port,<br/>next-hop MAC, src MAC"| ORCH
+    ORCH["HwSflow (SflowOrch, sonic-swss)"] ==>|creates| MS
+    subgraph MS["MIRROR_SESSION — TYPE = sFlow"]
+        direction LR
+        SMP["<b>Sampling</b><br/>rate = 1-in-N<br/>truncate size"]
+        ENC["<b>Encapsulation</b><br/>src/dst IP<br/>src/dst MAC<br/>UDP src/dst port"]
+        DLV["<b>Delivery</b><br/>collector-facing port<br/>(MONITOR_PORT)"]
+    end
+    ORCH ==>|"binds session"| PORT["Sampled port<br/>SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION"]
     PORT ==> WIRE(["Silicon emits sFlow v5 UDP<br/>datagrams to the collector"])
 ```
 
 Creation order:
 
-1. `create_tam_transport()`: UDP transport, destination port from
-   `SFLOW_COLLECTOR` (6343 by default).
-2. `create_tam_collector()`: source and destination IP and MAC, egress
-   destination, truncation size and DSCP, referencing the transport.
-3. `create_tam_report()`: `TYPE = SAI_TAM_REPORT_TYPE_SFLOW`,
-   `REPORT_MODE = SAI_TAM_REPORT_MODE_SAMPLING` and the configured 1-in-N
-   `SAMPLE_RATE`.
-4. `create_tam_tel_type()`: `TAM_TELEMETRY_TYPE = SAI_TAM_TELEMETRY_TYPE_FLOW`,
-   referencing the report.
-5. `create_tam_telemetry()`: joins the telemetry type to the collector.
-6. `create_tam()`: references the telemetry object and declares a port bind
-   point.
-7. `set_port_attribute(port, SAI_PORT_ATTR_TAM_OBJECT, [tam])` for every port
-   whose `SFLOW_SESSION` row is enabled.
+1. Resolve the collector against `NeighOrch` and `RouteOrch` to
+   obtain the collector-facing port, next-hop MAC and source MAC.
+2. `create_mirror_session()`: `TYPE = SAI_MIRROR_SESSION_TYPE_SFLOW`, the
+   collector-facing port as `MONITOR_PORT`, source and destination IP and MAC,
+   UDP source and destination port (6343 by default, from `SFLOW_COLLECTOR`),
+   the configured 1-in-N `SAMPLE_RATE` and `TRUNCATE_SIZE`.
+3. `set_port_attribute(port, SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION,
+   [session])` for every port whose `SFLOW_SESSION` row is enabled. Passing an
+   empty list unbinds the port.
 
-Teardown reverses that order. Two consequences:
+Teardown reverses that order: unbind every port, then remove the session. Two
+consequences for `SflowOrch` bookkeeping:
 
-- SONiC configures the sample rate per port but the rate lives on `TAM_REPORT`,
-  so one graph is created per (collector, sample rate) pair and shared by the
-  ports using it.
-- For a PortChannel the graph is bound to each member port, with
-  `SAI_TAM_COLLECTOR_ATTR_DESTINATION` set to the resolved port or LAG object;
-  member changes rebind.
+- SAI puts the sample rate on the session, but SONiC configures it per port.
+  Ports that share a collector and a rate share one session; a port with a
+  different rate needs its own session.
+- SAI binds sessions to physical ports only. Enabling sFlow on a PortChannel
+  binds every member port, and a membership change rebinds.
+
+Optionally, `MONITOR_PORT` can be set to a recirc port instead of a
+front-panel port. The datagram then takes a second pass through the pipeline
+and the FIB forwards it to the collector, so delivery follows route changes.
 
 #### 7.2 Collector resolution
 
 `HwSflow` resolves each collector address against `NeighOrch` and `RouteOrch`
-for the next-hop MAC, source MAC and egress port, and observes both so a
-neighbor or route change re-resolves it. The encapsulation source IP is the
-address of the interface named by `SFLOW|global:agent_id`, which is also the
-Agent Address carried in every emitted datagram.
+and re-resolves on any route or neighbor change. The result — collector-facing
+port, next-hop MAC, source MAC — is applied to the live session with
+`set_mirror_session_attribute()`; nothing is recreated. The encapsulation
+source IP is the address of the interface named by `SFLOW|global:agent_id`,
+which is also the Agent Address carried in every emitted datagram.
 
-Encapsulation and sample-rate changes recreate the affected TAM objects rather
-than editing them in place, since in-place attribute updates are not uniformly
-supported. Recreation costs a short sampling gap and restarts the datagram
-sequence number, so `HwSflow` coalesces changes over a short window (about
-100 ms) and reprograms once.
+A sample-rate change is also an attribute set, but a vendor SAI may implement
+it with a brief sampling pause and a datagram sequence-number reset, so
+`HwSflow` coalesces bursts of changes (about 100 ms) into one reprogram.
 
 #### 7.3 Serviceability and debug
 
@@ -159,11 +164,13 @@ sequence number, so `HwSflow` coalesces changes over a short window (about
 
 ### 8. SAI API
 
-No new SAI API is required. Every object and attribute in section 7.1 exists in
-SAI today; they are defined in
-[`inc/saitam.h`](https://github.com/opencomputeproject/SAI/blob/master/inc/saitam.h)
-and described in
-[SAI-Proposal-TAM2.0](https://github.com/opencomputeproject/SAI/blob/master/doc/TAM/SAI-Proposal-TAM2.0-v2.0.docx).
+No new SAI API is required. Every object and attribute used here exists in
+SAI today: `SAI_MIRROR_SESSION_TYPE_SFLOW` and the sFlow-conditional
+`UDP_SRC_PORT`/`UDP_DST_PORT` attributes are defined in
+[`inc/saimirror.h`](https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h),
+and the per-port binding attribute
+`SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION` in
+[`inc/saiport.h`](https://github.com/opencomputeproject/SAI/blob/master/inc/saiport.h).
 
 ### 9. Configuration and management
 
@@ -233,11 +240,14 @@ leaf mode {
 }
 ```
 
-`STATE_DB:SWITCH_CAPABILITY` gains one bit:
+`STATE_DB:SWITCH_CAPABILITY` gains one bit, sourced from
+`sai_query_attribute_enum_values_capability()` on
+`SAI_MIRROR_SESSION_ATTR_TYPE` (the platform is capable when the returned list
+contains `SAI_MIRROR_SESSION_TYPE_SFLOW`):
 
 ```json
 "SWITCH_CAPABILITY|switch": {
-    "TAM_SFLOW_CAPABLE": "true"
+    "HW_SFLOW_CAPABLE": "true"
 }
 ```
 
@@ -267,20 +277,19 @@ HW sFlow packet sampling should not be affected after a warm reboot.
 
 ### 11. Memory Consumption
 
-One TAM object graph of six objects per (collector, sample rate) pair, plus
-port-to-graph bookkeeping in `SflowOrch` and one STATE_DB row per collector.
-Nothing is allocated while `mode` is `cpu-path`.
+One mirror session per (collector, sample rate) pair, plus port-to-session
+bookkeeping in `SflowOrch` and one STATE_DB row per collector. Nothing is
+allocated while `mode` is `cpu-path`.
 
 ### 12. Restrictions/Limitations
 
-1. An encapsulation or sample-rate change recreates the TAM objects, costing a
-   brief sampling gap and a sequence-number reset, so collectors must tolerate
+1. A sample-rate change may pause sampling briefly and reset the datagram
+   sequence number, depending on the vendor SAI, so collectors must tolerate
    resets. Bursts coalesce into one reprogram.
-2. Concurrent collectors are bounded by platform TAM resources; those beyond
-   the limit are flagged in `SFLOW_COLLECTOR_STATE` while the rest keep running.
-3. PortChannel support binds each member port, since SAI has no LAG attribute
-   for TAM objects (section 14).
-4. Ports configured `sample_direction tx` or `both` are not programmed on the
+2. PortChannel support binds each member port, since
+   `SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION` is a port attribute with no
+   LAG-level equivalent.
+3. Ports configured `sample_direction tx` or `both` are not programmed on the
    hardware path and are logged at WARN.
 
 ### 13. Testing Requirements/Design
@@ -289,12 +298,12 @@ Nothing is allocated while `mode` is `cpu-path`.
 
 | # | Test |
 | :---- | :---- |
-| 1 | `TAM_SFLOW_CAPABLE` is published from the SAI capability query |
-| 2 | Default `mode=cpu-path` uses the CPU path and creates no TAM objects |
-| 3 | `mode=hw-accelerated` on a capable platform creates the six-object graph with expected attributes and binds it to enabled ports |
+| 1 | `HW_SFLOW_CAPABLE` is published from the SAI capability query |
+| 2 | Default `mode=cpu-path` uses the CPU path and creates no mirror session |
+| 3 | `mode=hw-accelerated` on a capable platform creates the mirror session with expected attributes and binds it to enabled ports |
 | 4 | `mode=hw-accelerated` on an incapable platform: config is retained, flow sampling stops (no CPU fallback), `SFLOW_STATE|global` reports non-operational with a reason, and a WARN is logged |
-| 5 | A neighbor or route change re-resolves and reprograms the collector; a burst collapses into one reprogram |
-| 6 | Two ports at the same sample rate share one graph; different rates get distinct graphs |
+| 5 | A neighbor or route change re-resolves and updates the session in place; a burst collapses into one reprogram |
+| 6 | Two ports at the same sample rate share one session; different rates get distinct sessions |
 | 7 | Bindings are removed on session delete; a mode change tears down one path before standing up the other |
 
 #### 13.2 System test cases
@@ -312,6 +321,7 @@ We will evaluate:
 
 ### 14. Open/Action items - if any
 
-- SAI has no LAG bind point or LAG destination attribute for TAM objects, so
-  PortChannel support binds each member port (section 12). A SAI enhancement
-  request to add one is worth raising.
+- SAI has no LAG-level equivalent of
+  `SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION`, so PortChannel support binds
+  each member port. A SAI enhancement request to add one is worth
+  raising.
