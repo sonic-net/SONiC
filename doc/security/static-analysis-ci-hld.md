@@ -956,93 +956,102 @@ Bookworm is not targeted, and cannot be: `sonic-gnmi`, `sonic-mgmt-common` and
 `sonic-mgmt-framework` all declare `go 1.24.4`, while `rules/sonic-fips.mk` pins bookworm to
 Go 1.19.8. Those repositories no longer build there.
 
-Five repositories still default their `debian_version` parameter to `bookworm`, and moving
-them is a **hard prerequisite**, sequenced into Phase 0. Four of the five already run trixie
-jobs alongside their bookworm ones, so for those the change removes a build configuration
-rather than adding one:
+Repositories therefore fall into three groups:
 
-| Repository | Work required |
-|---|---|
-| `sonic-swss` | Flip the default, retire the bookworm legs (3 trixie jobs already running) |
-| `sonic-swss-common` | Same |
-| `sonic-sairedis` | Same |
-| `sonic-dash-api` | Same |
-| `sonic-dbsyncd` | A real port — it hardcodes the bookworm image and has no trixie job |
+| Group | Repositories | Action |
+|---|---|---|
+| Already on trixie | `sonic-gnmi`, `sonic-mgmt-common`, `sonic-mgmt-framework`, `sonic-platform-daemons`, `sonic-snmpagent`, `dhcpmon` | None. These can adopt immediately, which is why the pilot is drawn from them. |
+| Parameterised, defaulting to bookworm | `sonic-swss`, `sonic-swss-common`, `sonic-sairedis`, `sonic-dash-api` | Flip the default and retire the bookworm legs. All four already run trixie jobs alongside their bookworm ones, so this removes a build configuration rather than adding one. |
+| Pinned to bookworm | `sonic-utilities`, `sonic-host-services`, `sonic-dash-ha`, `sonic-platform-common`, `linkmgrd`, `sonic-bmp`, `sonic-stp`, `dhcprelay`, `sonic-ztp`, `sonic-dbsyncd` | A genuine port. Each hardcodes `sonic-slave-bookworm` and has no trixie job. |
 
-`sonic-dbsyncd` is not in the pilot set, so it can land anywhere in Phase 0.
+This is Phase 2 work, not a precondition of the design. Its consequence for sequencing is
+that **Rust cannot be piloted** — every Rust repository is in the second or third group —
+and that C/C++ can only be piloted at `dhcpmon`'s 9-file scale. Both gaps close in Phase 3,
+which is what the fleet rollout is gated on.
+
+`sonic-utilities` appears in the third group but is unaffected for pilot purposes: its
+static analysis runs in a standalone stage on `sonic-ubuntu-1c` with no container, so the
+Python gate does not wait on its build job moving to trixie.
 
 #### 7.7 Rollout plan
 
 **Phase 0 — Foundation.**
-- **Prerequisite: move the five bookworm-defaulted pipelines to trixie.** `sonic-swss`,
-  `sonic-swss-common`, `sonic-sairedis`, and `sonic-dash-api` already carry working trixie
-  jobs, so this is a default flip plus retirement of the bookworm legs. `sonic-dbsyncd`
-  requires an actual trixie port. Detail and evidence in
-  [Section 7.6.1](#761-moving-the-remaining-pipelines-to-trixie). Nothing else in Phase 0 depends on this
-  landing first, but the pilot does.
 - Create `sonic-net/sonic-ci` with templates, configs, `severity.yml`, and `sonic-analyze`,
   including baseline mode, the fingerprint comparison, and local bootstrap of pinned tool
   versions.
 - Write the shared developer documentation and the per-repository README template that
-  Phase 2 adoption PRs fill in.
-- Add the five missing analyzer packages to `sonic-slave-trixie`.
-- Stand up `sonic-ci`'s own CI: templates are lint-checked, `sonic-analyze` is unit
-  tested, and the pinned tool versions are validated against the current slave image.
+  adoption PRs fill in.
+- Add the five analyzer packages to `sonic-slave-trixie`.
+- Stand up `sonic-ci`'s own CI: templates are lint-checked, `sonic-analyze` is unit tested,
+  and the pinned tool versions are validated against the current slave image.
 - Tag `v1.0.0`.
 
-**Phase 1 — Pilot (3 repositories, one per integration shape).**
+**Phase 1 — Pilot.** Three repositories, chosen because each already runs on trixie and so
+carries no dependency on the migration in Phase 2.
 
-| Repository | Exercises |
-|------------|-----------|
-| `sonic-utilities` | Python `Pretest` stage; replaces the existing non-blocking `flake8` pre-commit hook. Measured hard-gate backlog: **116**. |
-| `sonic-swss` | C/C++ `clang-tidy` **and** Rust `clippy` steps inside one build job — the most complex case. Measured Python hard-gate backlog: 72. |
-| `sonic-gnmi` | Go `golangci-lint` steps inside the build job, alongside the retained `gofmt` gate. |
+| Repository | Exercises | Note |
+|---|---|---|
+| `sonic-utilities` | Python and shell in a standalone stage | Its analysis stage runs on `sonic-ubuntu-1c` with no container, so the slave image is not involved. Replaces the existing non-blocking `flake8` hook. Measured hard-gate backlog: **116**. |
+| `sonic-gnmi` | Go inside the existing build job | Already runs `sonic-slave-trixie`. Also validates the tuned `golangci-lint` configuration against the noise measured in [7.4.4](#744-go--golangci-lint). |
+| `dhcpmon` | C/C++ inside the existing build job | Already runs `sonic-slave-trixie` and needs no migration. Small (9 files), so it proves that `bear` plus `clang-tidy` works inside an existing build job — not what it costs at scale. |
 
-Each pilot repository also has its target-branch baseline job enabled and publishing before
-its PR gate is turned on, and a weekly schedule added if it does not already have one.
+Exit criteria: each pilot pipeline is green with the hard-gate rules enforced; each has its
+baseline job publishing and its README section written; and the advisory findings baseline
+is published for each.
 
-The pilot's exit criteria are: each pilot repository's pipeline is green with the
-hard-gate rules enforced; the `bear` + `clang-tidy` wall-clock and peak-RSS deltas on
-`sonic-swss` are measured and recorded in this document against the R11 budget and
-[Section 11](#11-memory-consumption); and the advisory findings baseline is published for
-each pilot repository. Phase 2 does not begin until all three are met.
+**What Phase 1 deliberately does not cover.** Rust is not piloted, because no Rust
+repository currently runs on trixie — `sonic-swss` and `sonic-swss-common` are awaiting the
+Phase 2 migration, and `sonic-host-services` and `sonic-dash-ha` are on bookworm. C/C++ is
+exercised only at 9-file scale, so the wall-clock and peak-RSS figures that R11 and
+[Section 11](#11-memory-consumption) depend on are **not** produced here. Both gaps close in
+Phase 3, and the fleet rollout is gated on that rather than on Phase 1.
 
-**Phase 2 — Fleet.** One PR per remaining in-scope repository. Each one adds the ~10-line
+**Phase 2 — Move the remaining pipelines to trixie.** Five repositories default their
+`debian_version` parameter to `bookworm`: `sonic-swss`, `sonic-swss-common`,
+`sonic-sairedis`, `sonic-dbsyncd`, and `sonic-dash-api`. Four already run trixie jobs
+alongside their bookworm ones, so for those the change retires a build configuration rather
+than adding one; `sonic-dbsyncd` is a genuine port. A further set of repositories —
+including `sonic-host-services`, `sonic-dash-ha`, `linkmgrd`, `sonic-bmp`, `sonic-stp` and
+`dhcprelay` — pin `sonic-slave-bookworm` directly and move in the same phase. Detail in
+[Section 7.6.1](#761-moving-the-remaining-pipelines-to-trixie).
+
+**Phase 3 — C/C++ and Rust at scale.** `sonic-swss` adopts, exercising the most complex
+case: `clang-tidy` over 564 C/C++ files and `clippy` over 34 Rust files, both inside a
+single build job. This phase produces the measurements Phase 1 could not — the `bear` plus
+`clang-tidy` wall-clock and peak-RSS deltas, recorded in this document against the R11
+budget. **Phase 4 does not begin until they are recorded and within budget.**
+
+**Phase 4 — Fleet.** One PR per remaining in-scope repository. Each adds the ~10-line
 `sonic-ci` reference, clears that repository's hard-gate backlog, and adds the local-usage
-section to that repository's `README.md` ([Section 7.9](#79-running-the-analyzers-locally)).
-A repository is not adopted until all three are done. Measured
-backlogs are small enough to make this tractable — `sonic-platform-common` 23,
-`sonic-platform-daemons` 38, `sonic-host-services` 15, `sonic-snmpagent` 12,
-`sonic-ztp` 10.
+section to its `README.md` ([Section 7.9](#79-running-the-analyzers-locally)). A repository
+is not adopted until all three are done. Measured backlogs make this tractable —
+`sonic-platform-common` 23, `sonic-platform-daemons` 38, `sonic-host-services` 15,
+`sonic-snmpagent` 12, `sonic-ztp` 10.
 
-`sonic-buildimage` itself is sequenced last within phase 2, because it carries the
-largest surface and depends on the Python 2 removal below.
+`sonic-buildimage` itself is sequenced last, because it carries the largest surface and
+depends on the Python 2 removal below.
 
-**Repositories that cannot clear their backlog.** A repository adopts `sonic-ci` on
-schedule regardless. If its hard-gate backlog is not cleared by then, the unresolved
-checks are recorded as a repository-scoped exclusion in its `sonic-ci` reference, with a
-named owner and a target release, and the gate is enforced for every other check. The
-repository is never left un-onboarded, and the exclusion is visible in the repository's
-own configuration rather than tracked out of band. Exclusions are reviewed at each release
-cut; the list may only shrink, which is the same discipline applied to the Python 2
-removal.
+**Repositories that cannot clear their backlog.** A repository adopts on schedule
+regardless. Anything uncleared is recorded as a repository-scoped exclusion in its
+`sonic-ci` reference, with a named owner and a target release, and the gate is enforced for
+every other check. The exclusion lives in the repository's own configuration rather than a
+tracker, is reviewed at each release cut, and may only shrink.
 
-**Phase 3 — Python 2 removal.** The 56 in-tree Python 2 files listed in
+**Phase 5 — Python 2 removal.** The 56 in-tree Python 2 files listed in
 [Appendix B](#appendix-b-python-2-files-proposed-for-removal) are proposed for **deletion**.
 
-The rationale is that these files are already non-functional. SONiC has shipped Python 3
-only since the 202012 release. A file containing `print e` or `except IOError, e:` raises
-`SyntaxError` at import time on any supported image — it cannot have worked at any point
-in the last several years, and no test exercises it. They are not a lint backlog; they are
-dead code that a linter happens to have found.
+These files are already non-functional. SONiC has shipped Python 3 only since the 202012
+release, and a file containing `print e` or `except IOError, e:` raises `SyntaxError` at
+import on any supported image. They cannot have worked in years, and no test exercises
+them. They are not a lint backlog; they are dead code a linter happened to find.
 
 **Process.** Removal follows the precedent SONiC already uses for retiring platform
 support: an ordinary pull request. `sonic-buildimage` commit `df1163e4`
 (*[cavium]: Remove support for cavium platform*, #21476, January 2025) removed an entire
 platform — its `device/` tree, its `platform/` sources, and its README entry — in a single
 PR from a vendor engineer, with no mailing-list announcement, deprecation notice, or
-waiting period. SONiC has no documented deprecation process, and inventing one for this
-change would hold it to a higher bar than the removal of a whole working platform.
+waiting period. SONiC has no documented deprecation process, and inventing one here would
+hold dead code to a higher bar than the removal of a whole working platform.
 
 Accordingly:
 
@@ -1061,7 +1070,7 @@ Netberg (2), Dell (2), Broadcom XLR-GTS (1).
 Removing these files takes `sonic-buildimage`'s hard-gate backlog from 1,494 findings to
 **525**, and is a prerequisite for enabling the Python gate there.
 
-**Phase 4 — Promotion.** With the fleet reporting advisory findings, the community
+**Phase 6 — Promotion.** With the fleet reporting advisory findings, the community
 promotes advisory rules to gating by editing `severity.yml` and bumping the `sonic-ci`
 tag. The obvious first candidate is `ruff`'s `W605` (invalid escape sequence, 659
 occurrences), which a future Python release turns into a hard error; moving it from
@@ -1308,7 +1317,7 @@ Within `sonic-buildimage`:
 | ST1 | A PR to a pilot repository introducing a planted `F821` fails the pipeline, and the failure names the file, line, and rule. |
 | ST2 | A PR introducing only an advisory-level finding passes, and the finding appears in the published pipeline output. |
 | ST3 | The pipeline of each pilot repository is green on an unmodified `master` with the hard-gate rules enforced. |
-| ST4 | Measured wall-clock delta per pilot repository is within the R11 budget. Recorded in this document before phase 2 begins. |
+| ST4 | The `sonic-swss` wall-clock and peak-RSS deltas from Phase 3 are within the R11 budget and recorded in this document before Phase 4 begins. |
 | ST5 | A `sonic-ci` tag bump that promotes an advisory rule to gating changes the result of an otherwise identical PR — proving the manifest is the effective control point. |
 | ST6 | `sonic-analyze` run on a developer workstation reproduces the CI finding set for the same commit, having bootstrapped the pinned tool versions itself (R6). |
 | ST10 | Every adopted repository's `README.md` contains a local-usage section naming the commands for the languages that repository actually contains, and those commands run successfully in a clean checkout (R6a). |
