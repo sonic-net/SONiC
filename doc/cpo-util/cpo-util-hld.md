@@ -32,6 +32,7 @@
 | Rev | Date       | Author | Change Description                                      |
 | --- | ---------- | ------ | ------------------------------------------------------- |
 | 1.0 | 2026-08-03 | Junchao Chen | Base version — Phase 1 (firmware command group)         |
+| 1.1 | 2026-08-14 | Junchao Chen | Add `--raw` for download/upgrade (skip Parsing/Matching) |
 
 ### 2. Scope
 
@@ -53,7 +54,7 @@ Compared with the `sfputil firmware` command group, the scope of subcommands is 
 Key points:
 
 - New top-level utility `cpoutil`, installed with `sonic-utilities`, following the Platform API dispatch pattern of `sfputil`, `fwutil`, and `psuutil`.
-- Firmware lifecycle (`upgrade`, `download`, `run`, `commit`) for OE and ELS on CPO-capable logical ports, driven by OIF Firmware Update Packages.
+- Firmware lifecycle (`upgrade`, `download`, `run`, `commit`) for OE and ELS on CPO-capable logical ports, driven by OIF Firmware Update Packages, or by a raw firmware binary via `--raw`.
 - Vendor-neutral CLI + pipeline in `sonic-utilities` / `sonic-platform-common`; all hardware topology and non-standard orchestration confined to the vendor platform API.
 - No SAI, SDK, orchagent, or Config DB changes are required.
 
@@ -79,7 +80,7 @@ Key points:
 
 `cpoutil` is a new SONiC top-level utility that manages firmware for OE and ELS. OE and ELS may come from different vendors, carry independent firmware banks, and must be matched independently against an OIF Firmware Update Package. `cpoutil` provides an `sfputil`-shaped CLI scoped by **logical port** (`Ethernet100`, ranges, lists, or `all`).
 
-An operator needs to update the firmware of CPO optical components on a CPO-capable SONiC switch, using a multi-vendor OIF Firmware Update Package, without manual per-vendor knowledge of image selection or hardware topology. Representative flows:
+An operator needs to update the firmware of CPO optical components on a CPO-capable SONiC switch. With an OIF Firmware Update Package, `cpoutil` selects the matching image automatically without requiring per-vendor knowledge of image selection or hardware topology. With `--raw`, the operator supplies a raw firmware binary and is responsible for ensuring it matches the selected component (`--component oe|els`). Representative flows:
 
 - Full end-to-end upgrade of OE and ELS on a single port:
   `cpoutil firmware upgrade Ethernet100 release.tgz`
@@ -87,6 +88,8 @@ An operator needs to update the firmware of CPO optical components on a CPO-capa
   `cpoutil firmware upgrade all release.tgz`
 - Multi-ports upgrade for ELS only:
   `cpoutil firmware upgrade Ethernet0,Ethernet16-100 release.tgz --component els`
+- Raw-binary upgrade of OE (skips Parsing and Matching):
+  `cpoutil firmware upgrade Ethernet100 --raw oe.bin --component oe`
 - Staged (multi-step) lifecycle for maintenance windows of OE:
   - `cpoutil firmware download Ethernet0 release.tgz --component oe`
   - `cpoutil firmware run Ethernet0 --component oe`
@@ -106,9 +109,10 @@ An operator needs to update the firmware of CPO optical components on a CPO-capa
 | REQ-6 | Stage (FW operations) delegates to the Platform API. A default CMIS CDB lifecycle (download -> run -> commit) is implemented in `sonic-platform-common` for OE and ELS targets that support the reference sequence. |
 | REQ-7 | Vendor platform API MAY override Stage 4 when default behavior is insufficient. Overrides SHALL NOT replace OIF parsing, matching funnel rules, or CLI port/component scope. |
 | REQ-8 | FW operations introduced by `cpoutil` SHALL NOT require changes to SAI, SDK, orchagent, or Config DB state. |
-| REQ-9 | `cpoutil firmware upgrade` executes the full four-stage pipeline. `download`, `run`, `commit` execute the defined subsets. |
+| REQ-9 | `cpoutil firmware upgrade` with an OIF package executes the full four-stage pipeline. With `--raw`, Parsing and Matching are skipped. `download`, `run`, and `commit` execute the defined subsets. |
 | REQ-10 | Package-driven subcommands accept OIF Firmware Update Packages [1] only. Parsing, matching, and optional checksum verification complete in `cpoutil` before FW execution is delegated to the Platform API. |
 | REQ-11 | A single OIF package MAY contain multiple metadata + binary image pairs. `cpoutil` ingests all pairs at parse time and selects at most one load per runtime target at match time — by ComponentClass, VendorName, and optional CMIS match attributes — with no platform-specific pre-filter. Supports composite modules (multiple FW-bearing sub-components) and superset packages (unused entries: SKIPPED with warning on upgrade; fatal on download only when the scoped target has no match). |
+| REQ-12 | `download` and `upgrade` MAY accept `--raw <fw.bin>` instead of an OIF package. `--raw` and the OIF package argument are mutually exclusive. When `--raw` is used, Parsing and Matching are skipped; Discovery still runs; `--component oe\|els` is required (not `all`). The same raw binary is applied to every discovered target in scope. |
 
 #### 5.2 Configuration and Management Requirements
 
@@ -186,15 +190,18 @@ No changes to SWSS, syncd, SAI, SDK, orchagent, or Redis DB schemas.
 
 - **Stages (Discovery, Parsing, Matching)** are vendor-neutral logic in `sonic-utilities`.
 - **Stage (FW operations)** executes through the Platform API — a default CMIS CDB firmware path in `sonic-platform-common`; vendor overrides in the platform API are optional and used only where the standard flow is insufficient.
+- With `--raw`, Parsing and Matching are skipped: Discovery resolves targets, then Stage 4 uses the operator-supplied raw binary path for each discovered component.
 
 **Subcommand flow:**
 
 | Subcommand | Discover -> | Parsing -> | Matching -> | FW ops |
 | --- | --- | --- | --- | --- |
-| download | Yes | Yes | Yes | Download only |
+| download (OIF package) | Yes | Yes | Yes | Download only |
+| download (`--raw`) | Yes | - | - | Download only |
 | run | Yes | - | - | Run only |
 | commit | Yes | - | - | Commit only |
-| upgrade | Yes | Yes | Yes | Full cycle |
+| upgrade (OIF package) | Yes | Yes | Yes | Full cycle |
+| upgrade (`--raw`) | Yes | - | - | Full cycle |
 
 ##### 7.4.1 Stage — Discovery
 
@@ -215,7 +222,7 @@ discover_entry {
 
 ##### 7.4.2 Stage — Parsing
 
-Ingest an OIF Firmware Update Package (`.tgz`) into parsing entries.
+Ingest an OIF Firmware Update Package (`.tgz`) into parsing entries. **This stage is skipped when `--raw` is used**.
 
 ![parsing-flow](./parsing-flow.svg)
 
@@ -380,7 +387,7 @@ Firmware Metadata Files example 2 — a list of YAML mappings:
 
 ##### 7.4.3 Stage — Matching
 
-For each `discover_entry`, select zero or one `parsing_entry` and generate a `plan_entry`.
+For each `discover_entry`, select zero or one `parsing_entry` and generate a `plan_entry`. **This stage is skipped when `--raw` is used**; instead, `cpoutil` builds one `plan_entry` per `discover_entry` with `matching_decision` set to the operator-supplied raw binary path.
 
 ![matching-flow](./matching-flow.svg)
 
@@ -437,11 +444,15 @@ Phase 2 (placeholders — out of scope this version):
 `firmware` command surface:
 
 ```
-cpoutil firmware upgrade  <port_sel>|all  <package.tgz>  [--component oe|els|all]
-cpoutil firmware download <port_sel>    <package.tgz>  --component oe|els
-cpoutil firmware run      <port_sel>                   --component oe|els
-cpoutil firmware commit   <port_sel>                   --component oe|els
+cpoutil firmware upgrade  <port_sel>|all  <package.tgz>           [--component oe|els|all]
+cpoutil firmware upgrade  <port_sel>|all  --raw <fw.bin>          --component oe|els
+cpoutil firmware download <port_sel>      <package.tgz>           --component oe|els
+cpoutil firmware download <port_sel>      --raw <fw.bin>          --component oe|els
+cpoutil firmware run      <port_sel>                              --component oe|els
+cpoutil firmware commit   <port_sel>                              --component oe|els
 ```
+
+`<package.tgz>` and `--raw <fw.bin>` are mutually exclusive on `upgrade` and `download`. Exactly one of them SHALL be provided.
 
 `<port_sel>` grammar (per [2], §7.5.1.1):
 
@@ -463,16 +474,25 @@ Port scope rules:
 `--component` grammar:
 
 ```
-upgrade:               oe | els | all   (default: all)
-download/run/commit:   oe | els         (required; must resolve to exactly one target)
+upgrade (OIF package):     oe | els | all   (default: all)
+upgrade (--raw):           oe | els         (required)
+download/run/commit:       oe | els         (required; must resolve to exactly one target)
 ```
+
+`--raw` rules:
+
+- Available on `upgrade` and `download` only.
+- Mutually exclusive with the OIF package argument.
+- Supplies a single raw firmware binary for OE or ELS; Parsing and Matching are skipped.
+- `--component oe|els` is mandatory; `all` is not allowed (one binary cannot target both component classes).
+- The same raw binary path is applied to every discovered target in the operator scope.
 
 Subcommand matrix:
 
-| Subcommand | `<port_sel>` | `--component` | `<package>` |
+| Subcommand | `<port_sel>` | `--component` | Firmware input |
 | --- | --- | --- | --- |
-| `upgrade` | Required: single, range, list, all; | Optional; default `all` | Required |
-| `download` | Single port only | Required (`oe`\|`els`) | Required |
+| `upgrade` | Required: single, range, list, all | Optional with package (default `all`); required (`oe`\|`els`) with `--raw` | Exactly one of: `<package.tgz>` or `--raw <fw.bin>` |
+| `download` | Single port only | Required (`oe`\|`els`) | Exactly one of: `<package.tgz>` or `--raw <fw.bin>` |
 | `run` | Single port only | Required (`oe`\|`els`) | — |
 | `commit` | Single port only | Required (`oe`\|`els`) | — |
 
@@ -494,8 +514,14 @@ cpoutil firmware upgrade Ethernet0 release.tgz --component els
 # All CPO-capable logical ports
 cpoutil firmware upgrade all release.tgz
 
+# Raw-binary upgrade of OE (skips Parsing and Matching)
+cpoutil firmware upgrade Ethernet100 --raw oe.bin --component oe
+
 # Stage OE firmware to inactive bank (no run/commit)
 cpoutil firmware download Ethernet0 release.tgz --component oe
+
+# Stage ELS firmware from a raw binary
+cpoutil firmware download Ethernet0 --raw els.bin --component els
 
 # Activate staged ELS firmware
 cpoutil firmware run Ethernet0 --component els
@@ -609,7 +635,7 @@ def get_fw_ops_match_attrs(self, fields: list[str]) -> dict[str, object]:
 
 #### 7.7 Error handling
 
-Firmware execution is delegated only after `cpoutil` completes parsing, matching, and optional checksum verification. Failures are isolated per component; a failed ELS does not roll back a successful OE. The CLI reports status per internal component identity. Fatal conditions yield a non-zero exit; per-target warnings do not mask fatal errors.
+Firmware execution is delegated only after `cpoutil` completes Discovery and, for the OIF package path, Parsing, Matching, and optional checksum verification. With `--raw`, Parsing and Matching are skipped; the operator-supplied binary path is used directly. Failures are isolated per component; a failed ELS does not roll back a successful OE. The CLI reports status per internal component identity. Fatal conditions yield a non-zero exit; per-target warnings do not mask fatal errors.
 
 **Frontend (CLI):**
 
@@ -618,7 +644,11 @@ Firmware execution is delegated only after `cpoutil` completes parsing, matching
 | Range/list/all on download/run/commit | CLI parse | Fatal ("single port required") |
 | Invalid / unknown logical port | Port scope validation | Fatal (invalid logical port name) |
 | Logical port not CPO-capable | Port scope validation | Fatal (invalid logical port name) |
-| `<package>` omitted on download or upgrade | CLI parse | Fatal |
+| Neither `<package>` nor `--raw` on download or upgrade | CLI parse | Fatal |
+| Both `<package>` and `--raw` provided | CLI parse | Fatal (mutually exclusive) |
+| `--raw` used without `--component oe\|els` | CLI parse | Fatal |
+| `--raw` with `--component all` | CLI parse | Fatal |
+| `--raw` file missing or unreadable | CLI parse / validation | Fatal |
 | `--component` omitted on download/run/commit | CLI parse | Fatal |
 | `--component` matches 0 targets | Port scope validation | Fatal |
 | `--component` matches >1 on download/run/commit | Port scope validation | Fatal ("ambiguous") |
@@ -658,7 +688,7 @@ Firmware operations report progress and outcomes per logical port and component.
 #### 7.9 Security considerations
 
 - `cpoutil` adds a host CLI invoked locally by an operator with existing host privileges. There is no new network-facing API.
-- Firmware image trust is enforced by optional OIF checksum verification (SHA-256/512) before CMIS transfer, and by the module's own integrity/applicability/secure-boot checks after download.
+- Firmware image trust for the OIF package path is enforced by optional OIF checksum verification (SHA-256/512) before CMIS transfer, and by the module's own integrity/applicability/secure-boot checks after download. The `--raw` path has no package metadata checksum; the operator is responsible for supplying the correct binary, and module-side checks still apply after download.
 - No new sensitive information is stored on the device. Firmware binaries are opaque vendor images supplied by the operator.
 - No new third-party runtime dependency. The CLI uses Python stdlib (`argparse`, `tarfile`, `hashlib`) plus the YAML parsing already available in `sonic-utilities`.
 
@@ -698,7 +728,7 @@ No persistent daemon and no growing memory consumption. `cpoutil` is a short-liv
 | --- | --- | --- |
 | LIM-1 | CPO-capable ports only | `<port_sel>` must resolve to ports mapped by the chassis to a CPO module; non-CPO `Ethernet*` names are rejected. |
 | LIM-2 | Phase 1 scope | Only the `firmware` command group is delivered. `show`/`debug`/`reset`/`version` are Phase 2 placeholders, not specified here. |
-| LIM-3 | OIF packages only | Package-driven subcommands accept OIF `.tgz` packages only; no legacy-host / raw-binary fallback (OIF Scenario 1 advanced-host path only). |
+| LIM-3 | Firmware input | Package path accepts OIF `.tgz` packages only (OIF Scenario 1 advanced-host path). Alternatively, `--raw <fw.bin>` supplies a single raw OE or ELS binary and skips Parsing/Matching; there is no automatic image selection or metadata validation on the raw path. |
 
 ### 13. Testing Requirements/Design
 
@@ -717,6 +747,9 @@ Vendor-neutral unit tests (filesystem input + in-memory / mock chassis targets):
 - Verify OIF package parsing should output expected data.
 - Verify malformed OIF package is rejected with informative error output.
 - Verify FW Load checksum validation is properly performed.
+- Verify `--raw` and `<package>` are mutually exclusive and rejected when both or neither are provided on download/upgrade.
+- Verify `--raw` requires `--component oe|els` and rejects `--component all` / omitted `--component`.
+- Verify `--raw` skips Parsing and Matching and applies the binary to discovered targets.
 - Verify match missing is properly handled.
 - Verify tie-break behavior is expected: highest `FwLoadVersion`, else user confirm.
 - Verify runtime match attrs with regular expressions works as expected.
@@ -726,6 +759,7 @@ Vendor-neutral unit tests (filesystem input + in-memory / mock chassis targets):
 End-to-end on a CPO-capable switch image (lab / HIL):
 
 - Full single-port OE+ELS upgrade completes all four pipeline stages.
+- Raw-binary `upgrade`/`download` with `--raw` skips Parsing/Matching and updates only the selected `--component`.
 - Stepwise `download → run → commit` per component reflects correct bank state on module.
 - `--component oe`/`els` updates only that domain.
 - `sfputil show eeprom` (or equivalent read) succeeds during/after upgrade.
