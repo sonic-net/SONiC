@@ -26,6 +26,7 @@
     - [7.4.3 Rust — `clippy`](#743-rust--clippy)
     - [7.4.4 Go — `golangci-lint`](#744-go--golangci-lint)
     - [7.4.5 Shell — `shellcheck`](#745-shell--shellcheck)
+    - [7.4.6 Existing lint configuration: what is kept, changed, and dropped](#746-existing-lint-configuration-what-is-kept-changed-and-dropped)
   - [7.5 Suppressions (R7)](#75-suppressions-r7)
   - [7.6 Build dependency](#76-build-dependency)
     - [7.6.1 Moving the remaining pipelines to trixie](#761-moving-the-remaining-pipelines-to-trixie)
@@ -454,6 +455,17 @@ go:
     - revive
   advisory: all
 
+hygiene:                  # shared pre-commit set, see 7.4.6
+  tool: pre-commit
+  gate: [trailing-whitespace, mixed-line-ending, check-merge-conflict,
+         fix-byte-order-marker, check-symlinks, check-executables-have-shebangs,
+         check-yaml, check-json, check-toml, check-xml,
+         detect-private-key, actionlint]
+
+format:
+  tool: cargo-fmt
+  gate: all               # formatting is applied or it is not
+
 shell:
   tool: shellcheck
   gate: [error]
@@ -511,22 +523,50 @@ reported.
 
 **Fingerprinting.**
 
-Findings must survive line-number shifts, or every insertion above a finding makes
-everything below it look new. Each finding is keyed as:
+Comparing findings by file and line number does not work: inserting a line at the top of a
+file makes every finding below it look new. Findings are therefore keyed by content, not
+position.
+
+Each finding's fingerprint is:
 
 ```
-(repo-relative path, ruleId, sha1(stripped source line), nth-occurrence-of-that-key)
+path | ruleId | sha1(source line, leading and trailing whitespace stripped) | occurrence
 ```
 
-**The fingerprint must be computed at analysis time**, against the tree as it was
-analyzed. It cannot be reconstructed later from stored line numbers, because those
-line numbers no longer address the same source. `sonic-analyze` therefore emits
-fingerprints alongside findings, and the baseline artifact stores fingerprints, not
+where `path` is repo-relative, the hashed line is the finding's **primary** location
+(multi-line findings and findings with attached note chains use the primary line only), and
+`occurrence` disambiguates repeats: the *n*th finding in that file sharing the same
+`path|ruleId|hash`. Findings that have no meaningful source line — file-level diagnostics —
+hash the empty string and rely on the occurrence counter alone.
+
+**The fingerprint must be computed during analysis**, against the tree as analysed. It
+cannot be reconstructed afterwards from stored line numbers, because by then those numbers
+address different source. The baseline artifact therefore stores fingerprints, never
 locations.
 
-Validated on a file with four pre-existing findings: inserting 20 lines above them and
-introducing one genuine new defect yields exactly **one** new fingerprint, with the four
-pre-existing findings correctly matched despite every line number having shifted.
+Where the same header is analysed through several source files, `clang-tidy` reports the
+same finding more than once. Identical fingerprints are collapsed before comparison, so a
+header defect counts once regardless of how many files include it.
+
+Behaviour was verified against `ruff`, with these results:
+
+| Change | Fingerprints reported new | |
+|---|---|---|
+| 20 lines inserted above four existing findings | 0 | position-independent, as intended |
+| Line re-indented and shifted (wrapped in `try:`) | 0 | stripping absorbs indentation changes |
+| One of four *identical* findings deleted | 0 | occurrence counter renumbers within the set |
+| A genuinely new defect added | 1 | the case that must be caught |
+
+Two consequences follow from keying on line content, both intentional:
+
+- **Editing a line that carried a finding re-reports it as new**, because its hash changes.
+  A pull request that touches the line takes ownership of the finding on it.
+- **Identical findings within one file are tracked by count, not identity.** Deleting one
+  and adding an identical one elsewhere in the same file nets to no change — which is the
+  right answer, since the defect count for that rule and that line of code is unchanged.
+
+Renames are handled separately: `sonic-analyze` applies `git diff -M` rename detection to
+remap paths before comparing, so moving a file does not invalidate every fingerprint in it.
 
 **Producing the baseline.**
 
@@ -704,8 +744,10 @@ clean up outright — 34, 26, 79 and 1 `.rs` files in `sonic-swss`, `sonic-swss-
 `sonic-dash-ha` and `sonic-host-services` — and it is the newest code in the tree, so it is
 the cheapest moment to set the bar.
 
-Runs as a step before `cargo build`, sharing the same `target/` directory, so the work is
-not repeated.
+`cargo fmt --check` runs alongside it, gating — formatting is either applied or it is not.
+
+Both run as steps before `cargo build`, sharing the same `target/` directory, so the work
+is not repeated.
 
 ##### 7.4.4 Go — `golangci-lint`
 
@@ -733,6 +775,64 @@ excluded. `sonic-gnmi`'s existing `gofmt` check in its `Makefile` is left alone.
 analysis: `error` blocks anywhere, `warning` blocks only if the PR introduces it, and
 `info`/`style` are advisory. The surface is 460 `.sh` files in `sonic-buildimage` plus
 ~60 across the submodules.
+
+##### 7.4.6 Existing lint configuration: what is kept, changed, and dropped
+
+Three repositories already run something. Replacing those tools changes behaviour, so each
+is accounted for here rather than silently superseded.
+
+**`sonic-utilities` — flake8.** Runs `flake8` 4.0.1 from a pre-commit hook with
+`--max-line-length=120`, diff-scoped as `git diff HEAD^ HEAD -U0 | flake8 --diff`. Replaced
+by `ruff`, preserving its configuration:
+
+| Setting | Disposition |
+|---|---|
+| `--max-line-length=120` | **Kept.** `sonic-ci`'s `ruff.toml` sets `line-length = 120`. `ruff`'s own default is 88, so leaving this unset would flag thousands of conforming lines. |
+| Default ignore set `E121,E123,E126,E226,E24,E704` | **Kept**, carried into `ruff.toml` verbatim. |
+| Default ignore `W503,W504` | **Dropped, no effect.** `ruff` does not implement these deprecated line-break rules, so ignoring them is a no-op. |
+| Default select `E,W,F` | **Kept and extended.** `ruff` adds `B`, `SIM`, `UP`, `I` and others in the regression-only scope. |
+| `C90` (mccabe complexity) | **Dropped.** flake8 only applies it when `--max-complexity` is set, which this config does not, so it was never active. |
+
+One behaviour is deliberately **not** preserved. The existing hook diffs `HEAD^ HEAD` — the
+last commit only — so on a multi-commit pull request it lints just the final commit and
+everything earlier goes unchecked. Baseline comparison covers the whole pull request, so
+this stops being a way to slip changes past the check.
+
+**`sonic-mgmt-framework` — pylint.** `CLI/Makefile`'s default target runs
+`tools/test/pylint.sh`, which starts from `--disable=all` and enables eleven checks. This
+keeps running unchanged — it is a build target, not a CI step, and removing it is outside
+this design. Ten of the eleven have `ruff` equivalents that will now also apply fleet-wide:
+
+| pylint | `ruff` |
+|---|---|
+| `W0611` unused-import | `F401` |
+| `W0612` unused-variable | `F841` |
+| `W0102` dangerous-default-value | `B006` |
+| `W0703` broad-except | `BLE001` |
+| `W0311` bad-indentation | `E111` / `E117` |
+| `C1001` old-style-class | `UP004` (moot under Python 3) |
+| `R0911/0912/0914/0915` too-many-* | `PLR0911/0912/0914/0915` |
+| `W0621` redefined-outer-name | *no equivalent* — remains pylint-only in this repository |
+
+**`sonic-dash-ha` — pre-commit.** The richest existing configuration, and it covers ground
+this design otherwise misses: file hygiene (`trailing-whitespace`, `mixed-line-ending`,
+`check-merge-conflict`, `fix-byte-order-marker`, `check-symlinks`,
+`check-executables-have-shebangs`), config-file validity (`check-yaml`, `check-json`,
+`check-toml`, `check-xml`), `detect-private-key`, `actionlint` for GitHub Actions
+workflows, and `cargo fmt`.
+
+These are worth having everywhere, not just in one repository, and they are cheap — no
+build, no compiler, milliseconds per file. `sonic-ci` therefore publishes the same set as a
+shared pre-commit configuration that any repository can reference in a few lines, and adds
+two entries to `severity.yml`:
+
+- **`hygiene`** — the file and config-validity hooks above, plus `detect-private-key` and
+  `actionlint`. All gating; these have no meaningful backlog and no judgement calls.
+- **`format`** — `cargo fmt --check` for Rust. Gating, for the same reason: formatting is
+  either applied or it is not.
+
+`sonic-dash-ha` keeps its own `.pre-commit-config.yaml`; the shared set is the same content
+made available to everyone else.
 
 #### 7.5 Suppressions (R7)
 
