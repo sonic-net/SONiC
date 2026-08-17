@@ -33,7 +33,7 @@
     - [7.5.6 Existing lint configuration: what is kept, changed, and dropped](#756-existing-lint-configuration-what-is-kept-changed-and-dropped)
   - [7.6 Suppressions (R7)](#76-suppressions-r7)
   - [7.7 Build dependency](#77-build-dependency)
-    - [7.7.1 Moving the remaining pipelines to trixie](#771-moving-the-remaining-pipelines-to-trixie)
+    - [7.7.1 Trixie, and what actually blocks adoption](#771-trixie-and-what-actually-blocks-adoption)
   - [7.8 Rollout plan](#78-rollout-plan)
   - [7.9 Items explicitly not changed](#79-items-explicitly-not-changed)
   - [7.10 Running the analyzers locally](#710-running-the-analyzers-locally)
@@ -956,28 +956,50 @@ family glob (`bugprone-*`) wherever a whole family is wanted, and individually n
 in `severity.yml` are validated against `clang-tidy --list-checks` by test UT1 — so a check
 that disappears in a future LLVM fails `sonic-ci`'s CI instead of quietly ceasing to gate.
 
-##### 7.7.1 Moving the remaining pipelines to trixie
+##### 7.7.1 Trixie, and what actually blocks adoption
 
 Bookworm is not targeted, and cannot be: `sonic-gnmi`, `sonic-mgmt-common` and
 `sonic-mgmt-framework` all declare `go 1.24.4`, while `rules/sonic-fips.mk` pins bookworm to
 Go 1.19.8. Those repositories no longer build there.
 
-Repositories therefore fall into three groups:
+It is worth separating three things that are easily conflated, because only the last one is
+disruptive:
 
-| Group | Repositories | Action |
+| Action | Blocked by |
+|---|---|
+| **Attach the gate to an existing trixie job** | Nothing, if the repository already runs one |
+| **Flip the `debian_version` default** | Nothing, as long as the bookworm job still publishes |
+| **Retire the bookworm jobs** | Any other repository that still fetches the bookworm artifact |
+
+Only the third is a migration. `sonic-swss` and `sonic-swss-common` each run a `BuildTrixie`
+stage on every pull request today, publishing `sonic-swss-trixie` and
+`sonic-swss-common-trixie`, so the gate can attach to those stages immediately.
+
+**Where retirement is blocked.** `sonic-swss-common-bookworm` is fetched by four
+repositories — `sonic-dash-ha`, `sonic-bmp`, `sonic-utilities` and `linkmgrd` — so its
+bookworm jobs cannot be retired until those move. `sonic-swss-bookworm`, by contrast, has
+**no external consumers at all**, and `sonic-buildimage` builds swss from submodule source
+(`rules/swss.mk` sets `$(SWSS)_SRC_PATH`) rather than from the published artifact, so
+nothing downstream depends on it.
+
+**The docker layer question.** `docker-swss-layer-bookworm.mk` and
+`docker-swss-layer-trixie.mk` both depend on the same `$(SWSS)`, and which one is built is
+selected by `BLDENV := $(shell lsb_release -cs)` — that is, by the slave container
+`sonic-buildimage` itself runs in. This coupling is real, but it lives entirely inside
+`sonic-buildimage` and is unaffected by any submodule's own pipeline configuration.
+
+**Repositories by group:**
+
+| Group | Repositories | Adoption |
 |---|---|---|
-| Already on trixie | `sonic-gnmi`, `sonic-mgmt-common`, `sonic-mgmt-framework`, `sonic-platform-daemons`, `sonic-snmpagent`, `dhcpmon` | None. These can adopt immediately, which is why the pilot is drawn from them. |
-| Parameterised, defaulting to bookworm | `sonic-swss`, `sonic-swss-common`, `sonic-sairedis`, `sonic-dash-api` | Flip the default and retire the bookworm legs. All four already run trixie jobs alongside their bookworm ones, so this removes a build configuration rather than adding one. |
-| Pinned to bookworm | `sonic-utilities`, `sonic-host-services`, `sonic-dash-ha`, `sonic-platform-common`, `linkmgrd`, `sonic-bmp`, `sonic-stp`, `dhcprelay`, `sonic-ztp`, `sonic-dbsyncd` | A genuine port. Each hardcodes `sonic-slave-bookworm` and has no trixie job. |
+| Already trixie | `sonic-gnmi`, `sonic-mgmt-common`, `sonic-mgmt-framework`, `sonic-platform-daemons`, `sonic-snmpagent`, `dhcpmon` | Immediate |
+| Running a trixie stage alongside bookworm | `sonic-swss`, `sonic-swss-common`, `sonic-sairedis`, `sonic-dash-api` | Immediate, on the trixie stage. Bookworm retirement is separate and, for `sonic-swss-common`, waits on its four consumers. |
+| Pinned to bookworm | `sonic-utilities`, `sonic-host-services`, `sonic-dash-ha`, `sonic-platform-common`, `linkmgrd`, `sonic-bmp`, `sonic-stp`, `dhcprelay`, `sonic-ztp`, `sonic-dbsyncd` | Needs a trixie job first. `sonic-utilities` is the exception: its analysis runs in a standalone stage with no container, so its Python gate does not wait. |
 
-This is Phase 2 work, not a precondition of the design. Its consequence for sequencing is
-that **Rust cannot be piloted** — every Rust repository is in the second or third group —
-and that C/C++ can only be piloted at `dhcpmon`'s 9-file scale. Both gaps close in Phase 3,
-which is what the fleet rollout is gated on.
-
-`sonic-utilities` appears in the third group but is unaffected for pilot purposes: its
-static analysis runs in a standalone stage on `sonic-ubuntu-1c` with no container, so the
-Python gate does not wait on its build job moving to trixie.
+One sequencing caveat: in both `sonic-swss` and `sonic-swss-common` the `BuildTrixie` stage
+is chained behind `Build` and `BuildArm`, so a gate attached there reports late and is
+skipped when an earlier stage fails. Acceptable for adoption; worth revisiting when the
+bookworm stages are eventually retired and `BuildTrixie` becomes the primary path.
 
 #### 7.8 Rollout plan
 
@@ -992,42 +1014,32 @@ Python gate does not wait on its build job moving to trixie.
   and the pinned tool versions are validated against the current slave image.
 - Tag `v1.0.0`.
 
-**Phase 1 — Pilot.** Three repositories, chosen because each already runs on trixie and so
-carries no dependency on the migration in Phase 2.
+**Phase 1 — Pilot.** Four repositories, each already running a trixie job, so none waits on
+a migration.
 
-| Repository | Exercises | Note |
+| Repository | Exercises | Backlog |
 |---|---|---|
-| `sonic-utilities` | Python and shell in a standalone stage | Its analysis stage runs on `sonic-ubuntu-1c` with no container, so the slave image is not involved. Replaces the existing non-blocking `flake8` hook. Measured hard-gate backlog: **116**. |
-| `sonic-gnmi` | Go inside the existing build job | Already runs `sonic-slave-trixie`. Also validates the tuned `golangci-lint` configuration against the noise measured in [7.5.4](#754-go--golangci-lint). |
-| `dhcpmon` | C/C++ inside the existing build job | Already runs `sonic-slave-trixie` and needs no migration. Small (9 files), so it proves that `bear` plus `clang-tidy` works inside an existing build job — not what it costs at scale. |
+| `sonic-utilities` | Python and shell in a standalone stage; replaces the existing non-blocking `flake8` hook. Its stage runs on `sonic-ubuntu-1c` with no container, so the slave image is not involved. | 116 |
+| `sonic-gnmi` | Go in the existing build job; validates the tuned `golangci-lint` configuration against the noise measured in [7.5.4](#754-go--golangci-lint). | — |
+| `sonic-swss` | C/C++ over 564 files **and** Rust in one build job — the most complex case, and the source of the cost figures. Attaches to the existing `BuildTrixie` stage; no migration, and `sonic-swss-bookworm` has no consumers to disturb. | 72 (Python) |
+| `dhcpmon` | A second, small C/C++ case on a repository that is trixie-only, confirming the mechanism does not depend on `sonic-swss`'s particular pipeline shape. | — |
 
 Exit criteria: each pilot pipeline is green with the hard-gate rules enforced; each has its
-baseline job publishing and its README section written; and the advisory findings baseline
-is published for each.
+baseline job publishing and its README section written; the advisory findings baseline is
+published for each; and the `bear` plus `clang-tidy` wall-clock and peak-RSS deltas on
+`sonic-swss` are recorded in this document against the R11 budget and
+[Section 11](#11-memory-consumption). **Phase 3 does not begin until all four are met.**
 
-**What Phase 1 deliberately does not cover.** Rust is not piloted, because no Rust
-repository currently runs on trixie — `sonic-swss` and `sonic-swss-common` are awaiting the
-Phase 2 migration, and `sonic-host-services` and `sonic-dash-ha` are on bookworm. C/C++ is
-exercised only at 9-file scale, so the wall-clock and peak-RSS figures that R11 and
-[Section 11](#11-memory-consumption) depend on are **not** produced here. Both gaps close in
-Phase 3, and the fleet rollout is gated on that rather than on Phase 1.
+**Phase 2 — Retire the bookworm jobs.** Adoption does not depend on this, but the tree
+should not carry two build configurations indefinitely. Order is determined by who still
+fetches the bookworm artifacts: `sonic-swss`, `sonic-sairedis` and `sonic-dash-api` have no
+external consumers and can retire immediately; `sonic-swss-common` waits for
+`sonic-dash-ha`, `sonic-bmp`, `sonic-utilities` and `linkmgrd` to move. The ten
+bookworm-pinned repositories in [Section 7.7.1](#771-trixie-and-what-actually-blocks-adoption)
+each need a trixie job created, which is genuine work and is why this is its own phase
+rather than a precondition.
 
-**Phase 2 — Move the remaining pipelines to trixie.** Five repositories default their
-`debian_version` parameter to `bookworm`: `sonic-swss`, `sonic-swss-common`,
-`sonic-sairedis`, `sonic-dbsyncd`, and `sonic-dash-api`. Four already run trixie jobs
-alongside their bookworm ones, so for those the change retires a build configuration rather
-than adding one; `sonic-dbsyncd` is a genuine port. A further set of repositories —
-including `sonic-host-services`, `sonic-dash-ha`, `linkmgrd`, `sonic-bmp`, `sonic-stp` and
-`dhcprelay` — pin `sonic-slave-bookworm` directly and move in the same phase. Detail in
-[Section 7.7.1](#771-moving-the-remaining-pipelines-to-trixie).
-
-**Phase 3 — C/C++ and Rust at scale.** `sonic-swss` adopts, exercising the most complex
-case: `clang-tidy` over 564 C/C++ files and `clippy` over 34 Rust files, both inside a
-single build job. This phase produces the measurements Phase 1 could not — the `bear` plus
-`clang-tidy` wall-clock and peak-RSS deltas, recorded in this document against the R11
-budget. **Phase 4 does not begin until they are recorded and within budget.**
-
-**Phase 4 — Fleet.** One PR per remaining in-scope repository. Each adds the ~10-line
+**Phase 3 — Fleet.** One PR per remaining in-scope repository. Each adds the ~10-line
 `sonic-ci` reference, clears that repository's hard-gate backlog, and adds the local-usage
 section to its `README.md` ([Section 7.10](#710-running-the-analyzers-locally)). A repository
 is not adopted until all three are done. Measured backlogs make this tractable —
@@ -1043,7 +1055,7 @@ regardless. Anything uncleared is recorded as a repository-scoped exclusion in i
 every other check. The exclusion lives in the repository's own configuration rather than a
 tracker, is reviewed at each release cut, and may only shrink.
 
-**Phase 5 — Python 2 removal.** The 56 in-tree Python 2 files listed in
+**Phase 4 — Python 2 removal.** The 56 in-tree Python 2 files listed in
 [Appendix B](#appendix-b-python-2-files-proposed-for-removal) are proposed for **deletion**.
 
 These files are already non-functional. SONiC has shipped Python 3 only since the 202012
@@ -1076,7 +1088,7 @@ Netberg (2), Dell (2), Broadcom XLR-GTS (1).
 Removing these files takes `sonic-buildimage`'s hard-gate backlog from 1,494 findings to
 **525**, and is a prerequisite for enabling the Python gate there.
 
-**Phase 6 — Promotion.** With the fleet reporting advisory findings, the community
+**Phase 5 — Promotion.** With the fleet reporting advisory findings, the community
 promotes advisory rules to gating by editing `severity.yml` and bumping the `sonic-ci`
 tag. The obvious first candidate is `ruff`'s `W605` (invalid escape sequence, 659
 occurrences), which a future Python release turns into a hard error; moving it from
@@ -1284,7 +1296,7 @@ Build-time resource impact:
     require a round of backlog clearing before the gate is green again.
     The same applies to Rust, where the slave pins 1.86 and newer `clippy` lint names must
     be tolerated via `unknown_lints = "allow"`.
-11. **Only the trixie slave is covered.** Per [Section 7.7.1](#771-moving-the-remaining-pipelines-to-trixie),
+11. **Only the trixie slave is covered.** Per [Section 7.7.1](#771-trixie-and-what-actually-blocks-adoption),
     no analysis runs on `sonic-slave-bookworm`. Any branch or repository still building
     exclusively on bookworm receives no static analysis until it moves to trixie.
 
@@ -1323,7 +1335,7 @@ Within `sonic-buildimage`:
 | ST1 | A PR to a pilot repository introducing a planted `F821` fails the pipeline, and the failure names the file, line, and rule. |
 | ST2 | A PR introducing only an advisory-level finding passes, and the finding appears in the published pipeline output. |
 | ST3 | The pipeline of each pilot repository is green on an unmodified `master` with the hard-gate rules enforced. |
-| ST4 | The `sonic-swss` wall-clock and peak-RSS deltas from Phase 3 are within the R11 budget and recorded in this document before Phase 4 begins. |
+| ST4 | The `sonic-swss` wall-clock and peak-RSS deltas from the pilot are within the R11 budget and recorded in this document before fleet rollout begins. |
 | ST5 | A `sonic-ci` tag bump that promotes an advisory rule to gating changes the result of an otherwise identical PR — proving the manifest is the effective control point. |
 | ST6 | `sonic-analyze` run on a developer workstation reproduces the CI finding set for the same commit, having bootstrapped the pinned tool versions itself (R6). |
 | ST10 | Every adopted repository's `README.md` contains a local-usage section naming the commands for the languages that repository actually contains, and those commands run successfully in a clean checkout (R6a). |
@@ -1431,7 +1443,7 @@ Verified against `sonic-slave-trixie/Dockerfile.j2` and `rules/sonic-fips.mk`.
 
 For contrast, `rules/sonic-fips.mk` pins `sonic-slave-bookworm` to FIPS Go **1.19.8** and
 Python **3.11**, which is why the Go repositories' `go 1.24.4` directive cannot be
-satisfied there. See [Section 7.7.1](#771-moving-the-remaining-pipelines-to-trixie).
+satisfied there. See [Section 7.7.1](#771-trixie-and-what-actually-blocks-adoption).
 
 **A.6 — `golangci-lint` build-Go compatibility**
 
@@ -1456,7 +1468,7 @@ used to compile it."
 56 files tracked directly in `sonic-buildimage` fail to parse as Python 3. Each raises
 `SyntaxError` at import time on any supported SONiC image and therefore cannot be
 functional. Rationale and process are in
-[Section 7.8, Phase 5](#78-rollout-plan).
+[Section 7.8, Phase 4](#78-rollout-plan).
 
 An additional 66 Python 2 files exist inside excluded vendor and third-party submodules
 (`platform/p4/p4-hlir` 30, `platform/p4/SAI-P4-BM` 25, `platform/marvell-prestera/sonic-platform-marvell` 8,
