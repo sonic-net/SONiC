@@ -528,14 +528,56 @@ Validated on a file with four pre-existing findings: inserting 20 lines above th
 introducing one genuine new defect yields exactly **one** new fingerprint, with the four
 pre-existing findings correctly matched despite every line number having shifted.
 
-**Obtaining the baseline.**
+**Producing the baseline.**
 
-The baseline is the finding set of the PR's target branch, published as a pipeline
-artifact by that branch's own build. Pull requests download it rather than recomputing it,
-so **a PR costs one analysis run, not two** — the target-branch analysis has already
-happened on merge. This reuses the `DownloadPipelineArtifact@2` /
-`runVersion: latestFromBranch` mechanism that every SONiC pipeline already uses to fetch
-`libswsscommon`, `sairedis`, and `libnl` artifacts; no new infrastructure is introduced.
+The same `sonic-ci` templates run on the target branch itself, in *baseline mode*: every
+rule enabled, nothing gating, and the output written as a fingerprint file published as a
+pipeline artifact. Nothing about the analysis differs from a PR run except that no finding
+can fail the job.
+
+This runs **on every merge to the branch**, not on a schedule. The build already happens at
+that point, so the baseline costs one additional analysis pass rather than a separate job,
+and it is never more than one merge behind. A scheduled run is used only as a repair
+mechanism, described below.
+
+Pull requests download the most recent completed baseline for their target branch via
+`DownloadPipelineArtifact@2` with `runVersion: latestFromBranch` — the same mechanism every
+SONiC pipeline already uses to pull `libswsscommon`, `sairedis`, and `libnl`. So a pull
+request runs the analysis **once**, not twice.
+
+**The gate never depends on the baseline being available.** Repo-wide `gate` rules are
+evaluated from the PR's own findings alone. Only `gate-new` consults the baseline, and when
+it cannot, it degrades to advisory rather than blocking. A missing or unusable baseline can
+therefore delay the detection of a newly-introduced defect, but can never let a `gate`
+defect through and can never block a PR spuriously.
+
+**When the baseline is missing, stale, or incomparable.** `sonic-analyze` degrades
+`gate-new` to advisory, states why in the pipeline output, and continues, in these cases:
+
+| Situation | Cause |
+|---|---|
+| No artifact | First adoption, a new branch, or the branch's last build failed before publishing |
+| Tool versions differ | The pinned `ruff`, `clang-tidy`, `pyright`, `clippy` or `golangci-lint` version changed since the baseline was produced |
+| Rule set differs | `severity.yml` changed which checks are enabled |
+
+The version and rule-set cases matter more than they look. Upgrading an analyzer changes
+what it reports, so comparing new-analyzer findings against an old-analyzer baseline would
+present a large set of unrelated findings as though the pull request introduced them. The
+baseline artifact therefore records the tool versions and the enabled rule set that
+produced it, and `sonic-analyze` refuses to compare across a mismatch. The mismatch clears
+on the next merge to the target branch, which regenerates the baseline under the new
+versions.
+
+**Scheduled repair runs.** A weekly scheduled build regenerates the baseline unconditionally.
+This covers the cases a merge-triggered baseline does not: a branch with no recent merges,
+a run that failed before publishing, and analyzer behaviour that changes without the code
+changing. `sonic-swss`, `sonic-sairedis`, and `sonic-swss-common` already carry a weekly
+`cron: "0 0 * * 6"` schedule that this attaches to; repositories without one, such as
+`sonic-utilities`, need a schedule added when they adopt.
+
+**Cost on the target branch.** Each merge now pays one analysis pass. For Python and shell
+this is negligible. For C/C++ it is the same doubled compile phase a PR pays, on a build
+that is not latency-sensitive. Measured during the pilot alongside the PR-side figures.
 
 Tooling note: only `golangci-lint` offers a native equivalent
 (`issues.new-from-merge-base`). It is **not** used, because it is blame-based and shares
@@ -563,8 +605,8 @@ analyzer emits structured output sufficient to fingerprint from:
   is accepted; the mis-attributed finding is real and still needs fixing.
 - **File renames** invalidate every fingerprint in the renamed file. `sonic-analyze`
   applies `git diff -M` rename detection to remap paths before comparing.
-- **No baseline** (first adoption, or a new branch) is treated as an empty gate: findings
-  are recorded to establish the baseline and nothing fails.
+- **No usable baseline** degrades `gate-new` to advisory for that run; repo-wide `gate`
+  rules are unaffected. See *When the baseline is missing, stale, or incomparable* above.
 - **Fixed findings** — present in baseline, absent at HEAD — are reported as an
   improvement count. They do not affect the gate result.
 
@@ -763,7 +805,8 @@ rather than adding one:
   requires an actual trixie port. Detail and evidence in
   [Section 7.6.1](#761-moving-the-remaining-pipelines-to-trixie). Nothing else in Phase 0 depends on this
   landing first, but the pilot does.
-- Create `sonic-net/sonic-ci` with templates, configs, `severity.yml`, and `sonic-analyze`.
+- Create `sonic-net/sonic-ci` with templates, configs, `severity.yml`, and `sonic-analyze`,
+  including baseline mode and the fingerprint comparison.
 - Add the five missing analyzer packages to `sonic-slave-trixie`.
 - Stand up `sonic-ci`'s own CI: templates are lint-checked, `sonic-analyze` is unit
   tested, and the pinned tool versions are validated against the current slave image.
@@ -776,6 +819,9 @@ rather than adding one:
 | `sonic-utilities` | Python `Pretest` stage; replaces the existing non-blocking `flake8` pre-commit hook. Measured hard-gate backlog: **116**. |
 | `sonic-swss` | C/C++ `clang-tidy` **and** Rust `clippy` steps inside one build job — the most complex case. Measured Python hard-gate backlog: 72. |
 | `sonic-gnmi` | Go `golangci-lint` steps inside the build job, alongside the retained `gofmt` gate. |
+
+Each pilot repository also has its target-branch baseline job enabled and publishing before
+its PR gate is turned on, and a weekly schedule added if it does not already have one.
 
 The pilot's exit criteria are: each pilot repository's pipeline is green with the
 hard-gate rules enforced; the `bear` + `clang-tidy` wall-clock and peak-RSS deltas on
@@ -998,7 +1044,8 @@ Within `sonic-ci`:
 | UT10 | Regression detection where the symptom is on an unchanged line: the `clang-analyzer` guard-removal case from [Section 7.3.1](#731-gate-scope-repo-wide-versus-regression-only) is reported as new. |
 | UT11 | Editing a line carrying a pre-existing finding re-reports it as new; leaving it untouched does not. |
 | UT12 | A renamed file's pre-existing findings are matched through `git diff -M` and not reported as new. |
-| UT13 | An absent baseline fails nothing and records the current findings as the baseline. |
+| UT13 | An absent baseline degrades `gate-new` to advisory and does not fail the run, while repo-wide `gate` rules still fail as normal. |
+| UT14 | A baseline produced under a different analyzer version, or a different enabled rule set, is refused rather than compared, and the reason appears in the pipeline output. |
 
 Within `sonic-buildimage`:
 
