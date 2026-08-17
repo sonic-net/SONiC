@@ -20,22 +20,23 @@
   - [7.2 The `sonic-net/sonic-ci` repository](#72-the-sonic-netsonic-ci-repository)
   - [7.3 The severity manifest](#73-the-severity-manifest)
     - [7.3.1 Gate scope: repo-wide versus regression-only](#731-gate-scope-repo-wide-versus-regression-only)
-    - [7.3.2 Why baseline differencing rather than changed-line filtering](#732-why-baseline-differencing-rather-than-changed-line-filtering)
-    - [7.3.3 Fingerprinting: matching findings across revisions](#733-fingerprinting-matching-findings-across-revisions)
-    - [7.3.4 Producing and consuming the baseline](#734-producing-and-consuming-the-baseline)
-  - [7.4 Per-language design](#74-per-language-design)
-    - [7.4.1 Python — `ruff` + `pyright`](#741-python--ruff--pyright)
-    - [7.4.2 C/C++ — `clang-tidy`](#742-cc--clang-tidy)
-    - [7.4.3 Rust — `clippy`](#743-rust--clippy)
-    - [7.4.4 Go — `golangci-lint`](#744-go--golangci-lint)
-    - [7.4.5 Shell — `shellcheck`](#745-shell--shellcheck)
-    - [7.4.6 Existing lint configuration: what is kept, changed, and dropped](#746-existing-lint-configuration-what-is-kept-changed-and-dropped)
-  - [7.5 Suppressions (R7)](#75-suppressions-r7)
-  - [7.6 Build dependency](#76-build-dependency)
-    - [7.6.1 Moving the remaining pipelines to trixie](#761-moving-the-remaining-pipelines-to-trixie)
-  - [7.7 Rollout plan](#77-rollout-plan)
-  - [7.8 Items explicitly not changed](#78-items-explicitly-not-changed)
-  - [7.9 Running the analyzers locally](#79-running-the-analyzers-locally)
+  - [7.4 Deciding what a pull request introduced](#74-deciding-what-a-pull-request-introduced)
+    - [7.4.1 Why baseline differencing rather than changed-line filtering](#741-why-baseline-differencing-rather-than-changed-line-filtering)
+    - [7.4.2 Fingerprinting: matching findings across revisions](#742-fingerprinting-matching-findings-across-revisions)
+    - [7.4.3 Producing and consuming the baseline](#743-producing-and-consuming-the-baseline)
+  - [7.5 Per-language design](#75-per-language-design)
+    - [7.5.1 Python — `ruff` + `pyright`](#751-python--ruff--pyright)
+    - [7.5.2 C/C++ — `clang-tidy`](#752-cc--clang-tidy)
+    - [7.5.3 Rust — `clippy`](#753-rust--clippy)
+    - [7.5.4 Go — `golangci-lint`](#754-go--golangci-lint)
+    - [7.5.5 Shell — `shellcheck`](#755-shell--shellcheck)
+    - [7.5.6 Existing lint configuration: what is kept, changed, and dropped](#756-existing-lint-configuration-what-is-kept-changed-and-dropped)
+  - [7.6 Suppressions (R7)](#76-suppressions-r7)
+  - [7.7 Build dependency](#77-build-dependency)
+    - [7.7.1 Moving the remaining pipelines to trixie](#771-moving-the-remaining-pipelines-to-trixie)
+  - [7.8 Rollout plan](#78-rollout-plan)
+  - [7.9 Items explicitly not changed](#79-items-explicitly-not-changed)
+  - [7.10 Running the analyzers locally](#710-running-the-analyzers-locally)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
   - [9.1. Manifest](#91-manifest)
@@ -145,7 +146,7 @@ run through a static analyzer. Null dereferences, use-after-free, and buffer han
 that code are what a security-motivated gate is for. Those numbers are not in this document
 because producing them requires the full build environment (a compilation database, and
 therefore the dependencies the build job already installs), which is exactly what the pilot
-in [Section 7.7](#77-rollout-plan) is for. This design's C/C++ analysis is the substantive
+in [Section 7.8](#78-rollout-plan) is for. This design's C/C++ analysis is the substantive
 security change it makes; its value will be quantified at that point, not before.
 
 **What has been measured is correctness, not security.** The findings below are real
@@ -171,7 +172,7 @@ imported. Each is a guaranteed crash the moment the line is reached.
 including nil-pointer dereferences (`SA5011`), deprecated API use, and unchecked errors from
 `json.Unmarshal`, `io.Copy` and `os.Remove`. That sample also showed how much of the raw
 output is style rather than defect, which is why the Go configuration is tuned rather than
-enabled wholesale ([Section 7.4.4](#744-go--golangci-lint)).
+enabled wholesale ([Section 7.5.4](#754-go--golangci-lint)).
 
 *Rust.* Not measured — `clippy` has never run in these repositories, and the surface is
 small enough (140 files) that the backlog is expected to be trivial.
@@ -279,7 +280,7 @@ Two pieces of build infrastructure change:
 
 1. **The `sonic-slave-trixie` container image** gains five analyzer packages. Most of what
    is needed — `clang`, `shellcheck`, `nodejs`, Go, and Rust — is already there
-   ([Section 7.6](#76-build-dependency)).
+   ([Section 7.7](#77-build-dependency)).
 2. **Each repository's Azure pipeline** gains either a small standalone stage or a few
    extra steps in the build job it already runs. Both come from templates held in the new
    `sonic-ci` repository, so the repository itself carries almost no configuration.
@@ -521,13 +522,18 @@ community decision, informed by the advisory data the pipelines will have been p
 `ruff` findings under the full rule set — a number no one will clear. Enforcing those rules
 against a baseline means the tree stops getting worse immediately, at zero migration cost.
 
-Determining what a pull request *introduced* is the one genuinely subtle part of this
-design, and the obvious implementation of it is wrong. [Section 7.3.2](#732-why-baseline-differencing-rather-than-changed-line-filtering)
-sets out why, [7.3.3](#733-fingerprinting-matching-findings-across-revisions) covers how
-findings are matched across revisions, and [7.3.4](#734-producing-and-consuming-the-baseline)
-covers where the comparison point comes from.
+How `gate-new` decides what a pull request introduced is covered in
+[Section 7.4](#74-deciding-what-a-pull-request-introduced).
 
-##### 7.3.2 Why baseline differencing rather than changed-line filtering
+#### 7.4 Deciding what a pull request introduced
+
+`gate-new` requires knowing which findings a pull request is responsible for. That question
+is harder than it looks, and the three sections below are one argument: the obvious
+implementation is wrong (7.4.1), matching findings across revisions needs content-based
+identity rather than line numbers (7.4.2), and the comparison point has to be produced and
+kept current somewhere (7.4.3).
+
+##### 7.4.1 Why baseline differencing rather than changed-line filtering
 
 The obvious implementation is to filter findings against the lines a PR touched. It is
 wrong, and measurably so: for path-sensitive checks the reported line is the *symptom*,
@@ -558,7 +564,7 @@ Comparing *finding sets* rather than *locations* has no such blind spot: the fin
 absent from the baseline and present at HEAD, so it is new regardless of where it is
 reported.
 
-##### 7.3.3 Fingerprinting: matching findings across revisions
+##### 7.4.2 Fingerprinting: matching findings across revisions
 
 Comparing findings by file and line number does not work: inserting a line at the top of a
 file makes every finding below it look new. Findings are therefore keyed by content, not
@@ -605,7 +611,7 @@ Two consequences follow from keying on line content, both intentional:
 Renames are handled separately: `sonic-analyze` applies `git diff -M` rename detection to
 remap paths before comparing, so moving a file does not invalidate every fingerprint in it.
 
-##### 7.3.4 Producing and consuming the baseline
+##### 7.4.3 Producing and consuming the baseline
 
 The same `sonic-ci` templates run on the target branch itself, in *baseline mode*: every
 rule enabled, nothing gating, and the output written as a fingerprint file published as a
@@ -680,9 +686,9 @@ fixing, and the attribution corrects itself as branches converge.
 **Fixed findings** — present in the baseline, absent at HEAD — are reported as an
 improvement count. They never affect whether the job passes.
 
-#### 7.4 Per-language design
+#### 7.5 Per-language design
 
-##### 7.4.1 Python — `ruff` + `pyright`
+##### 7.5.1 Python — `ruff` + `pyright`
 
 `ruff` is a single binary replacing `flake8`, `isort`, `pyupgrade`, `pycodestyle`,
 `flake8-bugbear` and part of `bandit`. It finds bugs but does not check types, so `pyright`
@@ -708,7 +714,7 @@ sonic-analyze python              # whole repo, same rules as CI
 sonic-analyze python --gate-only  # just the merge-blocking subset
 ```
 
-##### 7.4.2 C/C++ — `clang-tidy`
+##### 7.5.2 C/C++ — `clang-tidy`
 
 One tool covering both kinds of C/C++ analysis. 119 of its 538 checks are the Clang Static
 Analyzer, which traces execution paths to find null dereferences, leaks, and uninitialized
@@ -755,7 +761,7 @@ by `clang-tidy`. The R11 budget of 40% is against total job time, which for thes
 repositories is dominated by artifact downloads and unit tests rather than compilation.
 Measured during the pilot and recorded here before fleet rollout.
 
-##### 7.4.3 Rust — `clippy`
+##### 7.5.3 Rust — `clippy`
 
 `cargo clippy` ships with the Rust toolchain already in the image. The gate is:
 
@@ -779,7 +785,7 @@ the cheapest moment to set the bar.
 Both run as steps before `cargo build`, sharing the same `target/` directory, so the work
 is not repeated.
 
-##### 7.4.4 Go — `golangci-lint`
+##### 7.5.4 Go — `golangci-lint`
 
 One binary aggregating several Go analyzers behind a single config. Pinned to **v2.12.2**;
 it must be built with a Go version at or above the code's, and v2.12.2 uses Go 1.25 against
@@ -844,14 +850,14 @@ re-checked against `sonic-mgmt-common` and the remaining `sonic-gnmi` packages d
 pilot, when the full build environment is available. The tuning above is the starting
 point, not the final answer.
 
-##### 7.4.5 Shell — `shellcheck`
+##### 7.5.5 Shell — `shellcheck`
 
 `shellcheck` is already installed. It runs in the same `Pretest` stage as the Python
 analysis: `error` blocks anywhere, `warning` blocks only if the PR introduces it, and
 `info`/`style` are advisory. The surface is 460 `.sh` files in `sonic-buildimage` plus
 ~60 across the submodules.
 
-##### 7.4.6 Existing lint configuration: what is kept, changed, and dropped
+##### 7.5.6 Existing lint configuration: what is kept, changed, and dropped
 
 Three repositories already run something. Replacing those tools changes behaviour, so each
 is accounted for here rather than silently superseded.
@@ -909,7 +915,7 @@ two entries to `severity.yml`:
 `sonic-dash-ha` keeps its own `.pre-commit-config.yaml`; the shared set is the same content
 made available to everyone else.
 
-#### 7.5 Suppressions (R7)
+#### 7.6 Suppressions (R7)
 
 Three mechanisms, in order of preference:
 
@@ -926,7 +932,7 @@ Every suppression at any level must carry a justification comment. `ruff`'s `RUF
 (unused `noqa`) is enabled as advisory so suppressions that are no longer needed become
 visible rather than accumulating.
 
-#### 7.6 Build dependency
+#### 7.7 Build dependency
 
 Everything runs in `sonic-slave-trixie`. Most of what is needed is already installed —
 `clang`, `shellcheck`, `nodejs`, Go 1.24.4, Rust 1.86 and Python 3.13. Five packages are
@@ -950,7 +956,7 @@ family glob (`bugprone-*`) wherever a whole family is wanted, and individually n
 in `severity.yml` are validated against `clang-tidy --list-checks` by test UT1 — so a check
 that disappears in a future LLVM fails `sonic-ci`'s CI instead of quietly ceasing to gate.
 
-##### 7.6.1 Moving the remaining pipelines to trixie
+##### 7.7.1 Moving the remaining pipelines to trixie
 
 Bookworm is not targeted, and cannot be: `sonic-gnmi`, `sonic-mgmt-common` and
 `sonic-mgmt-framework` all declare `go 1.24.4`, while `rules/sonic-fips.mk` pins bookworm to
@@ -973,7 +979,7 @@ which is what the fleet rollout is gated on.
 static analysis runs in a standalone stage on `sonic-ubuntu-1c` with no container, so the
 Python gate does not wait on its build job moving to trixie.
 
-#### 7.7 Rollout plan
+#### 7.8 Rollout plan
 
 **Phase 0 — Foundation.**
 - Create `sonic-net/sonic-ci` with templates, configs, `severity.yml`, and `sonic-analyze`,
@@ -992,7 +998,7 @@ carries no dependency on the migration in Phase 2.
 | Repository | Exercises | Note |
 |---|---|---|
 | `sonic-utilities` | Python and shell in a standalone stage | Its analysis stage runs on `sonic-ubuntu-1c` with no container, so the slave image is not involved. Replaces the existing non-blocking `flake8` hook. Measured hard-gate backlog: **116**. |
-| `sonic-gnmi` | Go inside the existing build job | Already runs `sonic-slave-trixie`. Also validates the tuned `golangci-lint` configuration against the noise measured in [7.4.4](#744-go--golangci-lint). |
+| `sonic-gnmi` | Go inside the existing build job | Already runs `sonic-slave-trixie`. Also validates the tuned `golangci-lint` configuration against the noise measured in [7.5.4](#754-go--golangci-lint). |
 | `dhcpmon` | C/C++ inside the existing build job | Already runs `sonic-slave-trixie` and needs no migration. Small (9 files), so it proves that `bear` plus `clang-tidy` works inside an existing build job — not what it costs at scale. |
 
 Exit criteria: each pilot pipeline is green with the hard-gate rules enforced; each has its
@@ -1013,7 +1019,7 @@ alongside their bookworm ones, so for those the change retires a build configura
 than adding one; `sonic-dbsyncd` is a genuine port. A further set of repositories —
 including `sonic-host-services`, `sonic-dash-ha`, `linkmgrd`, `sonic-bmp`, `sonic-stp` and
 `dhcprelay` — pin `sonic-slave-bookworm` directly and move in the same phase. Detail in
-[Section 7.6.1](#761-moving-the-remaining-pipelines-to-trixie).
+[Section 7.7.1](#771-moving-the-remaining-pipelines-to-trixie).
 
 **Phase 3 — C/C++ and Rust at scale.** `sonic-swss` adopts, exercising the most complex
 case: `clang-tidy` over 564 C/C++ files and `clippy` over 34 Rust files, both inside a
@@ -1023,7 +1029,7 @@ budget. **Phase 4 does not begin until they are recorded and within budget.**
 
 **Phase 4 — Fleet.** One PR per remaining in-scope repository. Each adds the ~10-line
 `sonic-ci` reference, clears that repository's hard-gate backlog, and adds the local-usage
-section to its `README.md` ([Section 7.9](#79-running-the-analyzers-locally)). A repository
+section to its `README.md` ([Section 7.10](#710-running-the-analyzers-locally)). A repository
 is not adopted until all three are done. Measured backlogs make this tractable —
 `sonic-platform-common` 23, `sonic-platform-daemons` 38, `sonic-host-services` 15,
 `sonic-snmpagent` 12, `sonic-ztp` 10.
@@ -1078,7 +1084,7 @@ occurrences), which a future Python release turns into a hard error; moving it f
 The `clang-tidy` `readability-*` and `modernize-*` families, which ship disabled, are the
 next candidates.
 
-#### 7.8 Items explicitly not changed
+#### 7.9 Items explicitly not changed
 
 - **DB and schema.** No APP_DB, ASIC_DB, COUNTERS_DB, LOGLEVEL_DB, CONFIG_DB, or STATE_DB
   changes.
@@ -1103,7 +1109,7 @@ next candidates.
   The natural follow-on, once this is gating, is to narrow CodeQL to security queries only
   and to either fix or rescope Semgrep's 338 findings.
 
-#### 7.9 Running the analyzers locally
+#### 7.10 Running the analyzers locally
 
 A gate developers cannot run before pushing is a gate that teaches them to push and wait.
 Local reproduction is therefore part of the deliverable, not documentation written
@@ -1169,7 +1175,7 @@ repository's languages, how to install the hooks, and how to suppress a finding 
 justification. `sonic-ci`'s own `docs/` holds the shared reference those sections link to.
 
 A repository is not considered adopted until that section exists. This is listed in the
-Phase 2 checklist in [Section 7.7](#77-rollout-plan) and verified by ST10.
+Phase 2 checklist in [Section 7.8](#78-rollout-plan) and verified by ST10.
 
 ### 8. SAI API
 
@@ -1273,12 +1279,12 @@ Build-time resource impact:
 10. **Analyzer results move when the toolchain moves.** Findings are a function of the
     analyzer version, not just the code. When trixie's LLVM advances, or when SONiC moves
     to a successor Debian suite, previously-clean code can begin reporting. Group-level
-    family-glob check selection ([Section 7.6](#76-build-dependency)) keeps the invocation
+    family-glob check selection ([Section 7.7](#77-build-dependency)) keeps the invocation
     valid across versions but cannot keep the findings identical, so a toolchain bump may
     require a round of backlog clearing before the gate is green again.
     The same applies to Rust, where the slave pins 1.86 and newer `clippy` lint names must
     be tolerated via `unknown_lints = "allow"`.
-11. **Only the trixie slave is covered.** Per [Section 7.6.1](#761-moving-the-remaining-pipelines-to-trixie),
+11. **Only the trixie slave is covered.** Per [Section 7.7.1](#771-moving-the-remaining-pipelines-to-trixie),
     no analysis runs on `sonic-slave-bookworm`. Any branch or repository still building
     exclusively on bookworm receives no static analysis until it moves to trixie.
 
@@ -1338,7 +1344,7 @@ None.
 
 Every question raised during the design of this document has been resolved into the
 sections above. The work this document proposes is sequenced in
-[Section 7.7](#77-rollout-plan); the measurements the pilot must produce are stated as its
+[Section 7.8](#78-rollout-plan); the measurements the pilot must produce are stated as its
 exit criteria there.
 
 ---
@@ -1425,7 +1431,7 @@ Verified against `sonic-slave-trixie/Dockerfile.j2` and `rules/sonic-fips.mk`.
 
 For contrast, `rules/sonic-fips.mk` pins `sonic-slave-bookworm` to FIPS Go **1.19.8** and
 Python **3.11**, which is why the Go repositories' `go 1.24.4` directive cannot be
-satisfied there. See [Section 7.6.1](#761-moving-the-remaining-pipelines-to-trixie).
+satisfied there. See [Section 7.7.1](#771-moving-the-remaining-pipelines-to-trixie).
 
 **A.6 — `golangci-lint` build-Go compatibility**
 
@@ -1450,7 +1456,7 @@ used to compile it."
 56 files tracked directly in `sonic-buildimage` fail to parse as Python 3. Each raises
 `SyntaxError` at import time on any supported SONiC image and therefore cannot be
 functional. Rationale and process are in
-[Section 7.7, Phase 3](#77-rollout-plan).
+[Section 7.8, Phase 5](#78-rollout-plan).
 
 An additional 66 Python 2 files exist inside excluded vendor and third-party submodules
 (`platform/p4/p4-hlir` 30, `platform/p4/SAI-P4-BM` 25, `platform/marvell-prestera/sonic-platform-marvell` 8,
