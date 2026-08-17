@@ -1055,38 +1055,18 @@ regardless. Anything uncleared is recorded as a repository-scoped exclusion in i
 every other check. The exclusion lives in the repository's own configuration rather than a
 tracker, is reviewed at each release cut, and may only shrink.
 
-**Phase 4 — Python 2 removal.** The 56 in-tree Python 2 files listed in
-[Appendix B](#appendix-b-python-2-files-proposed-for-removal) are proposed for **deletion**.
+**Phase 4 — Python 2 removal.** The 56 Python 2 files listed in
+[Appendix B](#appendix-b-python-2-files-proposed-for-removal) are deleted. They cannot run
+on any supported image, so nothing is lost. One PR per vendor, following the same route
+SONiC already uses to retire platform support (for example `df1163e4`, `[cavium]: Remove
+support for cavium platform`). A vendor wanting a file kept replies with a Python 3 port.
 
-These files are already non-functional. SONiC has shipped Python 3 only since the 202012
-release, and a file containing `print e` or `except IOError, e:` raises `SyntaxError` at
-import on any supported image. They cannot have worked in years, and no test exercises
-them. They are not a lint backlog; they are dead code a linter happened to find.
+Grouping by file count: Inventec (11), Ufispace (10), CIG (6), Ragile (6), Juniper (5),
+Accton (4), Celestica (3), Pegatron (2), Supermicro (2), Alphanetworks (2), Netberg (2),
+Dell (2), Broadcom XLR-GTS (1).
 
-**Process.** Removal follows the precedent SONiC already uses for retiring platform
-support: an ordinary pull request. `sonic-buildimage` commit `df1163e4`
-(*[cavium]: Remove support for cavium platform*, #21476, January 2025) removed an entire
-platform — its `device/` tree, its `platform/` sources, and its README entry — in a single
-PR from a vendor engineer, with no mailing-list announcement, deprecation notice, or
-waiting period. SONiC has no documented deprecation process, and inventing one here would
-hold dead code to a higher bar than the removal of a whole working platform.
-
-Accordingly:
-
-- One PR per vendor grouping, so each lands independently and a single unresponsive vendor
-  blocks nothing.
-- Each PR tags the owning vendor's SONiC maintainers as reviewers.
-- Each PR description carries the evidence: the file list, the `SyntaxError` each file
-  raises under Python 3, and the note that no test references them.
-- A vendor that wants a file kept responds with a Python 3 port on that PR. Normal review
-  applies; there is no separate window to administer.
-
-The grouping, by file count: Inventec (11), Ufispace (10), CIG (6), Ragile (6),
-Juniper (5), Accton (4), Celestica (3), Pegatron (2), Supermicro (2), Alphanetworks (2),
-Netberg (2), Dell (2), Broadcom XLR-GTS (1).
-
-Removing these files takes `sonic-buildimage`'s hard-gate backlog from 1,494 findings to
-**525**, and is a prerequisite for enabling the Python gate there.
+This takes `sonic-buildimage`'s hard-gate backlog from 1,494 findings to **525**, and is a
+prerequisite for enabling the Python gate there.
 
 **Phase 5 — Promotion.** With the fleet reporting advisory findings, the community
 promotes advisory rules to gating by editing `severity.yml` and bumping the `sonic-ci`
@@ -1238,10 +1218,9 @@ Indirectly, this design is expected to *reduce* warmboot and fastboot risk. The
 sit in platform plugin error paths, several of which are exercised during platform
 initialization.
 
-Note that removing the [Appendix B](#appendix-b-python-2-files-proposed-for-removal) files
-changes image contents. Because those files raise `SyntaxError` on import under Python 3,
-no working code path can depend on them; nonetheless, an image-diff verification is listed
-in [Section 13](#13-testing-requirementsdesign).
+Removing the [Appendix B](#appendix-b-python-2-files-proposed-for-removal) files changes
+image contents, so an image-diff verification is listed in
+[Section 13](#13-testing-requirementsdesign).
 
 ### 11. Memory Consumption
 
@@ -1465,14 +1444,12 @@ used to compile it."
 
 ### Appendix B: Python 2 files proposed for removal
 
-56 files tracked directly in `sonic-buildimage` fail to parse as Python 3. Each raises
-`SyntaxError` at import time on any supported SONiC image and therefore cannot be
-functional. Rationale and process are in
+56 Python 2 files tracked directly in `sonic-buildimage`. See
 [Section 7.8, Phase 4](#78-rollout-plan).
 
-An additional 66 Python 2 files exist inside excluded vendor and third-party submodules
-(`platform/p4/p4-hlir` 30, `platform/p4/SAI-P4-BM` 25, `platform/marvell-prestera/sonic-platform-marvell` 8,
-`platform/p4/p4c-bm` 3). Those are out of scope and are listed here only for completeness.
+A further 66 exist inside excluded vendor and third-party submodules (`platform/p4/p4-hlir`
+30, `platform/p4/SAI-P4-BM` 25, `platform/marvell-prestera/sonic-platform-marvell` 8,
+`platform/p4/p4c-bm` 3) and are out of scope.
 
 **`device/` (11 files)**
 
