@@ -20,6 +20,9 @@
   - [7.2 The `sonic-net/sonic-ci` repository](#72-the-sonic-netsonic-ci-repository)
   - [7.3 The severity manifest](#73-the-severity-manifest)
     - [7.3.1 Gate scope: repo-wide versus regression-only](#731-gate-scope-repo-wide-versus-regression-only)
+    - [7.3.2 Why baseline differencing rather than changed-line filtering](#732-why-baseline-differencing-rather-than-changed-line-filtering)
+    - [7.3.3 Fingerprinting: matching findings across revisions](#733-fingerprinting-matching-findings-across-revisions)
+    - [7.3.4 Producing and consuming the baseline](#734-producing-and-consuming-the-baseline)
   - [7.4 Per-language design](#74-per-language-design)
     - [7.4.1 Python — `ruff` + `pyright`](#741-python--ruff--pyright)
     - [7.4.2 C/C++ — `clang-tidy`](#742-cc--clang-tidy)
@@ -518,7 +521,13 @@ community decision, informed by the advisory data the pipelines will have been p
 `ruff` findings under the full rule set — a number no one will clear. Enforcing those rules
 against a baseline means the tree stops getting worse immediately, at zero migration cost.
 
-**Why baseline differencing rather than changed-line filtering.**
+Determining what a pull request *introduced* is the one genuinely subtle part of this
+design, and the obvious implementation of it is wrong. [Section 7.3.2](#732-why-baseline-differencing-rather-than-changed-line-filtering)
+sets out why, [7.3.3](#733-fingerprinting-matching-findings-across-revisions) covers how
+findings are matched across revisions, and [7.3.4](#734-producing-and-consuming-the-baseline)
+covers where the comparison point comes from.
+
+##### 7.3.2 Why baseline differencing rather than changed-line filtering
 
 The obvious implementation is to filter findings against the lines a PR touched. It is
 wrong, and measurably so: for path-sensitive checks the reported line is the *symptom*,
@@ -549,7 +558,7 @@ Comparing *finding sets* rather than *locations* has no such blind spot: the fin
 absent from the baseline and present at HEAD, so it is new regardless of where it is
 reported.
 
-**Fingerprinting.**
+##### 7.3.3 Fingerprinting: matching findings across revisions
 
 Comparing findings by file and line number does not work: inserting a line at the top of a
 file makes every finding below it look new. Findings are therefore keyed by content, not
@@ -596,7 +605,7 @@ Two consequences follow from keying on line content, both intentional:
 Renames are handled separately: `sonic-analyze` applies `git diff -M` rename detection to
 remap paths before comparing, so moving a file does not invalidate every fingerprint in it.
 
-**Producing the baseline.**
+##### 7.3.4 Producing and consuming the baseline
 
 The same `sonic-ci` templates run on the target branch itself, in *baseline mode*: every
 rule enabled, nothing gating, and the output written as a fingerprint file published as a
@@ -662,21 +671,14 @@ analyzer emits structured output sufficient to fingerprint from:
 | `golangci-lint` | `--out-format json` | native `new-from-*` deliberately unused |
 | `shellcheck` | `--format=json` | `line`, `endLine` |
 
-**Known behaviours of this approach.**
+**Baseline drift.** The baseline is the tip of the target branch, not the pull request's
+merge base, so a finding introduced by an unrelated commit can surface in the next pull
+request to run. Analysing the merge base per pull request would avoid this at the cost of a
+second full run. Drift is accepted: the mis-attributed finding is real and still needs
+fixing, and the attribution corrects itself as branches converge.
 
-- **Editing a line that carried a pre-existing finding re-reports it as new.** The line
-  hash changes, so the match is lost. This is treated as correct: a PR that touches the
-  line takes ownership of the finding on it.
-- **Baseline drift.** The baseline comes from the tip of the target branch, not the PR's
-  merge-base, so a finding introduced by an unrelated commit can surface in the next PR to
-  run. The alternative — analysing the merge-base per PR — costs a second full run. Drift
-  is accepted; the mis-attributed finding is real and still needs fixing.
-- **File renames** invalidate every fingerprint in the renamed file. `sonic-analyze`
-  applies `git diff -M` rename detection to remap paths before comparing.
-- **No usable baseline** degrades `gate-new` to advisory for that run; repo-wide `gate`
-  rules are unaffected. See *When the baseline is missing, stale, or incomparable* above.
-- **Fixed findings** — present in baseline, absent at HEAD — are reported as an
-  improvement count. They do not affect the gate result.
+**Fixed findings** — present in the baseline, absent at HEAD — are reported as an
+improvement count. They never affect whether the job passes.
 
 #### 7.4 Per-language design
 
