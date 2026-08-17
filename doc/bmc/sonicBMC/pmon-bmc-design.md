@@ -127,19 +127,21 @@ Few of the URIs which needs to be supported in BMC are below,
                  •	ForceOff: Turn off the unit immediately (non-graceful).
                  •	GracefulShutdown: Graceful shutdown and power off.
                  •	PowerCycle: Power cycle the Switch
-    4. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitAlert
+    4. POST /redfish/v1/Managers/bmc/Oem/SONiC/RackManager/Actions/SONiC.SubmitAlert
              -- Rack Manager sends an Alert when there is deviation in Inlet Liquid temperature, Inlet Liquid flow rate,
                 Inlet Liquid Pressure, Leak
-    5. POST /redfish/v1/Managers/Bmc/Oem/SONiC/RackManagerInterface/Actions/SONiC.SubmitTelemetry
+    5. POST /redfish/v1/Managers/bmc/Oem/SONiC/RackManager/Actions/SONiC.SubmitTelemetry
              -- Rack Manager sends periodic telemetry data of Inlet Liquid temperature, Inlet Liquid flow rate,
                 Inlet Liquid Pressure, Leak information
     6. POST /redfish/v1/EventService/Subscriptions  
+
              -- Rack manager to subscribe for events like Leak from switchBMC.
-             -- Leak sensor can be modelled under /redfish/v1/Chassis/BMC/ThermalSubsystem/LeakDetection/LeakDetectors/<ID>
+             -- LeakDetection resource: /redfish/v1/Chassis/chassis/ThermalSubsystem/LeakDetection
+             -- Leak sensor can be modelled under /redfish/v1/Chassis/chassis/ThermalSubsystem/LeakDetection/LeakDetectors/<ID>
              -- redfish server in BMC response back to https://<rack-mgr-ip>:<port>/Events or which ever "destination"
                 Rack Manager sends in the event subscription request
 
-**Note:** More details available in [redfish HLD](https://github.com/sonic-net/SONiC/pull/2281)
+**Note:** More details available in [redfish HLD](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-redfish/HLD.md)
 
 
 #### 2.1.2.1 DB schema
@@ -471,8 +473,9 @@ leak_sensor_status        = STR                                       ; Is Leak 
 type                      = STR                                       ; leak sensor type
 location                  = STR                                       ; leak sensor location
 leak_severity             = "status"                                  ; CRITICAL/MINOR (per-sensor level)
+timestamp                 = STR                                       ; timestamp when this status is recorded.
 
-key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in CONFIG_DB
+key                       = LEAK_PROFILE|<sensor_type>                ; LEAK profile per leak sensor type in STATE_DB
 ; field                   = value
 leak_type                 = STR                                       ; Leak sensor type
 max_minor_duration_sec    = integer                                   ; MAX-T secs defined before which a MINOR leak can be considered CRITICAL
@@ -744,15 +747,17 @@ To get the Switch-Host serial number use the following suggested steps
 
 * **show chassis module status**
  
-Command to show the status of BMC and Switch-Host(using the platform API module->get_oper_state())
+Command to show the status of modules viz. Switch-Host(using the platform API module->get_oper_state()).
+It also includes the power-on-delay and shutdown-timeout in CONFIG_DB either default values or user configured
  
 Applicable to (LC, AC)
 
 ```
 show chassis module status
-        Name             Description   oper status       Serial
-------------  ----------------------  -------------  -----------
- Switch-Host      Switch Host System        Offline           <>
+
+Name         Description   Oper Status   Admin Status   Serial   Power-On-Delay (sec)   Shutdown-Timeout (sec)
+--------------------------------------------------------------------------------------------------------------------------------
+SWITCH-HOST  Switch Host   online        up             ABC123   300                    120
 
 ```
 
