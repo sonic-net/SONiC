@@ -32,6 +32,7 @@
     - [7.6.1 Moving the remaining pipelines to trixie](#761-moving-the-remaining-pipelines-to-trixie)
   - [7.7 Rollout plan](#77-rollout-plan)
   - [7.8 Items explicitly not changed](#78-items-explicitly-not-changed)
+  - [7.9 Running the analyzers locally](#79-running-the-analyzers-locally)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
   - [9.1. Manifest](#91-manifest)
@@ -243,7 +244,8 @@ after several years. The gate, not the analyzer, is the part that is missing.
 | R3a | A rule MUST be enforceable against defects a pull request introduces while its pre-existing occurrences are only reported. "Introduced" MUST be determined by comparing findings against the target branch, not by checking which lines the pull request touched. |
 | R4 | The set of tools, their versions, their rule selections, and the gate/advisory split MUST be defined in exactly one place and consumed by all repositories. |
 | R5 | The per-repository change required to adopt the capability MUST be small enough to review at a glance and MUST NOT need to be edited to change rules or tool versions. |
-| R6 | A developer MUST be able to reproduce a CI finding locally with a single documented command. |
+| R6 | A developer MUST be able to reproduce any CI finding locally with a single documented command, using the same tool versions and rule set CI uses. |
+| R6a | Every repository with a gate MUST document, in its own README, how to run the analyzers for the languages it contains. |
 | R7 | The gate MUST support per-repository and per-path suppression, with suppressions checked into the repository and reviewable. |
 | R8 | Analysis MUST cover Python, C/C++, Rust, Go, and shell. |
 
@@ -279,22 +281,40 @@ Two pieces of build infrastructure change:
    extra steps in the build job it already runs. Both come from templates held in the new
    `sonic-ci` repository, so the repository itself carries almost no configuration.
 
+The part worth a picture is not who references what — it is how a pull request is judged
+against the branch it targets:
+
 ```
-              ┌──────────────────────────────────────────────┐
-              │   sonic-net/sonic-ci   (new, see 7.2)        │
-              │   templates · tool configs · severity.yml    │
-              └───────────────────┬──────────────────────────┘
-                                  │  referenced by tag
-          ┌───────────────────────┼───────────────────────┐
-          │                       │                       │
-   ┌──────▼─────────┐    ┌────────▼────────┐    ┌─────────▼──────┐
-   │ sonic-utilities│    │   sonic-swss    │    │   sonic-gnmi   │
-   │                │    │                 │    │                │
-   │ separate stage │    │ steps inside    │    │ steps inside   │
-   │ (no build      │    │ the existing    │    │ the existing   │
-   │  needed)       │    │ build job       │    │ build job      │
-   └────────────────┘    └─────────────────┘    └────────────────┘
+   merge to master
+         │
+         ▼
+   ┌───────────────────────┐
+   │  master build job     │   same analysis, every rule enabled,
+   │                       │   nothing allowed to fail the job
+   └───────────┬───────────┘
+               │ publishes
+               ▼
+      baseline artifact  ── fingerprints + the tool versions
+               │            and rule set that produced them
+               │
+   pull request│ downloads
+         │     │
+         ▼     ▼
+   ┌───────────────────────┐      ┌──────────────────────────┐
+   │  PR build job         │─────►│  compare fingerprints    │
+   │  identical analysis   │      │  new = PR findings − base│
+   └───────────────────────┘      └────────────┬─────────────┘
+                                               │
+                    ┌──────────────────────────┼───────────────────┐
+                    ▼                          ▼                   ▼
+              gate rules                 gate-new rules        advisory
+        fail on any occurrence,     fail only if the finding   reported,
+        baseline not consulted      is in "new"                never fails
 ```
+
+Because both jobs run the same analysis from the same configuration, the only difference
+between them is what is allowed to fail. The baseline is a record of findings, not a
+separate kind of run.
 
 This cross-repository template mechanism is not new to SONiC. `sonic-swss-common`,
 `sonic-sairedis`, and `sonic-utilities` already declare `resources: repositories:`
@@ -959,7 +979,10 @@ rather than adding one:
   [Section 7.6.1](#761-moving-the-remaining-pipelines-to-trixie). Nothing else in Phase 0 depends on this
   landing first, but the pilot does.
 - Create `sonic-net/sonic-ci` with templates, configs, `severity.yml`, and `sonic-analyze`,
-  including baseline mode and the fingerprint comparison.
+  including baseline mode, the fingerprint comparison, and local bootstrap of pinned tool
+  versions.
+- Write the shared developer documentation and the per-repository README template that
+  Phase 2 adoption PRs fill in.
 - Add the five missing analyzer packages to `sonic-slave-trixie`.
 - Stand up `sonic-ci`'s own CI: templates are lint-checked, `sonic-analyze` is unit
   tested, and the pinned tool versions are validated against the current slave image.
@@ -982,8 +1005,10 @@ hard-gate rules enforced; the `bear` + `clang-tidy` wall-clock and peak-RSS delt
 [Section 11](#11-memory-consumption); and the advisory findings baseline is published for
 each pilot repository. Phase 2 does not begin until all three are met.
 
-**Phase 2 — Fleet.** One mechanical PR per remaining in-scope repository, each adding the
-~10-line `sonic-ci` reference and clearing that repository's hard-gate backlog. Measured
+**Phase 2 — Fleet.** One PR per remaining in-scope repository. Each one adds the ~10-line
+`sonic-ci` reference, clears that repository's hard-gate backlog, and adds the local-usage
+section to that repository's `README.md` ([Section 7.9](#79-running-the-analyzers-locally)).
+A repository is not adopted until all three are done. Measured
 backlogs are small enough to make this tractable — `sonic-platform-common` 23,
 `sonic-platform-daemons` 38, `sonic-host-services` 15, `sonic-snmpagent` 12,
 `sonic-ztp` 10.
@@ -1066,6 +1091,74 @@ next candidates.
   replicate — and bundling it here would widen the review without improving the result.
   The natural follow-on, once this is gating, is to narrow CodeQL to security queries only
   and to either fix or rescope Semgrep's 338 findings.
+
+#### 7.9 Running the analyzers locally
+
+A gate developers cannot run before pushing is a gate that teaches them to push and wait.
+Local reproduction is therefore part of the deliverable, not documentation written
+afterwards.
+
+Everything runs through the same `sonic-analyze` entry point CI uses, reading the same
+`severity.yml`, so a local run and a pipeline run cannot drift apart in what they check.
+
+**The common cases need no build.**
+
+```sh
+sonic-analyze                 # every language present in this repo
+sonic-analyze --gate-only     # only what would actually block the merge
+sonic-analyze python          # one language
+sonic-analyze --fix           # apply the fixes the tools can make safely
+```
+
+`sonic-analyze` installs the pinned analyzer versions from `tool-versions.yml` into a
+cache directory on first run, so a developer does not have to match the slave image by
+hand, and cannot accidentally run a different `ruff` than CI does. Python, shell, Rust and
+the hygiene checks all work this way on an ordinary workstation.
+
+**C/C++ and Go need a build, and the document should not pretend otherwise.** `clang-tidy`
+requires a compilation database, which requires compiling, which requires the dependencies
+the build job installs. Two supported paths:
+
+```sh
+# If you already have a configured build tree:
+bear --output compile_commands.json -- make -j$(nproc)
+sonic-analyze cpp
+
+# Otherwise, run in the same image CI uses:
+docker run --rm -v "$PWD:/src" -w /src \
+  sonic-slave-trixie:master sonic-analyze cpp
+```
+
+When no compilation database is present, `sonic-analyze` says so and prints both commands
+rather than failing with a tool-level error.
+
+**Checking what a pull request would newly introduce.** Developers do not have the
+pipeline's baseline artifact. `--since` reconstructs one locally by analysing the merge
+base:
+
+```sh
+sonic-analyze --since origin/master
+```
+
+This costs a second analysis pass, which is nothing for Python and expensive for C/C++, so
+it is opt-in rather than default. The default run reports everything and marks which
+findings are gating — enough to answer "will this block me?" without the extra pass.
+
+**Pre-commit.** The fast checks — hygiene, formatting, and the Python linters — are also
+published as a pre-commit configuration, so they run on every commit without the developer
+remembering to. The heavier analyzers are deliberately not in pre-commit; a per-commit hook
+that compiles the tree would simply be disabled.
+
+**Per-repository documentation is part of each adoption PR.** A single shared guide is not
+enough, because the right commands differ by repository: `sonic-utilities` needs no build,
+`sonic-swss` needs a compilation database and has Rust as well, `sonic-gnmi` needs its
+code generation to have run. Every PR that adds the `sonic-ci` reference to a repository
+also adds a short section to that repository's `README.md` — the exact commands for that
+repository's languages, how to install the hooks, and how to suppress a finding with
+justification. `sonic-ci`'s own `docs/` holds the shared reference those sections link to.
+
+A repository is not considered adopted until that section exists. This is listed in the
+Phase 2 checklist in [Section 7.7](#77-rollout-plan) and verified by ST10.
 
 ### 8. SAI API
 
@@ -1215,7 +1308,9 @@ Within `sonic-buildimage`:
 | ST3 | The pipeline of each pilot repository is green on an unmodified `master` with the hard-gate rules enforced. |
 | ST4 | Measured wall-clock delta per pilot repository is within the R11 budget. Recorded in this document before phase 2 begins. |
 | ST5 | A `sonic-ci` tag bump that promotes an advisory rule to gating changes the result of an otherwise identical PR — proving the manifest is the effective control point. |
-| ST6 | `sonic-analyze` run on a developer workstation reproduces the CI finding set for the same commit (R6). |
+| ST6 | `sonic-analyze` run on a developer workstation reproduces the CI finding set for the same commit, having bootstrapped the pinned tool versions itself (R6). |
+| ST10 | Every adopted repository's `README.md` contains a local-usage section naming the commands for the languages that repository actually contains, and those commands run successfully in a clean checkout (R6a). |
+| ST11 | `sonic-analyze cpp` with no compilation database present reports how to produce one rather than failing with a tool error. |
 | ST8 | An image built after the Appendix B removal is byte-diffed against one built before. The only differences are the removed files. |
 | ST9 | Existing warmboot and fastboot regression suites pass unchanged on an image built after the Appendix B removal. |
 
