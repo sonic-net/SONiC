@@ -628,28 +628,39 @@ Pull requests download the most recent completed baseline for their target branc
 SONiC pipeline already uses to pull `libswsscommon`, `sairedis`, and `libnl`. So a pull
 request runs the analysis **once**, not twice.
 
-**The gate never depends on the baseline being available.** Repo-wide `gate` rules are
-evaluated from the PR's own findings alone. Only `gate-new` consults the baseline, and when
-it cannot, it degrades to advisory rather than blocking. A missing or unusable baseline can
-therefore delay the detection of a newly-introduced defect, but can never let a `gate`
-defect through and can never block a PR spuriously.
+**A missing or unusable baseline fails the job.** It is not silently downgraded. Every
+SONiC pipeline already treats a missing build artifact as a hard failure — the
+`DownloadPipelineArtifact@2` tasks that fetch `libswsscommon`, `sairedis` and `libnl` have
+no failure tolerance, and `allowPartiallySucceededBuilds` only relaxes *which* build to
+source from, not whether the artifact must exist. The baseline is a build dependency like
+any other and behaves the same way.
 
-**When the baseline is missing, stale, or incomparable.** `sonic-analyze` degrades
-`gate-new` to advisory, states why in the pipeline output, and continues, in these cases:
+Degrading `gate-new` to advisory when the baseline is unavailable was considered and
+rejected: a broken baseline job would quietly switch off a whole class of enforcement with
+nothing failing to indicate it, which is the failure mode this design exists to remove.
 
-| Situation | Cause |
+Two situations make a baseline unusable, and both are handled by sequencing rather than by
+tolerance:
+
+| Situation | Handling |
 |---|---|
-| No artifact | First adoption, a new branch, or the branch's last build failed before publishing |
-| Tool versions differ | The pinned `ruff`, `clang-tidy`, `pyright`, `clippy` or `golangci-lint` version changed since the baseline was produced |
-| Rule set differs | `severity.yml` changed which checks are enabled |
+| No baseline has ever been published | Removed by the adoption sequence below, so it does not arise in steady state |
+| Produced under different analyzer versions or a different enabled rule set | The job fails and reports that the target branch must rebuild. The window is one build cycle after a `sonic-ci` tag bump. |
 
-The version and rule-set cases matter more than they look. Upgrading an analyzer changes
-what it reports, so comparing new-analyzer findings against an old-analyzer baseline would
-present a large set of unrelated findings as though the pull request introduced them. The
-baseline artifact therefore records the tool versions and the enabled rule set that
-produced it, and `sonic-analyze` refuses to compare across a mismatch. The mismatch clears
-on the next merge to the target branch, which regenerates the baseline under the new
-versions.
+The baseline artifact records the tool versions and enabled rule set that produced it,
+because comparing findings from one analyzer version against a baseline from another would
+present unrelated findings as though the pull request had introduced them.
+
+**Adoption sequence.** A repository turns the gate on in two steps, which removes the
+"no baseline yet" case entirely:
+
+1. The adoption PR enables repo-wide `gate` rules only. Those need no baseline, so the first
+   pull request is not blocked on an artifact that cannot exist yet. Merging it causes the
+   branch build to publish the first baseline.
+2. A follow-up enables `gate-new`, by which point a baseline is present.
+
+Two small PRs per repository rather than one, and in exchange there is no state in which
+the gate is running but not enforcing.
 
 **Scheduled repair runs.** A weekly scheduled build regenerates the baseline unconditionally.
 This covers the cases a merge-triggered baseline does not: a branch with no recent merges,
@@ -1024,8 +1035,10 @@ a migration.
 | `sonic-swss` | C/C++ over 564 files **and** Rust in one build job — the most complex case, and the source of the cost figures. Attaches to the existing `BuildTrixie` stage; no migration, and `sonic-swss-bookworm` has no consumers to disturb. | 72 (Python) |
 | `dhcpmon` | A second, small C/C++ case on a repository that is trixie-only, confirming the mechanism does not depend on `sonic-swss`'s particular pipeline shape. | — |
 
-Exit criteria: each pilot pipeline is green with the hard-gate rules enforced; each has its
-baseline job publishing and its README section written; the advisory findings baseline is
+Exit criteria: each pilot pipeline is green with the hard-gate rules enforced; each has
+completed both steps of the adoption sequence in
+[Section 7.4.3](#743-producing-and-consuming-the-baseline) and has its README section
+written; the advisory findings baseline is
 published for each; and the `bear` plus `clang-tidy` wall-clock and peak-RSS deltas on
 `sonic-swss` are recorded in this document against the R11 budget and
 [Section 11](#11-memory-consumption). **Phase 3 does not begin until all four are met.**
@@ -1298,8 +1311,8 @@ Within `sonic-ci`:
 | UT10 | Regression detection where the symptom is on an unchanged line: the `clang-analyzer` guard-removal case from [Section 7.3.1](#731-gate-scope-repo-wide-versus-regression-only) is reported as new. |
 | UT11 | Editing a line carrying a pre-existing finding re-reports it as new; leaving it untouched does not. |
 | UT12 | A renamed file's pre-existing findings are matched through `git diff -M` and not reported as new. |
-| UT13 | An absent baseline degrades `gate-new` to advisory and does not fail the run, while repo-wide `gate` rules still fail as normal. |
-| UT14 | A baseline produced under a different analyzer version, or a different enabled rule set, is refused rather than compared, and the reason appears in the pipeline output. |
+| UT13 | An absent baseline fails the run rather than silently skipping `gate-new`. |
+| UT14 | A baseline produced under a different analyzer version, or a different enabled rule set, fails the run rather than being compared, and the reason appears in the pipeline output. |
 
 Within `sonic-buildimage`:
 
