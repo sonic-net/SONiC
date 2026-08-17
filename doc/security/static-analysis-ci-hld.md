@@ -7,7 +7,7 @@
 - [3. Definitions/Abbreviations](#3-definitionsabbreviations)
 - [4. Overview](#4-overview)
   - [4.1 Current state](#41-current-state)
-  - [4.2 Why this matters — measured evidence](#42-why-this-matters--measured-evidence)
+  - [4.2 What the absence of a gate has left behind](#42-what-the-absence-of-a-gate-has-left-behind)
     - [4.2.1 The existing CodeQL and Semgrep workflows are not gates](#421-the-existing-codeql-and-semgrep-workflows-are-not-gates)
   - [4.3 Design summary](#43-design-summary)
 - [5. Requirements](#5-requirements)
@@ -111,7 +111,7 @@ Static analysis coverage today is close to zero:
 |------------|-------------------------|
 | `sonic-utilities` | A `Pretest` stage runs `pre-commit`, whose only hook is `flake8 --diff` with `--max-line-length=120`. The stage is declared `continueOnError: true`, so **it does not block a merge.** |
 | `sonic-gnmi` | The `Makefile` default target depends on a `gofmt -l` check. This is a real gate, but only enforces *formatting* — no `go vet`, no `staticcheck`. |
-| ~19 repositories | GitHub Actions CodeQL and Semgrep. Both are guarded by `if: github.repository_owner == 'sonic-net'` and therefore do nothing in any fork, neither is a required check, and in practice neither functions as a gate. Measured evidence in [Section 4.2.1](#421-the-existing-codeql-and-semgrep-workflows-are-not-gates). |
+| ~19 repositories | GitHub Actions CodeQL and Semgrep. Neither is a required check, and in practice neither functions as a gate. Measured evidence in [Section 4.2.1](#421-the-existing-codeql-and-semgrep-workflows-are-not-gates). |
 | Everything else | None. |
 
 Concretely, this means:
@@ -129,41 +129,50 @@ Concretely, this means:
   alone plus ~1,500 across the submodules — is gated only by a non-blocking,
   diff-scoped `flake8` in a single repository.
 
-#### 4.2 Why this matters — measured evidence
+#### 4.2 What the absence of a gate has left behind
 
-The analysis below was produced by running `ruff 0.16.3` over the in-scope tree.
-Full numbers are in [Appendix A](#appendix-a-measured-baseline).
+Two things are worth separating here, because this document sits in `doc/security/` and it
+would be easy to overstate the case.
 
-**122 files in the tree are still Python 2 and cannot be parsed by any Python 3 tool.**
-56 of those are tracked directly in `sonic-buildimage` under `device/` and `platform/`
-and are packaged into shipping images; the remaining 66 are inside excluded
-vendor/third-party submodules. Example, from
-`device/ragile/x86_64-ragile_ra-b6510-32c-r0/fantlv.py:204`:
+**The security argument rests on C/C++, and is not yet measured.** Memory safety is where
+SONiC's real security exposure lives — roughly 1,700 files of C and C++ in `sonic-swss`,
+`sonic-sairedis`, `sonic-swss-common`, `linkmgrd` and others, none of which has ever been
+run through a static analyzer. Null dereferences, use-after-free, and buffer handling in
+that code are what a security-motivated gate is for. Those numbers are not in this document
+because producing them requires the full build environment (a compilation database, and
+therefore the dependencies the build job already installs), which is exactly what the pilot
+in [Section 7.7](#77-rollout-plan) is for. This design's C/C++ analysis is the substantive
+security change it makes; its value will be quantified at that point, not before.
 
-```python
-        except Exception as e:
-            print e
-```
+**What has been measured is correctness, not security.** The findings below are real
+defects and justify a gate on their own terms, but they are crashes and logic errors rather
+than vulnerabilities, and it would be wrong to present them as the security case.
 
-**Pyflakes reports 445 `undefined-name` (F821) findings** outside those files. Sampling
-shows these are not false positives — they are latent `NameError` crashes, and they
-cluster in exactly the error-handling paths that only execute once something has
-already gone wrong:
+*Python.* 122 files in the tree are still Python 2 and cannot be parsed by any Python 3
+tool — 56 of them tracked directly in `sonic-buildimage` and packaged into shipping images.
+A further 445 `undefined-name` findings are latent `NameError` crashes, clustered in
+platform error-handling paths that only run once something has already gone wrong:
 
 ```
 platform/pensando/.../fru_tlvinfo_decoder.py:269   F821 Undefined name `raw_input`
 platform/pddf/i2c/utils/pddfparse.py:2449          F821 Undefined name `unicode`
 platform/pddf/.../pddf_chassis.py:296              F821 Undefined name `syslog`
 platform/pddf/.../pddf_eeprom.py:99                F821 Undefined name `TlvInfoDecoder`
-platform/pddf/.../sonic_platform_ref/sfp.py:5      F821 Undefined name `e`
 ```
 
-`raw_input` and `unicode` are Python 2 builtins that do not exist in Python 3. `syslog`
-and `TlvInfoDecoder` are simply never imported. Each of these is a guaranteed crash the
-moment the line is reached, in platform code that runs on shipping hardware.
+`raw_input` and `unicode` do not exist in Python 3; `syslog` and `TlvInfoDecoder` are never
+imported. Each is a guaranteed crash the moment the line is reached.
 
-These defects are cheap to find. A full `ruff` pass over all 3,277 Python files in
-`sonic-buildimage` completes in **0.29 seconds**.
+*Go.* Linting the 27 `sonic-gnmi` packages that build without cgo produced 122 findings,
+including nil-pointer dereferences (`SA5011`), deprecated API use, and unchecked errors from
+`json.Unmarshal`, `io.Copy` and `os.Remove`. That sample also showed how much of the raw
+output is style rather than defect, which is why the Go configuration is tuned rather than
+enabled wholesale ([Section 7.4.4](#744-go--golangci-lint)).
+
+*Rust.* Not measured — `clippy` has never run in these repositories, and the surface is
+small enough (140 files) that the backlog is expected to be trivial.
+
+Full numbers are in [Appendix A](#appendix-a-measured-baseline).
 
 ##### 4.2.1 The existing CodeQL and Semgrep workflows are not gates
 
@@ -247,7 +256,6 @@ after several years. The gate, not the analyzer, is the part that is missing.
 | R11 | Added wall-clock time MUST be bounded and reported per language; the target is < 10% of existing job duration for interpreted languages and < 40% for C/C++. |
 | R12 | Analyzers MUST be available in, or installable into, the existing `sonic-slave-trixie` image. Preference is given to tools already present. |
 | R13 | Adoption MUST be incremental. A repository that has not yet adopted MUST be unaffected. |
-| R14 | The design MUST function in downstream forks. It MUST NOT depend on `github.repository_owner == 'sonic-net'` guards or on organization-specific secrets. |
 
 #### 5.3 Exemptions
 
@@ -751,23 +759,68 @@ is not repeated.
 
 ##### 7.4.4 Go — `golangci-lint`
 
-One binary aggregating `govet`, `staticcheck`, `errcheck`, `ineffassign`, `gosimple`,
-`unused`, and `revive`, behind a single config file:
+One binary aggregating several Go analyzers behind a single config. Pinned to **v2.12.2**;
+it must be built with a Go version at or above the code's, and v2.12.2 uses Go 1.25 against
+the trixie slave's 1.24.4. `sonic-ci`'s CI checks that on every change, so a future Go bump
+cannot silently break the fleet ([Appendix A.6](#appendix-a-measured-baseline)).
+
+Runs as a step in the existing build job, after code generation, with generated directories
+excluded. `sonic-gnmi`'s existing `gofmt` check in its `Makefile` is left alone.
+
+**Tuning, and why it is needed.** Go linters have a reputation for noise, and it is
+deserved. Running the default-looking set — `govet`, `staticcheck`, `errcheck`,
+`ineffassign`, `unused`, `revive` — over the 27 `sonic-gnmi` packages that build without
+cgo produced **122 findings**, distributed very unevenly:
+
+| Linter | Findings | Assessment |
+|---|---:|---|
+| `errcheck` | 50 | Half is `Close`/`Flush`/`Sync` on cleanup paths, conventionally ignored. The other half is real: unchecked `json.Unmarshal`, `io.Copy`, `os.Remove`, `w.Write`. |
+| `revive` | 50 | **35 are documentation rules** — `exported` (missing doc comments) and `package-comments`. No defect value. The remaining 15 are naming and unused parameters. |
+| `staticcheck` | 18 | High signal, including `SA5011` nil-pointer dereferences and `SA1019` deprecated API use. |
+| `unused` | 2 | High signal. |
+| `govet` | 1 | High signal. |
+| `ineffassign` | 1 | High signal. |
+
+Two linters produce 82% of the output, and most of that is style rather than defect.
+Enabling this set as-is would bury 22 genuinely useful findings under 100 that nobody wants
+to read — the failure mode that makes teams turn linters off.
+
+The configuration therefore tunes rather than enables wholesale:
+
+- **`govet`, `staticcheck`, `ineffassign`, `unused` — gating.** 22 findings across the
+  sample, essentially all worth acting on.
+- **`errcheck` — gating, with `Close`, `Flush`, `Sync` and `Shutdown` excluded** via
+  `errcheck.exclude-functions`. That removes 29 of the 50 and leaves the 21 that represent
+  genuinely ignored errors.
+- **`revive` — `exported` and `package-comments` disabled**, taking it from 50 findings to
+  15. What remains is naming and unused parameters, which run in the regression-only scope
+  rather than blocking existing code.
+
+Measured against `sonic-gnmi`, that turns 122 raw findings into roughly 43 that a reviewer
+would act on, without losing a single `staticcheck`, `govet`, `unused` or `ineffassign`
+result.
 
 ```yaml
 version: "2"
 linters:
   default: none
-  enable: [govet, staticcheck, errcheck, ineffassign, gosimple, unused, revive]
+  enable: [govet, staticcheck, errcheck, ineffassign, unused, revive]
+  settings:
+    errcheck:
+      exclude-functions: [(io.Closer).Close, (*os.File).Close,
+                          (*os.File).Sync, (*bufio.Writer).Flush]
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
 ```
 
-Pinned to **v2.12.2**. The only constraint is that `golangci-lint` must be built with a Go
-version at or above the code's — v2.12.2 is built with Go 1.25, the trixie slave is on Go
-1.24.4. `sonic-ci`'s CI checks this on every change, so a future Go bump cannot silently
-break the fleet. Details in [Appendix A.6](#appendix-a-measured-baseline).
-
-Runs as a step in the existing build job, after code generation, with generated directories
-excluded. `sonic-gnmi`'s existing `gofmt` check in its `Makefile` is left alone.
+This sample covers only the cgo-free subset of one repository, so the ratios should be
+re-checked against `sonic-mgmt-common` and the remaining `sonic-gnmi` packages during the
+pilot, when the full build environment is available. The tuning above is the starting
+point, not the final answer.
 
 ##### 7.4.5 Shell — `shellcheck`
 
@@ -1059,7 +1112,7 @@ None. No code introduced by this design executes on a switch.
 - **Can the feature be delayed?** Not applicable — there is no service or container.
 
 Indirectly, this design is expected to *reduce* warmboot and fastboot risk. The
-`undefined-name` defects documented in [Section 4.2](#42-why-this-matters--measured-evidence)
+`undefined-name` defects documented in [Section 4.2](#42-what-the-absence-of-a-gate-has-left-behind)
 sit in platform plugin error paths, several of which are exercised during platform
 initialization.
 
@@ -1163,7 +1216,6 @@ Within `sonic-buildimage`:
 | ST4 | Measured wall-clock delta per pilot repository is within the R11 budget. Recorded in this document before phase 2 begins. |
 | ST5 | A `sonic-ci` tag bump that promotes an advisory rule to gating changes the result of an otherwise identical PR — proving the manifest is the effective control point. |
 | ST6 | `sonic-analyze` run on a developer workstation reproduces the CI finding set for the same commit (R6). |
-| ST7 | A fork with a different `repository_owner` runs the full gate, confirming no organization-specific guard was introduced (R14). |
 | ST8 | An image built after the Appendix B removal is byte-diffed against one built before. The only differences are the removed files. |
 | ST9 | Existing warmboot and fastboot regression suites pass unchanged on an image built after the Appendix B removal. |
 
