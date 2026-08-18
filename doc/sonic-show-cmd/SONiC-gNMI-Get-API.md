@@ -17,7 +17,7 @@ SONiC on-demand show command execution via gNMI
 1. Provide a gNMI based API as a read only interface for retrieving SONiC device metadata, which can allow remote invocation without interactive user login.
 2. Provide a way to implement show CLI commands using gNMI APIs.
 3. Provide a structured response that can be consumed by application.
-4. Support Rate limiting using configurable paramters. For instance:
+4. Support Rate limiting using configurable parameters. For instance:
    - Up to 32 parallel command executions per device.
    - Up to 100 maximum concurrent connections.
 
@@ -33,7 +33,7 @@ Below is the diagram for current execution paths.
 ![Current Flow](CurrentFlow.jpg)
 
 # What we bring in
-1. Enable gNMI APIs to provide device metadata and diagnostic data in strctured format(json).
+1. Enable gNMI APIs to provide device metadata and diagnostic data in structured format(json).
 2. Enable certificate-based authentication and authorization for data retrieval, leveraging the same authentication mechanism currently supported by gNMI.
 3. Provide native gNMI benefits such as parallel streams and secure transport.
 4. Enable show CLI(Read-Only) to use gNMI APIs for future CLI implementation.
@@ -61,7 +61,7 @@ $ show reboot-cause history
 
 ### gNMI output
 ```json
-{
+[{
   "reboot_cause": {
     "history": {
       "Name": "2025_06_30_05_20_10",
@@ -71,7 +71,7 @@ $ show reboot-cause history
       "Comment": "N/A"
     }
   }
-}
+},
 {
   "reboot_cause": {
     "history": {
@@ -82,7 +82,7 @@ $ show reboot-cause history
       "Comment": "Unknown"
     }
   }
-}
+}]
 ```
 
 # CLI on gNMI client
@@ -116,7 +116,7 @@ Boolean flags → [key=True]
     **Example:** `show interfaces counters --period=5 detailed --verbose` translates to `interfaces/counters[period=5]/detailed[verbose=True]`
 
 ### Examples with output
-### Example 1: reboot cause history [Without parameter command]
+### Example 1: switch trimming global [Without parameters]
 ```bash
 ./gnmi_cli -client_types=gnmi \
   -a <DEVICE-IP>:<PORT> \
@@ -160,8 +160,6 @@ Boolean flags → [key=True]
 ```
 
 # New design (HLD)
-**TODO:** Replace with final HLD diagram image/link.
-
 ![HLD](HLD-Image.jpg)
 
 # Details
@@ -201,7 +199,7 @@ To prevent further divergence between CLI and gNMI implementations, all `show` c
 ## Developer Workflow
 
 All new `show` functionality must follow:
-```Implementation → gNMI API → CLI Integration```
+`Implementation → gNMI API → CLI Integration`
 > **Note:** Developers may initially implement a gNMI API in Go that invokes existing Python scripts for data retrieval. However, this adds execution overhead and should be considered a temporary approach. The preferred long-term direction is to migrate the Python implementation to native Go.
 
 ## Developing gNMI APIs
@@ -249,7 +247,7 @@ The CLI acts as a thin client layer over gNMI.
 
 6. Convert JSON → human-readable CLI output  
    - Use existing Python tabular formatting utilities 
-   - For this also we will provide utility but this will require enchancements for new commands. 
+   - For this also we will provide utility but this will require enhancements for new commands. 
 
 ## Migration of Existing CLI Commands
 
@@ -280,8 +278,6 @@ The CLI acts as a thin client layer over gNMI.
   # Test
   Tests are required to keep behavior stable across releases and to validate concurrency, reliability, and output consistency.  
   From below list #1, #2 are already taken care.
-
- **TODO:** How should we provide the container tests to community and capture here.
 
   1. Unit tests
     - Validate path-to-handler mapping for non-parameterized and parameterized queries.
