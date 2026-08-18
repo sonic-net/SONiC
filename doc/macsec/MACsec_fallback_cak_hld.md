@@ -76,21 +76,28 @@ the MKA control plane and reuses the existing plugin API surface.
 ## 1 Requirements
 
 1. A port may be configured with a **primary** and an optional **fallback** CAK,
-   both active simultaneously.
+   both active simultaneously. The two CKNs must differ — the CKN is what
+   identifies a CA in an MKPDU — though the CAKs may be the same.
 2. If the primary CA fails — typically a key mismatch after a one-sided key
    rotation, or the peer losing the primary CAK — the port **must fail over to
    the fallback CA without dropping traffic**.
-3. Failover must be **revertive**: once the primary CA recovers a live peer, the
-   port returns to it.
-4. Both ends must converge on the **same** CA. A configuration where each end
-   independently prefers a different CKN must not oscillate.
+3. The primary CA has **priority** over the fallback: whenever the primary has a
+   live peer and we are key server on it, that is where SAKs are distributed. An
+   in-flight rekey settles first (§3.4), so recovery never cuts one short.
+4. Both ends must end up on the **same** CA. When both CAs have live peers the
+   key server distributes on the primary and the other end follows the CKN its
+   SAKs arrive on, so the two ends cannot oscillate.
 5. The feature must be **opt-in**. With only a primary CAK configured, behaviour
    is unchanged.
 6. A CAK must be replaceable **at runtime**, without restarting the supplicant
-   or bouncing the link.
+   or bouncing the link. This is hitless only with a valid fallback to carry the
+   port across the rotation (§4.2.1).
 7. A port carries **exactly one primary CA**, enforced by the supplicant. Adding
    a second primary is rejected rather than silently changing which CA owns the
    port.
+
+A fallback-only configuration works in the supplicant, but SONiC does not expose
+it — MACsecMgr always programs a primary.
 
 ## 2 Background
 
@@ -158,33 +165,60 @@ everything that follows.
 
 ### 3.2 Principal CA selection
 
-`ieee802_1x_kay_decide_principal()` is evaluated whenever peer liveness or key
-server election changes. It answers one question: *which CA owns the Controlled
-Port?*
+`ieee802_1x_kay_select_principal()` answers one question: *which CA owns the
+Controlled Port?* It makes the whole decision and returns the CA that should own
+the port; `ieee802_1x_kay_reconcile_principal()` applies the result — migrating
+the installed-SAK bookkeeping (§3.3), moving the principal and arming the
+deferred rekey (§3.4), or tearing the port down if no CA is returned.
+
+It is re-evaluated whenever **peer liveness** changes — a CA gaining its first
+live peer, or losing its last — or when key server election changes. A peer is
+live once both ends have exchanged MKPDUs under the same CAK.
+
+Selection is four ordered rules, first match wins:
+
+1. **We are key server on a CA with live peers** — that CA, primary preferred.
+2. **We are not key server** — the CA we are receiving SAKs on, i.e. the
+   incumbent, while it still has live peers.
+3. **Otherwise** — any active CA with live peers, primary preferred.
+4. **Otherwise** — whatever is currently set, while it is still active.
 
 ```mermaid
 flowchart TD
-  A["Peer liveness / election changed"] --> B{"Are we the elected <br/>key server on a live CA?"}
-  B -- yes --> C["Choose that CA. <br/>Prefer the primary <br/>over the fallback."]
+  A["Peer liveness / election changed"] --> B{"Are we the elected key <br/>server on a CA with <br/>live peers?"}
+  B -- yes --> C["1 — prefer the primary <br/>over the fallback"]
   B -- no --> D{"Does the current <br/>principal still have <br/>a live peer?"}
-  D -- yes --> E["Keep it — the remote <br/>key server chose this CKN"]
-  D -- no --> F{"Port secured and a <br/>sibling CA is live?"}
-  F -- yes --> G["Fail over to the sibling"]
-  F -- no --> H["No CA can own the port: <br/>tear down the controlled port"]
-  C --> I["reconcile_principal()"]
-  E --> I
-  G --> I
+  D -- yes --> E["2 — keep it: the remote <br/>key server chose this CKN"]
+  D -- no --> F{"Any other active CA <br/>with live peers?"}
+  F -- yes --> G["3 — fail over to it. <br/>Prefer the primary."]
+  F -- no --> H{"Is the current principal <br/>still an active CA?"}
+  H -- yes --> I["4 — keep it as <br/>owner, peerless"]
+  H -- no --> J["No owner can be <br/>named"]
+  C --> K["reconcile_principal() <br/>applies the result"]
+  E --> K
+  G --> K
+  I --> L["No live peer anywhere: <br/>tear down the data path"]
+  J --> L
 ```
 
-Two properties fall out of this ordering and are what keep the two ends in
-step:
+Selection is not key server election: election happens inside each CA and is an
+input here. As key server we choose, and we prefer the primary; as a non key
+server we choose nothing — rule 2 keeps whichever CA the remote key server is
+distributing on. Only one end decides, so the two cannot ping-pong between CKNs.
+Election is re-run for the incoming CA on promotion, but key server priority and
+SCI are port properties, so every CA reaches the same verdict.
 
-- **Primary preference applies only to the key server.** A follower keeps the CA
-  the remote key server is actually distributing on. If both ends independently
-  preferred their own primary, they would ping-pong between CKNs; deferring to
-  the key server makes the choice unilateral and therefore stable.
-- **Selection is revertive.** As soon as the primary CA regains a live peer and
-  we are key server on it, ownership returns to the primary.
+"Active" is close to "configured": the flag is set once a CA sends or processes
+an MKPDU and cleared only when the CA is deleted or deactivated. It is not a
+liveness signal — a CA that has lost every peer is still active.
+
+Rules 3 and 4 are a floor: an owner is named whenever any CA remains, so a later
+SAK lookup or re-homing always resolves. Owning the port is not the same as
+carrying traffic, though — rules 1 to 3 all require a live peer, so a rule 4
+owner has none. When no CA on the port has a live peer the data path is torn
+down as upstream does: the SAs are deleted and the controlled port is blocked,
+while the owner pointer is retained. The returning peer re-elects and the port
+re-secures on a freshly distributed SAK.
 
 Two safety rules complete the picture:
 
@@ -192,13 +226,21 @@ Two safety rules complete the picture:
   is allowed to touch the CP, so a SAK arriving on the fallback CA cannot
   install key material for the port it does not own.
 - Only the **principal** key server distributes SAKs. A rekey requested on a
-  follower is retained (and honoured on promotion) rather than silently dropped.
+  non key server is retained (and honoured on promotion) rather than silently
+  dropped.
 
 ### 3.3 Hitless failover
 
-The promotion itself must not disturb the datapath. The incoming CA **inherits
-the installed SAK** rather than negotiating a new one, so no SA is deleted or
-created at the moment of failover — only MKA bookkeeping moves.
+The promotion itself must not disturb the datapath. Control plane and data plane
+are decoupled, so a change of principal does not require the installed SAK to be
+torn down: the SA stays programmed and keeps carrying traffic.
+
+What moves is **bookkeeping** — the KaY's record of the installed key is re-homed
+from the outgoing participant to the incoming one, so the new principal can
+account for it and retire it later. No SA is created or deleted, and no key
+material crosses between CAs. The new principal does distribute a fresh SAK under
+its own CKN, just not at the instant of promotion: that rekey is deferred until
+MKA has settled (§3.4), and the inherited SA is then rotated out normally.
 
 ```mermaid
 sequenceDiagram
@@ -212,14 +254,14 @@ sequenceDiagram
   Note over CAP,CAF: both CAs exchange MKPDUs independently <br/>only the primary owns the port
 
   CAP->>KAY: last live peer times out
-  KAY->>KAY: decide_principal() <br/>primary has no live peer, <br/>fallback is live → fallback wins
+  KAY->>KAY: select_principal() <br/>primary has no live peer, <br/>fallback is live → fallback wins
   KAY->>KAY: migrate_principal_sas() <br/>re-home installed-SAK bookkeeping
-  KAY->>CAF: set principal, elect key server
+  KAY->>CAF: set principal, re-run key server election <br/>(same verdict)
   Note over SEC: no SA delete / create — <br/>traffic keeps flowing on the inherited SAK
   KAY->>KAY: arm deferred rekey (≈3 × hello time)
 
   rect rgb(235,245,255)
-  Note over CAP,CAF: settle window — both ends converge on the new principal
+  Note over CAP,CAF: settle window — MKA hellos converge <br/>on the new principal
   end
 
   KAY->>CAF: deferred rekey fires
@@ -233,6 +275,10 @@ Rekeying *immediately* on promotion is what breaks the datapath: while the two
 ends are still converging on the new principal, the rotation races traffic and
 frames are lost. The rekey is therefore deferred by **≈3 hello times** and the
 inherited SAK carries traffic until then.
+
+The **settle window** is that deferral — the grace period between a change of
+principal and the rekey that follows it, long enough (≈3 hello times, ≈6 s at
+the default 2 s hello) for MKA hellos to converge on both ends.
 
 Arming is **non-resetting**, so a burst of ownership swaps collapses into a
 single rekey instead of each swap pushing the timer out. A `principal_generation`
@@ -284,7 +330,8 @@ sequenceDiagram
 `retire_when` is demoted to a failsafe for a peer that stays live but never
 confirms. On the key server it is lengthened to **20 s** so it can never cut off
 a slow-but-progressing peer mid-rotation — precisely the loss this change
-exists to prevent. A follower cannot observe the gate and keeps the stock timer.
+exists to prevent. A non key server cannot observe the gate and keeps the stock
+timer.
 
 #### 3.5.2 Coalesce the deferred CP step
 
@@ -357,6 +404,12 @@ When both are set, a second, standby MKA participant is created on the same
 interface at association time. Both participants exchange MKPDUs independently,
 but only the principal owns the Controlled Port and distributes SAKs.
 
+Both CAs advertise MKPDUs **continuously** while configured; the fallback is not
+held in reserve. An MKPDU carrying a CKN the peer does not hold fails ICV
+validation there and is discarded, so a mismatched CA simply never gains a live
+peer. Removing a CAK with `macsec_del_mka` stops its MKPDUs, and a SAK is only
+ever distributed on a CA that has a live peer.
+
 These map one-to-one onto the `fallback_cak` / `fallback_ckn` fields already
 defined in the CONFIG\_DB `MACSEC_PROFILE` table, so no schema change is needed.
 
@@ -371,6 +424,9 @@ the supplicant or bouncing the link.
 | `macsec_del_mka ckn=<hex>` | `MACSEC_DEL_MKA` | Remove a participant by CKN. |
 | `macsec_mka_list` | `MACSEC_MKA_LIST` | List participants with their role and peer counts. |
 | `macsec_rekey` | `MACSEC_REKEY` | Force the key server to distribute a fresh SAK. |
+
+`FAIL` is ordinary `wpa_cli` control interface semantics — the command is
+rejected and nothing changes. It is not a MACsec or MKA state.
 
 `macsec_mka_list` reports, per participant:
 
@@ -393,13 +449,27 @@ port in between:
 
 1. `macsec_del_mka` the old primary. The KaY re-selects, the fallback CA is
    promoted and inherits the installed SAK (§3.3), so the port keeps forwarding.
-2. `macsec_add_mka` the new primary. Once it has a live peer, revertive
-   selection returns the port to it.
+2. `macsec_add_mka` the new primary. Once it has a live peer, rule 1 applies —
+   the primary outranks the fallback — and selection returns the port to it.
 
 Each step costs one settle window of a few hello times, but no packet loss, and
 the port is never left without a usable CA. Note the peer does **not** have to
 have installed the new CKN before the old one is removed — the fallback covers
 the gap, which is what makes an uncoordinated, one-end-at-a-time rotation safe.
+
+These are supplicant-level primitives, not an operator workflow. MACsecMgr
+issues the sequence; an operator uses the ordinary SONiC config commands and
+never touches the control interface:
+
+| Intent | Operator command | What MACsecMgr issues |
+| ------ | ---------------- | --------------------- |
+| Rotate the primary CAK | `config macsec profile update …` | `macsec_del_mka` old primary, then `macsec_add_mka` new primary |
+| Tear the session down | `config macsec port del …` | removes the whole network block, and both CAs with it |
+
+Because the two intents map to different command streams, the supplicant never
+has to infer which was meant: a bare `macsec_del_mka` is *never* a teardown
+request. It removes one CA and the KaY keeps the port on whatever remains. The
+Controlled Port is torn down only when the port's last CA goes away.
 
 ```mermaid
 sequenceDiagram
@@ -416,7 +486,7 @@ sequenceDiagram
 
   OP->>KAY: macsec_del_mka ckn=<old>
   KAY->>CA1: destroy participant
-  KAY->>KAY: decide_principal() <br/>only the fallback is live
+  KAY->>KAY: select_principal() <br/>only the fallback is live
   KAY->>CAF: promote, migrate installed SAK
   CAF->>CP: principal (hitless, same SAK)
   Note over CAF,CP: deferred rekey after the settle window (§3.4)
@@ -424,8 +494,8 @@ sequenceDiagram
   OP->>KAY: macsec_add_mka ckn=<new> cak=<new>
   KAY->>CA2: create participant (primary)
   Note over CA2: MKA converges, peer becomes live
-  KAY->>KAY: decide_principal() <br/>primary is eligible again
-  KAY->>CA2: promote (revertive), migrate SAK
+  KAY->>KAY: select_principal() <br/>primary is eligible again
+  KAY->>CA2: promote (primary outranks fallback), migrate SAK
   CA2->>CP: principal (hitless)
   Note over CA2,CP: deferred rekey under the new CKN (§3.4)
 ```
