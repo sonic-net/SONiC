@@ -108,6 +108,12 @@ show <cmd1> <cmd2> <cmd3> → <cmd1>/<cmd2>/<cmd3>
 Options with value → [key=value]
 Boolean flags → [key=True]
 
+- Argument Normalization: CLI arguments are normalized before gNMI path generation. This ensures that equivalent short-form and long-form options, such as `-v` and `--verbose`, are resolved to a common internal representation. The normalized representation is then used to generate a deterministic gNMI path. This preserves compatibility with the existing SONiC CLI behavior while ensuring that different forms of the same command generate an identical gNMI request.
+```bash
+show interfaces status -v
+show interfaces status --verbose
+```
+
 **SONiC CLI to gNMI Path Conversion Utility**
 * A CLI utility tool has been developed to translate legacy `show` commands into their corresponding gNMI paths using long-form options. 
 * Options accepting values must use an explicit `=` separator (e.g., `--interface=Ethernet0`), which the utility maps directly into gNMI path keys (e.g., `[interface=Ethernet0]`). 
