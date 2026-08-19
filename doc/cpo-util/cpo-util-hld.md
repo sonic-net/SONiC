@@ -437,6 +437,8 @@ For each `discover_entry`, select zero or one `parsing_entry` and generate a `pl
 
 ![matching-flow](./matching-flow.svg)
 
+For EEPROM matching, `cpoutil` SHALL read the match attributes from STATE_DB.
+
 Tie-break policy (Phase 1):
 
 1. highest `FwLoadVersion` wins;
@@ -585,14 +587,13 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class CpoFwOpsEntry:
-    cpo_module_index: int
     component_class: str  # OpticalEngine | ExternalLaserSource
-    component_index: int
+    component_index: int  # index of OE or ELS, reserved for future
     file_path: str = None
 
 
 class CpoBase:
-    def download_firmware(fw_op_entry: CpoFwOpsEntry) -> bool:
+    def download_firmware(fw_op_entry: CpoFwOpsEntry) -> Iterator[int]:
         """
         Download firmware to a CPO component
 
@@ -602,7 +603,19 @@ class CpoBase:
         Returns:
             True if the operation succeed, otherwise False
         """
-        pass
+        # find the correct api object
+        # read total length and data from file
+        api.cdb_start_download(fw_op_entry.file_path)
+
+        offset = 0
+        while offset < total:
+            chunk = data[offset:offset + CHUNK_SIZE]
+            api.cdb_write_firmware_chunk(chunk)
+            offset += len(chunk)
+            yield len(chunk)
+        
+        api.cdb_complete_download()
+
 
     def run_firmware(fw_op_entry: CpoFwOpsEntry, mode: int) -> bool:
         """
@@ -628,12 +641,12 @@ class CpoBase:
         """
         pass
 
-    def upgrade_firmware(fw_op_entries: list[CpoFwOpsEntry]) -> bool:
+    def upgrade_firmware(fw_op_entries: CpoFwOpsEntry) -> Iterator[int]:
         """
-        Run firmware upgrade process for each CPO firmware operation entry.
+        Run firmware upgrade process for a CPO component
 
         Args:
-            fw_op_entries: A list of CPO firmware operation entries
+            fw_op_entry: A CPO firmware operation entry
 
         Returns:
             True if the operation succeed, otherwise False
@@ -645,28 +658,10 @@ The default implementations of `download_firmware`, `run_firmware`, and `commit_
 
 `upgrade_firmware` combines `download_firmware`, `run_firmware`, and `commit_firmware`.
 
-##### 7.6.2 CMIS API
-
-Add a new function `get_fw_ops_match_attrs` to get all the FW operation matching attributes on demand.
-
-```python
-def get_fw_ops_match_attrs(self, fields: list[str]) -> dict[str, object]:
-    """
-    Get runtime match attributes for FW operations on demand.
-
-    Args:
-        fields: A list of CMIS EEPROM fields name to be collected
-
-    Returns:
-        Runtime match attributes dictionary
-    """
-    pass
-```
-
 ##### 7.6.3 ELS API
 
-- Add a new function `get_fw_ops_match_attrs` to get all the FW operation matching attributes on demand.
 - `ElsfpApi` should be updated to mix in `CmisCdbFw` so that it can support CDB-based firmware operations. (Or, should each vendor provide a `VendorCdbFw`?)
+- `ElsfpApi` should expose all firmware-matching attributes from EEPROM so that `xcvrd` can publish them to STATE_DB.
 
 > Note: currently, ElsfpApi is not inherit from CmisApi, each vendor has to implement `get_fw_ops_match_attrs` by their own.
 
