@@ -70,25 +70,49 @@ module sonic-high-frequency-telemetry {
 
                 leaf reporting_rate {
                     description "The reporting interval after aggregation, unit microseconds.";
-                    type uint32;
+                    type uint32 {
+                        range "1..max";
+                    }
                 }
 
                 leaf-list rollover_counters {
-                    description "List of group and counter pairs that require rollover correction. It is encoded as a comma-separated string in CONFIG_DB.";
+                    description "List of group and counter pairs that require rollover correction. Each entry uses the GROUP|COUNTER format.";
                     type string;
-                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
-                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )"
-                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
-                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )";
+                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )";
+                }
+
+                leaf heatmap_interval {
+                    description "Independent heatmap aggregation interval, unit microseconds.";
+                    type uint32 {
+                        range "1..max";
+                    }
                 }
 
                 leaf-list heatmap_counters {
-                    description "List of group and counter pairs that should be treated as heatmap data. It is encoded as a comma-separated string in CONFIG_DB.";
+                    description "List of group and counter pairs that should be treated as heatmap data. Each entry uses the GROUP|COUNTER format.";
                     type string;
-                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
-                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )"
-                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
-                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )";
+                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )";
+                }
+
+                leaf-list heatmap_bucket_boundaries {
+                    ordered-by user;
+                    description "Strictly increasing inclusive upper bounds shared by every configured heatmap counter.";
+                    type uint64 {
+                        range "0..9007199254740992";
+                    }
+                    must "not(preceding-sibling::*[local-name() = 'heatmap_bucket_boundaries']) or number(current()) > number(preceding-sibling::*[local-name() = 'heatmap_bucket_boundaries'][1])" {
+                        error-message "heatmap_bucket_boundaries must be strictly increasing.";
+                    }
+                }
+
+                must "(not(heatmap_interval) and count(heatmap_counters) = 0 and count(heatmap_bucket_boundaries) = 0) or (heatmap_interval and count(heatmap_counters) > 0 and count(heatmap_bucket_boundaries) > 0)" {
+                    error-message "heatmap_interval, heatmap_counters, and heatmap_bucket_boundaries must be configured together.";
                 }
 
             }
@@ -127,10 +151,10 @@ module sonic-high-frequency-telemetry {
 
                 leaf-list object_counters {
                     type string;
-                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
-                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )"
-                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
-                        + " or ( ../group_name = 'QUEUE' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )";
+                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'QUEUE' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )";
                 }
 
             }

@@ -29,7 +29,7 @@
     - [7.4.3. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR](#743-high_frequency_telemetry_aggregator)
     - [7.4.4. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#744-high_frequency_telemetry_group)
   - [7.5. StateDb](#75-statedb)
-    - [7.5.1. HIGH\_FREQUENCY\_TELEMETRY\_SESSION](#751-high_frequency_telemetry_session)
+    - [7.5.1. HIGH\_FREQUENCY\_TELEMETRY\_SESSION\_TABLE](#751-high_frequency_telemetry_session_table)
   - [7.6. Work Flow](#76-work-flow)
   - [7.7. SAI API](#77-sai-api)
 - [8. Configuration and management](#8-configuration-and-management)
@@ -54,6 +54,7 @@
 | 0.1 | 09/06/2024 | Ze Gan | Initial version    |
 | 0.2 | 03/01/2025 | Janet Cui | Initial version    |
 | 0.3 | 06/21/2026 | Ze Gan | Add aggregator configuration |
+| 0.4 | 08/18/2026 | Ze Gan | Define independent heatmap interval and method ordering |
 
 ## 2. Scope
 
@@ -132,10 +133,11 @@ flowchart LR
     asic[\ASIC\]
 
     config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
-                HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
                 HIGH_FREQUENCY_TELEMETRY_GROUP--> hft_orch
-    state_db --HIGH_FREQUENCY_TELEMETRY_SESSION--> counter_syncd
-    hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION--> state_db
+    config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
+                HIGH_FREQUENCY_TELEMETRY_AGGREGATOR--> counter_syncd
+    state_db --HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE--> counter_syncd
+    hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE--> state_db
     hft_orch --SAI_OBJECT_TYPE_TAM_XXXX--> syncd
     syncd --TAM configuration--> dma_engine
     syncd --TAM configuration--> netlink_module
@@ -191,11 +193,13 @@ flowchart LR
 
 The Aggregator actor applies optional per-profile aggregation after IPFIX records are parsed and before counters are exported to Counter DB or OpenTelemetry. A profile selects an aggregator by setting `HIGH_FREQUENCY_TELEMETRY_PROFILE.aggregator`; if no aggregator is selected, Counter Syncd forwards the lower-layer reported samples without extra aggregation, rollover correction, or heatmap handling.
 
-An aggregator supports the following methods and can be extended with more methods later:
+An aggregator supports the following optional methods and can be extended with more methods later. The methods can be configured independently or in any combination. When combined, Counter Syncd applies rollover correction first, reporting-rate aggregation second, and heatmap generation last.
+
+Samples for one HFT session are expected in nondecreasing `observationTimeNanoseconds` order. Samples for a reporting or heatmap window that has already been emitted are ignored. Both time-based stages are sample-driven: the first sample in a later window emits the completed preceding window. This avoids per-session timers for continuous telemetry; the final partial window can remain buffered if a stream becomes idle or ends.
 
 - Reporting rate aggregation: aggregates the lower-layer reported samples into the configured aggregator reporting interval. The unit is microseconds. If `reporting_rate` is not configured, the aggregator uses the lower-layer reporting interval and does not aggregate samples.
-- Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. The list is empty by default, so no counters are corrected for rollover unless configured.
-- Heatmap counters: marks the group and counter pairs configured in `heatmap_counters` as heatmap data. The list is empty by default.
+- Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. When a new raw value is less than the previous raw value, Counter Syncd treats the decrease as one rollover and adds the previous corrected value as the new offset. For example, raw values `100, 200, 10, 20` are exported as `100, 200, 210, 220`. The corrected value remains a `uint64`. The list is empty by default, so no counters are corrected for rollover unless configured.
+- Heatmap counters: aggregates the group and counter pairs configured in `heatmap_counters` into OTLP delta histograms over the independent `heatmap_interval`, in microseconds. `heatmap_bucket_boundaries` defines the strictly increasing inclusive upper bounds shared by all heatmap counters. Heatmap input is the output of reporting-rate aggregation when `reporting_rate` is configured, or the rollover-corrected lower-layer samples otherwise. For example, a 1 ms lower-layer interval, 100 ms `reporting_rate`, and 1 s `heatmap_interval` produce one histogram containing ten reported points. All three heatmap fields are omitted by default.
 
 #### 7.1.2. High frequency telemetry Orch
 
@@ -204,7 +208,6 @@ The `High frequency telemetry Orch` is a new object within the Orchagent. It has
 1. Maintain the TAM SAI objects according to the high frequency telemetry configuration in the config DB.
 2. Generate a unique template ID for each high frequency telemetry profile to ensure distinct identification and management.
 3. Register and activate streams on counter syncd.
-4. Resolve the aggregator configuration referenced by each profile and publish it with the session metadata for Counter Syncd.
 
 `High frequency telemetry Orch` leverages `tam_counter_subscription` objects to bind monitoring objects, such as ports, buffers, or queues, to streams. Therefore, this orch must ensure that the lifecycle of `tam_counter_subscription` objects is within the lifecycle of their respective monitoring objects.
 
@@ -478,6 +481,24 @@ Metric {
 }
 ```
 
+Heatmap counters are represented as OTLP delta histograms. Each data point covers one independent `heatmap_interval`. When reporting-rate aggregation is enabled, only the reported value from each completed reporting window contributes to the histogram; otherwise every rollover-corrected lower-layer sample contributes. Bucket boundaries are inclusive upper bounds: for boundaries `[100, 200]`, the buckets are `(-Inf, 100]`, `(100, 200]`, and `(200, +Inf)`. The histogram includes the `object_name`, SAI type/stat IDs, and HFT session as attributes.
+
+```
+Metric {
+  name: "sai_counter_type_1_stat_2_heatmap",
+  data: Histogram {
+    aggregation_temporality: DELTA,
+    data_points: [{
+      start_time_unix_nano: 1000,
+      time_unix_nano: 2000,
+      count: 3,
+      explicit_bounds: [100, 200],
+      bucket_counts: [1, 1, 1]
+    }]
+  }
+}
+```
+
 For design goals, requirements, and specification of the OTLP, please refer to the official documentation: [OpenTelemetry Protocol (OTLP)](https://github.com/open-telemetry/opentelemetry-proto/tree/main/docs).
 
 For practical OTLP message examples and implementation patterns, see the examples in the OpenTelemetry repository: [OpenTelemetry Protocol Examples](https://github.com/open-telemetry/opentelemetry-proto/tree/main/examples).
@@ -542,8 +563,10 @@ aggregator         = string ; The optional name of the HIGH_FREQUENCY_TELEMETRY_
 ```
 HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|{{aggregator_name}}
     "reporting_rate": {{uint32}} (Optional)
-    "rollover_counters": {{comma-separated list of group and counter pairs}} (Optional)
-    "heatmap_counters": {{comma-separated list of group and counter pairs}} (Optional)
+    "rollover_counters@": {{comma-separated list of group and counter pairs}} (Optional)
+    "heatmap_interval": {{uint32}} (Optional)
+    "heatmap_counters@": {{comma-separated list of group and counter pairs}} (Optional)
+    "heatmap_bucket_boundaries@": {{comma-separated list of uint64}} (Optional)
 ```
 
 ```
@@ -558,10 +581,19 @@ rollover_counters    = A comma-separated list of group and counter pairs that re
                        The group_name must match HIGH_FREQUENCY_TELEMETRY_GROUP.group_name, and object_counter must be valid for that group.
                        An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
                        The default value is empty, meaning no counters are corrected for rollover.
+heatmap_interval     = uint32 ; The independent heatmap aggregation interval, unit microseconds.
+                       If reporting_rate is configured, each completed reporting window contributes one point to the heatmap.
+                       Otherwise, every rollover-corrected lower-layer sample contributes one point.
 heatmap_counters     = A comma-separated list of group and counter pairs that should be treated as heatmap data.
                        The syntax is the same as rollover_counters.
                        An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
                        The default value is empty.
+heatmap_bucket_boundaries = A comma-separated, strictly increasing list of uint64 values used as inclusive upper bounds for OTLP histogram buckets.
+                            One list is shared by all heatmap_counters in this aggregator.
+                            The implicit final bucket contains values greater than the last configured boundary.
+                            Each boundary must be between 0 and 2^53 so it is represented exactly by the OTLP double field.
+                            An example is 0,1024,4096,16384.
+                             This field, heatmap_interval, and heatmap_counters must either all be configured or all be omitted.
 ```
 
 #### 7.4.4. HIGH_FREQUENCY_TELEMETRY_GROUP
@@ -573,7 +605,7 @@ HIGH_FREQUENCY_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
 ```
 
 ```
-key             = HIGH_FREQUENCY_TELEMETRY_GROUP|group_name|profile_name
+key             = HIGH_FREQUENCY_TELEMETRY_GROUP|profile_name|group_name
                     ; group_name is the object type, like PORT, BUFFER_PG or BUFFER_POOL.
                     ; Multiple groups can be bound to a same high frequency telemetry profile.
 ; field         = value
@@ -589,23 +621,21 @@ For the schemas of high frequency telemetry config tables, please refer to their
 
 ### 7.5. StateDb
 
-#### 7.5.1. HIGH_FREQUENCY_TELEMETRY_SESSION
+#### 7.5.1. HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE
 
 ```
-HIGH_FREQUENCY_TELEMETRY_SESSION|{{profile_name}}|{{group_name}}
-    "session_status": {{enabled/disabled}}
+HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE|{{profile_name}}|{{group_name}}
+    "stream_status": {{enabled/disabled}}
     "object_names": {{list of object name}}
     "object_ids": {{list of uint16_t}}
     "session_type": {{ipfix}}
     "session_config": {{binary array}}
-    "aggregator_config": {{serialized aggregator configuration}} (Optional)
-    "config_version": {{uint32_t}}
 ```
 
 ```
-key                 = HIGH_FREQUENCY_TELEMETRY_SESSION:profile_name ; a string as the identifier of high frequency telemetry
+key                 = HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE|profile_name|group_name ; identifies one profile and object group
 ; field             = value
-session_status      = enable/disable ; Enable/Disable stream.
+stream_status       = enabled/disabled ; Enabled/Disabled stream.
 object_names        = A list of object name.
                       Same as the list of object_names of HIGH_FREQUENCY_TELEMETRY_GROUP in config db
 object_ids          = A list of object ID;
@@ -614,11 +644,6 @@ object_ids          = A list of object ID;
 session_type        = ipfix ; Specified the session type.
 session_config      = binary array;
                       If the session type is IPFIX, This field stores the IPFIX template to interpret the message of this session.
-aggregator_config   = string;
-                      The serialized HIGH_FREQUENCY_TELEMETRY_AGGREGATOR configuration applied by this session.
-                      If this value isn't provided, Counter Syncd does not apply aggregation to this session.
-config_version      = uint32_t; Indicates which version is being used. The default value is 0.
-                      This value will be increased once the new config was applied by CounterSyncd.
 ```
 
 ### 7.6. Work Flow
@@ -631,13 +656,13 @@ sequenceDiagram
         participant config_db as CONFIG_DB
         participant state_db as STATE_DB
     end
-    box OpenTelemetry container
-        participant otel as OpenTelemetry Collector
-        participant counter as counter syncd
-    end
     box SWSS container
+        participant counter as counter syncd
         participant port_orch as Port Orch
         participant hft_orch as High Frequency Telemetry Orch
+    end
+    box OpenTelemetry container
+        participant otel as OpenTelemetry Collector
     end
     box SYNCD container
         participant syncd
@@ -652,8 +677,9 @@ sequenceDiagram
     hft_orch ->> syncd: Initialize <br/>HOSTIF<br/>TAM_TRANSPORT<br/>TAM_collector<br/>
 
     config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_PROFILE
-    config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
     config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_GROUP
+    config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_PROFILE
+    config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
     port_orch ->> hft_orch: Port/Queue/Buffer ... object
 
     hft_orch ->> syncd: Config TAM objects
@@ -661,10 +687,8 @@ sequenceDiagram
     syncd ->> dma_engine: Config stats
     syncd ->> hft_orch: Config was applied in the ASIC
     syncd ->> hft_orch: Query IPFIX template
-    hft_orch ->> state_db: Update HIGH_FREQUENCY_TELEMETRY_SESSION
+    hft_orch ->> state_db: Update HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE
     state_db ->> counter: Register IPFIX template
-    counter ->> state_db: Update config version
-    state_db ->> hft_orch: Notify config version
 
     alt Is stream status enabled?
 
@@ -685,7 +709,7 @@ sequenceDiagram
     else
         hft_orch ->> syncd: Disable telemetry stream
         syncd ->> dma_engine: Stop stream
-        hft_orch ->> state_db: Update HIGH_FREQUENCY_TELEMETRY_SESSION
+        hft_orch ->> state_db: Update HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE
         state_db ->> counter: Unrigster IPFIX template
     end
     loop Receive IPFIX message of stats from genetlink
@@ -716,28 +740,31 @@ N/A
 ``` shell
 
 # Add a new profile
-sudo config high_frequency_telemetry profile add $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --chunk_size=$chunk_size --chunk_count=$chunk_count --otel_endpoint=$otel_endpoint --otel_certs=$otel_certs
+sudo config hft add profile $profile_name --stream_state=$stream_state --poll_interval=$poll_interval --aggregator=$aggregator_name
 
 # Change stream state
-sudo config high_frequency_telemetry profile set $profile_name --stream_state=$stream_state
+sudo config hft enable $profile_name
+sudo config hft disable $profile_name
 
 # Bind an aggregator to a profile
-sudo config high_frequency_telemetry profile set $profile_name --aggregator=$aggregator_name
+sudo config hft bind-aggregator $profile_name $aggregator_name
+sudo config hft unbind-aggregator $profile_name
 
 # Add an aggregator
-sudo config high_frequency_telemetry aggregator add $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4"
+sudo config hft add aggregator $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_interval=$heatmap_interval --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4" --heatmap_bucket_boundaries="0,1024,4096,16384"
 
 # Add a monitor group
-sudo config high_frequency_telemetry group "$profile|$group_name" --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
+sudo config hft add group $profile_name --group_type=$group_name --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
 
 ```
 
 #### 8.2.2. Inspect stream CLI
 
-Fetch all counters on the high-frequency-telemetry
+Display HFT configuration or monitor counters from CounterSyncd:
 
 ``` shell
-sudo high-frequency-telemetry $profile_name --json/--table --duration=$duration
+show hft configuration
+show hft counters --stats-interval $seconds --max-stats-per-report $count
 ```
 
 #### 8.2.3. YANG
