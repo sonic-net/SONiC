@@ -35,6 +35,7 @@
 | --- | ---------- | ------ | ------------------------------------------------------- |
 | 1.0 | 2026-08-03 | Junchao Chen | Base version — Phase 1 (firmware command group)         |
 | 1.1 | 2026-08-14 | Junchao Chen | Add `--raw` for download/upgrade only (skip Parsing/Matching) |
+| 1.2 | 2026-08-20 | Junchao Chen | Reserve `--component mcu` as a placeholder (not implemented) |
 
 ### 2. Scope
 
@@ -67,6 +68,7 @@ Key points:
 | CPO | Co-Packaged Optics — composite optical assembly integrated with the switch ASIC |
 | OE | Optical Engine — the integrated optical engine component |
 | ELS | External Laser Source — the pluggable external laser component |
+| MCU | Management microcontroller on the CPO assembly. `--component mcu` is reserved as a CLI placeholder; firmware operations on MCU are not implemented in this version |
 | CMIS | Common Management Interface Specification for modules |
 | CDB | Command Data Block — CMIS mechanism used for firmware transfer/activation |
 | OIF | Optical Internetworking Forum |
@@ -89,8 +91,8 @@ Key points:
 Pass an OIF `.tgz` as the firmware argument. `cpoutil` runs Discovery → Parsing → Matching → FW operations, verifies optional checksums from metadata, and selects at most one Firmware Load per discovered target.
 
 ```
-cpoutil firmware upgrade  <port_sel>|all  <package.tgz>  [--component oe|els|all]
-cpoutil firmware download <port_sel>      <package.tgz>  --component oe|els
+cpoutil firmware upgrade  <port_sel>|all  <package.tgz>  [--component oe|els|mcu|all]
+cpoutil firmware download <port_sel>      <package.tgz>  --component oe|els|mcu
 ```
 
 Examples:
@@ -113,11 +115,11 @@ cpoutil firmware commit Ethernet0 --component oe
 
 #### 4.2 Raw binary (`--raw`)
 
-Pass `--raw <fw.bin>` instead of a package. Parsing and Matching are skipped. `--component oe|els` is required (`all` is not allowed). The same binary is applied to every discovered target in scope. The operator must ensure the binary matches that component.
+Pass `--raw <fw.bin>` instead of a package. Parsing and Matching are skipped. `--component oe|els|mcu` is required (`all` is not allowed). The same binary is applied to every discovered target in scope. The operator must ensure the binary matches that component. `--component mcu` is accepted by the CLI grammar but is not implemented.
 
 ```
-cpoutil firmware upgrade  <port_sel>|all  --raw <fw.bin>  --component oe|els
-cpoutil firmware download <port_sel>      --raw <fw.bin>  --component oe|els
+cpoutil firmware upgrade  <port_sel>|all  --raw <fw.bin>  --component oe|els|mcu
+cpoutil firmware download <port_sel>      --raw <fw.bin>  --component oe|els|mcu
 ```
 
 `--raw` rules:
@@ -125,7 +127,7 @@ cpoutil firmware download <port_sel>      --raw <fw.bin>  --component oe|els
 - Available on `upgrade` and `download` only.
 - Mutually exclusive with the OIF package argument.
 - Supplies a single raw firmware binary for OE or ELS; Parsing and Matching are skipped.
-- `--component oe|els` is mandatory; `all` is not allowed (one binary cannot target both component classes).
+- `--component oe|els|mcu` is mandatory; `all` is not allowed (one binary cannot target more than one component class). `--component mcu` is a placeholder and SHALL be rejected as not implemented.
 - The same raw binary path is applied to every discovered target in the operator scope.
 
 Examples:
@@ -149,7 +151,7 @@ cpoutil firmware download Ethernet0 --raw els.bin --component els
 | REQ-1 | Provide a new top-level utility `cpoutil`, installed with `sonic-utilities`, following the Platform API dispatch pattern of `sfputil`, `fwutil`, and `psuutil`. |
 | REQ-2 | Phase 1 delivers the `firmware` command group — `upgrade`, `download`, `run`, `commit` — for OE and ELS FW lifecycle on CPO-capable logical ports. |
 | REQ-3 | Operator scope uses logical port selectors (`Ethernet*`, ranges, comma-separated lists, `all`). |
-| REQ-4 | Operators use `--component` to select the target component type: OE, ELS, or all. |
+| REQ-4 | Operators use `--component` to select the target component type: `oe`, `els`, `mcu`, or `all`. `mcu` is a reserved placeholder with no implementation in this version; selecting it SHALL be rejected as not implemented. `all` means OE and ELS only (MCU is excluded). |
 | REQ-5 | Stages (Discovery, Parsing, Matching) are vendor-neutral logic in `sonic-utilities`. No vendor-specific code in these stages. |
 | REQ-6 | Stage (FW operations) delegates to the Platform API. A default CMIS CDB lifecycle (download -> run -> commit) is implemented in `sonic-platform-common` for OE and ELS targets that support the reference sequence. |
 | REQ-7 | Vendor platform API MAY override Stage 4 when default behavior is insufficient. Overrides SHALL NOT replace OIF parsing, matching funnel rules, or CLI port/component scope. |
@@ -158,7 +160,7 @@ cpoutil firmware download Ethernet0 --raw els.bin --component els
 | REQ-10 | With `--raw`, Parsing and Matching are skipped. `download`, `run`, and `commit` execute the defined subsets. |
 | REQ-11 | Package-driven subcommands accept OIF Firmware Update Packages [1] only. Parsing, matching, and optional checksum verification complete in `cpoutil` before FW execution is delegated to the Platform API. |
 | REQ-12 | A single OIF package MAY contain multiple metadata + binary image pairs. `cpoutil` ingests all pairs at parse time and selects at most one load per runtime target at match time — by ComponentClass, VendorName, and optional CMIS match attributes — with no platform-specific pre-filter. Supports composite modules (multiple FW-bearing sub-components) and superset packages (unused entries: SKIPPED with warning on upgrade; fatal on download only when the scoped target has no match). |
-| REQ-13 | `download` and `upgrade` MAY accept `--raw <fw.bin>` instead of an OIF package. `--raw` and the OIF package argument are mutually exclusive. When `--raw` is used, Parsing and Matching are skipped; Discovery still runs; `--component oe\|els` is required (not `all`). The same raw binary is applied to every discovered target in scope. |
+| REQ-13 | `download` and `upgrade` MAY accept `--raw <fw.bin>` instead of an OIF package. `--raw` and the OIF package argument are mutually exclusive. When `--raw` is used, Parsing and Matching are skipped; Discovery still runs; `--component oe\|els\|mcu` is required (not `all`). The same raw binary is applied to every discovered target in scope. `--component mcu` is reserved and not implemented. |
 
 #### 5.2 Configuration and Management Requirements
 
@@ -492,12 +494,12 @@ Phase 2 (placeholders — out of scope this version):
 `firmware` command surface:
 
 ```
-cpoutil firmware upgrade  <port_sel>|all  <package.tgz>           [--component oe|els|all]
-cpoutil firmware upgrade  <port_sel>|all  --raw <fw.bin>          --component oe|els
-cpoutil firmware download <port_sel>      <package.tgz>           --component oe|els
-cpoutil firmware download <port_sel>      --raw <fw.bin>          --component oe|els
-cpoutil firmware run      <port_sel>                              --component oe|els
-cpoutil firmware commit   <port_sel>                              --component oe|els
+cpoutil firmware upgrade  <port_sel>|all  <package.tgz>           [--component oe|els|mcu|all]
+cpoutil firmware upgrade  <port_sel>|all  --raw <fw.bin>          --component oe|els|mcu
+cpoutil firmware download <port_sel>      <package.tgz>           --component oe|els|mcu
+cpoutil firmware download <port_sel>      --raw <fw.bin>          --component oe|els|mcu
+cpoutil firmware run      <port_sel>                              --component oe|els|mcu
+cpoutil firmware commit   <port_sel>                              --component oe|els|mcu
 ```
 
 `<package.tgz>` and `--raw <fw.bin>` are mutually exclusive on `upgrade` and `download`. Exactly one of them SHALL be provided.
@@ -522,19 +524,23 @@ Port scope rules:
 `--component` grammar:
 
 ```
-upgrade (OIF package):     oe | els | all   (default: all)
-upgrade (--raw):           oe | els         (required)
-download/run/commit:       oe | els         (required; must resolve to exactly one target)
+upgrade (OIF package):     oe | els | mcu | all   (default: all)
+upgrade (--raw):           oe | els | mcu         (required)
+download/run/commit:       oe | els | mcu         (required; must resolve to exactly one target)
 ```
+
+- `oe` / `els`: implemented in this version.
+- `mcu`: reserved placeholder; firmware operations on MCU are not implemented. Selecting `--component mcu` SHALL fail with a fatal "not implemented" error.
+- `all`: OE and ELS only. MCU is excluded until MCU firmware operations are implemented.
 
 Subcommand matrix:
 
 | Subcommand | `<port_sel>` | `--component` | Firmware input |
 | --- | --- | --- | --- |
-| `upgrade` | Required: single, range, list, all | Optional with package (default `all`); required (`oe`\|`els`) with `--raw` | Exactly one of: `<package.tgz>` or `--raw <fw.bin>` |
-| `download` | Single port only | Required (`oe`\|`els`) | Exactly one of: `<package.tgz>` or `--raw <fw.bin>` |
-| `run` | Single port only | Required (`oe`\|`els`) | — |
-| `commit` | Single port only | Required (`oe`\|`els`) | — |
+| `upgrade` | Required: single, range, list, all | Optional with package (default `all`); required (`oe`\|`els`\|`mcu`) with `--raw` | Exactly one of: `<package.tgz>` or `--raw <fw.bin>` |
+| `download` | Single port only | Required (`oe`\|`els`\|`mcu`) | Exactly one of: `<package.tgz>` or `--raw <fw.bin>` |
+| `run` | Single port only | Required (`oe`\|`els`\|`mcu`) | — |
+| `commit` | Single port only | Required (`oe`\|`els`\|`mcu`) | — |
 
 ##### 7.5.2 Usage Examples
 
@@ -572,7 +578,7 @@ cpoutil firmware commit Ethernet0 --component oe
 
 Corresponding CLI documentation should be added to https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md when the feature is implemented.
 
-> Note: Only one CLI instance may run at a time. This constraint should be enforced with a file lock.
+> Note: `cpoutil` does not take a file lock, so multiple instances MAY run in parallel. For best performance, the operator SHOULD avoid concurrent firmware operations on OE/ELS components that share the same I2C bus.
 
 #### 7.6 sonic-platform-common
 
@@ -679,12 +685,14 @@ Firmware execution is delegated only after `cpoutil` completes Discovery and, fo
 | Logical port not CPO-capable | Port scope validation | Fatal (invalid logical port name) |
 | Neither `<package>` nor `--raw` on download or upgrade | CLI parse | Fatal |
 | Both `<package>` and `--raw` provided | CLI parse | Fatal (mutually exclusive) |
-| `--raw` used without `--component oe\|els` | CLI parse | Fatal |
+| `--raw` used without `--component oe\|els\|mcu` | CLI parse | Fatal |
 | `--raw` with `--component all` | CLI parse | Fatal |
+| `--component mcu` | CLI parse | Fatal ("not implemented") |
 | `--raw` file missing or unreadable | CLI parse / validation | Fatal |
 | `--component` omitted on download/run/commit | CLI parse | Fatal |
 | `--component` matches 0 targets | Port scope validation | Fatal |
 | `--component` matches >1 on download/run/commit | Port scope validation | Fatal ("ambiguous") |
+| Module EEPROM match attributes missing from STATE_DB | Package matching | Fatal per target |
 | No matching package entry (upgrade) | Package matching | SKIPPED (warning) |
 | No matching package entry (download) | Package matching | Fatal |
 | Multiple matching entries, tie-break unresolved | Package matching | Fatal per target |
@@ -762,6 +770,7 @@ No persistent daemon and no growing memory consumption. `cpoutil` is a short-liv
 | LIM-1 | CPO-capable ports only | `<port_sel>` must resolve to ports mapped by the chassis to a CPO module; non-CPO `Ethernet*` names are rejected. |
 | LIM-2 | Phase 1 scope | Only the `firmware` command group is delivered. `show`/`debug`/`reset`/`version` are Phase 2 placeholders, not specified here. |
 | LIM-3 | Firmware input | Package path accepts OIF `.tgz` packages only (OIF Scenario 1 advanced-host path). Alternatively, `--raw <fw.bin>` supplies a single raw OE or ELS binary and skips Parsing/Matching; there is no automatic image selection or metadata validation on the raw path. |
+| LIM-4 | `--component mcu` | CLI grammar reserves `mcu` as a placeholder. MCU firmware download/run/commit/upgrade is not implemented; the option SHALL be rejected. |
 
 ### 13. Testing Requirements/Design
 
@@ -781,7 +790,8 @@ Vendor-neutral unit tests (filesystem input + in-memory / mock chassis targets):
 - Verify malformed OIF package is rejected with informative error output.
 - Verify FW Load checksum validation is properly performed.
 - Verify `--raw` and `<package>` are mutually exclusive and rejected when both or neither are provided on download/upgrade.
-- Verify `--raw` requires `--component oe|els` and rejects `--component all` / omitted `--component`.
+- Verify `--raw` requires `--component oe|els|mcu` and rejects `--component all` / omitted `--component`.
+- Verify `--component mcu` is accepted by the CLI grammar and rejected as not implemented.
 - Verify `--raw` skips Parsing and Matching and applies the binary to discovered targets.
 - Verify match missing is properly handled.
 - Verify tie-break behavior is expected: highest `FwLoadVersion`, else user confirm.
@@ -804,6 +814,7 @@ Warmboot/fastboot: not applicable — feature is not on the boot path; existing 
 ### 14. Open/Action items
 
 - Phase 2 command groups (`show`, `debug`, `reset`, `version`, …): ownership, scope, and delivery TBD.
+- `--component mcu`: CLI placeholder only; MCU firmware lifecycle is not specified or implemented in this version.
 - Parallelize independent FW operations via multi-threading (future performance enhancement).
 
 ---
