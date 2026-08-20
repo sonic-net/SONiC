@@ -80,7 +80,7 @@ This section covers the abbreviations used in this high-level design document an
 |------|---------|
 | scoped entry | An ACL entry that carries `IN_PORTS`, so it applies only to the ingress ports it names |
 | unscoped entry | An ACL entry with no `IN_PORTS`, so it applies to every port the table is bound to |
-| default ACL | The VPP ACL built from the unscoped entries alone. Bound to the ports of the table that no `IN_PORTS` names. Degrades to an unmatchable placeholder when the table has no unscoped entries |
+| default ACL | The VPP ACL built from the unscoped entries alone. Bound to the ports of the table that no `IN_PORTS` names. Degrades to a placeholder holding one rule that cannot match legitimate traffic, when the table has no unscoped entries |
 | scoped ACL | A VPP ACL built from the unscoped entries **plus** the scoped entries naming a given interface. Bound only to the interfaces it was built for, in place of the default ACL |
 | applicable entry set | For one interface, the priority-ordered set of entries that apply to it: all unscoped entries plus the scoped entries naming that interface |
 | signature | The ordered vector of ACE OIDs forming an applicable entry set — **including the unscoped entries**, interleaved at their priority positions. Identifies a scoped ACL, groups interfaces that can share one, and serves as the slot-reuse key across reprogramming |
@@ -330,7 +330,7 @@ Note where E2 lands. It is unscoped, so it appears in all three ACLs — but at 
 | Ports with different applicable sets | Ethernet8 versus Ethernet4 above | Different signatures, so one scoped ACL each |
 | Distinct entries that happen to match identically | Two `DROP any` entries, one naming Ethernet4 and one naming Ethernet8 | Signatures hold entry OIDs, not rule content, so these differ and produce two ACLs. Deduplication is never inferred from rule text |
 | Every port named, with the same scope | All mux ports standby | One signature covering all of them, so one scoped ACL bound to every port |
-| Table with no unscoped entries | The mux drop table with a single scoped entry | The default ACL has no rules to hold, so it degrades to an unmatchable placeholder; ports that are not candidates bind that and match nothing |
+| Table with no unscoped entries | The mux drop table with a single scoped entry | The default ACL has no rules to hold, so it degrades to the placeholder described below; ports that are not candidates bind that and match nothing in practice |
 | `IN_PORTS` present but empty | Qualifier enabled with a zero-length port list | The entry names no interface, so it enters no signature, and being scoped it is excluded from the default ACL — it applies nowhere. Logged as a warning |
 
 ### Programming Flow
@@ -364,7 +364,9 @@ sequenceDiagram
     Scope->>VPP: ACL_DEL — now-unused scoped ACLs
 ```
 
-The default ACL keeps `m_acl_swindex_map[tbl_oid]`, and every port of the table that no `IN_PORTS` names resolves to it. A port that *is* named binds its scoped ACL **instead**: exactly one ACL of a table is ever bound to a given port, which is why the unscoped entries the scoped ACL carries are not enforced twice. When a table has **no** unscoped entries the default ACL degrades to the `emptyAclCreate()` placeholder (`permit dst 0.0.0.0/32`, which can never match, since VPP forbids a zero-rule ACL) rather than ceasing to exist. This keeps the default ACL's identity independent of the data, which is what allows the existing tunterm, table-removal and binding paths to work unchanged.
+The default ACL keeps `m_acl_swindex_map[tbl_oid]`, and every port of the table that no `IN_PORTS` names resolves to it. A port that *is* named binds its scoped ACL **instead**: exactly one ACL of a table is ever bound to a given port, which is why the unscoped entries the scoped ACL carries are not enforced twice. When a table has **no** unscoped entries the default ACL degrades to the pre-existing `emptyAclCreate()` placeholder rather than ceasing to exist. This keeps the default ACL's identity independent of the data, which is what allows the existing tunterm, table-removal and binding paths to work unchanged.
+
+The placeholder holds a single rule matching destination `0.0.0.0/32`, because VPP rejects a zero-rule ACL. That is not the same as a rule that can never match: `0.0.0.0` is never a valid unicast destination, so no legitimate packet carries it, but a crafted one can. Since a match ends evaluation of the interface's entire ACL list, a *permit* there would let such a packet bypass every lower-priority table bound to the port. The placeholder's action is therefore **deny**, which both closes that bypass and is the correct treatment for the destination. This matters more under this design than before it: previously the placeholder appeared only for a table with no entries at all, whereas now every non-candidate port of an all-scoped table binds one.
 
 This placeholder path is on the critical path for the mux case, not an edge case: the mux table's only entry *is* the scoped one, so the unscoped set is empty on dual-ToR.
 
@@ -472,11 +474,17 @@ Computing the changed-port set by diffing old versus new *intent* is not suffici
 
 A `m_acl_tbl_dirty_ports` set records every port whose bind/unbind failed or whose interface could not be resolved. A dirty port is forced through unbind/rebind on the next reprogram even when its assignment appears unchanged. A port whose *unbind* failed is additionally skipped in the bind loop, since binding onto an uncleared list would append out of order.
 
+Marking the port dirty is necessary but not sufficient, because the retry also has to know *what to unbind*. Unbinding resolves the swindex through the stored scope, so committing the new assignment for a port whose unbind just failed would point the retry at an ACL that port was never bound to. VPP answers `NO_SUCH_ENTRY`, which is deliberately mapped to success, so the retry would report a clean unbind, bind the new ACL in front of the stale one, and leave the stale one bound — permanently, since an ACL that is still bound cannot be deleted either. For the mux table that is a port stuck on its previous verdict, which for a standby→active transition means a port that keeps dropping.
+
+Such a port therefore **keeps its old assignment** when the new scope is committed. Its old swindex is excluded from the reap so it is not freed while still bound, and is carried under the empty signature so it stays tracked and becomes reapable as soon as a later retry unbinds it. The next reconcile then unbinds what VPP actually holds, and the port converges.
+
 A scoped ACL that VPP refuses to delete is retained under an **empty signature**, which the grouping loop can never produce. It can therefore never be reused or rebound — only retried on a later pass.
 
 ### Counters
 
 An ACE may now be replicated into several VPP ACLs, so per-entry counter tracking becomes a list. `vpp_ace_cntr_info_t` holds a vector of `vpp_ace_placement_t` (`acl_index`, `vpp_rule_base_index`, `num_rules`), and `getAclEntryStats()` sums across all placements. Placements accumulate, so `acl_ace_cntr_info_clear(tbl_oid)` is invoked before reprogramming a table to prevent double counting.
+
+Because that clear happens before programming and programming is not staged, a reprogram that fails part way leaves some ACLs of the table still active with their placements already discarded. `getAclEntryStats()` then under-reports for those entries until the next successful reprogram rebuilds the list. Counts are not corrupted or double counted, but REQ-7 holds only in the steady state, not across a partial failure. Removing this needs the same transactional staging that the first restriction below defers.
 
 ### Scaling
 
@@ -485,9 +493,9 @@ An ACE may now be replicated into several VPP ACLs, so per-entry counter trackin
 | No entry carries `IN_PORTS` | 1 (unchanged from today) |
 | All mux ports standby | 1 scoped ACL bound to N interfaces, plus the default-ACL placeholder |
 | Single mux port standby | 1 scoped ACL on 1 interface; all other ports sit on the placeholder |
-| K distinct `IN_PORTS` groupings | K scoped ACLs |
+| K distinct signatures among the candidate ports | K scoped ACLs, plus the default ACL |
 
-The count tracks *distinct groupings*, not port count, because interfaces with identical applicable sets share one ACL. Signature-keyed slot reuse means an unchanged scoped ACL keeps its swindex across a reprogram: its rules are replaced in place and the interfaces already bound to it are never disturbed.
+The count tracks *distinct signatures*, not port count, because interfaces with identical applicable sets share one ACL. It is not the number of distinct `IN_PORTS` sets either: overlapping sets produce more signatures than sets, since a port named by two entries has a signature that neither entry's set produces on its own. Two entries scoped to `{A, B}` and `{B, C}` yield three signatures — `⟨E1⟩`, `⟨E1, E2⟩`, `⟨E2⟩` — from two sets. The default ACL is always present in addition, whether it holds the unscoped entries or degrades to the placeholder. Signature-keyed slot reuse means an unchanged scoped ACL keeps its swindex across a reprogram: its rules are replaced in place and the interfaces already bound to it are never disturbed.
 
 Because a signature includes the unscoped entries, adding or removing an unscoped entry changes *every* signature in the table, so no slot is reused and all scoped ports are rebound. This is conservative but correct — those ACLs' contents genuinely did change. Scoped-only churn, such as a mux state transition, affects only the signatures that actually differ.
 
@@ -544,6 +552,7 @@ Modified methods:
 - **No transactional staging.** Scoped ACLs are programmed in place rather than staged under fresh swindexes. If a scoped ACL fails after the default ACL has succeeded, some ports enforce new rules and others old until the next reprogram. Full staging would double peak ACL usage and is a substantially larger redesign.
 - **Brief unbound window.** Because bindings are appended by VPP, a changed port is fully unbound and rebound, leaving a sub-millisecond window in which no ACL is enforced on that port. `acl_interface_set_acl_list` would remove this but requires a new VPP API binding.
 - **ip2me state remains table-keyed.** `m_ip2me_drop_tables` is keyed by table, not by interface, so the ip2me bypass is enabled for a table if *any* of its ACLs — default or scoped — contains a deny. Re-keying it per interface is out of scope.
+- **The empty-table placeholder is a real rule.** VPP forbids a zero-rule ACL, so the placeholder default ACL matches destination `0.0.0.0/32` and denies it. Nothing legitimate carries that destination, but the ACL is not literally inert, and this design binds it to many more ports than before.
 - **Egress scoping is not addressed.** Only `SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` is implemented; `OUT_PORTS` remains unhandled.
 
 ---
@@ -570,14 +579,17 @@ sw_if_index 32 (Ethernet124):  input acl(s): <placeholder>, 1
 | Mux health | `show mux status` reports `HEALTH healthy` on active ports |
 | Toggle | Repeated standby↔active transitions converge, with no ACL or swindex leak in `show acl-plugin acl` |
 | All-active | ACL set matches the known-good all-active baseline |
+| Independent scopes | Two entries of one table scoped to *different* ports — the mux drop on one, a PFC watchdog rule on another — each drop only on the port its own entry names, and removing one entry leaves the other's port still dropping — REQ-4 |
 | Other tables preserved | After a toggle, every other table bound to the transitioning port is still bound, with unchanged content and position — REQ-5 |
 | Scoped read failure | A forced `IN_PORTS` read failure leaves the entry out of the dataplane rather than applying it everywhere — REQ-6 |
+| Counter fan-out | An unscoped entry replicated across several scoped ACLs reports the **sum** of the traffic hitting it on every port, not one port's share — REQ-7 |
+| Counter stability across reprogram | After a reprogram that changes the signatures, the same entry's counters are neither doubled nor reset, i.e. placements are rebuilt exactly once — REQ-7 |
 
 ### sonic-mgmt Coverage
 
 | Test | Relevance |
 |------|-----------|
-| `tests/generic_config_updater/test_dynamic_acl.py::test_gcu_acl_drop_rule_removal` | Three `DROP` rules on three different ports in one table; removes one and asserts that port forwards while the others stay blocked — direct coverage of REQ-4 |
+| `tests/generic_config_updater/test_dynamic_acl.py::test_gcu_acl_drop_rule_removal` | Three `DROP` rules on three different ports in one table, one then removed — the closest existing analogue to REQ-4. **Partial:** it sends traffic only on the port whose rule was removed, asserting that it now forwards; it never re-tests the other two, so it would not catch a regression that dropped their scoping at the same time. The gap is covered by the *Independent scopes* dataplane check above rather than by extending this test |
 | `tests/generic_config_updater/test_dynamic_acl.py::test_gcu_acl_forward_rule_priority_respected` | Scoped `DROP` alongside unscoped higher-priority `FORWARD` — covers REQ-3 |
 | `tests/dualtor_mgmt` / mux switchover suites | Exercises REQ-1 and REQ-5 on the mux table |
 | `tests/acl/test_acl.py` | Regression guard for REQ-8 (tables with no `IN_PORTS` entries) |
