@@ -306,9 +306,9 @@ We can roll out in two ways:
 
 - Once commands are developed and tested, we switch the execution path for all commands to retrieve data using gNMI APIs.
 
-## 2. Compare and Move
+## 2. Compare and Move [Recommended]
 
-- Show commands are categorized into 3 phases. Development completion and rollout happen in the same phases.
+- For existing commands only, a temporary fallback flag allows switching between the gNMI path and the existing Python/CLI implementation.
 - **Fallback Option:** For existing commands, a fallback flag allows switching from the gNMI path back to the Python/existing CLI path.
 - **Flag Behavior:** Set to `false` by default to execute the gNMI API path. This flag support will be removed later.
 
