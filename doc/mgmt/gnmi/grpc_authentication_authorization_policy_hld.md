@@ -39,7 +39,7 @@ authorization layers:
 2. OpenConfig gNSI [Pathz](https://github.com/openconfig/gnsi/blob/4aaf7b37/pathz/pathz.proto)
    semantics for resources addressed by gNMI requests.
 
-This document also defines schema delivery, policy publication, runtime reload,
+This document also defines image packaging, policy configuration, runtime reload,
 upgrade, restart, rollback, and failure behavior.
 
 The following items are outside this design:
@@ -48,7 +48,7 @@ The following items are outside this design:
 - Password, JSON Web Token (JWT), SSH, console, and TACACS+ authorization.
 - A general policy language for HTTP headers or wildcard gRPC methods.
 - Policy storage outside `CONFIG_DB`.
-- Image qualification, deployment, and production rollout procedures.
+- Image qualification and production rollout procedures.
 
 ### 2.1 Implementation Status
 
@@ -56,9 +56,10 @@ This document is a design. It does not state that the design is deployed.
 
 On 2026-08-20, [sonic-buildimage PR 29087](https://github.com/sonic-net/sonic-buildimage/pull/29087)
 was open and unmerged. That pull request proposed the `sonic-grpc-authz.yang`
-model, wheel packaging, and atomic installation by the gNMI sidecar. PR 29087
-did not implement policy publication or runtime policy enforcement. This design
-does not assume that change is present in a released or deployed SONiC image.
+model and `sonic-yang-models` package changes. PR 29087 did not implement policy
+configuration or runtime policy enforcement. This design requires the schema and
+consumers to be part of the SONiC image. It does not assume that the unmerged
+change is present in a released SONiC image.
 
 ## 3. Definitions and Abbreviations
 
@@ -71,7 +72,6 @@ does not assume that change is present in a released or deployed SONiC image.
 | gNOI | gRPC Network Operations Interface. |
 | gNSI | gRPC Network Security Interface. |
 | Pathz | OpenConfig path-based authorization for gNMI resources. |
-| Policy publisher | The component that validates and writes the policy registry. |
 | Protected service | A gRPC service configured to enforce this registry. |
 | Registry version 1 | The initial three-table policy contract defined in this document. |
 | Role | A policy label assigned to one or more authenticated principals. |
@@ -97,9 +97,10 @@ Method authorization and Pathz authorization have separate tables and separate
 decision algorithms. A method allow does not imply a resource permit. A Pathz
 permit cannot bypass a method deny.
 
-Installing the YANG model does not enable authorization and does not change
-existing runtime behavior. Enforcement starts only when a runtime consumer is
-configured to use this registry.
+Including the YANG model in the image does not enable authorization or change
+existing runtime behavior. Each gRPC service enables this design only when its
+startup configuration selects `CONFIG_DB` as its authorization policy source.
+Table presence alone must not enable enforcement.
 
 ## 5. Requirements
 
@@ -113,6 +114,7 @@ configured to use this registry.
 - Pathz rules must support direct-principal and role subjects.
 - A gNMI request must pass method authorization before resource authorization.
 - Policy consumers must never activate a partially loaded policy snapshot.
+- Each protected service must expose local readiness for its active snapshot.
 
 ### 5.2 Security Requirements
 
@@ -124,19 +126,19 @@ configured to use this registry.
   `PERMISSION_DENIED`.
 - A post-handshake identity extraction failure must return `UNAUTHENTICATED`.
   A TLS handshake failure closes the transport before a gRPC status exists.
-- Policy changes must preserve a validated last-known-good snapshot until a
-  complete replacement is ready.
+- Policy changes must keep the active snapshot unchanged until a complete
+  replacement is ready.
 - Policy logs must not include certificate private material or secret values.
 
 ### 5.3 Compatibility Requirements
 
 - The compatible YANG model must be active before policy data is published.
-- The policy publisher must validate each candidate policy configuration
-  against the active model.
+- The SONiC configuration path must validate each candidate policy
+  configuration against the image-provided model.
 - Upgrade and rollback must not leave `CONFIG_DB` data without a compatible
   schema.
-- Model installation alone must remain backward compatible with systems that do
-  not enable the new authorization consumers.
+- Adding the model to an image must remain backward compatible with systems that
+  do not enable the new authorization consumers.
 - Legacy gNMI certificate configuration must not be silently treated as this
   shared registry.
 
@@ -153,31 +155,29 @@ flowchart LR
     Pathz[gNMI Pathz consumer]
     Handler[gRPC method handler]
     DB[(CONFIG_DB policy registry)]
-    Publisher[Policy publisher]
-    Gate[Schema compatibility gate]
-    Sidecar[gNMI sidecar]
-    Schema[sonic-grpc-authz.yang]
+    Config[SONiC configuration path]
+    Validator[YANG validation]
+    Schema[Image-provided sonic-grpc-authz.yang]
 
     Client --> TLS --> Method
     Method -->|non-gNMI or no resource check| Handler
     Method -->|gNMI resource operation| Pathz --> Handler
     DB --> Method
     DB --> Pathz
-    Publisher --> Gate --> DB
-    Sidecar --> Schema --> Gate
+    Config --> Validator --> DB
+    Schema --> Validator
 ```
 
 ### 6.1 Component Ownership
 
 | Component | Responsibility |
 |-----------|----------------|
-| `sonic-buildimage` | Own the shared YANG model, package it in `sonic-yang-models`, and provide sidecar installation. |
-| gNMI sidecar | Atomically converge the packaged model to host `/usr/local/yang-models`. |
-| Policy publisher | Generate one complete policy registry and publish it only after compatibility checks pass. |
+| `sonic-buildimage` | Own the shared YANG model and include it in the SONiC image through `sonic-yang-models`. |
+| SONiC configuration path | Validate and write one complete registry through standard SONiC configuration mechanisms. |
 | TLS-enabled gRPC server | Validate the client certificate and derive the canonical principal. |
 | Method authorization consumer | Load principal and method tables and enforce the full gRPC method. |
 | gNMI authorization coordinator | Load all three tables and atomically activate the method and Pathz snapshot. |
-| Deployment system | Order sidecar rollout, policy publication, upgrade, and rollback. |
+| SONiC configuration persistence | Save and restore the registry through standard `config save` and `config reload` behavior. |
 
 The schema defines valid data. It does not own policy generation or implement
 either authorization algorithm.
@@ -188,78 +188,71 @@ The design trusts the following components to perform security-sensitive work:
 
 - The configured certificate authority and TLS stack authenticate the peer.
 - The principal extractor produces a stable identity from verified TLS state.
-- The policy publisher and authorized local configuration tools can grant or
-  remove access.
-- The sidecar image and its privileged host-write path install the schema.
+- Authorized SONiC configuration interfaces can grant or remove access.
+- The SONiC image supplies the schema and authorization binaries.
 - Runtime consumers correctly validate, load, and enforce policy snapshots.
 
-Any actor that can modify these components, `CONFIG_DB`, the schema directory,
-or process startup options can change authorization behavior. These interfaces
-must use existing SONiC access controls. The policy registry is not a substitute
-for protecting those interfaces.
+Any actor that can modify the SONiC image, these components, `CONFIG_DB`, or
+process startup options can change authorization behavior. These interfaces
+must use existing SONiC access controls. The policy registry is not a
+substitute for protecting those interfaces.
 
 ## 7. High-Level Design
 
-### 7.1 Policy Publication Flow
+### 7.1 Policy Configuration Flow
 
-The sidecar establishes schema readiness before the policy publisher writes
-policy data.
-File presence alone is not a sufficient compatibility signal. The publication
-gate must load the installed host model, confirm the expected module revision,
-and validate the complete candidate registry with that model.
+The image build packages the schema with the validator and consumers. A
+standard SONiC configuration path must use the image-provided model to validate
+a complete candidate registry before it writes policy data. Model presence
+alone is not a sufficient readiness signal. Validation must load the expected
+module revision successfully.
 
 ```mermaid
 sequenceDiagram
-    participant Sidecar as gNMI sidecar
-    participant Host as Host YANG directory
-    participant Gate as Compatibility gate
-    participant Publisher as Policy publisher
+    participant Input as SONiC configuration input
+    participant Config as SONiC configuration path
+    participant Validator as YANG validator
+    participant Model as Image-provided YANG model
     participant DB as CONFIG_DB
     participant Runtime as Authorization consumers
 
-    Sidecar->>Host: Atomically install sonic-grpc-authz.yang
-    Sidecar->>Gate: Report installation result
-    Publisher->>Gate: Submit complete candidate registry
-    Gate->>Host: Load active model
-    Gate->>Gate: Validate complete candidate
+    Input->>Config: Submit complete candidate registry
+    Config->>Validator: Validate candidate
+    Validator->>Model: Load expected module revision
+    Validator->>Validator: Validate complete candidate
     alt compatible
-        Gate-->>Publisher: Ready
-        Publisher->>DB: Publish one configuration transaction
+        Validator-->>Config: Valid
+        Config->>DB: Commit one configuration transaction
         DB-->>Runtime: Policy change notification
         Runtime->>Runtime: Validate and atomically activate snapshot
     else incompatible
-        Gate-->>Publisher: Reject candidate
-        Publisher--xDB: Do not publish
+        Validator-->>Config: Reject candidate
+        Config--xDB: Do not commit
     end
 ```
 
-The committed `CONFIG_DB` transaction is the registry version 1 publication
-boundary. The policy publisher must publish principal, method, and Pathz
-changes in one atomic transaction. A change notification is only a reload
-trigger. After the commit, each consumer must read all three tables, validate
-them as one snapshot, and atomically replace its active snapshot.
+The committed `CONFIG_DB` transaction is the registry version 1 configuration
+boundary. The configuration path must write principal, method, and Pathz changes
+in one atomic transaction. A change notification is only a reload trigger.
 
-The gNMI method and Pathz evaluators must activate one composite snapshot. The
-gNMI authorization coordinator must load both rule sets and replace them with
-one atomic pointer change. A gNMI request must not use a method snapshot from
-one commit and a Pathz snapshot from another commit.
+Each method-only consumer must load the principal and method tables as one
+snapshot. The gNMI authorization coordinator must load all three tables and
+replace its method and Pathz rules with one atomic pointer change. A gNMI
+request must not use rule sets from different configuration transactions.
 
-If a publication path cannot provide an atomic commit and an observable commit
+If a configuration path cannot provide an atomic commit and an observable commit
 boundary, it must not publish this registry. Registry version 1 has no
 activation marker that can make a sequence of independent table writes safe.
 
-The policy publisher must compute a stable digest of the complete candidate
-registry. Each required runtime consumer must report the digest of its active
-snapshot through an operational readiness interface. Runtime activation is
-complete only after all required consumers report the expected digest. The
-digest and readiness interface are operational state. They are not new
-`CONFIG_DB` policy fields.
-
 Consumers must stop accepting new protected requests after they observe a new
 commit and until they activate that snapshot. They must also terminate existing
-protected streams. If a policy change revokes access, the deployment must place
-the affected services in a deny state before the commit. It can remove that
-deny state only after all required consumers report the expected digest.
+protected streams. A consumer can resume requests after it validates and
+activates the new snapshot. A failed reload keeps that service unready and
+closed.
+
+Changes made to live `CONFIG_DB` follow normal SONiC persistence behavior. An
+operator uses `config save` to update `/etc/sonic/config_db.json`. Device boot or
+`config reload` restores the saved registry through the same validation rules.
 
 ### 7.2 Request Authorization Flow
 
@@ -288,11 +281,11 @@ denied resource denies the complete transaction before mutation.
 trust, certificate revocation, or server certificates.
 
 The TLS layer must provide one canonical principal string. Before enforcement
-is enabled, a deployment must select one certificate identity profile. That
-profile must define the selected field, such as URI SAN, DNS SAN, or Subject,
-and its byte-level normalization. All publishers and consumers must use that
-same profile. They must not use fallback fields to turn one certificate into
-multiple principals.
+is enabled, the SONiC configuration must select one certificate identity
+profile. That profile must define the selected field, such as URI SAN, DNS SAN,
+or Subject, and its byte-level normalization. All configuration paths and
+consumers must use that same profile. They must not use fallback fields to turn
+one certificate into multiple principals.
 
 The runtime must use an exact match against the `name` key. Case folding, alias
 expansion, and substring matching are not allowed unless the selected identity
@@ -325,7 +318,7 @@ prefix, suffix, header, and arbitrary principal matching from the wider A43
 policy language are not part of this registry.
 
 The method layer applies to all protected gRPC services, including gNMI, gNOI,
-and gNSI. Each server implementation is responsible for installing the
+and gNSI. Each server implementation is responsible for registering the
 authorization consumer on unary and streaming RPC paths.
 
 ### 7.5 gNMI Pathz Authorization
@@ -348,8 +341,9 @@ selectors. Key names are sorted lexicographically in the canonical string. A
 key value of exactly `*` is a wildcard. A different value containing `*` is
 invalid. Registry version 1 has no escape syntax, so a key value containing
 `[`, `]`, or `=` is not representable. Key values must not be empty. Path
-element and key names must match `[A-Za-z_][A-Za-z0-9_.:-]*`. The publication
-gate must reject paths that violate these rules.
+element and key names must match `[A-Za-z_][A-Za-z0-9_.:-]*`. A path element
+must not repeat a key name. The configuration path must reject paths that
+violate these rules.
 
 A Pathz candidate must match all configured selectors:
 
@@ -381,7 +375,7 @@ specificity algorithm and its own default deny.
 Each consumer must build a complete immutable policy snapshot before replacing
 its active snapshot. Unary requests and new streaming requests must observe one
 snapshot for each authorization decision. A consumer must not combine entries
-from two publication transactions.
+from two configuration transactions.
 
 When enforcement is enabled, initial startup requires a valid snapshot. If no
 valid snapshot is available, the protected server must not accept requests or
@@ -389,18 +383,17 @@ must deny them all.
 
 For a later malformed or unreadable update, the consumer must not activate the
 candidate. It must stop serving protected requests, terminate protected
-streams, and report an unhealthy state. After the policy publisher restores the
-previous committed registry, the consumer can reactivate the corresponding
-validated last-known-good snapshot. If no last-known-good snapshot exists, it
-must remain closed.
+streams, and report an unhealthy state. After an operator restores the previous
+committed registry, the consumer can reactivate the corresponding validated
+snapshot. If no valid snapshot exists, it must remain closed.
 
 Long-running consumers must reload after a committed policy update. After a new
 snapshot becomes active, the server must terminate existing protected streams
 and require clients to reconnect. This rule includes gNMI subscriptions and
 prevents a revoked permission from remaining active on an old stream.
 
-Consumers that cache YANG modules must reload or restart after a schema
-replacement before the compatibility gate reports readiness.
+Consumers load the image-provided model during process startup. A service
+restart or image boot must complete model loading before policy activation.
 
 ### 7.7 Policy Source Authority
 
@@ -413,54 +406,45 @@ if that interface publishes through the same validation, atomic transaction,
 and runtime activation contract. Two active policy sources must never be
 combined with logical OR behavior.
 
-### 7.8 Schema Installation and Lifecycle
+### 7.8 Image Packaging and Lifecycle
 
-The `sonic-yang-models` wheel is the canonical package for the model. The gNMI
-sidecar contains that wheel and atomically synchronizes
-`/usr/local/yang-models/sonic-grpc-authz.yang` to the same host path. The file
-mode is `0644`.
+`sonic-buildimage` owns the model. The `sonic-yang-models` package includes
+`sonic-grpc-authz.yang`, and the SONiC image includes that package. Validators
+and consumers use this image-provided schema.
 
-The sidecar compares packaged and host content during its normal convergence
-loop. A failed copy leaves the previous host file in place and causes a retry.
-The publication gate remains closed until it validates the intended active
-model.
+The build must keep the model, validator, and consumers compatible within one
+image. A process that cannot load the image-provided model must fail closed.
 
 #### 7.8.1 Upgrade
 
 An upgrade uses this order:
 
-1. Deploy the sidecar that contains the new compatible model.
-2. Atomically install the model on the host.
-3. Reload or restart model-caching validators and consumers.
-4. Validate the complete candidate registry against the active model.
-5. Publish the candidate through the policy publisher.
-6. Confirm that runtime consumers activated the new policy.
+1. Build one SONiC image with compatible schema, validator, and consumers.
+2. Boot the new image and start the validator and consumers.
+3. Validate the complete persisted registry against the new image schema.
+4. Activate one runtime policy snapshot for each protected service.
 
-The deployment must stop before policy publication if any preceding step fails.
+The image must not serve protected requests if schema or policy validation
+fails.
 
 #### 7.8.2 Restart
 
-`CONFIG_DB` policy persists across service and device restart through the normal
-configuration persistence path. On restart, schema readiness must precede
-policy validation and runtime startup. A runtime must revalidate its initial
-snapshot. It must not rely only on an in-memory snapshot from before restart.
+Policy saved in `/etc/sonic/config_db.json` persists across service and device
+restart through normal SONiC `config save` and `config reload` behavior. On
+restart, each consumer must load the image-provided schema and revalidate its
+initial snapshot before serving protected requests. It must not rely only on an
+in-memory snapshot from before restart.
 
 #### 7.8.3 Rollback
 
-A rollback to an older schema reverses the upgrade dependency:
+A rollback uses an older SONiC image that contains its matching schema,
+validator, and consumers. The operator must restore policy data that the older
+image accepts, or remove all three tables from startup configuration. The older
+image must validate restored `CONFIG_DB` before it serves protected requests.
 
-1. Restore policy data that the older schema accepts, or remove all three new
-   tables in one configuration transaction.
-2. Confirm that validators and runtime consumers accepted the restored state.
-3. Roll back consumers that depend on the newer schema.
-4. Roll back the sidecar or host model.
-5. Validate the resulting `CONFIG_DB` against the active older schema.
-
-The deployment system must not roll back the sidecar or downgrade the schema
-while incompatible data is present. If policy cleanup or migration fails, it
-must stop the rollback and retain the latest compatible schema and
-last-known-good policy. The file sync proposed in PR 29087 does not implement
-this deployment guard.
+An incompatible policy must stop the rollback from enabling protected
+services. The system must retain a bootable image and policy combination that
+can validate the stored configuration.
 
 ### 7.9 Failure Behavior
 
@@ -471,9 +455,9 @@ this deployment guard.
 | Principal is absent | Reject as `PERMISSION_DENIED`. |
 | Method or Pathz rule does not match | Deny by default. |
 | Candidate policy fails YANG validation | Do not publish or activate it. |
-| Sidecar cannot install the model | Keep the prior file, close the publication gate, and retry. |
+| Image schema cannot load | Do not publish policy or serve protected requests. |
 | Consumer cannot load an initial policy | Do not serve protected requests. |
-| Later update is invalid | Stop protected traffic. Retain the prior snapshot, but do not serve it until repair or rollback. |
+| Later update is invalid | Stop protected traffic until a valid policy is restored and activated. |
 | Rollback data is incompatible with the old schema | Stop rollback before schema downgrade. |
 
 ### 7.10 Serviceability and Debug
@@ -481,15 +465,15 @@ this deployment guard.
 Consumers should log policy load success, validation failure, reload failure,
 and authorization denial. A denial log should identify the service, full method,
 decision layer, and stable rule name when one matched. Logs should limit or hash
-principal values according to the deployment's privacy requirements.
+principal values according to the operator's privacy requirements.
 
 Implementations should expose counters for method and Pathz allow and deny
-decisions. Health must distinguish schema readiness, policy validity, and
-consumer activation. A file-presence check alone must not report readiness.
+decisions. Health must distinguish model loading, policy validity, and consumer
+activation. Only successful model loading can establish model readiness.
 
 ### 7.11 Scalability and Performance
 
-Policy publication is outside the request path. Consumers should parse and
+Policy configuration is outside the request path. Consumers should parse and
 index a snapshot before activation. The request path should perform role, exact
 method, and path-prefix lookups without reading `CONFIG_DB` for each request.
 
@@ -500,9 +484,9 @@ and test practical limits. This design does not set platform-specific limits.
 ### 7.12 Repository and Platform Impact
 
 The feature is a built-in SONiC management function, not a SONiC Application
-Extension. The schema and sidecar source belong in `sonic-buildimage`. Runtime
-consumers belong in their respective gRPC server repositories. Policy
-generation and deployment orchestration remain separate delivery boundaries.
+Extension. The schema package and authorization services are part of the SONiC
+image. Runtime consumers belong in their respective public gRPC server
+repositories.
 
 The design is platform independent. It requires no ASIC vendor or platform SAI
 implementation.
@@ -524,8 +508,9 @@ The design adds the shared `sonic-grpc-authz.yang` model. The model is separate
 from `sonic-gnmi.yang` because method authorization applies to shared gRPC
 services, not only gNMI.
 
-This revision adds no CLICK, KLISH, REST, or operator CLI commands. The policy
-publisher is the first-phase policy source.
+This revision adds no dedicated CLICK, KLISH, REST, or operator CLI commands.
+Policy enters `CONFIG_DB` through standard SONiC configuration paths and can be
+included in `/etc/sonic/config_db.json`.
 
 ### 9.3 CONFIG_DB Enhancements
 
@@ -600,19 +585,19 @@ The following `config_db.json` fragment shows the canonical data shape:
 ```
 
 The model has no policy metadata or activation table. Policy identity,
-freshness, and transaction signaling are runtime and publication concerns until
-a consumer contract requires a shared schema.
+freshness, and transaction signaling are runtime and configuration concerns
+until a consumer contract requires a shared schema.
 
 ### 9.4 Backward Compatibility
 
-Systems without these tables remain schema-valid after model installation.
-The installation itself does not enable enforcement. When enforcement is
+Systems without these tables remain schema-valid when the model is present in
+the image. Adding the model does not enable enforcement. When enforcement is
 enabled, an absent or empty usable policy denies access.
 
 `GNMI_CLIENT_CERT` is an existing gNMI-specific certificate allowlist. This
-design does not redefine or automatically migrate that table. A deployment must
-select one authoritative principal-to-role source during migration and must not
-allow conflicting tables to grant broader access.
+design does not redefine or automatically migrate that table. SONiC must select
+one authoritative principal-to-role source during migration and must not allow
+conflicting tables to grant broader access.
 
 ## 10. Warmboot and Fastboot Design Impact
 
@@ -625,18 +610,16 @@ their initial policy before serving protected requests.
 
 ### 10.1 Warmboot and Fastboot Performance Impact
 
-The sidecar adds one small file comparison and, when needed, one atomic file
-write to its existing convergence loop. Policy consumers add model and policy
-parsing to management-service startup. They add no intentional delay, costly
-configuration generation, or dependency update to the data-plane boot-critical
-sequence.
+The image adds one YANG model to `sonic-yang-models`. Policy consumers add model
+and policy parsing to management-service startup. They add no intentional delay
+or costly configuration generation to the data-plane boot-critical sequence.
 
 Authorization checks add management-plane CPU work for each gRPC request. The
 feature adds no packet-processing stall or data-plane downtime.
 
 ## 11. Memory Consumption
 
-When enforcement is disabled, model installation adds only the model file and
+When enforcement is disabled, image packaging adds only the model file and
 normal YANG loader metadata. When enforcement is enabled, each consumer holds
 an indexed policy snapshot. During reload, it may briefly hold the active and
 candidate snapshots together.
@@ -654,8 +637,8 @@ Memory use must not grow with the number of reloads.
   table.
 - This design does not specify gNSI Authz or Pathz Rotate as the source of the
   `CONFIG_DB` registry.
-- At the 2026-08-20 evidence cutoff, the proposed schema and sidecar changes in
-  PR 29087 were unmerged and undeployed.
+- At the 2026-08-20 evidence cutoff, the proposed schema package changes in PR
+  29087 were unmerged and were not part of a released SONiC image.
 
 ## 13. Testing Requirements and Design
 
@@ -675,51 +658,52 @@ Runtime tests must cover these decision boundaries:
 - Pathz path length, exact-key, wildcard-key, principal, role, deny-tie, and
   default-deny precedence.
 - Unknown principals, failed authentication, unary RPCs, and streaming RPCs.
-- Atomic policy reload, invalid candidate rejection, and last-known-good use.
+- Atomic policy reload, invalid candidate rejection, and fail-closed recovery.
 - Stream termination after policy activation.
 - Canonical path parsing, prefix merge, key ordering, and invalid key values.
+- Rejection of duplicate key names within one path element.
 - Compound gNMI reads, subscriptions, and explicit or implicit writes.
 - Union replacement across every affected origin and resource.
 
-Sidecar tests must cover changed, unchanged, missing-source, write-failure, and
-retry behavior for the model file.
+Image build tests must verify that `sonic-yang-models` contains the model and
+that the validator and consumers load the expected revision.
 
 ### 13.2 System Tests
 
 System tests must verify the lifecycle on a SONiC device:
 
-1. Start without the new tables and confirm model installation has no runtime
-   effect before enforcement is enabled.
-2. Install the sidecar model, validate readiness, publish policy, and confirm
-   method and Pathz decisions.
-3. Attempt publication before schema readiness and confirm that the gate rejects
-   it without changing `CONFIG_DB`.
-4. Restart the sidecar, authorization consumers, and device. Confirm the same
-   policy remains active and default deny remains effective.
-5. Upgrade and roll back across schema versions. Confirm data is migrated or
-   removed before an older schema becomes active.
-6. Run warmboot and fastboot regression tests. Confirm management-plane policy
+1. Boot an image without the new tables and confirm that model presence has no
+   runtime effect before enforcement is enabled.
+2. Publish valid policy and confirm method and Pathz decisions.
+3. Publish invalid policy and confirm rejection without changing `CONFIG_DB`.
+4. Run `config save`, restart each authorization consumer, and confirm the same
+   policy becomes active after readiness changes from false to true.
+5. Run `config reload` and reboot the device. Confirm the saved policy returns,
+   readiness remains false until validation completes, and default deny remains
+   effective during failure injection.
+6. Upgrade and roll back between images with different schema revisions.
+   Confirm data is migrated or removed before the older image serves requests.
+7. Run warmboot and fastboot regression tests. Confirm management-plane policy
    recovery does not change the existing data-plane performance boundary.
 
 Tests must also inject malformed policy, an unknown principal, certificate
 authentication failure, `CONFIG_DB` unavailability, consumer reload failure,
-and sidecar installation failure. Tests must confirm that no failure enables
-access.
+and image model-load failure. Tests must confirm that no failure enables access.
 
 At the 2026-08-20 evidence cutoff, PR 29087 reported local schema, fixture,
-wheel, sidecar, and libyang 3 evidence. That evidence does not replace a full
-image build, runtime enforcement tests, or on-device lifecycle validation for
-this design.
+package, and libyang 3 evidence. That evidence does not replace a full image
+build, runtime enforcement tests, or on-device lifecycle validation for this
+design.
 
 ## 14. Open and Action Items
 
 1. Select the certificate identity profile and define migration from the
    gNMI-specific `GNMI_CLIENT_CERT` table.
-2. Define the implementation of the schema revision signal and atomic policy
-   publication handoff.
+2. Define service startup options that select `CONFIG_DB` authorization and the
+   certificate identity profile.
 3. Decide whether a future revision needs independent role declarations or
    policy version and activation metadata.
-4. Define reload triggers and readiness reporting for every long-running YANG
-   validator and authorization consumer.
+4. Define reload triggers and local readiness reporting for every authorization
+   consumer.
 5. Confirm the canonical Pathz parser and precedence contract against runtime
    consumer tests before implementation review.
