@@ -195,7 +195,7 @@ The Aggregator actor applies optional per-profile aggregation after IPFIX record
 
 An aggregator supports the following optional methods and can be extended with more methods later. The methods can be configured independently or in any combination. When combined, Counter Syncd applies rollover correction first, reporting-rate aggregation second, and heatmap generation last.
 
-Samples for one HFT session are expected in nondecreasing `observationTimeNanoseconds` order. Samples for a reporting or heatmap window that has already been emitted are ignored. Both time-based stages are sample-driven: the first sample in a later window emits the completed preceding window. This avoids per-session timers for continuous telemetry; the final partial window can remain buffered if a stream becomes idle or ends.
+Samples for one HFT session are expected in nondecreasing `observationTimeNanoseconds` order. Samples for a reporting or heatmap window that has already been emitted are ignored. Both time-based stages are sample-driven: the first sample in a later window emits the completed preceding window. This avoids per-session timers for continuous telemetry; the final partial window can remain buffered if a stream becomes idle or ends, and is discarded when an aggregator configuration is replaced or removed.
 
 - Reporting rate aggregation: aggregates the lower-layer reported samples into the configured aggregator reporting interval. The unit is microseconds. If `reporting_rate` is not configured, the aggregator uses the lower-layer reporting interval and does not aggregate samples.
 - Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. When a new raw value is less than the previous raw value, Counter Syncd treats the decrease as one rollover and adds the previous corrected value as the new offset. For example, raw values `100, 200, 10, 20` are exported as `100, 200, 210, 220`. The corrected value remains a `uint64`. The list is empty by default, so no counters are corrected for rollover unless configured.
@@ -593,7 +593,7 @@ heatmap_bucket_boundaries = A comma-separated, strictly increasing list of uint6
                             The implicit final bucket contains values greater than the last configured boundary.
                             Each boundary must be between 0 and 2^53 so it is represented exactly by the OTLP double field.
                             An example is 0,1024,4096,16384.
-                             This field, heatmap_interval, and heatmap_counters must either all be configured or all be omitted.
+                            This field, heatmap_interval, and heatmap_counters must either all be configured or all be omitted.
 ```
 
 #### 7.4.4. HIGH_FREQUENCY_TELEMETRY_GROUP
