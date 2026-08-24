@@ -3,15 +3,16 @@
 ## Table of Contents
 
 1. [Introduction](#introduction)
-2. [Document Authority](#document-authority)
-3. [Definitions](#definitions)
-4. [Requirements](#requirements)
-5. [Schema Versioning](#schema-versioning)
-6. [Rule Structure](#rule-structure)
-7. [Abstract Rule Data Source Extensions](#abstract-rule-data-source-extensions---vendor-extensible)
-8. [Rule Examples](#rule-examples)
-9. [Schema Validation](#schema-validation)
-10. [Backward Compatibility](#backward-compatibility)
+2. [Document History](#document-history)
+3. [Document Authority](#document-authority)
+4. [Definitions](#definitions)
+5. [Requirements](#requirements)
+6. [Schema Versioning](#schema-versioning)
+7. [Rule Structure](#rule-structure)
+8. [Abstract Rule Data Source Extensions](#abstract-rule-data-source-extensions---vendor-extensible)
+9. [Rule Examples](#rule-examples)
+10. [Schema Validation](#schema-validation)
+11. [Backward Compatibility](#backward-compatibility)
 
 ## Introduction
 
@@ -23,6 +24,14 @@ The schema is designed to be:
 - **Extensible**: Allow for new fault types and detection methods
 - **Standardized**: Provide a common format for rule definitions regardless of underlying SW
 - **Hardware-agnostic**: Allow for hardware abstraction through data source extension (DSE) layers
+
+## Document History
+
+| Revision | Date | Author | Description |
+|----------|------|--------|-------------|
+| 0.1 | 2025-10-06 | Gregory Boudreau | Initial vendor rules schema HLD. |
+| 0.2 | 2026-07-11 | Gregory Boudreau | Aligned schema versioning, exact Pydantic validation, bounded parsing, DSE contracts, per-event cadence, asynchronous collection, action/query typing, artifact generation, and qualification behavior with the common runtime design. |
+| 0.3 | 2026-08-18 | Gregory Boudreau | Clarified action sequencing, direct-I2C expansion, and artifact-capacity behavior. |
 
 ## Document Authority
 
@@ -519,9 +528,9 @@ local_actions:
 | Field | Type | Required | Description | Valid Values | Example |
 |-------|------|----------|-------------|--------------|----------|
 | `wait_period` | Integer | Yes | Time in seconds to wait after local actions before the primary thread requests a recheck and before remote action escalation is relied on. This is a nonblocking timer for DLDD; the primary thread continues telemetry publication and monitoring of unaffected correlation keys. | Strict integer 0-4294967295 seconds | `60` |
-| `action_list` | List | Yes | Ordered sequence of vendor-defined remediation actions scheduled locally by DLDD on action worker context. Each list entry is a wrapper object containing one `action` object. The wrapped action object contains a `type` field specifying the execution method and type-specific fields for the operation. Actions are executed sequentially within the action sequence. | List of `action` wrapper objects. Supported wrapped action types: `dse`, `cli`, `i2c`, and explicit vendor-supported action types. CLI actions use `argv`. DSE actions use `command`. Direct I2C actions use `path`. | See example above |
+| `action_list` | List | Yes | Ordered sequence of vendor-defined remediation actions scheduled locally by DLDD on action worker context. Each list entry is a wrapper object containing one `action` object. The wrapped action object contains a `type` field specifying the execution method and type-specific fields for the operation. Actions are executed sequentially until the list completes or the first action fails or times out; actions after the first failure are not attempted. | List of `action` wrapper objects. Supported wrapped action types: `dse`, `cli`, `i2c`, and explicit vendor-supported action types. CLI actions use `argv`. DSE actions use `command`. Direct I2C actions use `path`. | See example above |
 
-Each action may specify `timeout` as a strict integer from 1 through 4294967295 seconds. If omitted, DLDD uses the top-level `local_action_default_timeout` from the active rules source. Validation fails for any local action that omits `timeout` when the rules source also omits `local_action_default_timeout`. A timeout marks that action as failed, records the failure in DLDD status/audit telemetry, triggers Healthz artifact collection when configured, and allows the primary thread to continue the post-action recheck path rather than leaving the correlation key held indefinitely. Artifact completion is not part of the local action result.
+Each action may specify `timeout` as a strict integer from 1 through 4294967295 seconds. If omitted, DLDD uses the top-level `local_action_default_timeout` from the active rules source. Validation fails for any local action that omits `timeout` when the rules source also omits `local_action_default_timeout`. A validation, execution, capacity, or timeout failure marks that action and the sequence as failed and stops later actions. DLDD records the failure in status/audit telemetry, triggers Healthz artifact collection when configured, and continues through the configured `wait_period` and post-action recheck rather than leaving the correlation key held indefinitely. Artifact completion is not part of the local action result.
 
 `local_actions` are executed by DLDD at most once per active fault lifetime for the same rule/component/symptom fault identity. Repeated event matches while the fault remains active refresh internal event history but do not start another identical local action sequence. If `local_actions` are configured, DLDD must complete the local action sequence and the subsequent `wait_period` recheck before publishing controller-visible `FAULT_INFO` fault telemetry for that fault lifetime. A clear result publishes the fault as `INACTIVE` with local action metadata so controllers can observe that DLDD detected and recovered the condition. A continued match publishes the fault as `ACTIVE` with the configured remote remediation recommendations. A new local action run is allowed only after the fault has cleared and later becomes active again, unless a future schema version defines explicit retry or cooldown fields.
 
@@ -555,7 +564,7 @@ action:
   timeout: 30
 ```
 
-For `type: i2c` local actions, `path.bus`, `path.chip_addr`, `path.command`, and `path.size` identify the target using the same shape as the direct I2C event path. `path.i2c_type: "get"` performs a read action and records the result in action/audit metadata. `path.i2c_type: "set"` writes `path.value` to the target; that field must be present and non-null. More complex I2C side effects, such as read-modify-write sequences, should be modeled through vendor DSE actions unless a later schema version defines a direct structure for them.
+For `type: i2c` local actions, `path.bus`, `path.chip_addr`, `path.command`, and `path.size` identify the target using the same shape as the direct I2C event path. `path.bus` may be one non-empty logical bus name or a non-empty list; a list expands in declared order and every bus operation shares the action's single overall timeout budget. `path.i2c_type: "get"` performs a read action and records the result in action/audit metadata. `path.i2c_type: "set"` writes `path.value` to the target; that field must be present and non-null. More complex I2C side effects, such as read-modify-write sequences, should be modeled through vendor DSE actions unless a later schema version defines a direct structure for them.
 
 Vendors may add implementation-specific action/query types only when the platform validator advertises support for those types. Unknown action/query types fail validation for the affected rule.
 
@@ -642,7 +651,7 @@ queries:
 | `queries` | List | Conditional | Ordered sequence of diagnostic data collection commands triggered after local recovery actions complete, or after signature confirmation when no local actions are configured. Each query wrapper contains a `query` object with a type field specifying the execution method and type-specific fields for the operation. Queries are executed sequentially in the artifact worker context. DLDD can publish the Healthz artifact identifier before the query output is complete; outputs/content are added to the artifact when generation completes. Required only when `log_collection` omits `logs`; if `logs` is also omitted, at least one `query` is required. | List of `query` wrapper objects. Supported wrapped query types are defined by the Local Action and Query Validation Model. CLI queries use `argv`. DSE queries use `command`. | See example above |
 | `logs` | List | Conditional | Static files or glob patterns collected by the artifact worker after local recovery actions complete, or after signature confirmation when no local actions are configured. Required only when `log_collection` omits `queries`; if `queries` is also omitted, at least one `log` is required. | List of log objects | See example above |
 
-DLDD owns artifact generation, local storage, and retention under `/var/lib/sonic/dldd/artifacts`; the default client uses two artifact workers, retains at most 20 artifacts, and limits an artifact to 50 MiB. Static log collection expands globs but accepts only regular non-symlink files and does not recurse. The gNOI Healthz `Artifact` RPC exposes completed files to authenticated controllers. DLDD validation confirms the log/query schema and applies query timeouts only when a query declares `timeout`. Artifact generation is asynchronous with respect to local action result, post-action recheck, and `FAULT_INFO` publication.
+DLDD owns artifact generation, local storage, and retention under `/var/lib/sonic/dldd/artifacts`; the default client uses two artifact workers, admits at most 20 total active and retained terminal requests, bounds its internal request queue to the same value, and limits an artifact to 50 MiB. Admission may prune the oldest completed or failed entries, never prunes an active job, and rejects a request before publishing artifact metadata when active jobs consume all capacity. Static log collection expands globs but accepts only regular non-symlink files and does not recurse. The gNOI Healthz `Artifact` RPC exposes completed files to authenticated controllers. DLDD validation confirms the log/query schema and applies query timeouts only when a query declares `timeout`. Artifact generation is asynchronous with respect to local action result, post-action recheck, and `FAULT_INFO` publication.
 
 ## Abstract Rule Data Source Extensions - Vendor Extensible
 
