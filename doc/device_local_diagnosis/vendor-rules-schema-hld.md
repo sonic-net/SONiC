@@ -812,7 +812,9 @@ The monitor queues a `DSEExpansionEvent` before a new child is eligible to sampl
 
 ## Rule Examples
 
-### Complete PSU Over-Voltage Rule
+### Full Rule File Example: PSU Over-Voltage
+
+The following is a complete, standalone schema `0.0.1` rules file rather than a fragment. It contains one signature with two PSU events correlated per component instance: a direct I2C predicate and a vendor DSE predicate. Replace the example product/software identifiers and vendor capabilities with platform-owned values.
 
 ```yaml
 schema_version: "0.0.1"
@@ -824,19 +826,18 @@ signatures:
         name: PSU_OV_FAULT
         id: 1000001
         version: "1.0.0"
-        description: |
-          An over voltage fault has occurred on the output feed from the PSU to the chassis.
+        description: >
+          An over-voltage fault occurred on the PSU output feed to the chassis.
         product_ids:
-          - "8122-64EHF-O P1"
-          - "8122-64EHF-O P2"
+          - "EXAMPLE-PLATFORM"
         sw_versions:
-          - "202311.3.0.1"
+          - "EXAMPLE-SOFTWARE"
         component: PSU
-        symptom: "SYMPTOM_OVER_THRESHOLD"
-        error_type: "POWER"
-        severity: "CRITICAL"
+        symptom: SYMPTOM_OVER_THRESHOLD
+        error_type: POWER
+        severity: CRITICAL
         priority: 1
-        tags: 
+        tags:
           - power
           - voltage
 
@@ -847,31 +848,37 @@ signatures:
           - event:
               id: 1
               type: i2c
-              instances: ['PSU0:IO-MUX-6', 'PSU1:IO-MUX-7']
+              instances:
+                - "PSU0:IO-MUX-6"
+                - "PSU1:IO-MUX-7"
               path:
-                bus: ['IO-MUX-6', 'IO-MUX-7']
-                chip_addr: '0x58'
-                i2c_type: 'get'
-                command: '0x7A'
-                size: 'b'
-                scaling: 'N/A'
+                bus:
+                  - IO-MUX-6
+                  - IO-MUX-7
+                chip_addr: "0x58"
+                i2c_type: get
+                command: "0x7A"
+                size: b
+                scaling: "N/A"
               evaluation:
-                type: 'mask'
-                logic: '&'
+                type: mask
+                logic: "&"
                 value: "0b10000000"
               sampling_interval: 60
+              async: false
               match_count: 1
               match_period: 0
 
           - event:
               id: 2
               type: dse
-              path: "{psu*}:{get_output_voltage_fault_register()}"  # DSE wildcard implies PSU-scoped instances
+              path: "{psu*}:{get_output_voltage_fault_register()}"
               evaluation:
-                type: 'dse'
-                operator: 'equals'
+                type: dse
+                operator: equals
                 value: "{psu*}:{get_output_voltage_failure_value()}"
-              # sampling_interval omitted: inherit the common monitor default
+              sampling_interval: 60
+              async: false
               match_count: 1
               match_period: 0
 
@@ -881,8 +888,8 @@ signatures:
             wait_period: 60
             action_list:
               - action:
-                  type: 'dse'
-                  command: 'PSU:reset_output_power()'
+                  type: dse
+                  command: "PSU:reset_output_power()"
                   timeout: 120
           remote_actions:
             action_list:
@@ -897,12 +904,15 @@ signatures:
             - log: "/var/log/platform.log"
           queries:
             - query:
-                type: "dse"
+                type: dse
                 command: "PSU:get_blackbox()"
                 timeout: 60
             - query:
-                type: "cli"
-                argv: ["/usr/local/bin/show", "platform", "voltage"]
+                type: cli
+                argv:
+                  - /usr/local/bin/show
+                  - platform
+                  - voltage
                 timeout: 60
 ```
 
