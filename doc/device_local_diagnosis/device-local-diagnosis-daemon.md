@@ -36,7 +36,6 @@ The service provides:
 | 0.1 | 2025-09-24 | Gregory Boudreau | Initial draft of DLDD HLD |
 | 0.2 | 2026-07-11 | Gregory Boudreau | Consolidated DLDD design and implementation alignment: established exact Pydantic contract selection with signature-carried schema provenance; reconciled runtime architecture, lifecycle, vendor hooks, actions, artifacts, telemetry, CLI, and repository ownership; defined the typed vendor DSE resolution/expand/value/comparator boundary; added per-event cadence, asynchronous collection, priority rechecks, minimal asynchronous-pool performance telemetry, monitor-owned runtime expansion with bootstrap/warmup/stable discovery, restart-safe dynamic-fault reconciliation, retained-inactive fault handling for authoritative DSE removal, warning-only explicit cross-selector mappings, full direct/DSE on-demand execution, and separate unit/integration/on-demand test structures; retained the non-normative vendor-owned platform reference; removed superseded design material; and reserved service diagnostics for abnormal conditions. |
 | 0.3 | 2026-08-18 | Gregory Boudreau | Clarified fault identity and lifecycle, action handling, artifact bounds, rule promotion, and secure remote rule delivery. |
-| 0.4 | 2026-08-24 | Gregory Boudreau | Generalized platform-integration wording to preserve vendor-neutral design boundaries. |
 
 ## Scope
 
