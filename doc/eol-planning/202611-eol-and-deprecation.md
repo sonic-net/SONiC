@@ -10,10 +10,10 @@
 - [6. Architecture Design](#6-architecture-design)
 - [7. High-Level Design](#7-high-level-design)
   - [7.1 Remove now](#71-remove-now)
-    - [7.1.1 Barefoot / Tofino platform](#711-barefoot--tofino-platform)
-    - [7.1.2 DTEL (data-plane telemetry)](#712-dtel-data-plane-telemetry)
-    - [7.1.3 Standalone P4 platform](#713-standalone-p4-platform)
-    - [7.1.4 Nephos platform](#714-nephos-platform)
+    - [7.1.1 Nephos platform](#711-nephos-platform)
+    - [7.1.2 Barefoot / Tofino platform](#712-barefoot--tofino-platform)
+    - [7.1.3 DTEL (data-plane telemetry)](#713-dtel-data-plane-telemetry)
+    - [7.1.4 Standalone P4 platform](#714-standalone-p4-platform)
     - [7.1.5 GoBGP and Quagga routing stacks](#715-gobgp-and-quagga-routing-stacks)
     - [7.1.6 Python 2 packages](#716-python-2-packages)
     - [7.1.7 Kubernetes master](#717-kubernetes-master)
@@ -46,6 +46,7 @@
 | 0.2 | 2026-07-24 | Brad House (Nexthop) | Added the Keep verdict. Moved bullseye to immediate removal and deprecated bookworm in its place. Folded Quagga into the GoBGP removal. |
 | 0.3 | 2026-07-24 | Brad House (Nexthop) | Filled in the notification steps of the process, which are the mailing list, the working groups, the TSC for platform removals, and a second round before the branch date. |
 | 0.4 | 2026-08-24 | Brad House (Nexthop) | Moved the standing process, the verdicts, and the rules of thumb into the TSC policy document, so that this HLD covers only the 202611 candidates. Restructured to the HLD template. |
+| 0.5 | 2026-08-24 | Brad House (Nexthop) | Moved Nephos to the head of the remove-now list, so that the platform removals read together. 7.1.1 through 7.1.4 are renumbered, and the rest of the list is unchanged. |
 
 ### 2. Scope
 
@@ -85,7 +86,7 @@ This HLD proposes the first batch to act on. Fourteen candidates are listed. Ele
 
 - Every candidate carries a verdict, the evidence behind it, and the exact paths it covers, as required by [section 6 of the policy](../../tsc/eol-deprecation/sonic_eol_deprecation_policy.md#6-what-a-release-plan-contains).
 - No feature is removed without component owner sign-off.
-- The three platform removals, which are 7.1.1 Barefoot, 7.1.3 standalone P4, and 7.1.4 Nephos, go to the TSC in addition to HLD review. The TSC decision is what settles them.
+- The three platform removals, which are 7.1.1 Nephos, 7.1.2 Barefoot, and 7.1.4 standalone P4, go to the TSC in addition to HLD review. The TSC decision is what settles them.
 - A user who never enabled any of these features sees no functional change and no CLI change.
 - Every removal that touches configuration is accompanied by a `db_migrator.py` update, so that a device that upgrades does not carry dead config or point at a value that no longer exists. See section 9.3.
 - Each supported CI platform still builds after the removals, and no remaining container points at a deleted base.
@@ -111,33 +112,33 @@ These are built-in SONiC features rather than Application Extensions. The reposi
 
 Each candidate below stands on its own. It states what the feature is, why it should go, the paths to remove, and anything to watch out for.
 
-Three of these are platform removals, which are 7.1.1 Barefoot, 7.1.3 standalone P4, and 7.1.4 Nephos. Those go to the TSC under step 4 of the policy, separately from the rest of this list.
+Three of these are platform removals, which are 7.1.1 Nephos, 7.1.2 Barefoot, and 7.1.4 standalone P4. Those go to the TSC under step 4 of the policy, separately from the rest of this list.
 
 #### 7.1 Remove now
 
-##### 7.1.1 Barefoot / Tofino platform
+##### 7.1.1 Nephos platform
+
+The Nephos and MediaTek switch silicon vendor left the market around 2019. The platform is about 2.3 MB across 160 files. There is no `device/nephos` tree, there has been no genuine commit in years, and it is not in CI.
+
+**Remove:** `platform/nephos/`; the `nephos` job in `.azure-pipelines/azure-pipelines-build.yml`.
+
+##### 7.1.2 Barefoot / Tofino platform
 
 Intel has ended the Tofino line, and the platform is not in the CI build matrix (aspeed_arm64, broadcom, marvell-prestera, mellanox, nvidia_bluefield, vs, alpinevs, and vpp). Because nothing builds it, nothing tests it. The platform is roughly 7.7 MB across about 880 files, and it pulls in the Barefoot SAI, saithrift, the `docker-syncd-bfn` and `docker-saiserver-bfn` containers, and the ODM sub-platforms built on Tofino (Accton Wedge100BF, Arista 7170, Ingrasys, Netberg, and WNC).
 
 **Remove:** `platform/barefoot/`; the Tofino `device/` folders (Accton Wedge100BF, Arista 7170, Ingrasys, Netberg, WNC); the `barefoot` job in `.azure-pipelines/azure-pipelines-build.yml`; the `barefoot` filter in `rules/docker-platform-monitor.mk`.
 
-##### 7.1.2 DTEL (data-plane telemetry)
+##### 7.1.3 DTEL (data-plane telemetry)
 
-DTEL is SONiC's in-band data-plane telemetry. In practice it only ever ran on Barefoot Tofino, and that platform is EOL and is being removed in 7.1.1. With the only hardware that ran it gone, the DTEL code in the orchestration agent is dead. TAM, which was added in 202605, already covers the same need on current hardware.
+DTEL is SONiC's in-band data-plane telemetry. In practice it only ever ran on Barefoot Tofino, and that platform is EOL and is being removed in 7.1.2. With the only hardware that ran it gone, the DTEL code in the orchestration agent is dead. TAM, which was added in 202605, already covers the same need on current hardware.
 
 **Remove:** `src/sonic-swss/orchagent/dtelorch.{cpp,h}`, the DTEL table set and initialization in `orchagent/orchdaemon.cpp`, and the DTEL handling in `orchagent/aclorch.{cpp,h}`; the DTEL CONFIG_DB tables and any `sonic-dtel` YANG model; `src/sonic-swss/tests/test_dtel.py`.
 
-##### 7.1.3 Standalone P4 platform
+##### 7.1.4 Standalone P4 platform
 
 This is the old bmv2 software behavioral model. It is a reference target rather than real hardware, and it has been dead since roughly 2022. Nothing in CI builds it. It is about 12 MB across 920 files, and it pulls in four stale external submodules. The only thing that references it outside `platform/p4/` is a Debian 8 era TODO in `rules/redis.mk`.
 
 **Remove:** `platform/p4/` (which includes `docker-sonic-p4`, `sai-p4-bm`, `p4c-bm`, `tenjin`, and `p4-hlir`); the four P4 submodule entries in `.gitmodules` (`platform/p4/p4c-bm/p4c-bm`, `platform/p4/p4-hlir/p4-hlir`, `platform/p4/p4-hlir/p4-hlir-v1.1`, `platform/p4/SAI-P4-BM`); the stale TODO in `rules/redis.mk`. **Keep:** `rules/p4lang.mk`. The p4lang toolchain it builds (bmv2, p4c, and PI) is a live dependency of DASH SAI, which ships in `sonic-vs.img.gz`, and of the PTF test containers.
-
-##### 7.1.4 Nephos platform
-
-The Nephos and MediaTek switch silicon vendor left the market around 2019. The platform is about 2.3 MB across 160 files. There is no `device/nephos` tree, there has been no genuine commit in years, and it is not in CI.
-
-**Remove:** `platform/nephos/`; the `nephos` job in `.azure-pipelines/azure-pipelines-build.yml`.
 
 ##### 7.1.5 GoBGP and Quagga routing stacks
 
@@ -149,7 +150,7 @@ The target here is stack selection rather than the word Quagga. FRR is itself a 
 
 Where a Quagga-named file turns out to be the live FRR implementation, rename it rather than delete it. `clear/bgp_quagga_v4.py` is the clear case, because the `frr` branch of `clear/main.py` imports it and there is no `clear/bgp_frr_v4.py`, which makes it the working implementation of `clear ip bgp` today.
 
-**Remove (GoBGP):** `dockers/docker-fpm-gobgp/`, `src/gobgp/`, `rules/gobgp.mk`, and `rules/gobgp.dep`. **Remove (stack selection in the build):** `rules/docker-fpm.mk` and `rules/docker-fpm.dep`, which exist only to elect a stack, so `DOCKER_FPM_FRR` can be referenced directly and the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` names go with them; the `else` branch that adds `$(GOBGP)` in `platform/vs/docker-sonic-vs.mk`; the `SONIC_ROUTING_STACK` conditionals in `slave.mk` and `files/build_templates/sonic_debian_extension.j2`, whose FRR blocks become unconditional; the commented-out `ROUTING_STACK` selection in `platform/p4/docker-sonic-p4.mk`, which goes with 7.1.3 in any case. Keep `SONIC_ROUTING_STACK = frr` in `rules/config` as a single-value knob, because downstream `rules/config.user` files may still set it. **Remove (stack selection in the CLI):** in sonic-utilities, the `routing_stack == "quagga"` branches of `show/main.py` and `clear/main.py` along with `show/bgp_quagga_v4.py`, `show/bgp_quagga_v6.py`, and `clear/bgp_quagga_v6.py`; the non-frr `else` branches that carry the Quagga `bgp` and `zebra` groups in `debug/main.py` and `undebug/main.py`; the `/etc/quagga/bgpd.conf` branch of `show startupconfiguration bgp` and the matching `docker exec bgp cat /etc/quagga/bgpd.conf` entry in `files/image_config/sudoers/sudoers`; the cases that exercise the removed branches in `tests/show_test.py`, `tests/clear_test.py`, and `tests/debug_test.py`. **Rename:** `src/sonic-utilities/clear/bgp_quagga_v4.py` to `clear/bgp_frr_v4.py`, and update the import in `clear/main.py`.
+**Remove (GoBGP):** `dockers/docker-fpm-gobgp/`, `src/gobgp/`, `rules/gobgp.mk`, and `rules/gobgp.dep`. **Remove (stack selection in the build):** `rules/docker-fpm.mk` and `rules/docker-fpm.dep`, which exist only to elect a stack, so `DOCKER_FPM_FRR` can be referenced directly and the dead `DOCKER_FPM_GOBGP` and `DOCKER_FPM_QUAGGA` names go with them; the `else` branch that adds `$(GOBGP)` in `platform/vs/docker-sonic-vs.mk`; the `SONIC_ROUTING_STACK` conditionals in `slave.mk` and `files/build_templates/sonic_debian_extension.j2`, whose FRR blocks become unconditional; the commented-out `ROUTING_STACK` selection in `platform/p4/docker-sonic-p4.mk`, which goes with 7.1.4 in any case. Keep `SONIC_ROUTING_STACK = frr` in `rules/config` as a single-value knob, because downstream `rules/config.user` files may still set it. **Remove (stack selection in the CLI):** in sonic-utilities, the `routing_stack == "quagga"` branches of `show/main.py` and `clear/main.py` along with `show/bgp_quagga_v4.py`, `show/bgp_quagga_v6.py`, and `clear/bgp_quagga_v6.py`; the non-frr `else` branches that carry the Quagga `bgp` and `zebra` groups in `debug/main.py` and `undebug/main.py`; the `/etc/quagga/bgpd.conf` branch of `show startupconfiguration bgp` and the matching `docker exec bgp cat /etc/quagga/bgpd.conf` entry in `files/image_config/sudoers/sudoers`; the cases that exercise the removed branches in `tests/show_test.py`, `tests/clear_test.py`, and `tests/debug_test.py`. **Rename:** `src/sonic-utilities/clear/bgp_quagga_v4.py` to `clear/bgp_frr_v4.py`, and update the import in `clear/main.py`.
 
 Comments that only mention Quagga in passing, such as the `docker-fpm.gz` line in `README.md`, the `## Quagga rules` header in `files/image_config/rsyslog/rsyslog.d/00-sonic.conf.j2`, and the "For quagga build" comments in the sonic-slave Dockerfiles, are worth correcting when the code around them is touched, but they are not the point of this candidate. The packages under that build comment, such as `libreadline-dev`, `libpam-dev`, and the texlive set, are FRR build dependencies now, so leave them alone.
 
@@ -193,7 +194,7 @@ Debian 8 (jessie), Debian 9 (stretch), Debian 10 (buster), and Debian 11 (bullse
 
 jessie, stretch, and buster are pure leftovers, because nothing builds on them. Bullseye is different, because containers still build on it today, so those have to move first. Before deleting any base, confirm that nothing still builds a container on it. Debian 12 (bookworm) is still a live base and is handled under Deprecate.
 
-**Remove (stretch):** `dockers/docker-base-stretch/`, `rules/docker-base-stretch.{mk,dep}`, `dockers/docker-config-engine-stretch/`, `rules/docker-config-engine-stretch.{mk,dep}`. **Remove (buster):** `dockers/docker-base-buster/`, `rules/docker-base-buster.{mk,dep}`, `dockers/docker-config-engine-buster/`, `rules/docker-config-engine-buster.{mk,dep}`, `dockers/docker-swss-layer-buster/`, `rules/docker-swss-layer-buster.{mk,dep}`. **Remove (jessie):** `sonic-slave-jessie/`, the `jessie` target in `Makefile`, and the jessie `SLAVE_DIR` branch in `Makefile.work`. jessie has no `docker-base-jessie`, so also check the jessie strings in the generic `dockers/docker-base/` (its armhf and arm64 sources and its `FROM ...:jessie` lines) before touching that container. **Move first (bullseye):** seven containers still build on a bullseye base. Two of them, `docker-syncd-bfn` and `docker-saiserver-bfn`, go away with Barefoot in 7.1.1. The other five have to move to bookworm or trixie before bullseye can go, and they are `docker-syncd-centec` and `docker-saiserver-centec` under both `platform/centec/` and `platform/centec-arm64/`, plus `dockers/docker-sonic-sdk/`. The centec containers reach bullseye through `platform/template/docker-syncd-bullseye.mk`, so pointing their `docker-syncd-centec.mk` at the bookworm or trixie template covers four of the five. **Remove (bullseye):** `dockers/docker-base-bullseye/`, `rules/docker-base-bullseye.{mk,dep}`, `dockers/docker-config-engine-bullseye/`, `rules/docker-config-engine-bullseye.{mk,dep}`, `dockers/docker-swss-layer-bullseye/`, `rules/docker-swss-layer-bullseye.{mk,dep}`, `platform/template/docker-syncd-bullseye.mk`, and `sonic-slave-bullseye/`; the `bullseye` target and the `NOBULLSEYE` and `BUILD_BULLSEYE` handling in `Makefile`, the bullseye `SLAVE_DIR` branch in `Makefile.work`, the `sonic-slave-bullseye` entry in `Makefile.cache`, and in `slave.mk` the `BULLSEYE_DEBS_PATH` and `BULLSEYE_FILES_PATH` variables, the `bullseye` target, and the `BLDENV` tests that name it; the `BLDENV == bullseye` conditionals in `rules/grpc.mk`, `rules/protobuf.mk`, `rules/sonic-dash-api.mk`, and `rules/sonic-fips.mk`.
+**Remove (stretch):** `dockers/docker-base-stretch/`, `rules/docker-base-stretch.{mk,dep}`, `dockers/docker-config-engine-stretch/`, `rules/docker-config-engine-stretch.{mk,dep}`. **Remove (buster):** `dockers/docker-base-buster/`, `rules/docker-base-buster.{mk,dep}`, `dockers/docker-config-engine-buster/`, `rules/docker-config-engine-buster.{mk,dep}`, `dockers/docker-swss-layer-buster/`, `rules/docker-swss-layer-buster.{mk,dep}`. **Remove (jessie):** `sonic-slave-jessie/`, the `jessie` target in `Makefile`, and the jessie `SLAVE_DIR` branch in `Makefile.work`. jessie has no `docker-base-jessie`, so also check the jessie strings in the generic `dockers/docker-base/` (its armhf and arm64 sources and its `FROM ...:jessie` lines) before touching that container. **Move first (bullseye):** seven containers still build on a bullseye base. Two of them, `docker-syncd-bfn` and `docker-saiserver-bfn`, go away with Barefoot in 7.1.2. The other five have to move to bookworm or trixie before bullseye can go, and they are `docker-syncd-centec` and `docker-saiserver-centec` under both `platform/centec/` and `platform/centec-arm64/`, plus `dockers/docker-sonic-sdk/`. The centec containers reach bullseye through `platform/template/docker-syncd-bullseye.mk`, so pointing their `docker-syncd-centec.mk` at the bookworm or trixie template covers four of the five. **Remove (bullseye):** `dockers/docker-base-bullseye/`, `rules/docker-base-bullseye.{mk,dep}`, `dockers/docker-config-engine-bullseye/`, `rules/docker-config-engine-bullseye.{mk,dep}`, `dockers/docker-swss-layer-bullseye/`, `rules/docker-swss-layer-bullseye.{mk,dep}`, `platform/template/docker-syncd-bullseye.mk`, and `sonic-slave-bullseye/`; the `bullseye` target and the `NOBULLSEYE` and `BUILD_BULLSEYE` handling in `Makefile`, the bullseye `SLAVE_DIR` branch in `Makefile.work`, the `sonic-slave-bullseye` entry in `Makefile.cache`, and in `slave.mk` the `BULLSEYE_DEBS_PATH` and `BULLSEYE_FILES_PATH` variables, the `bullseye` target, and the `BLDENV` tests that name it; the `BLDENV == bullseye` conditionals in `rules/grpc.mk`, `rules/protobuf.mk`, `rules/sonic-dash-api.mk`, and `rules/sonic-fips.mk`.
 
 #### 7.2 Deprecate now, remove later
 
@@ -218,7 +219,7 @@ This should be removed in 202711. It is off by default. Its own spec calls it th
 
 There is no change to the SAI API. Nothing here adds, removes, or modifies a SAI API or object, and silicon vendors have nothing to implement for this plan.
 
-Two candidates touch SAI adjacent code without changing the interface. 7.1.1 removes the Barefoot SAI implementation and saithrift wiring for a platform that is EOL, which is a vendor implementation rather than the API. 7.1.2 removes the orchestration agent code that calls the SAI DTEL APIs, which leaves those APIs in SAI itself untouched and simply stops SONiC from calling them.
+Two candidates touch SAI adjacent code without changing the interface. 7.1.2 removes the Barefoot SAI implementation and saithrift wiring for a platform that is EOL, which is a vendor implementation rather than the API. 7.1.3 removes the orchestration agent code that calls the SAI DTEL APIs, which leaves those APIs in SAI itself untouched and simply stops SONiC from calling them.
 
 ### 9. Configuration and management
 
@@ -235,7 +236,7 @@ No command is added, and no command changes its syntax. The changes are deletion
 YANG models removed with their features:
 
 - `sonic-kubernetes_master.yang`, with 7.1.7.
-- The `sonic-dtel` model and the DTEL CONFIG_DB tables, with 7.1.2.
+- The `sonic-dtel` model and the DTEL CONFIG_DB tables, with 7.1.3.
 
 CLI effects:
 
@@ -252,7 +253,7 @@ The shape of the change is the same each time. Add a new `version_<branch>_<buil
 
 - `DEVICE_METADATA|localhost|docker_routing_config_mode`. A device holding `separated` or `split` has to be migrated to `unified`, because 7.1.10 deletes the code behind both. This is the case that matters most, since skipping it leaves a device configured for a routing mode that no longer exists rather than merely carrying dead config.
 - The `KUBERNETES_MASTER` table, which goes with 7.1.7, along with its YANG model.
-- The DTEL tables, which go with 7.1.2.
+- The DTEL tables, which go with 7.1.3.
 - `FEATURE|telemetry`, which goes with 7.1.9. `FEATURE|gnmi` stays, and the two must not be confused, because the surviving container is the gnmi one.
 - `FEATURE|restapi`, when the REST API is removed in 202711 under 7.2.3, which lands in that release's migrator rather than this one.
 
