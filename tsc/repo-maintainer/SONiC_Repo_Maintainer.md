@@ -40,6 +40,7 @@
 |  | sonic-sairedis-maintainer | Volodymyr Boiko (Intel) | vboykox | enabled |
 |  | sonic-sairedis-maintainer | Kishore Gummadidala(Google) | erohsik | invitation sent |
 |  | sonic-sairedis-maintainer | Vishnu Shetty | vishnushetty | enabled |
+|  | sonic-sairedis-maintainer | Stephen Sun (Nvidia) | stephenxs | Request on 08/25/2026 |
 | sonic-snmpagent | sonic-snmpagent-maintainer | Suvarna Meenakshi (Microsoft) | SuvarnaMeenakshi | enabled |
 | sonic-swss | sonic-swss-maintainer | Guohan Lu (Microsoft) | lguohan | added |
 |  | sonic-swss-maintainer | Prince Sunny (Microsoft) | prsunny | added |
