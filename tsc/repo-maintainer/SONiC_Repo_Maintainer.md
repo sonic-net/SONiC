@@ -31,6 +31,7 @@
 | sonic-platform-daemons | sonic-platform-daemons-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-daemons-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-daemons-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
+|  | sonic-platform-daemons-maintainer | Junchao Chen (Nvidia) | Junchao-Mellanox | Request on 08/25/2026 |
 | sonic-platform-pdk-pde | sonic-platform-pdk-pde-maintainer | Geans Pin (BRCM) | geans-pin | enabled |
 | sonic-py-swsssdk | sonic-py-swsssdk-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
 | sonic-restapi | sonic-restapi-maintainer | Lawrence Lee (Microsoft) | theasianpianist | enabled |
