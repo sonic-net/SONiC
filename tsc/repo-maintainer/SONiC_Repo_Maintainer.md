@@ -80,5 +80,6 @@
 | sonic-dash-ha | sonic-dash-ha-maintainer | Riff Jiang (Microsoft) | r12f |  |
 | sonic-bmp | sonic-bmp-maintainer | Qi Luo(Microsoft) | qiluo-msft | enabled |
 | sonic-host-services | sonic-host-services-maintainer | Qi Luo(Microsoft) | qiluo-msft |  |
+|  | sonic-host-services-maintainer | Amit Abel (Nvidia) | abelamit | Request on 08/25/2026 |
 | sonic-formal-infra | sonic-formal-infra-maintainer | Mengqi Liu (Alibaba) | mengqiliu20 | enabled |
 |  | sonic-formal-infra-maintainer | Ali Kheradmand (Google) | kheradmandG |enabled  |
