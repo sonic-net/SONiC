@@ -82,3 +82,4 @@
 | sonic-host-services | sonic-host-services-maintainer | Qi Luo(Microsoft) | qiluo-msft |  |
 | sonic-formal-infra | sonic-formal-infra-maintainer | Mengqi Liu (Alibaba) | mengqiliu20 | enabled |
 |  | sonic-formal-infra-maintainer | Ali Kheradmand (Google) | kheradmandG |enabled  |
+| sonic-redfish | sonic-redfish-maintainer | Ben Levi (Nvidia) | benle7 | Request on 08/25/2026 |
