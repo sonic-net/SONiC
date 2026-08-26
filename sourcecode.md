@@ -35,15 +35,15 @@
 	- This repository contains the source code for the swss container, teamd container & bgp container shown in the [architecture diagram](https://github.com/sonic-net/SONiC/blob/master/images/sonic_user_guide_images/section4_images/section4_pic1_high_level.png "High Level Component Interactions")
 	- When swss container is started, start.sh starts the processes like rsyslogd, orchagent, restore_neighbors, portsyncd, neighsyncd, swssconfig, vrfmgrd, vlanmgrd, intfmgrd, portmgrd, buffermgrd, enable_counters, nbrmgrd, vxlanmgrd & arp_update.
 
-  SWWS repository contains the source code for the following.
+  SWSS repository contains the source code for the following.
   - cfgmgr - This directory contains the code to build the following processes that run inside swss container. More details about each daemon are available in the [architecture document](https://github.com/sonic-net/SONiC/wiki/Architecture).
 	- nbrmgrd - manager for neighbor management - Listens to neighbor-related changes in NEIGH_TABLE in ConfigDB for static ARP/ND configuration and also to trigger proactive ARP (for potential VxLan Server IP address by not specifying MAC) and then uses netlink to program the neighbors in linux kernel. nbrmgrd does not write anything in APP_DB.
 	- portmgrd - manager for Port management - Listens to port-related changes in ConfigDB and sets the MTU and/or AdminState in kernel using "ip" commands and also pushes the same to APP_DB.
 	- buffermgrd - manager for buffer management - Reads buffer profile config file and programs it in ConfigDB and then listens (at runtime) for cable length change and speed change in ConfigDB, and sets the same into buffer profile table ConfigDB.
 	- teammgrd - team/portchannel management - Listens to portchannel related config changes in ConfigDB and  runs the teamd process for each port channel. Note that teammgrd will be executed inside teamd container (not inside swss container).
 	- intfmgrd - manager for interfaces - Listens for IP address changes and VRF name changes for the interfaces in ConfigDB and programs the same in linux using "/sbin/ip" command and writes into APP_DB.
-    - vlanmgrd - manager for VLAN - Listens for VLAN related changes in ConfigDB and programs the same in linux using "bridge" & "ip" commands and and writes into APP_DB
-    - vrfmgrd - manager for VRF - Listens for VRF changes in ConfigDB and programs the same in linux and writes into APP_DB.
+	- vlanmgrd - manager for VLAN - Listens for VLAN related changes in ConfigDB and programs the same in linux using "bridge" & "ip" commands and writes into APP_DB
+	- vrfmgrd - manager for VRF - Listens for VRF changes in ConfigDB and programs the same in linux and writes into APP_DB.
 	
   - fpmsyncd - this folder contains the code to build the "fpmsynd" process that runs in bgp container. This process runs a TCP server and listens for messages from Zebra for route changes (in the form of netlink messages) and it writes the routes to APP_DB. It also waits for clients to connect to it and then provides the route updates to those clients.
   - neighsyncd - this folder contains the code to build the "neighsyncd" process. Listens for ARP/ND specific netlink messages from the kernel for dynamically learnt ARP/ND and programs the same into APP_DB.
