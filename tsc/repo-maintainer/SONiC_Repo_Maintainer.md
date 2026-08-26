@@ -28,6 +28,7 @@
 | sonic-platform-common | sonic-platform-common-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-common-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-common-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
+|  | sonic-platform-common-maintainer | Junchao Chen (Nvidia) | Junchao-Mellanox | Request on 08/25/2026 |
 | sonic-platform-daemons | sonic-platform-daemons-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-daemons-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-daemons-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
