@@ -1,6 +1,6 @@
 # ACL in SONiC
 # High Level Design Document
-### Rev 1.1
+### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -88,6 +88,7 @@
 | 0.3 | 10-Nov-2016 | Andriy Moroz       | Updated according to the comments   |
 | 0.4 | 20-Dec-2016 | Oleksandr Ivantsiv | Update data structures              |
 | 1.1 | 08-Apr-2025 | Anish Narsian      | VXLAN inner src mac rewrite support |
+| 1.2 | 01-Jul-2026 | Anant Kishor Sharma | Configurable ACL table group-member priority (ACL_TABLE PRIORITY) |
 # About this Manual
 This document provides general information about the ACL feature implementation in SONiC.
 # Scope
@@ -180,6 +181,11 @@ No update is needed to support ACL.
     ports         = [0-max_ports]*port_name ; the ports to which this ACL
                                             ; table is applied, can be emtry
                                             ; value annotations
+    priority      = 1*10DIGIT               ; optional ACL table group-member priority
+                                            ; within the bind-point group; higher value
+                                            ; takes precedence. Distinct from the per-rule
+                                            ; PRIORITY. Ignored for table types that are
+                                            ; not bound as a group member.
     port_name     = 1*64VCHAR               ; name of the port, must be unique
     max_ports     = 1*5DIGIT                ; number of ports supported on the chip
 ##### 3.1.2.1.2 ACL Rules Table
@@ -469,6 +475,8 @@ Code sample which binds table to the port:
             status = port.bindAclTable(group_member_oid, table_oid);
         ...
 If LAG port not created yet when bind ACL table to it, LAG port will be added to an internal pending port list, after LAG port created, AclOrch will get notification from STATE_DB, and will bind the ACL table to the LAG port. This is implemented by adding a "doAclTablePortUpdateTask" to handle the port configured notification from STATE_DB.
+
+The priority of an ACL table within its bind-point group (the ACL table group member priority) can be configured through the optional "PRIORITY" field of the ACL_TABLE entry. When it is omitted the previous fixed default is used, preserving existing behavior. AclOrch queries the switch-reported valid range ("SAI_SWITCH_ATTR_ACL_TABLE_MINIMUM_PRIORITY"/"SAI_SWITCH_ATTR_ACL_TABLE_MAXIMUM_PRIORITY") and validates the configured value against it before passing it to `port.bindAclTable`, where it is programmed as the ACL table group member priority. The field is ignored for table types that are not bound as a group member, and range validation is skipped on platforms whose SAI does not implement the priority-range capability query.
 
 #### 3.3.1.3 ACL and LAG
 
