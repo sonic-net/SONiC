@@ -27,8 +27,9 @@
     - [7.4.1. DEVICE\_METADATA](#741-device_metadata)
     - [7.4.2. HIGH\_FREQUENCY\_TELEMETRY\_PROFILE](#742-high_frequency_telemetry_profile)
     - [7.4.3. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR](#743-high_frequency_telemetry_aggregator)
-    - [7.4.4. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR\_HISTOGRAM](#744-high_frequency_telemetry_aggregator_histogram)
-    - [7.4.5. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#745-high_frequency_telemetry_group)
+    - [7.4.4. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR\_ROLLOVER](#744-high_frequency_telemetry_aggregator_rollover)
+    - [7.4.5. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR\_HISTOGRAM](#745-high_frequency_telemetry_aggregator_histogram)
+    - [7.4.6. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#746-high_frequency_telemetry_group)
   - [7.5. StateDb](#75-statedb)
     - [7.5.1. HIGH\_FREQUENCY\_TELEMETRY\_SESSION\_TABLE](#751-high_frequency_telemetry_session_table)
   - [7.6. Work Flow](#76-work-flow)
@@ -57,6 +58,7 @@
 | 0.3 | 06/21/2026 | Ze Gan | Add aggregator configuration |
 | 0.4 | 08/18/2026 | Ze Gan | Define independent heatmap interval and method ordering |
 | 0.5 | 08/25/2026 | Ze Gan | Define per-counter histogram bounds and default heatmap layout |
+| 0.6 | 08/26/2026 | Ze Gan | Define per-counter rollover widths and correction semantics |
 
 ## 2. Scope
 
@@ -88,9 +90,9 @@ In the context of AI scenarios, we are encountering challenges with switches tha
 - The vendor SDK should support publishing stats in IPFIX format and its IPFIX template.
 - If a polling frequency for stats cannot be supported, the vendor's SDK should return this error.
 - The vendor SDK should support querying the minimal polling interval for each counter.
-- When reconfiguring any high frequency telemetry settings, whether it is the polling interval or the stats list, the existing high frequency telemetry will be interrupted and regenerated.
+- Reconfiguring session-defining profile or group settings, such as the polling interval or stats list, interrupts and regenerates the existing high frequency telemetry session. Aggregator child settings are applied at an ordered configuration boundary as described in section 7.4.
 - If any of monitored objects is deleted, the existing high frequency telemetry will be interrupted and regenerated.
-- The collector is designed to handle single-cycle counter rollovers; however, vendors must ensure that the data does not roll over twice between two collection intervals.
+- The counter increment between adjacent samples must be strictly less than `2^bit_width`. This guarantees that every detectable wrap makes the next raw value lower; an increment equal to one full modulus can return to the same raw value and cannot be inferred.
 
 ### 5.2. Phase 2
 
@@ -138,6 +140,7 @@ flowchart LR
                 HIGH_FREQUENCY_TELEMETRY_GROUP--> hft_orch
     config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
                 HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
+                HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER
                 HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM--> counter_syncd
     state_db --HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE--> counter_syncd
     hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE--> state_db
@@ -198,11 +201,20 @@ The Aggregator actor applies optional per-profile aggregation after IPFIX record
 
 An aggregator supports the following optional methods and can be extended with more methods later. The methods can be configured independently or in any combination. For the heatmap branch, Counter Syncd applies rollover correction first, reporting-rate aggregation second, the counter-specific value transform third, and heatmap accumulation last.
 
-Samples for one HFT session are expected in nondecreasing `observationTimeNanoseconds` order. Samples for a reporting or heatmap window that has already been emitted are ignored. Both time-based stages are sample-driven: the first sample in a later window emits the completed preceding window. This avoids per-session timers for continuous telemetry; the final partial window can remain buffered if a stream becomes idle or ends, and is discarded when an aggregator configuration is replaced or removed.
+Samples for one HFT session are expected in nondecreasing `observationTimeNanoseconds` order. This constrains timestamps, not values: watermark and current-occupancy values may decrease or reset. Samples for a reporting or heatmap window that has already been emitted are ignored. Both time-based stages are sample-driven: the first sample in a later window emits the completed preceding window. This avoids per-session timers for continuous telemetry; the final partial window can remain buffered if a stream becomes idle or ends, and is discarded when an aggregator configuration is replaced or removed.
 
 - Reporting rate aggregation: groups lower-layer samples into the configured reporting interval, in microseconds. The ordinary gauge/reporting output remains the latest value in each completed reporting window. If `reporting_rate` is absent, every lower-layer sample is an accepted reporting point and no reporting window aggregation is performed.
-- Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. When a new raw value is less than the previous raw value, Counter Syncd treats the decrease as one rollover and adds the previous corrected value as the new offset. For example, raw values `100, 200, 10, 20` are exported as `100, 200, 210, 220`. The corrected value remains a `uint64`. Watermark and current-occupancy counters must not be placed in `rollover_counters`; this matches runtime behavior and is enforced by YANG. The list is empty by default.
+- Rollover counters: the parent `rollover_counters` list enables correction for its group and counter pairs. A selected counter uses the `bit_width` in its `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER` row; a selected counter with no override row has an effective width of 32 bits. The child `bit_width` leaf is mandatory when a row exists and has no YANG default. Watermark and current-occupancy counters remain forbidden in the parent enable list, and the list is empty by default.
 - Heatmap counters: `heatmap_interval` and `heatmap_counters` are configured together. They produce OTLP delta histograms over the independent `heatmap_interval`, in microseconds. For example, a 1 ms lower-layer interval, 100 ms `reporting_rate`, and 1 s `heatmap_interval` produce a histogram from ten accepted reporting points. A counter-specific row in `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` supplies custom explicit bounds. A selected counter without such a row uses the fixed default layout generated from `heatmap_default_bucket_count`.
+
+For a rollover counter with effective width `bit_width`, Counter Syncd uses `modulus = 2^bit_width`. Every raw value must be less than `modulus`. It maintains a `wrap_base`, initially zero, and the preceding raw value. On a raw decrease it detects one wrap and increments `wrap_base` by `modulus`; for every sample it then computes `corrected = wrap_base + raw`. The corrected value is a `uint64`.
+
+- With the default 32-bit width, `modulus = 4294967296`; raw values `4294967290, 3, 10` produce corrected values `4294967290, 4294967299, 4294967306`.
+- With an explicit 24-bit override, `modulus = 16777216`; raw values `16777210, 3, 10` produce corrected values `16777210, 16777219, 16777226`.
+- The increment between adjacent samples must be strictly less than one modulus. Under that condition, every wrap produces `raw < previous_raw` and is detected. An increment equal to a complete modulus (`10 -> 10` for an 8-bit counter) or any larger unobserved advance is indistinguishable from fewer wraps and results in an undercount.
+- Without an out-of-band reset signal, a counter reset is indistinguishable from a wrap. A raw decrease is therefore interpreted as one wrap. A reset signal must clear `wrap_base` and rebaseline the preceding raw value.
+- If incrementing `wrap_base` or adding a raw value would overflow `uint64`, Counter Syncd must not emit a wrapped arithmetic result. It resets the rollover state, rebaselines at the current raw value with `wrap_base = 0`, and exports that raw value as the new corrected baseline; consumers observe this as a counter reset.
+- Width 64 is unsupported. The configured range is 1 through 63, leaving `2^bit_width` representable in the `uint64` rollover state and permitting overflow checks before addition.
 
 The heatmap value transform does not change the ordinary gauge/reporting output:
 
@@ -546,7 +558,7 @@ The following table is an example of telemetry bandwidth of one cluster
 
 ### 7.4. Config DB
 
-Any configuration changes in the config DB will interrupt the existing session and initiate a new one.
+Session/profile replacement interrupts the existing session and resets all aggregation state. Ordinary aggregator child updates are applied at an ordered configuration boundary without rebuilding the IPFIX session. A rollover width change resets only series whose effective modulus changes; adding or deleting an explicit 32-bit override is a semantic no-op and preserves state. Partial reporting and heatmap windows are discarded on an effective aggregator change.
 
 #### 7.4.1. DEVICE_METADATA
 
@@ -611,6 +623,7 @@ rollover_counters    = A comma-separated list of group and counter pairs that re
                        An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
                        Watermark and current-occupancy counters must not be included.
                        The default value is empty, meaning no counters are corrected for rollover.
+                       A selected counter with no HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER row uses an effective width of 32 bits.
 heatmap_interval     = uint32 ; The independent heatmap aggregation interval, unit microseconds.
                        It must be configured together with heatmap_counters.
 heatmap_counters     = A comma-separated list of group and counter pairs that should be treated as heatmap data.
@@ -623,7 +636,37 @@ heatmap_default_bucket_count = uint16 ; Total default-layout bucket count, from 
                                       Counters without a child histogram row use this fixed deterministic layout.
 ```
 
-#### 7.4.4. HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM
+#### 7.4.4. HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER
+
+```
+HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER|{{aggregator_name}}|{{group_name}}|{{counter_name}}
+    "bit_width": {{uint8}}
+```
+
+```
+key             = HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER|aggregator_name|group_name|counter_name
+CONFIG_DB key   = <aggregator>|<GROUP>|<COUNTER>
+aggregator_name = Existing HIGH_FREQUENCY_TELEMETRY_AGGREGATOR name.
+group_name      = One of PORT, BUFFER_POOL, QUEUE, or INGRESS_PRIORITY_GROUP.
+counter_name    = A counter valid for group_name. The GROUP|COUNTER selector must be present in the referenced
+                  parent's rollover_counters enable list.
+; field         = value
+bit_width       = Mandatory uint8 counter width from 1 through 63. The rollover modulus is 2^bit_width.
+                  The leaf has no default. Absence of the entire override row means the selected parent counter
+                  uses the effective default width of 32 bits. Width 64 is unsupported.
+```
+
+For example, `PORT|IF_IN_OCTETS` has an explicit 24-bit width below. The same parent selects `QUEUE|DROPPED_PACKETS` without a child row, so that queue counter uses the effective default width of 32 bits.
+
+```
+HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|default_aggregator
+    "rollover_counters@": PORT|IF_IN_OCTETS,QUEUE|DROPPED_PACKETS
+
+HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER|default_aggregator|PORT|IF_IN_OCTETS
+    "bit_width": 24
+```
+
+#### 7.4.5. HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM
 
 ```
 HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM|{{aggregator_name}}|{{group_name}}|{{counter_name}}
@@ -649,7 +692,7 @@ HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM|default_aggregator|PORT|OUT_CURR_O
     "explicit_bounds@": 0,1024,4096,16384
 ```
 
-#### 7.4.5. HIGH_FREQUENCY_TELEMETRY_GROUP
+#### 7.4.6. HIGH_FREQUENCY_TELEMETRY_GROUP
 
 ```
 HIGH_FREQUENCY_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
@@ -733,6 +776,7 @@ sequenceDiagram
     config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_GROUP
     config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_PROFILE
     config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
+    config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER
     config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM
     port_orch ->> hft_orch: Port/Queue/Buffer ... object
 
@@ -806,6 +850,12 @@ sudo config hft unbind-aggregator $profile_name
 
 # Add an aggregator
 sudo config hft add aggregator $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_interval=$heatmap_interval --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4" --heatmap_default_bucket_count=256
+
+# Add a width override for one enabled rollover counter
+config hft add rollover <aggregator> --counter GROUP|COUNTER --bit_width N
+
+# Delete the override; the still-enabled parent selector returns to the effective 32-bit width
+config hft del rollover <aggregator> GROUP|COUNTER
 
 # Add custom bounds for one selected heatmap counter
 sudo config hft add histogram $aggregator_name --counter "PORT|OUT_CURR_OCCUPANCY_BYTES" --explicit_bounds 0,1024,4096,16384

@@ -78,12 +78,25 @@
             {
               "name": "default_aggregator",
               "reporting_rate": 100000,
-              "rollover_counters": ["PORT|IF_IN_OCTETS"],
+              "rollover_counters": [
+                "PORT|IF_IN_OCTETS",
+                "QUEUE|DROPPED_PACKETS"
+              ],
               "heatmap_interval": 1000000,
               "heatmap_counters": [
                 "PORT|OUT_CURR_OCCUPANCY_BYTES",
                 "QUEUE|WRED_ECN_MARKED_PACKETS"
               ]
+            }
+          ]
+        },
+        "sonic-high-frequency-telemetry:HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER": {
+          "HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER_LIST": [
+            {
+              "aggregator_name": "default_aggregator",
+              "group_name": "PORT",
+              "counter_name": "IF_IN_OCTETS",
+              "bit_width": 24
             }
           ]
         },
@@ -115,7 +128,7 @@
               "profile_name": "high_frequency_counters",
               "group_name": "QUEUE",
               "object_names": ["Ethernet0|15", "Ethernet0|3"],
-              "object_counters": ["PACKETS", "WRED_ECN_MARKED_PACKETS"]
+              "object_counters": ["PACKETS", "DROPPED_PACKETS", "WRED_ECN_MARKED_PACKETS"]
             },
             {
               "profile_name": "high_frequency_counters",
