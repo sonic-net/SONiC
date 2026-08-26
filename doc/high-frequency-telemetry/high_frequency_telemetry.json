@@ -80,8 +80,20 @@
               "reporting_rate": 100000,
               "rollover_counters": ["PORT|IF_IN_OCTETS"],
               "heatmap_interval": 1000000,
-              "heatmap_counters": ["PORT|OUT_CURR_OCCUPANCY_BYTES"],
-              "heatmap_bucket_boundaries": ["0", "1024", "4096", "16384"]
+              "heatmap_counters": [
+                "PORT|OUT_CURR_OCCUPANCY_BYTES",
+                "QUEUE|WRED_ECN_MARKED_PACKETS"
+              ]
+            }
+          ]
+        },
+        "sonic-high-frequency-telemetry:HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM": {
+          "HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM_LIST": [
+            {
+              "aggregator_name": "default_aggregator",
+              "group_name": "PORT",
+              "counter_name": "OUT_CURR_OCCUPANCY_BYTES",
+              "explicit_bounds": ["0", "1024", "4096", "16384"]
             }
           ]
         },

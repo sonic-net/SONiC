@@ -27,7 +27,8 @@
     - [7.4.1. DEVICE\_METADATA](#741-device_metadata)
     - [7.4.2. HIGH\_FREQUENCY\_TELEMETRY\_PROFILE](#742-high_frequency_telemetry_profile)
     - [7.4.3. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR](#743-high_frequency_telemetry_aggregator)
-    - [7.4.4. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#744-high_frequency_telemetry_group)
+    - [7.4.4. HIGH\_FREQUENCY\_TELEMETRY\_AGGREGATOR\_HISTOGRAM](#744-high_frequency_telemetry_aggregator_histogram)
+    - [7.4.5. HIGH\_FREQUENCY\_TELEMETRY\_GROUP](#745-high_frequency_telemetry_group)
   - [7.5. StateDb](#75-statedb)
     - [7.5.1. HIGH\_FREQUENCY\_TELEMETRY\_SESSION\_TABLE](#751-high_frequency_telemetry_session_table)
   - [7.6. Work Flow](#76-work-flow)
@@ -55,6 +56,7 @@
 | 0.2 | 03/01/2025 | Janet Cui | Initial version    |
 | 0.3 | 06/21/2026 | Ze Gan | Add aggregator configuration |
 | 0.4 | 08/18/2026 | Ze Gan | Define independent heatmap interval and method ordering |
+| 0.5 | 08/25/2026 | Ze Gan | Define per-counter histogram bounds and default heatmap layout |
 
 ## 2. Scope
 
@@ -135,7 +137,8 @@ flowchart LR
     config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
                 HIGH_FREQUENCY_TELEMETRY_GROUP--> hft_orch
     config_db --HIGH_FREQUENCY_TELEMETRY_PROFILE
-                HIGH_FREQUENCY_TELEMETRY_AGGREGATOR--> counter_syncd
+                HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
+                HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM--> counter_syncd
     state_db --HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE--> counter_syncd
     hft_orch --HIGH_FREQUENCY_TELEMETRY_SESSION_TABLE--> state_db
     hft_orch --SAI_OBJECT_TYPE_TAM_XXXX--> syncd
@@ -193,13 +196,20 @@ flowchart LR
 
 The Aggregator actor applies optional per-profile aggregation after IPFIX records are parsed and before counters are exported to Counter DB or OpenTelemetry. A profile selects an aggregator by setting `HIGH_FREQUENCY_TELEMETRY_PROFILE.aggregator`; if no aggregator is selected, Counter Syncd forwards the lower-layer reported samples without extra aggregation, rollover correction, or heatmap handling.
 
-An aggregator supports the following optional methods and can be extended with more methods later. The methods can be configured independently or in any combination. When combined, Counter Syncd applies rollover correction first, reporting-rate aggregation second, and heatmap generation last.
+An aggregator supports the following optional methods and can be extended with more methods later. The methods can be configured independently or in any combination. For the heatmap branch, Counter Syncd applies rollover correction first, reporting-rate aggregation second, the counter-specific value transform third, and heatmap accumulation last.
 
 Samples for one HFT session are expected in nondecreasing `observationTimeNanoseconds` order. Samples for a reporting or heatmap window that has already been emitted are ignored. Both time-based stages are sample-driven: the first sample in a later window emits the completed preceding window. This avoids per-session timers for continuous telemetry; the final partial window can remain buffered if a stream becomes idle or ends, and is discarded when an aggregator configuration is replaced or removed.
 
-- Reporting rate aggregation: aggregates the lower-layer reported samples into the configured aggregator reporting interval. The unit is microseconds. If `reporting_rate` is not configured, the aggregator uses the lower-layer reporting interval and does not aggregate samples.
-- Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. When a new raw value is less than the previous raw value, Counter Syncd treats the decrease as one rollover and adds the previous corrected value as the new offset. For example, raw values `100, 200, 10, 20` are exported as `100, 200, 210, 220`. The corrected value remains a `uint64`. The list is empty by default, so no counters are corrected for rollover unless configured.
-- Heatmap counters: aggregates the group and counter pairs configured in `heatmap_counters` into OTLP delta histograms over the independent `heatmap_interval`, in microseconds. `heatmap_bucket_boundaries` defines the strictly increasing inclusive upper bounds shared by all heatmap counters. Heatmap input is the output of reporting-rate aggregation when `reporting_rate` is configured, or the rollover-corrected lower-layer samples otherwise. For example, a 1 ms lower-layer interval, 100 ms `reporting_rate`, and 1 s `heatmap_interval` produce one histogram containing ten reported points. All three heatmap fields are omitted by default.
+- Reporting rate aggregation: groups lower-layer samples into the configured reporting interval, in microseconds. The ordinary gauge/reporting output remains the latest value in each completed reporting window. If `reporting_rate` is absent, every lower-layer sample is an accepted reporting point and no reporting window aggregation is performed.
+- Rollover counters: enables rollover correction for the group and counter pairs configured in `rollover_counters`. When a new raw value is less than the previous raw value, Counter Syncd treats the decrease as one rollover and adds the previous corrected value as the new offset. For example, raw values `100, 200, 10, 20` are exported as `100, 200, 210, 220`. The corrected value remains a `uint64`. Watermark and current-occupancy counters must not be placed in `rollover_counters`; this matches runtime behavior and is enforced by YANG. The list is empty by default.
+- Heatmap counters: `heatmap_interval` and `heatmap_counters` are configured together. They produce OTLP delta histograms over the independent `heatmap_interval`, in microseconds. For example, a 1 ms lower-layer interval, 100 ms `reporting_rate`, and 1 s `heatmap_interval` produce a histogram from ten accepted reporting points. A counter-specific row in `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` supplies custom explicit bounds. A selected counter without such a row uses the fixed default layout generated from `heatmap_default_bucket_count`.
+
+The heatmap value transform does not change the ordinary gauge/reporting output:
+
+- A watermark heatmap counter contributes the maximum raw value seen in each reporting window. Watermark counters are the counter names containing `WATERMARK`.
+- A current-occupancy heatmap counter contributes the latest raw value seen in each reporting window. Current-occupancy counters are the counter names containing `CURR_OCCUPANCY`.
+- Every other heatmap counter contributes the delta between consecutive accepted reporting points. The first accepted point establishes the baseline and contributes no histogram observation. A decrease means that the counter reset; the lower point becomes the new baseline and no delta is produced for that point.
+- Without `reporting_rate`, each lower-layer sample is an accepted point, so these rules are applied sample by sample.
 
 #### 7.1.2. High frequency telemetry Orch
 
@@ -481,7 +491,23 @@ Metric {
 }
 ```
 
-Heatmap counters are represented as OTLP delta histograms. Each data point covers one independent `heatmap_interval`. When reporting-rate aggregation is enabled, only the reported value from each completed reporting window contributes to the histogram; otherwise every rollover-corrected lower-layer sample contributes. Bucket boundaries are inclusive upper bounds: for boundaries `[100, 200]`, the buckets are `(-Inf, 100]`, `(100, 200]`, and `(200, +Inf)`. The histogram includes the `object_name`, SAI type/stat IDs, and HFT session as attributes.
+Heatmap counters are represented as OTLP delta histograms. Each data point covers one independent `heatmap_interval` and contains the transformed observations described in section 7.1.1. Bucket boundaries are inclusive upper bounds: for explicit bounds `[100, 200]`, the three buckets are values `<= 100`, values `> 100` and `<= 200`, and values `> 200`. In general, N explicit bounds produce N+1 buckets. The histogram includes the `object_name`, SAI type/stat IDs, HFT session, `heatmap_value_kind`, and `heatmap_schema` as attributes. `heatmap_schema` is a stable identifier derived from the value kind and complete explicit-bound list, so a layout change creates a distinct backend series instead of mixing incompatible buckets.
+
+The explicit bounds for a selected counter come from its `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` row when one exists. Otherwise Counter Syncd generates the default layout from the parent `heatmap_default_bucket_count`. Let B be the total bucket count, where `4 <= B <= 512`. The layout contains B-1 explicit integer bounds and one final implicit bucket:
+
+1. Set `m = min(15, B - 3)` and append the exact integer bounds `0, 1, ..., m`.
+2. Set `K = B - m - 2`. If `K = 1`, append `2^53` and stop.
+3. Otherwise, for each integer `i` from 1 through K, set `scaled = 49 * i`, `octave = floor(scaled / K)`, and `remainder = scaled mod K`.
+4. For `i = K`, append exactly `2^53`. For every earlier i, set `base = 2^(4 + octave)` and calculate `candidate = base + ceil(base * remainder / K)`. Calculate the ceiling using integer arithmetic as `(base * remainder + K - 1) div K`.
+5. Clamp each nonfinal candidate to preserve room for all remaining bounds: append `min(max(candidate, prior + 1), 2^53 - (K - i))`, where `prior` is the preceding explicit bound.
+6. The final implicit bucket contains values greater than `2^53`.
+
+The generated section distributes boundaries across 49 binary octaves with deterministic linear subdivision within each octave. The layout depends only on B, is fixed across devices, objects, and windows, and must not adapt to observed values.
+
+Golden layouts include:
+
+- B=4: three explicit bounds `[0, 1, 9007199254740992]` and a fourth implicit bucket above `2^53`.
+- B=256: 255 explicit bounds with `m=15` and `K=239`. They start `[0, 1, ..., 15, 20, 23, 26, 30, 33, 40, ...]`; the last five are `[5313870690035481, 6237202831211859, 7160534972388237, 8083867113564615, 9007199254740992]`. The final explicit bound is exactly `2^53` and the 256th bucket is implicit.
 
 ```
 Metric {
@@ -498,6 +524,8 @@ Metric {
   }
 }
 ```
+
+For example, if `PORT|IF_OUT_ERRORS` has custom bounds `[100, 200]` while `QUEUE|WRED_ECN_MARKED_PACKETS` has no histogram row, the port histogram carries `[100, 200]` and three bucket counts. The queue histogram carries the B-1 default bounds and B bucket counts generated from the parent B.
 
 For design goals, requirements, and specification of the OTLP, please refer to the official documentation: [OpenTelemetry Protocol (OTLP)](https://github.com/open-telemetry/opentelemetry-proto/tree/main/docs).
 
@@ -566,37 +594,62 @@ HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|{{aggregator_name}}
     "rollover_counters@": {{comma-separated list of group and counter pairs}} (Optional)
     "heatmap_interval": {{uint32}} (Optional)
     "heatmap_counters@": {{comma-separated list of group and counter pairs}} (Optional)
-    "heatmap_bucket_boundaries@": {{comma-separated list of uint64}} (Optional)
+    "heatmap_default_bucket_count": {{uint16}} (Optional, default 256)
 ```
 
 ```
 key                  = HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|aggregator_name a string as the identifier of aggregator configuration
+                       aggregator_name must not contain '|' or leading/trailing whitespace.
 ; field              = value
 reporting_rate       = uint32 ; The reporting interval after aggregation, unit microseconds.
-                       It aggregates lower-layer reported samples within each reporting window.
-                       If this value isn't provided, the aggregator uses the lower-layer reporting interval and does not aggregate samples.
+                       Ordinary gauge/reporting output is the latest value in each reporting window.
+                       If this value isn't provided, every lower-layer sample is an accepted point.
 rollover_counters    = A comma-separated list of group and counter pairs that require rollover correction.
                        The syntax is the same list format used by object_names and object_counters.
                        Each item uses group_name|object_counter.
                        The group_name must match HIGH_FREQUENCY_TELEMETRY_GROUP.group_name, and object_counter must be valid for that group.
                        An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
+                       Watermark and current-occupancy counters must not be included.
                        The default value is empty, meaning no counters are corrected for rollover.
 heatmap_interval     = uint32 ; The independent heatmap aggregation interval, unit microseconds.
-                       If reporting_rate is configured, each completed reporting window contributes one point to the heatmap.
-                       Otherwise, every rollover-corrected lower-layer sample contributes one point.
+                       It must be configured together with heatmap_counters.
 heatmap_counters     = A comma-separated list of group and counter pairs that should be treated as heatmap data.
                        The syntax is the same as rollover_counters.
-                       An example is PORT|IF_IN_UCAST_PKTS,QUEUE|DROPPED_PACKETS.
+                       An example is PORT|OUT_CURR_OCCUPANCY_BYTES,QUEUE|WRED_ECN_MARKED_PACKETS.
+                       It must be configured together with heatmap_interval.
                        The default value is empty.
-heatmap_bucket_boundaries = A comma-separated, strictly increasing list of uint64 values used as inclusive upper bounds for OTLP histogram buckets.
-                            One list is shared by all heatmap_counters in this aggregator.
-                            The implicit final bucket contains values greater than the last configured boundary.
-                            Each boundary must be between 0 and 2^53 so it is represented exactly by the OTLP double field.
-                            An example is 0,1024,4096,16384.
-                            This field, heatmap_interval, and heatmap_counters must either all be configured or all be omitted.
+heatmap_default_bucket_count = uint16 ; Total default-layout bucket count, from 4 through 512.
+                                      It is valid only when heatmap_interval is configured. The default is 256.
+                                      Counters without a child histogram row use this fixed deterministic layout.
 ```
 
-#### 7.4.4. HIGH_FREQUENCY_TELEMETRY_GROUP
+#### 7.4.4. HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM
+
+```
+HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM|{{aggregator_name}}|{{group_name}}|{{counter_name}}
+    "explicit_bounds@": {{comma-separated list of uint64}}
+```
+
+```
+key             = HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM|aggregator_name|group_name|counter_name
+aggregator_name = Existing HIGH_FREQUENCY_TELEMETRY_AGGREGATOR name.
+group_name      = One of PORT, BUFFER_POOL, QUEUE, or INGRESS_PRIORITY_GROUP.
+counter_name    = A counter valid for group_name. The GROUP|COUNTER selector must be present in the referenced
+                  parent's heatmap_counters.
+; field         = value
+explicit_bounds = An ordered, strictly increasing list containing 1 through 511 inclusive uint64 upper bounds.
+                  Every bound is in the range 0 through 2^53. N bounds produce N+1 buckets.
+                  A selected counter with this row uses these bounds; a selected counter without a row uses the parent default layout.
+```
+
+For example, the following customizes `PORT|OUT_CURR_OCCUPANCY_BYTES`. A second selected counter, `QUEUE|WRED_ECN_MARKED_PACKETS`, has no row and therefore uses the parent default layout.
+
+```
+HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM|default_aggregator|PORT|OUT_CURR_OCCUPANCY_BYTES
+    "explicit_bounds@": 0,1024,4096,16384
+```
+
+#### 7.4.5. HIGH_FREQUENCY_TELEMETRY_GROUP
 
 ```
 HIGH_FREQUENCY_TELEMETRY_GROUP|{{profile_name}}|{{group_name}}
@@ -680,6 +733,7 @@ sequenceDiagram
     config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_GROUP
     config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_PROFILE
     config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR
+    config_db ->> counter: HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM
     port_orch ->> hft_orch: Port/Queue/Buffer ... object
 
     hft_orch ->> syncd: Config TAM objects
@@ -751,7 +805,14 @@ sudo config hft bind-aggregator $profile_name $aggregator_name
 sudo config hft unbind-aggregator $profile_name
 
 # Add an aggregator
-sudo config hft add aggregator $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_interval=$heatmap_interval --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4" --heatmap_bucket_boundaries="0,1024,4096,16384"
+sudo config hft add aggregator $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_interval=$heatmap_interval --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4" --heatmap_default_bucket_count=256
+
+# Add custom bounds for one selected heatmap counter
+sudo config hft add histogram $aggregator_name --counter "PORT|OUT_CURR_OCCUPANCY_BYTES" --explicit_bounds 0,1024,4096,16384
+
+# QUEUE|WRED_ECN_MARKED_PACKETS has no histogram row and uses the aggregator's default layout
+sudo config hft add aggregator heatmap_example --heatmap_interval=1000000 --heatmap_counters="PORT|OUT_CURR_OCCUPANCY_BYTES,QUEUE|WRED_ECN_MARKED_PACKETS"
+sudo config hft add histogram heatmap_example --counter "PORT|OUT_CURR_OCCUPANCY_BYTES" --explicit_bounds 0,1024,4096,16384
 
 # Add a monitor group
 sudo config hft add group $profile_name --group_type=$group_name --object_names="$object1,$object2" --object_counters="$object_counters1,$object_counters2"
