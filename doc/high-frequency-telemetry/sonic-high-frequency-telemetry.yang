@@ -54,6 +54,20 @@ module sonic-high-frequency-telemetry {
                     }
                 }
 
+                leaf otel_endpoint {
+                    description "The endpoint of OpenTelemetry collector. E.G. 192.168.0.100:4318. It will use the local OpenTelemetry collector if this value isn't provided.";
+                    type string {
+                        length 1..4096;
+                    }
+                }
+
+                leaf otel_certs {
+                    description "The path of certificates for OpenTelemetry collector. E.G. /etc/sonic/otel/cert.private. If this value isn't provided, we will use a non-secure channel.";
+                    type string {
+                        length 1..4096;
+                    }
+                }
+
             }
         }
 
@@ -250,8 +264,6 @@ module sonic-high-frequency-telemetry {
                         + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and substring-before(current(), '|') = /bpg:sonic-buffer-pg/bpg:BUFFER_PG/bpg:BUFFER_PG_LIST/bpg:port and re-match(substring-after(current(), '|'), '[0-9]+') )"
                         + " or ( ../group_name = 'QUEUE' and substring-before(current(), '|') = /bql:sonic-buffer-queue/bql:BUFFER_QUEUE/bql:BUFFER_QUEUE_LIST/bql:port and re-match(substring-after(current(), '|'), '[0-9]+') )";
                 }
-
-                must "count(object_names) > 0";
 
                 leaf-list object_counters {
                     type string;
