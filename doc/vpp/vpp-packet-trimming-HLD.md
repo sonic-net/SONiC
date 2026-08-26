@@ -24,6 +24,7 @@
 | Rev | Date | Author(s) | Changes |
 |---|---|---|---|
 | v1.0 | 2026-07-31 | Aaron Bernardino | Initial SONiC-VPP packet-trimming design |
+| v1.1 | 2026-08-26 | Aaron Bernardino | Document disabling / opt-out behavior (§9.1) |
 
 ## 2. Scope
 
@@ -711,6 +712,42 @@ The CLI does not expose per-port TC-to-DSCP resolution or SAI-scoped counters in
 this increment.
 
 These commands are for serviceability and do not replace the standard SONiC CLI.
+
+### 9.1 Disabling and Opting Out
+
+Packet trimming is opt-in and disabled by default; it cannot perturb normal
+forwarding unless explicitly configured. Four levels of control exist:
+
+1. **Default off.** The `sonic-ext-trim-admission` feature node is registered on
+   the `interface-output` arc but is enabled on no interface at initialization
+   ([7.1](#71-admission-provider)). Until a queue is bound to a `DROP_AND_TRIM`
+   buffer profile ([7.8](#78-buffer-profile-and-queue-relationships)), the arc is
+   enabled on no port and there is zero incremental trim datapath cost.
+2. **Per-port/per-queue eligibility — the true teardown path.** The arc is
+   enabled on a port only while that port has at least one trim-eligible queue.
+   Removing eligibility from a port's last eligible queue — by unbinding or
+   changing that queue's `DROP_AND_TRIM` buffer-profile binding via SAI SET —
+   tears the arc back down and returns the port to zero incremental cost. This
+   teardown is applied only while trimming is still globally enabled; the SAI
+   refresh path early-returns once global trimming is off. Buffer profiles
+   should therefore be removed **before** a global disable to fully return to
+   zero cost.
+3. **Global functional off switch.** Setting `SAI_SWITCH_ATTR_PACKET_TRIM_SIZE`
+   to `0` clears the global policy (`trim_configured = 0`), after which no packet
+   is trimmed switch-wide. This is a *functional* disable: the admission node
+   bypasses every packet at its first check. It does not, by itself, remove
+   already-enabled per-port arcs, so a port that previously had an eligible queue
+   retains the arc and each egress packet still incurs a cheap admission-node
+   dispatch that immediately bypasses — a no-op, not a structural detach.
+   Combining it with per-queue eligibility removal (in that order) also drops the
+   arcs.
+4. **Whole-plugin disable.** VPP's generic plugin loader honors
+   `plugin sonic_ext_plugin.so { disable }` in `startup.conf`, which removes the
+   entire `sonic_ext` plugin and all trim behavior. This is a coarse control that
+   also disables the plugin's other functions and is not trim-specific.
+
+There is no packet-trim-specific compile-time flag; the trim sources are compiled
+unconditionally into `sonic_ext_plugin.so`.
 
 ## 10. Warmboot and Fastboot
 
