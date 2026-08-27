@@ -23,6 +23,8 @@
     - [7.2.4. Netlink message](#724-netlink-message)
     - [7.2.5. OTLP message](#725-otlp-message)
   - [7.3. Bandwidth Estimation](#73-bandwidth-estimation)
+    - [7.3.1. IPFIX input](#731-ipfix-input)
+    - [7.3.2. OTLP heatmap output](#732-otlp-heatmap-output)
   - [7.4. Config DB](#74-config-db)
     - [7.4.1. DEVICE\_METADATA](#741-device_metadata)
     - [7.4.2. HIGH\_FREQUENCY\_TELEMETRY\_PROFILE](#742-high_frequency_telemetry_profile)
@@ -59,6 +61,8 @@
 | 0.4 | 08/18/2026 | Ze Gan | Define independent heatmap interval and method ordering |
 | 0.5 | 08/25/2026 | Ze Gan | Define per-counter histogram bounds and default heatmap layout |
 | 0.6 | 08/26/2026 | Ze Gan | Define per-counter rollover widths and correction semantics |
+| 0.7 | 08/27/2026 | Ze Gan | Define compact semantic heatmap layouts and OTLP sizing |
+| 0.8 | 08/27/2026 | Ze Gan | Define nominal accepted interval and bounded OTLP exports |
 
 ## 2. Scope
 
@@ -205,7 +209,7 @@ Samples for one HFT session are expected in nondecreasing `observationTimeNanose
 
 - Reporting rate aggregation: groups lower-layer samples into the configured reporting interval, in microseconds. The ordinary gauge/reporting output remains the latest value in each completed reporting window. If `reporting_rate` is absent, every lower-layer sample is an accepted reporting point and no reporting window aggregation is performed.
 - Rollover counters: the parent `rollover_counters` list enables correction for its group and counter pairs. A selected counter uses the `bit_width` in its `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER` row; a selected counter with no override row has an effective width of 32 bits. The child `bit_width` leaf is mandatory when a row exists and has no YANG default. Watermark and current-occupancy counters remain forbidden in the parent enable list, and the list is empty by default.
-- Heatmap counters: `heatmap_interval` and `heatmap_counters` are configured together. They produce OTLP delta histograms over the independent `heatmap_interval`, in microseconds. For example, a 1 ms lower-layer interval, 100 ms `reporting_rate`, and 1 s `heatmap_interval` produce a histogram from ten accepted reporting points. A counter-specific row in `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` supplies custom explicit bounds. A selected counter without such a row uses the fixed default layout generated from `heatmap_default_bucket_count`.
+- Heatmap counters: `heatmap_interval` and `heatmap_counters` are configured together. They produce OTLP delta histograms over the independent `heatmap_interval`, in microseconds. For example, a 1 ms lower-layer interval, 100 ms `reporting_rate`, and 1 s `heatmap_interval` produce a histogram from ten accepted reporting points. A counter-specific row in `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` supplies custom explicit bounds. A selected counter without such a row uses the fixed semantic default layout for its counter quantity.
 
 For a rollover counter with effective width `bit_width`, Counter Syncd uses `modulus = 2^bit_width`. Every raw value must be less than `modulus`. It maintains a `wrap_base`, initially zero, and the preceding raw value. On a raw decrease it detects one wrap and increments `wrap_base` by `modulus`; for every sample it then computes `corrected = wrap_base + raw`. The corrected value is a `uint64`.
 
@@ -216,12 +220,25 @@ For a rollover counter with effective width `bit_width`, Counter Syncd uses `mod
 - If incrementing `wrap_base` or adding a raw value would overflow `uint64`, Counter Syncd must not emit a wrapped arithmetic result. It resets the rollover state, rebaselines at the current raw value with `wrap_base = 0`, and exports that raw value as the new corrected baseline; consumers observe this as a counter reset.
 - Width 64 is unsupported. The configured range is 1 through 63, leaving `2^bit_width` representable in the `uint64` rollover state and permitting overflow checks before addition.
 
-The heatmap value transform does not change the ordinary gauge/reporting output:
+The heatmap value transform does not change the ordinary gauge/reporting output. Counter Syncd classifies each selected counter once, from its numeric SAI object type ID and stat ID; it does not infer semantics from counter-name strings on the hot path. Value kind and quantity are resolved independently:
 
-- A watermark heatmap counter contributes the maximum raw value seen in each reporting window. Watermark counters are the counter names containing `WATERMARK`.
-- A current-occupancy heatmap counter contributes the latest raw value seen in each reporting window. Current-occupancy counters are the counter names containing `CURR_OCCUPANCY`.
-- Every other heatmap counter contributes the delta between consecutive accepted reporting points. The first accepted point establishes the baseline and contributes no histogram observation. A decrease means that the counter reset; the lower point becomes the new baseline and no delta is produced for that point.
+| Heatmap quantity | Counter class | Histogram observation | OTLP unit | Default size |
+| ---------------- | ------------- | --------------------- | --------- | ------------ |
+| `delta_bytes` | Cumulative byte/octet counters | Raw byte delta | `By` | 15 bounds, 16 buckets |
+| `absolute_bytes` | Watermark/current-occupancy byte counters | Raw absolute bytes | `By` | 9 bounds, 10 buckets |
+| `delta_count` | Cumulative packet, error, discard, trim, pause, and PFC counters; unknown cumulative fallback | Raw count delta | `1` | 28 bounds, 29 buckets |
+| `absolute_cells` | Watermark/current-occupancy cell counters | Raw absolute cells | `{cell}` | 26 bounds, 27 buckets |
+| `native` | Recognized rare native quantities without a dedicated layout, such as level or nanosecond stats outside the current YANG allow-list | Raw native value using the stat's value kind | `1` | 55 bounds, 56 buckets |
+
+- A watermark counter contributes the maximum raw value seen in each reporting window.
+- A current-occupancy counter contributes the latest raw value seen in each reporting window.
+- A cumulative counter contributes the raw delta between consecutive accepted reporting points. The first accepted point establishes the baseline and contributes no histogram observation. A decrease means that the counter reset; the lower point becomes the new baseline and no delta is produced for that point.
 - Without `reporting_rate`, each lower-layer sample is an accepted point, so these rules are applied sample by sample.
+- Heatmap observations are intentionally not normalized by elapsed time or converted into per-second rates. Byte/octet deltas remain bytes, count deltas remain counts, byte occupancy remains bytes, and cell occupancy remains cells.
+
+Default layouts are resolved once when an effective profile and aggregator configuration is built. A child `explicit_bounds` row overrides the semantic default for that counter. Otherwise, `delta_bytes` uses the nominal accepted interval `max(reporting_rate, poll_interval)` when both are present, or whichever interval is present. The profile `poll_interval` is mandatory and positive; `reporting_rate` is optional and positive. Taking the maximum prevents default bounds from assuming accepted observations can arrive faster than either the source polling cadence or the reporting stage permits. For example, `reporting_rate=1000 us` with `poll_interval=10000 us` resolves the 10 ms layout, not the 1 ms layout. The nominal interval changes only the precomputed byte boundaries, never an observation value. Interval-independent layouts are shared globally, and every resolved layout is shared across objects and heatmap windows. Consequently, a shared aggregator can have different effective `delta_bytes` layouts when bound to profiles with different polling intervals.
+
+A missed or sparse sample can make a cumulative delta span multiple nominal intervals. Such a raw delta can intentionally land in a higher bucket because Counter Syncd does not divide it by elapsed time. This is the performance-preserving tradeoff for retaining source values and units without per-sample rate arithmetic.
 
 #### 7.1.2. High frequency telemetry Orch
 
@@ -503,27 +520,47 @@ Metric {
 }
 ```
 
-Heatmap counters are represented as OTLP delta histograms. Each data point covers one independent `heatmap_interval` and contains the transformed observations described in section 7.1.1. Bucket boundaries are inclusive upper bounds: for explicit bounds `[100, 200]`, the three buckets are values `<= 100`, values `> 100` and `<= 200`, and values `> 200`. In general, N explicit bounds produce N+1 buckets. The histogram includes the `object_name`, SAI type/stat IDs, HFT session, `heatmap_value_kind`, and `heatmap_schema` as attributes. `heatmap_schema` is a stable identifier derived from the value kind and complete explicit-bound list, so a layout change creates a distinct backend series instead of mixing incompatible buckets.
+Heatmap counters are represented as OTLP delta histograms. Each data point covers one independent `heatmap_interval` and contains the raw-unit observations described in section 7.1.1. Bucket boundaries are inclusive upper bounds: for explicit bounds `[100, 200]`, the three buckets are values `<= 100`, values `> 100` and `<= 200`, and values `> 200`. In general, N explicit bounds produce N+1 buckets.
 
-The explicit bounds for a selected counter come from its `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` row when one exists. Otherwise Counter Syncd generates the default layout from the parent `heatmap_default_bucket_count`. Let B be the total bucket count, where `4 <= B <= 512`. The layout contains B-1 explicit integer bounds and one final implicit bucket:
+The histogram metric retains the source quantity's unit: `By` for both raw byte deltas and absolute byte values, `{cell}` for cells, and `1` for raw counts or the native fallback. It does not claim a per-second unit. Each data point includes `object_name`, SAI type/stat IDs, HFT session, `heatmap_value_kind`, `heatmap_quantity`, and `heatmap_schema` attributes. `heatmap_quantity` identifies `delta_bytes`, `absolute_bytes`, `delta_count`, `absolute_cells`, or `native` and therefore determines the unchanged unit. `heatmap_schema` is a stable identifier derived from the value kind, quantity, and complete effective explicit-bound list. The effective bounds already encode the nominal interval for a default `delta_bytes` layout, so different quantities, intervals, or layouts cannot be mixed in one backend series. In the example below, those attributes are omitted only for brevity.
 
-1. Set `m = min(15, B - 3)` and append the exact integer bounds `0, 1, ..., m`.
-2. Set `K = B - m - 2`. If `K = 1`, append `2^53` and stop.
-3. Otherwise, for each integer `i` from 1 through K, set `scaled = 49 * i`, `octave = floor(scaled / K)`, and `remainder = scaled mod K`.
-4. For `i = K`, append exactly `2^53`. For every earlier i, set `base = 2^(4 + octave)` and calculate `candidate = base + ceil(base * remainder / K)`. Calculate the ceiling using integer arithmetic as `(base * remainder + K - 1) div K`.
-5. Clamp each nonfinal candidate to preserve room for all remaining bounds: append `min(max(candidate, prior + 1), 2^53 - (K - i))`, where `prior` is the preceding explicit bound.
-6. The final implicit bucket contains values greater than `2^53`.
+The explicit bounds for a selected counter come from its `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` row when one exists. Otherwise Counter Syncd resolves one of these compact defaults:
 
-The generated section distributes boundaries across 49 binary octaves with deterministic linear subdivision within each octave. The layout depends only on B, is fixed across devices, objects, and windows, and must not adapt to observed values.
+- `delta_bytes`: start from the exact Gbit/s anchors `[0, 5, 10, 20, 40, 50, 100, 150, 200, 300, 400, 600, 800, 1200, 1600]`. At configuration time, convert each anchor to a raw byte-delta bound with exact integer arithmetic: `bound_bytes = anchor_gbps * 125 * nominal_interval_us`. This produces 15 explicit bounds and 16 buckets. The final implicit bucket contains deltas greater than the nominal 1600 Gbit/s equivalent.
+- `absolute_bytes`: `[0, 512, 1024, 524288, 1048576, 5242880, 10485760, 52428800, 104857600]`, producing 10 buckets. These points cover idle, 512 B, 1 KiB, 512 KiB, 1 MiB, 5 MiB, 10 MiB, 50 MiB, and 100 MiB occupancy scales.
+- `delta_count`: `[0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000]`, producing 29 buckets. This is the exact 1-2-5 progression through 500 million raw events per accepted interval.
+- `absolute_cells`: `[0]` followed by `2^0` through `2^24`, producing 27 buckets.
+- `native`: `[0]` followed by `2^0` through `2^53`, producing 56 buckets. It is the conservative fallback for rare native quantities; values above `2^53` use the implicit overflow bucket.
 
-Golden layouts include:
+The `delta_bytes` bounds for common nominal accepted intervals are:
 
-- B=4: three explicit bounds `[0, 1, 9007199254740992]` and a fourth implicit bucket above `2^53`.
-- B=256: 255 explicit bounds with `m=15` and `K=239`. They start `[0, 1, ..., 15, 20, 23, 26, 30, 33, 40, ...]`; the last five are `[5313870690035481, 6237202831211859, 7160534972388237, 8083867113564615, 9007199254740992]`. The final explicit bound is exactly `2^53` and the 256th bucket is implicit.
+| Gbit/s anchor | 1 ms (`1000 us`) | 10 ms (`10000 us`) | 100 ms (`100000 us`) |
+| -------------: | ---------------: | -----------------: | -------------------: |
+| 0 | 0 | 0 | 0 |
+| 5 | 625000 | 6250000 | 62500000 |
+| 10 | 1250000 | 12500000 | 125000000 |
+| 20 | 2500000 | 25000000 | 250000000 |
+| 40 | 5000000 | 50000000 | 500000000 |
+| 50 | 6250000 | 62500000 | 625000000 |
+| 100 | 12500000 | 125000000 | 1250000000 |
+| 150 | 18750000 | 187500000 | 1875000000 |
+| 200 | 25000000 | 250000000 | 2500000000 |
+| 300 | 37500000 | 375000000 | 3750000000 |
+| 400 | 50000000 | 500000000 | 5000000000 |
+| 600 | 75000000 | 750000000 | 7500000000 |
+| 800 | 100000000 | 1000000000 | 10000000000 |
+| 1200 | 150000000 | 1500000000 | 15000000000 |
+| 1600 | 200000000 | 2000000000 | 20000000000 |
+
+These tables describe nominal equivalence, not runtime rate normalization. If `reporting_rate=1000 us` and `poll_interval=10000 us`, the effective nominal interval is 10 ms and the middle column is selected. A delta above the final value enters the implicit overflow bucket. If samples are missed or a series is sparse, one observed delta may span multiple nominal intervals and land in a higher bucket even when the underlying average link rate did not increase.
+
+Default and custom layouts are immutable for an effective configuration and are shared across objects and windows. A configuration change that changes a counter's effective quantity, nominal interval, or bounds creates a new schema and discards its partial heatmap state.
 
 ```
 Metric {
   name: "sai_counter_type_1_stat_2_heatmap",
+  description: "SAI counter heatmap; raw quantity and explicit-bound layout are identified by heatmap_quantity and heatmap_schema",
+  unit: "1",
   data: Histogram {
     aggregation_temporality: DELTA,
     data_points: [{
@@ -537,7 +574,7 @@ Metric {
 }
 ```
 
-For example, if `PORT|IF_OUT_ERRORS` has custom bounds `[100, 200]` while `QUEUE|WRED_ECN_MARKED_PACKETS` has no histogram row, the port histogram carries `[100, 200]` and three bucket counts. The queue histogram carries the B-1 default bounds and B bucket counts generated from the parent B.
+For example, if `PORT|IF_OUT_ERRORS` has custom bounds `[100, 200]` while `QUEUE|WRED_ECN_MARKED_PACKETS` has no histogram row, the port histogram carries `[100, 200]` and three bucket counts. Both values are raw count deltas with unit `1`; the queue histogram carries the 28 default `delta_count` bounds and 29 bucket counts.
 
 For design goals, requirements, and specification of the OTLP, please refer to the official documentation: [OpenTelemetry Protocol (OTLP)](https://github.com/open-telemetry/opentelemetry-proto/tree/main/docs).
 
@@ -545,7 +582,9 @@ For practical OTLP message examples and implementation patterns, see the example
 
 ### 7.3. Bandwidth Estimation
 
-We estimate the bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time nanoseconds (8 bytes), is negligible. For example, a IPFIX message could include $The Maximal Number Of Counters In One Message = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Nanoseconds Bytes}}{8_{bytes}} \approx 8188$, So $The Percentage Of Effective Data = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Nanoseconds Bytes}} {0xFFFF_{Max LengthBytes}} \approx 99.9\%$ .
+#### 7.3.1. IPFIX input
+
+We estimate the IPFIX bandwidth based only on the effective data size, not the actual data size. The extra information in a message, such as the IPFIX header (16 bytes), data prefix (4 bytes), and observation time nanoseconds (8 bytes), is negligible. For example, an IPFIX message could include $The Maximal Number Of Counters In One Message = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Nanoseconds Bytes}}{8_{bytes}} \approx 8188$, so $The Percentage Of Effective Data = \frac{0xFFFF_{Max Length Bytes} - 16_{Header Bytes} - 4_{DataPrefix Bytes} - 8_{Observation Time Nanoseconds Bytes}} {0xFFFF_{Max LengthBytes}} \approx 99.9\%$.
 
 The following table is an example of telemetry bandwidth of one cluster
 
@@ -555,6 +594,76 @@ The following table is an example of telemetry bandwidth of one cluster
 
 - /$/{Total BW Per Switch/} = \frac/{/{\verb|#| Of Stats Per Port/} \times 8_/{bytes/} \times /{\verb|#| Of Ports Per Switch/} \times /{Frequency/} \times 1,000 \times 8/}/{1,000,000/}$
 - /$/{Total BM/} = /{Total BW Per Switch/} \times /{\verb|#| Of Switch/}/$
+
+#### 7.3.2. OTLP heatmap output
+
+OTLP Explicit Histograms repeat both arrays in every `HistogramDataPoint`; sharing an `Arc` inside Counter Syncd does not remove bytes from the exported protobuf. In the OTLP schema, `bucket_counts` is packed `repeated fixed64` and `explicit_bounds` is packed `repeated double`, so each element costs eight payload bytes even when a count or bound is zero. For N explicit bounds and N+1 buckets, the two packed arrays require:
+
+```text
+counts = 1-byte tag + varint_size(8 * (N + 1)) + 8 * (N + 1)
+bounds = 1-byte tag + varint_size(8 * N)       + 8 * N
+arrays = counts + bounds
+```
+
+The former 255-bound/256-bucket default therefore used `2051 + 2043 = 4094` bytes per data point before timestamps, count, sum/min/max, attributes, and enclosing messages. Arrays alone scale to approximately 0.25 MiB for 64 series, 2 MiB for 512 series, and 16 MiB for 4096 series in one heatmap window.
+
+The following table deliberately separates that arrays-only formula from full production-shaped `HistogramDataPoint` measurements. Full sizes are obtained with `prost::Message::encoded_len()` using all repeated production attributes, coherent count/sum/min/max and bucket-count values, and the complete bounds. The former production-shaped point is 4436 B with 255 bounds and 256 buckets. A benchmark may report a shorter fixture-specific size when it intentionally uses shorter names, attributes, or scalar encodings; that number is not the production-shaped estimate.
+
+| Layout | Bounds/buckets | Arrays only | Full encoded point |
+| ------ | --------------: | ----------: | -----------------: |
+| Former generic default | 255/256 | 4094 B | 4436 B |
+| `delta_bytes` | 15/16 | 253 B | 595 B |
+| `absolute_bytes` | 9/10 | 156 B | 528 B |
+| `delta_count` | 28/29 | 462 B | 804 B |
+| `absolute_cells` | 26/27 | 430 B | 802 B |
+| `native` | 55/56 | 894 B | 1250 B |
+
+Full `ExportMetricsServiceRequest.encoded_len()` measurements include resource, scope, metric, and repeated data-point framing. Before splitting, a round-robin mixture of the five compact defaults is 51140 B for 64 series, 409858 B for 512 series, and 3283291 B (3.28 MB decimal) for 4096 series. The unsplit mixed 4096-series payload is larger than the 3 MiB production cap and is split; it must not be treated as one under-cap request. A homogeneous 4096-point `native` request is 5143594 B (5.14 MB decimal) before splitting and is also split; its data-point bodies alone are approximately 5.12 MB. Homogeneous large custom layouts, including the supported 511-bound maximum, follow the same production splitting path. The former 4096-point synthetic layout is 18193460 B (18.19 MB decimal) before splitting. These figures are uncompressed protobuf sizes before gRPC framing.
+
+Production does not rely on a receiver's generic gRPC limit. Counter Syncd computes the exact protobuf `encoded_len()` and applies a default 3 MiB (`3145728` byte) payload cap, configurable with the positive Counter Syncd CLI option `--otel-max-export-bytes`. It splits an oversized export at metric boundaries and, when one metric is too large, at that metric's data-point boundaries using an O(total encoded payload) greedy pass rather than repeatedly re-encoding the whole request. Every split histogram metric preserves `aggregation_temporality=DELTA`, its unchanged unit, and each data point's `heatmap_quantity` and `heatmap_schema`; splitting does not combine or reinterpret series. Every emitted `ExportMetricsServiceRequest` has `encoded_len()` less than or equal to the configured cap. A single data point is indivisible; if its enclosing request cannot fit, export fails with a clear error instead of exceeding the cap or silently dropping data.
+
+Custom layouts remain operator-controlled and may contain up to 511 explicit bounds (512 buckets). They can therefore produce points at least as large as the former generic layout, but remain supported through the same exact-size splitting path. Operators must still set a receiver-compatible cap because one custom point is the indivisible unit.
+
+The InfluxDB exporter further expands an OTLP histogram. Depending on schema mode, it writes all buckets as fields or emits a summary plus a line per bucket; tags and timestamps can be repeated for each expanded line. Smaller default layouts therefore reduce not only OTLP transport bytes but also conversion work, line-protocol volume, and backend field/tag expansion. Compression may reduce repetitive wire data, but it does not avoid exporter expansion or decompressed message-size limits.
+
+##### Benchmark methodology
+
+Runtime performance reports use Criterion with setup outside the timed loop. Aggregator benchmarks pre-resolve and cache layouts and reuse the session key, then compare a custom 8-bucket layout with the semantic 16-bucket `delta_bytes` default over 64 and 512 series; throughput is reported as input metrics/s and validation confirms observations remain raw. OTLP conversion benchmarks time `Heatmap::to_proto()` for every compact default and the synthetic former 256-bucket layout; benchmark IDs include `encoded_len()` bytes per point and throughput is histogram data points/s. Any shorter former-layout benchmark number is labeled as fixture-specific and is not substituted for the 4436 B production-shaped point above. Direct-send benchmarks prebuild production-shaped inputs for 64, 512, and 4096 mixed compact series, use the production-equivalent splitter, and move request/client cloning into Criterion's untimed batch setup. The timed closure awaits only `MetricsServiceClient::export()` responses from a mock tonic collector that fully decodes and counts requests and data points. A separate worst-case case sends homogeneous 4096-series `native` data through its multiple production-sized chunks. Reports include both histogram data points/s and protobuf MiB/s, with request count and encoded bytes making requests/s independently reproducible without timing request construction.
+
+The final implementation report must list:
+
+- Aggregator metrics/s for custom 8 buckets and semantic `delta_bytes` default at 64 and 512 series.
+- OTLP conversion histogram data points/s, protobuf MiB/s, and encoded bytes/point for all five defaults and the former 256-bucket baseline.
+- Direct tonic export histogram data points/s, protobuf MiB/s, requests/s, encoded request bytes, and split request count for 64, 512, and 4096 mixed series and the homogeneous 4096-series `native` split case.
+- Toolchain, build profile, host CPU, sample size, warm-up time, measurement time, and any receiver/message-size configuration.
+
+The implementation was measured in the optimized Cargo benchmark profile inside `sonic-slave-bookworm` with Rust 1.86.0 on an Intel Xeon Platinum 8370C VM. Aggregator cases use 10 samples, 1 second warm-up, 5 seconds measurement, and flat sampling. Conversion cases use 100 samples, 3 seconds warm-up, and 5 seconds measurement. Direct-send cases use 10 samples, 500 ms warm-up, and 2 seconds measurement; request cloning is outside the timed closure and each timed export awaits the decoded gRPC response. Values below are Criterion point estimates from that run.
+
+| Aggregator layout | 64 series input metrics/s | 512 series input metrics/s |
+| ----------------- | ------------------------: | -------------------------: |
+| Custom 8 buckets | 15.95 M | 15.76 M |
+| Semantic `delta_bytes`, 16 buckets | 15.30 M | 15.09 M |
+
+| Captured `Heatmap::to_proto()` fixture | Encoded bytes/point | Point-estimate histogram points/s | Derived protobuf MiB/s |
+| -------------------------------------- | ------------------: | --------------------------------: | ---------------------: |
+| `delta_bytes` | 555 B | 1.68 M | 888.62 |
+| `absolute_bytes` | 488 B | 1.19 M | 555.82 |
+| `absolute_cells` | 762 B | 1.19 M | 866.08 |
+| `delta_count` | 764 B | 1.21 M | 880.23 |
+| `native` | 1210 B | 1.22 M | 1410.35 |
+| Former 256-bucket fixture | 4396 B | 1.01 M | 4251.88 |
+
+The captured conversion run used shorter object/session identifiers and shorter numeric SAI ID attribute values than the worst-case production-shaped size test above. Its fixture-specific byte counts and throughput are retained as measured; the separate `595/528/802/804/1250/4436 B` production-shaped sizes remain the capacity-planning values. Direct tonic results below use representative production-length names and the production 3 MiB splitter.
+
+| Direct tonic case | Points | Requests/export | Total protobuf bytes | Point-estimate points/s | Point-estimate protobuf MiB/s |
+| ----------------- | -----: | --------------: | -------------------: | ----------------------: | ----------------------------: |
+| Mixed compact | 64 | 1 | 50136 | 109.20 K | 85.66 |
+| Mixed compact | 512 | 1 | 401686 | 53.74 K | 25.90 |
+| Mixed compact | 4096 | 2 | 3217903 | 106.55 K | 90.58 |
+| Homogeneous `native` | 4096 | 2 | 5078190 | 98.69 K | 98.65 |
+
+These are local comparative measurements, not hardware-independent service-level guarantees. `protobuf MiB/s` counts uncompressed protobuf payload bytes and excludes gRPC framing and HTTP/2 overhead.
+The conversion-table MiB/s values are derived from its encoded bytes/point and point-estimate points/s before display rounding. The direct-send points/s and MiB/s columns come from separate Criterion `Throughput::Elements` and `Throughput::Bytes` runs over the same payloads, so one direct-send column is not arithmetically derived from the independently timed other column.
 
 ### 7.4. Config DB
 
@@ -589,7 +698,7 @@ HIGH_FREQUENCY_TELEMETRY_PROFILE|{{profile_name}}
 key                = HIGH_FREQUENCY_TELEMETRY_PROFILE|profile_name a string as the identifier of high frequency telemetry
 ; field            = value
 stream_state       = enabled/disabled ; Enabled/Disabled stream.
-poll_interval      = uint32 ; The interval to poll counter, unit microseconds.
+poll_interval      = uint32 ; The positive interval to poll counter, unit microseconds; range 1 through 2^32-1.
 otel_endpoint      = string ; The endpoint of OpenTelemetry collector. E.G. 192.168.0.100:4318.
                      It will use the local OpenTelemetry collector if this value isn't provided.
 otel_certs         = string ; The path of certificates for OpenTelemetry collector. E.G. /etc/sonic/otel/cert.private
@@ -606,7 +715,6 @@ HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|{{aggregator_name}}
     "rollover_counters@": {{comma-separated list of group and counter pairs}} (Optional)
     "heatmap_interval": {{uint32}} (Optional)
     "heatmap_counters@": {{comma-separated list of group and counter pairs}} (Optional)
-    "heatmap_default_bucket_count": {{uint16}} (Optional, default 256)
 ```
 
 ```
@@ -616,6 +724,8 @@ key                  = HIGH_FREQUENCY_TELEMETRY_AGGREGATOR|aggregator_name a str
 reporting_rate       = uint32 ; The reporting interval after aggregation, unit microseconds.
                        Ordinary gauge/reporting output is the latest value in each reporting window.
                        If this value isn't provided, every lower-layer sample is an accepted point.
+                       For default byte-delta bounds, the nominal accepted interval is
+                       max(reporting_rate, bound profile poll_interval) when both exist, or whichever exists.
 rollover_counters    = A comma-separated list of group and counter pairs that require rollover correction.
                        The syntax is the same list format used by object_names and object_counters.
                        Each item uses group_name|object_counter.
@@ -631,9 +741,9 @@ heatmap_counters     = A comma-separated list of group and counter pairs that sh
                        An example is PORT|OUT_CURR_OCCUPANCY_BYTES,QUEUE|WRED_ECN_MARKED_PACKETS.
                        It must be configured together with heatmap_interval.
                        The default value is empty.
-heatmap_default_bucket_count = uint16 ; Total default-layout bucket count, from 4 through 512.
-                                      It is valid only when heatmap_interval is configured. The default is 256.
-                                      Counters without a child histogram row use this fixed deterministic layout.
+                       Counters without a child histogram row use the fixed semantic layout for their raw quantity.
+                       For byte deltas, the nominal interval is max(reporting_rate, bound profile poll_interval)
+                       when both exist, or whichever exists. No per-sample rate normalization is performed.
 ```
 
 #### 7.4.4. HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER
@@ -682,10 +792,11 @@ counter_name    = A counter valid for group_name. The GROUP|COUNTER selector mus
 ; field         = value
 explicit_bounds = An ordered, strictly increasing list containing 1 through 511 inclusive uint64 upper bounds.
                   Every bound is in the range 0 through 2^53. N bounds produce N+1 buckets.
-                  A selected counter with this row uses these bounds; a selected counter without a row uses the parent default layout.
+                  Values use the selected counter's unchanged raw unit. A selected counter with this row uses
+                  these bounds; a selected counter without a row uses its fixed semantic default layout.
 ```
 
-For example, the following customizes `PORT|OUT_CURR_OCCUPANCY_BYTES`. A second selected counter, `QUEUE|WRED_ECN_MARKED_PACKETS`, has no row and therefore uses the parent default layout.
+For example, the following customizes `PORT|OUT_CURR_OCCUPANCY_BYTES`. A second selected counter, `QUEUE|WRED_ECN_MARKED_PACKETS`, has no row and therefore uses the `delta_count` default layout.
 
 ```
 HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM|default_aggregator|PORT|OUT_CURR_OCCUPANCY_BYTES
@@ -849,7 +960,7 @@ sudo config hft bind-aggregator $profile_name $aggregator_name
 sudo config hft unbind-aggregator $profile_name
 
 # Add an aggregator
-sudo config hft add aggregator $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_interval=$heatmap_interval --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4" --heatmap_default_bucket_count=256
+sudo config hft add aggregator $aggregator_name --reporting_rate=$reporting_rate --rollover_counters="$group_name1|$object_counter1,$group_name2|$object_counter2" --heatmap_interval=$heatmap_interval --heatmap_counters="$group_name3|$object_counter3,$group_name4|$object_counter4"
 
 # Add a width override for one enabled rollover counter
 config hft add rollover <aggregator> --counter GROUP|COUNTER --bit_width N
@@ -860,7 +971,7 @@ config hft del rollover <aggregator> GROUP|COUNTER
 # Add custom bounds for one selected heatmap counter
 sudo config hft add histogram $aggregator_name --counter "PORT|OUT_CURR_OCCUPANCY_BYTES" --explicit_bounds 0,1024,4096,16384
 
-# QUEUE|WRED_ECN_MARKED_PACKETS has no histogram row and uses the aggregator's default layout
+# QUEUE|WRED_ECN_MARKED_PACKETS has no histogram row and uses the delta_count default layout
 sudo config hft add aggregator heatmap_example --heatmap_interval=1000000 --heatmap_counters="PORT|OUT_CURR_OCCUPANCY_BYTES,QUEUE|WRED_ECN_MARKED_PACKETS"
 sudo config hft add histogram heatmap_example --counter "PORT|OUT_CURR_OCCUPANCY_BYTES" --explicit_bounds 0,1024,4096,16384
 

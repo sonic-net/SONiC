@@ -43,8 +43,10 @@ module sonic-high-frequency-telemetry {
 
                 leaf poll_interval {
                     mandatory true;
-                    description "The interval to poll counter, unit microseconds.";
-                    type uint32;
+                    description "The interval to poll counter, unit microseconds. For a heatmap byte-delta counter without explicit bounds, the nominal interval is this value when reporting_rate is absent and max(poll_interval, reporting_rate) otherwise.";
+                    type uint32 {
+                        range "1..max";
+                    }
                 }
 
                 leaf aggregator {
@@ -89,7 +91,7 @@ module sonic-high-frequency-telemetry {
                 }
 
                 leaf reporting_rate {
-                    description "The reporting interval after aggregation, unit microseconds.";
+                    description "The reporting interval after aggregation, unit microseconds. For default byte-delta heatmap bounds, the nominal interval is max(reporting_rate, the bound profile poll_interval).";
                     type uint32 {
                         range "1..max";
                     }
@@ -115,21 +117,19 @@ module sonic-high-frequency-telemetry {
                 }
 
                 leaf-list heatmap_counters {
-                    description "List of group and counter pairs that should be treated as heatmap data. Each entry uses the GROUP|COUNTER format.";
+                    description
+                        "List of group and counter pairs that should be treated as heatmap data. Each entry uses the "
+                        + "GROUP|COUNTER format. Runtime classifies counters from numeric SAI object and stat IDs. "
+                        + "Cumulative byte/octet counters use raw byte deltas; cumulative packet, error, and discard "
+                        + "counters use raw count deltas; watermark and current-occupancy byte counters use raw "
+                        + "absolute bytes; and cell counters use raw cells. Values are not normalized into per-second "
+                        + "rates. A selected counter without a child histogram row uses its fixed semantic default "
+                        + "layout, resolved once for the effective profile and aggregator configuration.";
                     type string;
                     must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
                         + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
                         + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
                         + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )";
-                }
-
-                leaf heatmap_default_bucket_count {
-                    when "../heatmap_interval";
-                    description "Total bucket count for the default heatmap layout used by counters without explicit bounds.";
-                    type uint16 {
-                        range "4..512";
-                    }
-                    default 256;
                 }
 
                 must "(not(heatmap_interval) and count(heatmap_counters) = 0) or (heatmap_interval and count(heatmap_counters) > 0)" {
@@ -186,7 +186,20 @@ module sonic-high-frequency-telemetry {
         }
 
         container HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM {
-            description "Per-counter explicit histogram layouts for high-frequency telemetry aggregators.";
+            description
+                "Per-counter explicit histogram layouts for high-frequency telemetry aggregators. "
+                + "A child row overrides the selected counter's semantic default. Without a row, runtime classifies "
+                + "numeric SAI object/stat IDs as delta bytes, absolute bytes, delta count, absolute cells, or native. "
+                + "Delta-byte bounds use Gbit/s anchors 0,5,10,20,40,50,100,150,200,300,400,600,800,1200,1600 "
+                + "and the exact formula anchor_gbps * 125 * nominal_interval_us, where the nominal interval is "
+                + "max(reporting_rate, profile poll_interval) when both exist, or whichever exists. Absolute-byte bounds are "
+                + "0,512,1024,524288,1048576,5242880,10485760,52428800,104857600. Delta-count bounds are "
+                + "0,1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,"
+                + "2000000,5000000,10000000,20000000,50000000,100000000,200000000,500000000. Absolute-cell "
+                + "bounds are 0 followed by powers 2^0 through 2^24; native bounds are 0 followed by powers 2^0 "
+                + "through 2^53. These layouts have 16, 10, 29, 27, and 56 buckets respectively. Values and OTLP "
+                + "units remain raw and are never normalized into per-second rates. OTLP identifies the quantity "
+                + "with heatmap_quantity and the complete effective layout with heatmap_schema.";
             list HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM_LIST {
                 key "aggregator_name group_name counter_name";
 
@@ -228,7 +241,7 @@ module sonic-high-frequency-telemetry {
                     ordered-by user;
                     min-elements 1;
                     max-elements 511;
-                    description "Strictly increasing inclusive upper bounds for this counter's OTLP histogram.";
+                    description "Strictly increasing inclusive upper bounds for this counter's OTLP histogram. These bounds override the semantic default layout and use the counter's unchanged raw heatmap unit.";
                     must "not(preceding-sibling::*[local-name() = 'explicit_bounds']) or number(current()) > number(preceding-sibling::*[local-name() = 'explicit_bounds'][1])" {
                         error-message "explicit_bounds must be strictly increasing.";
                     }
