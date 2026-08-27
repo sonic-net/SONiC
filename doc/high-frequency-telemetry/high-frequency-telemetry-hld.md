@@ -224,7 +224,7 @@ The heatmap value transform does not change the ordinary gauge/reporting output.
 
 | Heatmap quantity | Counter class | Histogram observation | OTLP unit | Default size |
 | ---------------- | ------------- | --------------------- | --------- | ------------ |
-| `delta_bytes` | Cumulative byte/octet counters | Raw byte delta | `By` | 15 bounds, 16 buckets |
+| `delta_bytes` | Cumulative byte/octet counters | Raw byte delta | `By` | 42 bounds, 43 buckets |
 | `absolute_bytes` | Watermark/current-occupancy byte counters | Raw absolute bytes | `By` | 9 bounds, 10 buckets |
 | `delta_count` | Cumulative packet, error, discard, trim, pause, and PFC counters; unknown cumulative fallback | Raw count delta | `1` | 28 bounds, 29 buckets |
 | `absolute_cells` | Watermark/current-occupancy cell counters | Raw absolute cells | `{cell}` | 26 bounds, 27 buckets |
@@ -526,7 +526,7 @@ The histogram metric retains the source quantity's unit: `By` for both raw byte 
 
 The explicit bounds for a selected counter come from its `HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM` row when one exists. Otherwise Counter Syncd resolves one of these compact defaults:
 
-- `delta_bytes`: start from the exact Gbit/s anchors `[0, 5, 10, 20, 40, 50, 100, 150, 200, 300, 400, 600, 800, 1200, 1600]`. At configuration time, convert each anchor to a raw byte-delta bound with exact integer arithmetic: `bound_bytes = anchor_gbps * 125 * nominal_interval_us`. This produces 15 explicit bounds and 16 buckets. The final implicit bucket contains deltas greater than the nominal 1600 Gbit/s equivalent.
+- `delta_bytes`: use common link speeds `[100, 200, 400, 800, 1600]` Gbit/s and utilization thresholds `[50%, 75%, 90%, 95%, 98%, 99%, 99.5%, 99.8%, 100%]`. Representing those percentages as basis points `[5000, 7500, 9000, 9500, 9800, 9900, 9950, 9980, 10000]`, Counter Syncd adds zero and computes each raw byte-delta bound with exact integer arithmetic: `bound_bytes = floor(speed_gbps * utilization_basis_points * nominal_interval_us / 80)`. It sorts and deduplicates the union because, for example, 100% of 100 Gbit/s equals 50% of 200 Gbit/s. This produces 42 explicit bounds and 43 buckets. The final implicit bucket contains deltas greater than the nominal 1600 Gbit/s equivalent.
 - `absolute_bytes`: `[0, 512, 1024, 524288, 1048576, 5242880, 10485760, 52428800, 104857600]`, producing 10 buckets. These points cover idle, 512 B, 1 KiB, 512 KiB, 1 MiB, 5 MiB, 10 MiB, 50 MiB, and 100 MiB occupancy scales.
 - `delta_count`: `[0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000]`, producing 29 buckets. This is the exact 1-2-5 progression through 500 million raw events per accepted interval.
 - `absolute_cells`: `[0]` followed by `2^0` through `2^24`, producing 27 buckets.
@@ -534,25 +534,52 @@ The explicit bounds for a selected counter come from its `HIGH_FREQUENCY_TELEMET
 
 The `delta_bytes` bounds for common nominal accepted intervals are:
 
-| Gbit/s anchor | 1 ms (`1000 us`) | 10 ms (`10000 us`) | 100 ms (`100000 us`) |
-| -------------: | ---------------: | -----------------: | -------------------: |
+| Equivalent Gbit/s | 1 ms (`1000 us`) | 10 ms (`10000 us`) | 100 ms (`100000 us`) |
+| -----------------: | ---------------: | -----------------: | -------------------: |
 | 0 | 0 | 0 | 0 |
-| 5 | 625000 | 6250000 | 62500000 |
-| 10 | 1250000 | 12500000 | 125000000 |
-| 20 | 2500000 | 25000000 | 250000000 |
-| 40 | 5000000 | 50000000 | 500000000 |
 | 50 | 6250000 | 62500000 | 625000000 |
+| 75 | 9375000 | 93750000 | 937500000 |
+| 90 | 11250000 | 112500000 | 1125000000 |
+| 95 | 11875000 | 118750000 | 1187500000 |
+| 98 | 12250000 | 122500000 | 1225000000 |
+| 99 | 12375000 | 123750000 | 1237500000 |
+| 99.5 | 12437500 | 124375000 | 1243750000 |
+| 99.8 | 12475000 | 124750000 | 1247500000 |
 | 100 | 12500000 | 125000000 | 1250000000 |
 | 150 | 18750000 | 187500000 | 1875000000 |
+| 180 | 22500000 | 225000000 | 2250000000 |
+| 190 | 23750000 | 237500000 | 2375000000 |
+| 196 | 24500000 | 245000000 | 2450000000 |
+| 198 | 24750000 | 247500000 | 2475000000 |
+| 199 | 24875000 | 248750000 | 2487500000 |
+| 199.6 | 24950000 | 249500000 | 2495000000 |
 | 200 | 25000000 | 250000000 | 2500000000 |
 | 300 | 37500000 | 375000000 | 3750000000 |
+| 360 | 45000000 | 450000000 | 4500000000 |
+| 380 | 47500000 | 475000000 | 4750000000 |
+| 392 | 49000000 | 490000000 | 4900000000 |
+| 396 | 49500000 | 495000000 | 4950000000 |
+| 398 | 49750000 | 497500000 | 4975000000 |
+| 399.2 | 49900000 | 499000000 | 4990000000 |
 | 400 | 50000000 | 500000000 | 5000000000 |
 | 600 | 75000000 | 750000000 | 7500000000 |
+| 720 | 90000000 | 900000000 | 9000000000 |
+| 760 | 95000000 | 950000000 | 9500000000 |
+| 784 | 98000000 | 980000000 | 9800000000 |
+| 792 | 99000000 | 990000000 | 9900000000 |
+| 796 | 99500000 | 995000000 | 9950000000 |
+| 798.4 | 99800000 | 998000000 | 9980000000 |
 | 800 | 100000000 | 1000000000 | 10000000000 |
 | 1200 | 150000000 | 1500000000 | 15000000000 |
+| 1440 | 180000000 | 1800000000 | 18000000000 |
+| 1520 | 190000000 | 1900000000 | 19000000000 |
+| 1568 | 196000000 | 1960000000 | 19600000000 |
+| 1584 | 198000000 | 1980000000 | 19800000000 |
+| 1592 | 199000000 | 1990000000 | 19900000000 |
+| 1596.8 | 199600000 | 1996000000 | 19960000000 |
 | 1600 | 200000000 | 2000000000 | 20000000000 |
 
-These tables describe nominal equivalence, not runtime rate normalization. If `reporting_rate=1000 us` and `poll_interval=10000 us`, the effective nominal interval is 10 ms and the middle column is selected. A delta above the final value enters the implicit overflow bucket. If samples are missed or a series is sparse, one observed delta may span multiple nominal intervals and land in a higher bucket even when the underlying average link rate did not increase.
+These tables describe nominal equivalence, not runtime rate normalization. For a 100 Gbit/s link, 50.01, 99.8, and 100 Gbit/s therefore occupy distinct buckets instead of sharing one coarse 50-to-100 Gbit/s bucket. If `reporting_rate=1000 us` and `poll_interval=10000 us`, the effective nominal interval is 10 ms and the middle column is selected. A delta above the final value enters the implicit overflow bucket. If samples are missed or a series is sparse, one observed delta may span multiple nominal intervals and land in a higher bucket even when the underlying average link rate did not increase.
 
 Default and custom layouts are immutable for an effective configuration and are shared across objects and windows. A configuration change that changes a counter's effective quantity, nominal interval, or bounds creates a new schema and discards its partial heatmap state.
 
@@ -612,13 +639,13 @@ The following table deliberately separates that arrays-only formula from full pr
 | Layout | Bounds/buckets | Arrays only | Full encoded point |
 | ------ | --------------: | ----------: | -----------------: |
 | Former generic default | 255/256 | 4094 B | 4436 B |
-| `delta_bytes` | 15/16 | 253 B | 595 B |
+| `delta_bytes` | 42/43 | 686 B | 1028 B |
 | `absolute_bytes` | 9/10 | 156 B | 528 B |
 | `delta_count` | 28/29 | 462 B | 804 B |
 | `absolute_cells` | 26/27 | 430 B | 802 B |
 | `native` | 55/56 | 894 B | 1250 B |
 
-Full `ExportMetricsServiceRequest.encoded_len()` measurements include resource, scope, metric, and repeated data-point framing. Before splitting, a round-robin mixture of the five compact defaults is 51140 B for 64 series, 409858 B for 512 series, and 3283291 B (3.28 MB decimal) for 4096 series. The unsplit mixed 4096-series payload is larger than the 3 MiB production cap and is split; it must not be treated as one under-cap request. A homogeneous 4096-point `native` request is 5143594 B (5.14 MB decimal) before splitting and is also split; its data-point bodies alone are approximately 5.12 MB. Homogeneous large custom layouts, including the supported 511-bound maximum, follow the same production splitting path. The former 4096-point synthetic layout is 18193460 B (18.19 MB decimal) before splitting. These figures are uncompressed protobuf sizes before gRPC framing.
+Full `ExportMetricsServiceRequest.encoded_len()` measurements include resource, scope, metric, and repeated data-point framing. Before splitting, a round-robin mixture of the five compact defaults is 56769 B for 64 series, 454457 B for 512 series, and 3638351 B (3.64 MB decimal) for 4096 series. The unsplit mixed 4096-series payload is larger than the 3 MiB production cap and is split; it must not be treated as one under-cap request. A homogeneous 4096-point `delta_bytes` request is 4234293 B (4.23 MB decimal), while a homogeneous 4096-point `native` request is 5143594 B (5.14 MB decimal); both are split. Homogeneous large custom layouts, including the supported 511-bound maximum, follow the same production splitting path. The former 4096-point synthetic layout is 18193460 B (18.19 MB decimal) before splitting. These figures are uncompressed protobuf sizes before gRPC framing.
 
 Production does not rely on a receiver's generic gRPC limit. Counter Syncd computes the exact protobuf `encoded_len()` and applies a default 3 MiB (`3145728` byte) payload cap, configurable with the positive Counter Syncd CLI option `--otel-max-export-bytes`. It splits an oversized export at metric boundaries and, when one metric is too large, at that metric's data-point boundaries using an O(total encoded payload) greedy pass rather than repeatedly re-encoding the whole request. Every split histogram metric preserves `aggregation_temporality=DELTA`, its unchanged unit, and each data point's `heatmap_quantity` and `heatmap_schema`; splitting does not combine or reinterpret series. Every emitted `ExportMetricsServiceRequest` has `encoded_len()` less than or equal to the configured cap. A single data point is indivisible; if its enclosing request cannot fit, export fails with a clear error instead of exceeding the cap or silently dropping data.
 
@@ -628,7 +655,7 @@ The InfluxDB exporter further expands an OTLP histogram. Depending on schema mod
 
 ##### Benchmark methodology
 
-Runtime performance reports use Criterion with setup outside the timed loop. Aggregator benchmarks pre-resolve and cache layouts and reuse the session key, then compare a custom 8-bucket layout with the semantic 16-bucket `delta_bytes` default over 64 and 512 series; throughput is reported as input metrics/s and validation confirms observations remain raw. OTLP conversion benchmarks time `Heatmap::to_proto()` for every compact default and the synthetic former 256-bucket layout; benchmark IDs include `encoded_len()` bytes per point and throughput is histogram data points/s. Any shorter former-layout benchmark number is labeled as fixture-specific and is not substituted for the 4436 B production-shaped point above. Direct-send benchmarks prebuild production-shaped inputs for 64, 512, and 4096 mixed compact series, use the production-equivalent splitter, and move request/client cloning into Criterion's untimed batch setup. The timed closure awaits only `MetricsServiceClient::export()` responses from a mock tonic collector that fully decodes and counts requests and data points. A separate worst-case case sends homogeneous 4096-series `native` data through its multiple production-sized chunks. Reports include both histogram data points/s and protobuf MiB/s, with request count and encoded bytes making requests/s independently reproducible without timing request construction.
+Runtime performance reports use Criterion with setup outside the timed loop. Aggregator benchmarks pre-resolve and cache layouts and reuse the session key, then compare a custom 8-bucket layout with the semantic 43-bucket `delta_bytes` default over 64 and 512 series; throughput is reported as input metrics/s and validation confirms observations remain raw. OTLP conversion benchmarks time `Heatmap::to_proto()` for every compact default and the synthetic former 256-bucket layout; benchmark IDs include `encoded_len()` bytes per point and throughput is histogram data points/s. Any shorter former-layout benchmark number is labeled as fixture-specific and is not substituted for the 4436 B production-shaped point above. Direct-send benchmarks prebuild production-shaped inputs for 64, 512, and 4096 mixed compact series, use the production-equivalent splitter, and move request/client cloning into Criterion's untimed batch setup. The timed closure awaits only `MetricsServiceClient::export()` responses from a mock tonic collector that fully decodes and counts requests and data points. A separate worst-case case sends homogeneous 4096-series `native` data through its multiple production-sized chunks. Reports include both histogram data points/s and protobuf MiB/s, with request count and encoded bytes making requests/s independently reproducible without timing request construction.
 
 The final implementation report must list:
 
@@ -641,26 +668,26 @@ The implementation was measured in the optimized Cargo benchmark profile inside 
 
 | Aggregator layout | 64 series input metrics/s | 512 series input metrics/s |
 | ----------------- | ------------------------: | -------------------------: |
-| Custom 8 buckets | 15.95 M | 15.76 M |
-| Semantic `delta_bytes`, 16 buckets | 15.30 M | 15.09 M |
+| Custom 8 buckets | 15.71 M | 15.00 M |
+| Semantic `delta_bytes`, 43 buckets | 14.10 M | 14.38 M |
 
 | Captured `Heatmap::to_proto()` fixture | Encoded bytes/point | Point-estimate histogram points/s | Derived protobuf MiB/s |
 | -------------------------------------- | ------------------: | --------------------------------: | ---------------------: |
-| `delta_bytes` | 555 B | 1.68 M | 888.62 |
-| `absolute_bytes` | 488 B | 1.19 M | 555.82 |
-| `absolute_cells` | 762 B | 1.19 M | 866.08 |
-| `delta_count` | 764 B | 1.21 M | 880.23 |
-| `native` | 1210 B | 1.22 M | 1410.35 |
-| Former 256-bucket fixture | 4396 B | 1.01 M | 4251.88 |
+| `delta_bytes` | 1012 B | 1.56 M | 1509.35 |
+| `absolute_bytes` | 512 B | 965.37 K | 471.37 |
+| `absolute_cells` | 786 B | 984.42 K | 737.91 |
+| `delta_count` | 788 B | 1.03 M | 773.29 |
+| `native` | 1234 B | 1.23 M | 1443.27 |
+| Former 256-bucket fixture | 4420 B | 925.11 K | 3899.56 |
 
-The captured conversion run used shorter object/session identifiers and shorter numeric SAI ID attribute values than the worst-case production-shaped size test above. Its fixture-specific byte counts and throughput are retained as measured; the separate `595/528/802/804/1250/4436 B` production-shaped sizes remain the capacity-planning values. Direct tonic results below use representative production-length names and the production 3 MiB splitter.
+The captured conversion run uses a shorter object identifier than the worst-case production-shaped size test above; the current session identifier and numeric SAI IDs are otherwise representative. Its fixture-specific byte counts and throughput are retained as measured; the separate `1028/528/802/804/1250/4436 B` production-shaped sizes remain the capacity-planning values. Direct tonic results below use representative production-length names and the production 3 MiB splitter.
 
 | Direct tonic case | Points | Requests/export | Total protobuf bytes | Point-estimate points/s | Point-estimate protobuf MiB/s |
 | ----------------- | -----: | --------------: | -------------------: | ----------------------: | ----------------------------: |
-| Mixed compact | 64 | 1 | 50136 | 109.20 K | 85.66 |
-| Mixed compact | 512 | 1 | 401686 | 53.74 K | 25.90 |
-| Mixed compact | 4096 | 2 | 3217903 | 106.55 K | 90.58 |
-| Homogeneous `native` | 4096 | 2 | 5078190 | 98.69 K | 98.65 |
+| Mixed compact | 64 | 1 | 55765 | 8.81 K | 7.20 |
+| Mixed compact | 512 | 1 | 446285 | 31.16 K | 25.78 |
+| Mixed compact | 4096 | 2 | 3572963 | 87.29 K | 71.77 |
+| Homogeneous `native` | 4096 | 2 | 5078190 | 84.42 K | 105.51 |
 
 These are local comparative measurements, not hardware-independent service-level guarantees. `protobuf MiB/s` counts uncompressed protobuf payload bytes and excludes gRPC framing and HTTP/2 overhead.
 The conversion-table MiB/s values are derived from its encoded bytes/point and point-estimate points/s before display rounding. The direct-send points/s and MiB/s columns come from separate Criterion `Throughput::Elements` and `Throughput::Bytes` runs over the same payloads, so one direct-send column is not arithmetically derived from the independently timed other column.
