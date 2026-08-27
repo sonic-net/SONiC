@@ -178,6 +178,8 @@ This is a built-in SONiC feature that extends the existing `sfputil` CLI utility
 - `-i <INTERFACE_LIST>`: Filter by comma-separated interface names and ranges
 - `-p <PART_NUMBER_LIST>`: Filter by comma-separated vendor part numbers
 
+The `-i` / `-p` selectors are mutually exclusive with the legacy positional `<port_name>` argument; supplying both is rejected (see Section 7.5.1).
+
 **Usage Examples**:
 ```bash
 # Display firmware version for all transceivers in tabular format
@@ -240,7 +242,9 @@ sudo sfputil firmware download \
    get_module_fw_mgmt_feature(); exclude unsupported ports with a
    per-port reason and proceed with the rest
 4. Display pre-download status
-5. Execute parallel firmware download operations per port:
+5. Execute parallel firmware download operations per port. Parallelism is
+   provided by a thread pool inside sfputil, driving the selected ports'
+   CDB sequence using the Platform API (see Section 7.5.3):
    a. cdb_start_firmware_download()
    b. Download firmware payload to transceiver
    c. cdb_firmware_download_complete() to verify completion
@@ -269,7 +273,7 @@ sudo sfputil firmware download \
 - `-i <INTERFACE_LIST> <FILEPATH>`: Upgrade firmware for comma-separated interface list with specified firmware file. The list supports interface range syntax (e.g., `Ethernet16-80`) that can be intermixed with single interface entries
 - `-p <PART_NUMBER_LIST> <FILEPATH>`: Upgrade firmware for all ports matching vendor part number with specified firmware file
 
-Both `-i` and `-p` can be specified multiple times to target different groups with different firmware files.
+Both `-i` and `-p` can be specified multiple times to target different groups with different firmware files. The selectors are mutually exclusive with the legacy positional `<PORT_NAME> <FILEPATH>` form, which continues to serve the single-port serial upgrade case; supplying both is rejected (see Section 7.5.1).
 
 **Usage Examples**:
 ```bash
@@ -294,6 +298,14 @@ sudo sfputil firmware upgrade \
   -p GAMMA67890 /path/to/gamma_fw.bin
 ```
 
+**Phased Execution Model**:
+
+Firmware download is by far the slowest of the three CDB operations, and this feature also exposes it as an independent command (`sfputil firmware download`). The multi-port upgrade is therefore structured as **three sequential phases** over the whole port set — download, then activate, then commit — rather than running each port through all three operations independently.
+
+**All selected transceivers complete Phase 1 (download) before any transceiver advances to Phase 2 (activate), and all advancing transceivers complete Phase 2 before any advances to Phase 3 (commit).** Each phase is a barrier: work is parallel *within* a phase, and strictly ordered *between* phases.
+
+The phase boundaries are visible in the CLI output, which prints a `--- Phase ... ---` header entering each phase; see Appendix B.3.2.
+
 **Upgrade Process Flow**:
 ```
 1. Parse and validate input parameters
@@ -305,7 +317,8 @@ sudo sfputil firmware upgrade \
 4. Display pre-upgrade status
 
    --- Phase 1/3: Download ---
-5. Execute parallel firmware download per port:
+5. Execute parallel firmware download per port using the
+   thread pool described in Section 7.5.3 (one worker thread per port):
    a. cdb_start_firmware_download()
    b. Download firmware payload
    c. cdb_firmware_download_complete()
@@ -315,13 +328,19 @@ sudo sfputil firmware upgrade \
       remaining ports advance.
 
    --- Phase 2/3: Activate ---
+   (entered only after EVERY port has finished Phase 1, successfully
+    or otherwise; no port activates while any port is still downloading)
 6. For each port whose download completed cleanly:
    a. cdb_run_firmware() to activate the new image
    b. Verify firmware-switch completion
+   c. On failure, the port is marked Failed(Activate) and is EXCLUDED
+      from Phase 3. The remaining ports advance.
 
    --- Phase 3/3: Commit ---
+   (entered only after EVERY port has finished Phase 2)
 7. For each port whose activation completed cleanly:
    a. cdb_commit_firmware()
+   b. On failure, the port is marked Failed(Commit)
 
 8. Display failure cause table for any failed ports (stage, status
    code, decoded reason, recovery hint)
@@ -361,6 +380,15 @@ After all groups are expanded, the per-group entries are merged into a single po
 2. **Same firmware in multiple groups of the same type** (`-i` × `-i` or `-p` × `-p`): If a port appears in more than one group of the same type and all such groups specify the **same** firmware file path, the port is included once. No error.
 3. **Conflicting firmware across groups of the same type** (`-i` × `-i` or `-p` × `-p`): If a port appears in more than one group of the same type with **different** firmware file paths, this is a configuration error. The CLI exits with `ERROR_INVALID_PORT`.
 4. **Empty selection**: If, after all groups are processed, the merged mapping is empty (no present port matched any group), the CLI prints an informational message and exits without performing any firmware operation.
+
+**Positional `<port_name>` versus `-i` / `-p` (mutually exclusive):**
+
+The commands expose two distinct invocation modes, and exactly one of them may be used per invocation:
+
+1. **Single-port (positional) mode** — `sfputil show fwversion <port_name>` and `sfputil firmware upgrade <PORT_NAME> <FILEPATH>`. This is the legacy invocation, retained unchanged for backward compatibility. It operates on exactly one port, serially.
+2. **Multi-port (selector) mode** — `-i <INTERFACE_LIST>` and/or `-p <PART_NUMBER_LIST>`. This is the new invocation that drives the parallel firmware operations described in this section.
+
+Supplying a positional `<port_name>` **together with** `-i` and/or `-p` is a usage error. The CLI rejects the command up front with `ERROR_INVALID_PORT` and a message naming the conflicting arguments; no port is selected, no firmware file is read, and no firmware operation is started. Because the two modes are mutually exclusive, no precedence between them is defined or needed, and a firmware-version query can never return an ambiguous or partially-overlapping port set.
 
 **Final validation:**
 
@@ -417,15 +445,19 @@ On a platform where `Ethernet0` and `Ethernet1` share the same transceiver (seri
 
 ##### 7.5.3. Parallel Processing
 
-Multi-port operations leverage Python's `concurrent.futures.ThreadPoolExecutor` for parallel processing:
+**Mechanism:** Multi-port operations leverage Python's `concurrent.futures.ThreadPoolExecutor` for parallel processing.
 
-- **Concurrency Model**: Bounded worker pool (up to 128)
-- **Error Isolation**: Failures in individual ports don't affect others; each port reports its own status
-- **Thread Safety**: Port status updates are protected by a `threading.Lock`.
+**Concurrency Model**: Bounded worker pool (up to 128)
 
 **Benefits**:
 - Significant time savings for multi-port operations versus serial execution
 - Real-time progress visibility
+
+**I2C Bus Contention:**
+
+Because the CLI has no visibility into the platform's I2C topology, it cannot tell which of the selected ports sit behind the same bus. Ports that share a bus are therefore driven concurrently, and their CDB transactions contend for the same physical channel. Selecting many such ports in a single invocation yields little or no speed-up over serial execution and, on platforms with limited I2C bandwidth or short transaction timeouts, can slow the operation down or cause per-port firmware download failures.
+
+Choosing a port set that parallelizes well is consequently the **operator's** responsibility — see the limitation in Section 12.1. The multi-port options are a convenience for issuing one command instead of many, not a mechanism that discovers or works around bus topology.
 
 ##### 7.5.4. Progress Display
 
@@ -441,6 +473,10 @@ The implementation provides two progress display modes:
 - Remaining time estimation (begins after 15 seconds of download activity for accuracy)
 - Format: `Progress: Not Started(0), Downloading FW(3), Activating FW(1), Committing FW(0), Upgraded(10), Failed(0)`
 - Time estimate: `Remaining Time: 2 minutes 15 seconds`
+
+**Remaining Time Semantics:**
+
+The reported `Remaining Time` is the **maximum** of the per-port remaining-time estimates across all pending transceivers — **not** the sum of them, and not a per-port value.
 
 **Status Tracking per port**:
 - Pending
@@ -484,11 +520,9 @@ ports_failed_status_info = {
 
 ##### 7.6.4. Download Progress Tracking
 ```python
-# Used for remaining time estimation in multi-port mode
-download_progress = {
-    'Ethernet0': (bytes_done, total_bytes, start_time),
-    # Example: (275000, 550596, 1713200605.0)
-}
+# Used for remaining time estimation in multi-port mode.
+# Per-port estimates derived from this map are combined with max(), not sum() -
+# the reported remaining time is that of the slowest pending port
 ```
 
 ##### 7.6.5. Transceiver Info Map
@@ -510,6 +544,7 @@ The implementation includes comprehensive error handling:
    - **Verify CMIS firmware-management capability per target via `get_module_fw_mgmt_feature()`**.
    - Validate firmware file paths (existence, readability)
    - Reject overlapping `-i`/`-p` groups that map the same port to different firmware files (Section 7.5.1)
+   - Reject a positional `<port_name>` supplied together with `-i` and/or `-p`, since the single-port and multi-port modes are mutually exclusive (Section 7.5.1)
 
 2. **Operation Errors**:
    - CDB command failures
@@ -537,8 +572,22 @@ CDB and platform-API status codes returned by firmware operations are decoded in
 
 This feature is platform-agnostic and works with any platform that implements the standard SONiC Platform API for transceiver management. No platform-specific changes are required.
 
+**Platform API Methods Used:**
+
+The feature relies on the following existing Platform API (`sonic_platform_base`) methods for transceiver access and firmware management. The platform implementation must expose these operations for the target transceiver and return clear status or error information for failed requests.
+
+| Platform API Method                 | Purpose                                                                 |
+|-------------------------------------|-------------------------------------------------------------------------|
+| `get_transceiver_info()`            | Retrieve transceiver identification (vendor name, vendor part number)    |
+| `get_module_fw_info()`              | Retrieve active and inactive firmware versions of the module            |
+| `get_module_fw_mgmt_feature()`      | Query firmware management capabilities supported by the module          |
+| `cdb_start_firmware_download()`     | Start the firmware download (LPL/EPL) sequence                          |
+| `cdb_firmware_download_complete()`  | Signal completion of the firmware image transfer                        |
+| `cdb_run_firmware()`                | Activate (run) the newly downloaded firmware image                      |
+| `cdb_commit_firmware()`             | Commit the running firmware image as the active image                   |
+
 **Platform Requirements:**
-- Platform must implement the Platform API transceiver methods listed in Section 8
+- Platform must implement the Platform API transceiver methods listed above in this section
 - Transceivers must support CMIS specification for firmware upgrade operations
 
 #### 7.9. Scalability and Performance
@@ -640,6 +689,16 @@ Options:
   --help                          Show this message and exit.
 ```
 
+**Invocation Modes (positional `<port_name>` vs `-i` / `-p`):**
+
+The help output above shows the legacy positional argument alongside the new `-i` / `-p` selectors. The two are **mutually exclusive** — each invocation picks one mode (full rules in Section 7.5.1):
+
+| Invocation                                        | Behavior                                                                                     |
+|---------------------------------------------------|----------------------------------------------------------------------------------------------|
+| Positional `<port_name>` only                     | Legacy single-port, serial operation; unchanged behavior                                       |
+| `-i` and/or `-p` only                             | Multi-port parallel operation; each selector may be repeated                                   |
+| Positional `<port_name>` **with** `-i` and/or `-p`| Rejected with `ERROR_INVALID_PORT` and a message naming the conflicting arguments; nothing runs |
+
 **Backward Compatibility:**
 - Existing single-port commands continue to work without modification
 - New options are additive and do not break existing scripts or workflows
@@ -650,7 +709,7 @@ Options:
 - No KLISH changes required (feature is CLICK-based only)
 
 **Documentation Update:**
-- The Command Reference (https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md) will be updated with the new CLI options
+- The Command Reference (https://github.com/sonic-net/sonic-utilities/blob/master/doc/Command-Reference.md) will be updated with the new CLI options as part of the implementation PR (see Section 14)
 
 ##### 9.2.2. YANG Model Changes
 
@@ -688,6 +747,10 @@ Low additional memory footprint (Less than 15 MB during firmware upgrade).
    - Range bounds use the form `<PREFIX><START>-<END>` (e.g., `Ethernet16-80`) and are inclusive on both ends
    - The interface prefix is implicit from the left-hand side; the form `Ethernet16-Ethernet80` is also accepted, but prefixes on both sides must match
 
+5. **Port Selection for Parallel Operations**:
+   - The CLI is **not** I2C-topology aware. It does not query, infer, or expose which ports share an I2C bus, and it does not group ports onto worker threads by bus. Every selected port is dispatched as an independent task (see Section 7.5.3)
+   - **The operator is expected to know which ports are good candidates for parallel download or upgrade on their platform** and to select those ports in a single invocation. Ports that share an I2C bus should be spread across separate invocations rather than selected together
+
 #### 12.2. Operational Considerations
 
 1. **Error Recovery**:
@@ -699,7 +762,7 @@ Low additional memory footprint (Less than 15 MB during firmware upgrade).
    - Platforms where multiple interfaces share the same physical transceiver are automatically handled through deduplication
    - Only the lowest-numbered interface per unique transceiver (identified by serial number) will be processed
    - Duplicate interfaces are silently excluded from operations
-   - See Section 7.5.1 (Transceiver Deduplication) for detailed behavior
+   - See Section 7.5.2 (Transceiver Deduplication) for detailed behavior
 
 ### 13. Testing Requirements/Design
 
@@ -725,6 +788,15 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-SHOW-12 | Reversed range (`-i Ethernet80-16`) | Error message displayed, exits with `ERROR_INVALID_PORT` |
 | FW-SHOW-13 | Malformed range (`-i Ethernet16-`) | Error message displayed, exits with `ERROR_INVALID_PORT` |
 | FW-SHOW-14 | Range matching zero configured ports (`-i Ethernet9999-99999`) | "No matching ports for range" message displayed |
+| FW-SHOW-15 | Positional port with `-i` (e.g., `sfputil show fwversion Ethernet0 -i Ethernet4`) | Error message naming the conflicting arguments; exits with `ERROR_INVALID_PORT`; no firmware version displayed |
+| FW-SHOW-16 | Positional port with `-p` (e.g., `sfputil show fwversion Ethernet0 -p ALPHA123456`) | Error message naming the conflicting arguments; exits with `ERROR_INVALID_PORT`; no firmware version displayed |
+| FW-SHOW-17 | Positional port with both `-i` and `-p` | Error message naming the conflicting arguments; exits with `ERROR_INVALID_PORT`; no firmware version displayed |
+| FW-SHOW-18 | Tabular display (`-t`) where `Ethernet0` and `Ethernet1` share serial `ABC123` | Transceiver listed once under `Ethernet0` (lowest port number); `Ethernet1` excluded from the table |
+| FW-SHOW-19 | Tabular display (`-t`) where only the higher-numbered duplicate is selected (`-i Ethernet1`) | `Ethernet1` displayed; deduplication does not drop the sole selected port |
+| FW-SHOW-20 | Tabular display (`-t`) with more than two interfaces sharing one serial (`Ethernet0`, `Ethernet1`, `Ethernet2` → `ABC123`) | Only `Ethernet0` displayed; all higher-numbered duplicates excluded |
+| FW-SHOW-21 | Tabular display (`-t`) where duplicate detection must not merge distinct transceivers with equal vendor PN but different serials | Each transceiver displayed separately; no deduplication applied |
+| FW-SHOW-22 | Non-tabular display of a shared-serial port (`sfputil show fwversion Ethernet1`) | Full detail displayed for the requested port |
+
 
 ##### 13.1.2. Test Cases for Firmware Download
 
@@ -733,6 +805,7 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-DL-01 | Download with `-i` option | All specified ports downloaded |
 | FW-DL-02 | Download with `-p` option | All matching ports downloaded |
 | FW-DL-03 | Multiple `-p` options | All matching ports downloaded with correct firmware |
+| FW-DL-03a | Multiple `-p` groups matching **disjoint** port sets (e.g., `-p VendorPN_X fw_x.bin -p VendorPN_Y fw_y.bin`) | Each port receives exactly its own group's firmware file; per-port `(port → firmware_path)` mapping asserted; no cross-assignment between groups |
 | FW-DL-04 | Invalid firmware file path | Error message displayed |
 | FW-DL-05 | Non-existent interface | Error message displayed |
 | FW-DL-06 | Interface without transceiver | Error message displayed |
@@ -745,12 +818,27 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-DL-13 | Reversed range (`-i Ethernet80-16`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no download initiated |
 | FW-DL-14 | Malformed range (`-i Ethernet16-`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no download initiated |
 | FW-DL-15 | Overlapping `-i` groups, same firmware file (e.g., `-i Ethernet0,Ethernet4 fw.bin -i Ethernet4,Ethernet8 fw.bin`) | Overlap accepted; `Ethernet4` deduplicated and downloaded once |
+| FW-DL-15a | Interface repeated **within a single** `-i` list (e.g., `-i Ethernet0,Ethernet0,Ethernet4 fw.bin`) | Duplicate token collapsed; `Ethernet0` downloaded exactly once. No error |
+| FW-DL-15b | Interface covered **both explicitly and by a range in the same** `-i` list (e.g., `-i Ethernet0,Ethernet0-8 fw.bin`) | `Ethernet0` included once after range expansion; downloaded exactly once. No error |
 | FW-DL-16 | Overlapping `-i` groups, **different** firmware files (e.g., `-i Ethernet0,Ethernet4 fw_v1.bin -i Ethernet4,Ethernet8 fw_v2.bin`) | Conflict table printed listing `Ethernet4` with both candidate firmware files and group selectors; exits with `ERROR_INVALID_PORT` **before** any download is initiated |
 | FW-DL-17 | Overlapping `-i` and `-p` groups, **different** firmware files (e.g., `-i Ethernet0 fw_a.bin -p VendorPN_X fw_b.bin` where `Ethernet0` has model `VendorPN_X`) | Conflict table printed listing `Ethernet0` with both candidate firmware files; exits with `ERROR_INVALID_PORT`; no download initiated |
 | FW-DL-17a | Overlapping `-i` and `-p` groups, **same** firmware file (e.g., `-i Ethernet0 fw.bin -p VendorPN_X fw.bin` where `Ethernet0` has model `VendorPN_X`) | Cross-type overlap is rejected regardless of firmware path equality. Conflict table printed listing `Ethernet0` with the `-i` token and the `-p` selector; exits with `ERROR_INVALID_PORT`; no download initiated |
 | FW-DL-17b | `-i` interface range overlapping with `-p` match (e.g., `-i Ethernet0-32 fw_a.bin -p VendorPN_X fw_b.bin` where some ports in the range have model `VendorPN_X`) | Conflict table printed for every port covered by both the expanded `-i` range and the `-p` match; exits with `ERROR_INVALID_PORT`; no download initiated |
 | FW-DL-18 | Overlapping `-p` groups via partial PN match collision, **different** firmware files | Conflict table printed for every port matched by both PNs; exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-18a | Same vendor PN repeated across `-p` groups, **same** firmware file (e.g., `-p VendorPN_X fw.bin -p VendorPN_X fw.bin`) | Overlap accepted; each matching port included once and downloaded once. No error |
+| FW-DL-18b | Same vendor PN repeated across `-p` groups, **different** firmware files (e.g., `-p VendorPN_X fw_v1.bin -p VendorPN_X fw_v2.bin`) | Conflict table printed listing **every** port matching `VendorPN_X` with both candidate firmware files and the two `-p` selectors; exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-18c | Overlapping `-p` groups where one PN's match set is a **subset** of another's | Conflict reported for the overlapping subset only, naming both candidate firmware files; exits with `ERROR_INVALID_PORT`; no download initiated |
+| FW-DL-18d | Conflicting group pair present alongside otherwise-valid groups (e.g., `-p VendorPN_X fw_v1.bin -p VendorPN_X fw_v2.bin -p VendorPN_Y fw_y.bin`) | Validation is all-or-nothing: the command exits with `ERROR_INVALID_PORT` and **no** port is downloaded, including ports selected only by the non-conflicting `VendorPN_Y` group |
+| FW-DL-18e | Vendor PN repeated **within a single** `-p` list (e.g., `-p VendorPN_X,VendorPN_X fw.bin`) | Duplicate token collapsed; each matching port downloaded exactly once. No error |
 | FW-DL-19 | Overlap with **same** firmware path expressed differently (e.g., `/tmp/fw.bin` vs `/tmp/./fw.bin`) | Paths normalized via `os.path.realpath`; treated as same firmware, accepted, deduplicated |
+| FW-DL-19a | Image identity after an **accepted** overlap (FW-DL-15 / 15a / 18a / 19 setups) | Inactive image on every affected port contains the version from the single agreed firmware file; no port receives an image from a different group |
+| FW-DL-20 | `-i Ethernet0,Ethernet1` where both share serial `ABC123` | Single download issued against `Ethernet0` (lowest port number); `Ethernet1` excluded; `cdb_start_firmware_download()` invoked exactly once for the shared transceiver |
+| FW-DL-21 | `-i Ethernet1` only, where `Ethernet1` shares serial `ABC123` with `Ethernet0` | `Ethernet1` downloaded; deduplication does not silently redirect the operation to `Ethernet0` or drop the only selected port |
+| FW-DL-22 | `-p VendorPN_X` where several matching ports share one serial | One download per unique transceiver serial; excluded duplicate interfaces are not counted as failures and do not affect the exit code |
+| FW-DL-23 | Mixed selection of shared-serial and unique-serial ports | Unique-serial ports each downloaded once; shared-serial group collapsed to its lowest-numbered interface; total download count equals the number of unique serials |
+| FW-DL-24 | Deduplicated port fails download | Failure attributed to the selected (lowest-numbered) interface; excluded duplicates are not reported as separate failures; exit code reflects the single failure |
+| FW-DL-25 | Remaining-time estimate with ports of differing throughput (e.g., pending estimates of 10 s, 45 s, 90 s) | `Remaining Time` reports 90 s (the **maximum** of pending estimates), not 145 s (the sum); completed and failed ports excluded from the calculation |
+| FW-DL-26 | Remaining-time estimate before enough throughput data is available, and after the last port completes | `Remaining Time: estimating...` shown initially; `Remaining Time: 0 seconds` once no port remains pending |
 
 ##### 13.1.3. Test Cases for Firmware Upgrade
 
@@ -760,6 +848,7 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-UPG-02 | Upgrade with `-i` option | All specified ports upgraded |
 | FW-UPG-03 | Upgrade with `-p` option | All matching ports upgraded |
 | FW-UPG-04 | Multiple `-p` options | All matching ports upgraded with correct firmware |
+| FW-UPG-04a | Multiple `-p` groups matching **disjoint** port sets (e.g., `-p VendorPN_X fw_x.bin -p VendorPN_Y fw_y.bin`) | Each port receives exactly its own group's firmware file; per-port `(port → firmware_path)` mapping asserted; no cross-assignment between groups |
 | FW-UPG-05 | Invalid firmware file path | Error message displayed |
 | FW-UPG-06 | Non-existent interface | Error message displayed |
 | FW-UPG-07 | Interface without transceiver | Error message displayed |
@@ -772,12 +861,29 @@ This section explains the testing strategy for the feature, including unit testi
 | FW-UPG-14 | Reversed range (`-i Ethernet80-16`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no upgrade initiated |
 | FW-UPG-15 | Malformed range (`-i Ethernet16-`) | Error message displayed, exits with `ERROR_INVALID_PORT`; no upgrade initiated |
 | FW-UPG-16 | Overlapping `-i` groups, same firmware file (e.g., `-i Ethernet0,Ethernet4 fw.bin -i Ethernet4,Ethernet8 fw.bin`) | Overlap accepted; `Ethernet4` deduplicated and upgraded once |
+| FW-UPG-16a | Interface repeated **within a single** `-i` list (e.g., `-i Ethernet0,Ethernet0,Ethernet4 fw.bin`) | Duplicate token collapsed; `Ethernet0` upgraded exactly once. No error |
+| FW-UPG-16b | Interface covered **both explicitly and by a range in the same** `-i` list (e.g., `-i Ethernet0,Ethernet0-8 fw.bin`) | `Ethernet0` included once after range expansion; upgraded exactly once. No error |
 | FW-UPG-17 | Overlapping `-i` groups, **different** firmware files (e.g., `-i Ethernet0,Ethernet4 fw_v1.bin -i Ethernet4,Ethernet8 fw_v2.bin`) | Conflict table printed listing `Ethernet4` with both candidate firmware files and group selectors; exits with `ERROR_INVALID_PORT` **before** any upgrade phase is initiated; module state unchanged |
 | FW-UPG-18 | Overlapping `-i` and `-p` groups, **different** firmware files (e.g., `-i Ethernet0 fw_a.bin -p VendorPN_X fw_b.bin` where `Ethernet0` has model `VendorPN_X`) | Conflict table printed listing `Ethernet0`; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
 | FW-UPG-18a | Overlapping `-i` and `-p` groups, **same** firmware file (e.g., `-i Ethernet0 fw.bin -p VendorPN_X fw.bin` where `Ethernet0` has model `VendorPN_X`) | Cross-type overlap is rejected regardless of firmware path equality. Conflict table printed listing `Ethernet0` with the `-i` token and the `-p` selector; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
 | FW-UPG-18b | `-i` interface range overlapping with `-p` match (e.g., `-i Ethernet0-32 fw_a.bin -p VendorPN_X fw_b.bin` where some ports in the range have model `VendorPN_X`) | Conflict table printed for every port covered by both the expanded `-i` range and the `-p` match; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
 | FW-UPG-19 | Overlapping `-p` groups via partial PN match collision, **different** firmware files | Conflict table printed for every port matched by both PNs; exits with `ERROR_INVALID_PORT`; no upgrade initiated |
+| FW-UPG-19a | Same vendor PN repeated across `-p` groups, **same** firmware file (e.g., `-p VendorPN_X fw.bin -p VendorPN_X fw.bin`) | Overlap accepted; each matching port included once and upgraded once. No error |
+| FW-UPG-19b | Same vendor PN repeated across `-p` groups, **different** firmware files (e.g., `-p VendorPN_X fw_v1.bin -p VendorPN_X fw_v2.bin`) | Conflict table printed listing **every** port matching `VendorPN_X` with both candidate firmware files and the two `-p` selectors; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
+| FW-UPG-19c | Overlapping `-p` groups where one PN's match set is a **subset** of another's | Conflict reported for the overlapping subset only, naming both candidate firmware files; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
+| FW-UPG-19d | Conflicting group pair present alongside otherwise-valid groups (e.g., `-p VendorPN_X fw_v1.bin -p VendorPN_X fw_v2.bin -p VendorPN_Y fw_y.bin`) | Validation is all-or-nothing: the command exits with `ERROR_INVALID_PORT` and **no** port is upgraded, including ports selected only by the non-conflicting `VendorPN_Y` group; module state unchanged on all ports |
+| FW-UPG-19e | Vendor PN repeated **within a single** `-p` list (e.g., `-p VendorPN_X,VendorPN_X fw.bin`) | Duplicate token collapsed; each matching port upgraded exactly once. No error |
 | FW-UPG-20 | Overlap with **same** firmware path expressed differently (e.g., `/tmp/fw.bin` vs `/tmp/./fw.bin`) | Paths normalized via `os.path.realpath`; treated as same firmware, accepted, deduplicated |
+| FW-UPG-20a | Image identity after an **accepted** overlap (FW-UPG-16 / 16a / 19a / 20 setups) | Post-upgrade running and committed firmware version on every affected port equals the version contained in the single agreed firmware file; no port is flashed with an image from a different group |
+| FW-UPG-21 | Positional `<PORT_NAME> <FILEPATH>` with `-i` (e.g., `sfputil firmware upgrade Ethernet0 fw.bin -i Ethernet4 fw.bin`) | Error message naming the conflicting arguments; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
+| FW-UPG-22 | Positional `<PORT_NAME> <FILEPATH>` with `-p` (e.g., `sfputil firmware upgrade Ethernet0 fw.bin -p VendorPN_X fw.bin`) | Error message naming the conflicting arguments; exits with `ERROR_INVALID_PORT`; no upgrade initiated; module state unchanged |
+| FW-UPG-23 | Legacy positional invocation alone (`sfputil firmware upgrade Ethernet0 fw.bin`) | Existing single-port serial upgrade behavior preserved; no regression |
+| FW-UPG-24 | `-i Ethernet0,Ethernet1` where both share serial `ABC123` | Single upgrade issued against `Ethernet0` (lowest port number); `Ethernet1` excluded; download, activate, and commit each run exactly once for the shared transceiver |
+| FW-UPG-25 | `-i Ethernet1` only, where `Ethernet1` shares serial `ABC123` with `Ethernet0` | `Ethernet1` upgraded; deduplication does not silently redirect the operation to `Ethernet0` or drop the only selected port |
+| FW-UPG-26 | `-p VendorPN_X` where several matching ports share one serial | One upgrade per unique transceiver serial; excluded duplicate interfaces are not counted as failures and do not affect the exit code |
+| FW-UPG-27 | Deduplicated port fails mid-pipeline (e.g., at Activate) | Failure attributed to the selected (lowest-numbered) interface with the correct stage and status code; excluded duplicates are not reported as separate failures |
+| FW-UPG-28 | Post-upgrade status display after a deduplicated upgrade | Shared transceiver reported once; the new firmware version is visible when queried through either interface of the duplicate pair |
+| FW-UPG-29 | Remaining-time estimate with ports of differing throughput | `Remaining Time` reports the **maximum** of the pending per-port estimates, not the sum; completed and failed ports excluded from the calculation |
 
 #### 13.2. System Test Cases
 
@@ -853,7 +959,29 @@ sudo sfputil show fwversion -p ALPHA123456 -t
 # 3. All firmware fields populated correctly
 ```
 
-**Test Scenario 6: Error Handling**
+**Test Scenario 6: Transceiver Deduplication on Shared-Serial Ports**
+```bash
+# Setup: Platform where Ethernet0 and Ethernet1 map to the same physical
+#        transceiver (identical serial number, e.g. ABC123)
+
+# Execute: Display, then upgrade, selecting both interfaces explicitly
+sudo sfputil show fwversion -i Ethernet0,Ethernet1 -t
+sudo sfputil firmware upgrade -i Ethernet0,Ethernet1 /tmp/test_fw.bin
+
+# Verify:
+# 1. Tabular display lists the shared transceiver once, under Ethernet0
+# 2. Ethernet1 is excluded as a duplicate, not reported as a failure
+# 3. Exactly one firmware upgrade runs against the physical transceiver
+#    (no concurrent operation on the same hardware)
+# 4. Port counts in the phase headers reflect unique transceivers, not
+#    selected interfaces
+# 5. Post-upgrade firmware version is identical when queried via Ethernet0
+#    and via Ethernet1
+# 6. Selecting only Ethernet1 upgrades Ethernet1; the sole selected port is
+#    never dropped by deduplication
+```
+
+**Test Scenario 7: Error Handling**
 ```bash
 # Setup: Simulate firmware upgrade failure
 # Execute: Upgrade with expected failure
@@ -865,6 +993,28 @@ sudo sfputil firmware upgrade -i Ethernet0 /tmp/test_fw.bin
 # 3. Post-upgrade status still displayed
 # 4. System remains stable
 # 5. Exit code is EXIT_FAIL
+```
+
+**Test Scenario 8: Conflicting Repeated Groups (No Partial Execution)**
+```bash
+# Setup: Environment where several ports carry VendorPN_X and others VendorPN_Y
+
+# Execute: Repeat the same vendor PN with two different firmware files,
+#          alongside an otherwise-valid group
+sudo sfputil firmware download \
+  -p VendorPN_X /tmp/fw_v1.bin \
+  -p VendorPN_X /tmp/fw_v2.bin \
+  -p VendorPN_Y /tmp/fw_y.bin
+
+# Verify:
+# 1. Conflict table lists every VendorPN_X port with both candidate
+#    firmware files and the two conflicting -p selectors
+# 2. Exit code is ERROR_INVALID_PORT
+# 3. NO download is initiated on any port - including the VendorPN_Y ports
+#    selected only by the non-conflicting group (validation is all-or-nothing
+#    and runs before any CDB command is issued)
+# 4. Running and inactive firmware images are unchanged on every port
+# 5. Repeating the command with the conflicting group removed succeeds
 ```
 
 ##### 13.2.2. Performance Testing
@@ -884,7 +1034,11 @@ Not applicable
 
 ### 14. Open/Action Items
 
-Not applicable
+No open design questions remain. The following work item is tracked here for completeness:
+
+| Item | Owner | Status |
+|------|-------|--------|
+| Update the SONiC Command Reference (`sonic-utilities/doc/Command-Reference.md`) with the new `sfputil show fwversion` / `sfputil firmware download` / `sfputil firmware upgrade` options | Feature author | Delivered as part of the implementation PR, not tracked as separate follow-up work |
 
 ## Appendix A: References
 
@@ -1042,7 +1196,9 @@ Ethernet192  IJKL Inc       Deltaxxxxxxxxxx005  IJ5L250004   3.3.0      1.3.0   
 ### B.2.3 Multi-Port Firmware Download Progress Indication
 
 The firmware download progress is indicated by the number of interfaces in each stage.
-Additionally, the module indicates the time remaining for the download operation to complete.
+Additionally, the CLI indicates the time remaining for the download operation to complete.
+
+The reported `Remaining Time` is the **maximum** of the remaining times across all pending transceivers, not the sum of them. Since the downloads run in parallel, the operation completes when the slowest pending port completes; reporting the maximum therefore tells the operator the time in which the operations for all specified transceivers should finish. See Section 7.5.4 for the full definition.
 
 ```
 Progress: Not Started(22), Downloading FW(0), Downloaded(0), Failed(0)
@@ -1191,6 +1347,8 @@ Succeeded: 14, Failed: 0
 
 --- Phase 2/3: Activating firmware for 14 port(s) ---
 
+--- Phase 3/3: Committing firmware for 14 port(s) ---
+
 CDB: Finished firmware upgrade: 17:05:21. Time taken: 126 seconds
 
 CDB: Firmware status after upgrade:
@@ -1212,7 +1370,7 @@ Ethernet496  EFGH Systems   Alphaxxxxxxxx001  HN9CYAT      2.3.0      255.2.0   
 Ethernet504  EFGH Systems   Alphaxxxxxxxx001  HN7DQ6X      2.3.0      255.2.0    2.3.0     A          A
 ```
 
-### B.3.2.2 Multi-Port Firmware Upgrade Failure Scenario
+### B.3.2.3 Multi-Port Firmware Upgrade Failure Scenario
 
 ```
 ...
