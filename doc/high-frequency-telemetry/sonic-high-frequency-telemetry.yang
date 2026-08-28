@@ -248,7 +248,7 @@ module sonic-high-frequency-telemetry {
                     min-elements 1;
                     max-elements 511;
                     description "Strictly increasing inclusive upper bounds for this counter's OTLP histogram. These bounds override the semantic default layout and use the counter's unchanged raw heatmap unit.";
-                    must "not(preceding-sibling::*[local-name() = 'explicit_bounds']) or number(current()) > number(preceding-sibling::*[local-name() = 'explicit_bounds'][1])" {
+                    must "boolean(../explicit_bounds[. = current() and position() = count(../explicit_bounds[. <= current()])])" {
                         error-message "explicit_bounds must be strictly increasing.";
                     }
                 }
