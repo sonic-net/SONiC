@@ -21,9 +21,11 @@ module sonic-high-frequency-telemetry {
         prefix bql;
     }
 
+    description "Sub-second counter polling configuration for high-frequency telemetry in SONiC.";
+
     container sonic-high-frequency-telemetry {
         container HIGH_FREQUENCY_TELEMETRY_PROFILE {
-            description "HIGH_FREQUENCY_TELEMETRY_PROFILE part of config_db.json";
+            description "Sub-second counter polling profiles for high-frequency telemetry.";
             list HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST {
 
                 key "name";
@@ -32,6 +34,7 @@ module sonic-high-frequency-telemetry {
                     type string {
                         length 1..128;
                     }
+                    description "Unique name for this telemetry profile.";
                 }
 
                 leaf stream_state {
@@ -39,6 +42,7 @@ module sonic-high-frequency-telemetry {
                     type string {
                         pattern "enabled|disabled";
                     }
+                    description "Whether this telemetry stream is enabled or disabled.";
                 }
 
                 leaf poll_interval {
@@ -74,7 +78,7 @@ module sonic-high-frequency-telemetry {
         }
 
         container HIGH_FREQUENCY_TELEMETRY_AGGREGATOR {
-            description "HIGH_FREQUENCY_TELEMETRY_AGGREGATOR part of config_db.json";
+            description "Aggregator configuration for high-frequency telemetry profiles.";
             list HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST {
                 key "name";
 
@@ -88,6 +92,7 @@ module sonic-high-frequency-telemetry {
                             error-message "Aggregator name must not have leading or trailing whitespace.";
                         }
                     }
+                    description "Unique name for this aggregator configuration.";
                 }
 
                 leaf reporting_rate {
@@ -251,7 +256,7 @@ module sonic-high-frequency-telemetry {
         }
 
         container HIGH_FREQUENCY_TELEMETRY_GROUP {
-            description "HIGH_FREQUENCY_TELEMETRY_GROUP part of config_db.json";
+            description "Groups of SAI objects and counters monitored by a high-frequency telemetry profile.";
             list HIGH_FREQUENCY_TELEMETRY_GROUP_LIST {
                 key "profile_name group_name";
 
@@ -259,9 +264,9 @@ module sonic-high-frequency-telemetry {
                     type leafref {
                         path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_PROFILE/HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST/name";
                     }
+                    description "Reference to the parent telemetry profile.";
                 }
 
-                // The table name of config db
                 leaf group_name {
                     type enumeration {
                         enum PORT;
@@ -269,9 +274,11 @@ module sonic-high-frequency-telemetry {
                         enum QUEUE;
                         enum INGRESS_PRIORITY_GROUP;
                     }
+                    description "SAI object type to monitor in this group.";
                 }
 
                 leaf-list object_names {
+                   description "SAI object instances to poll for this group.";
                    type string;
                    must "( ../group_name = 'PORT' and current() = /port:sonic-port/port:PORT/port:PORT_LIST/port:name )"
                         + " or ( ../group_name = 'BUFFER_POOL' and current() = /bpl:sonic-buffer-pool/bpl:BUFFER_POOL/bpl:BUFFER_POOL_LIST/bpl:name )"
@@ -280,6 +287,7 @@ module sonic-high-frequency-telemetry {
                 }
 
                 leaf-list object_counters {
+                    description "Counter names to collect for the objects in this group.";
                     type string;
                     must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
                         + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
