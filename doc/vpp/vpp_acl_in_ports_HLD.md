@@ -20,24 +20,23 @@
     - [How VPP Evaluates an ACL](#how-vpp-evaluates-an-acl)
     - [Consumers of `IN_PORTS` in SONiC](#consumers-of-in_ports-in-sonic)
   - [Design](#design)
-    - [Why Scoping Must Live in the Binding Layer](#why-scoping-must-live-in-the-binding-layer)
-    - [Partitioning Ports by Signature](#partitioning-ports-by-signature)
+    - [Two Ways to Express the Scope](#two-ways-to-express-the-scope)
+    - [Matching the Ingress Interface in VPP](#matching-the-ingress-interface-in-vpp)
+      - [The Interface Is Already in the Key](#the-interface-is-already-in-the-key)
+      - [All Three Match Paths Must Agree](#all-three-match-paths-must-agree)
+      - [Encoding and Its Limit](#encoding-and-its-limit)
+    - [Fanning an Entry Out in saivpp](#fanning-an-entry-out-in-saivpp)
       - [Worked Example](#worked-example)
       - [Cases](#cases)
     - [Programming Flow](#programming-flow)
-    - [Rebinding Must Replace the Whole Port](#rebinding-must-replace-the-whole-port)
-      - [The Port's ACL List Is Ordered, and the Order Is Built by Position](#the-ports-acl-list-is-ordered-and-the-order-is-built-by-position)
-      - [What the Naive Rebind Actually Does](#what-the-naive-rebind-actually-does)
-      - [Rebind the Whole Port](#rebind-the-whole-port)
-      - [Consequences and Costs](#consequences-and-costs)
-      - [The Window in the Shipping Consumers](#the-window-in-the-shipping-consumers)
-    - [Failure Handling and Dirty Ports](#failure-handling-and-dirty-ports)
+    - [Failure Handling](#failure-handling)
     - [Counters](#counters)
     - [Scaling](#scaling)
   - [Proposed Changes](#proposed-changes)
-    - [`SwitchVpp.h` Changes](#switchvpph-changes)
-    - [`SwitchVppAcl.cpp` Changes](#switchvppaclcpp-changes)
+    - [VPP Changes](#vpp-changes)
+    - [saivpp Changes](#saivpp-changes)
     - [Files Changed](#files-changed)
+    - [Version and Merge Ordering](#version-and-merge-ordering)
   - [Restrictions and Limitations](#restrictions-and-limitations)
   - [Testing](#testing)
     - [Unit / Dataplane Verification](#unit--dataplane-verification)
@@ -51,6 +50,7 @@
 | Rev | Date | Author(s) | Changes |
 |-----|------|-----------|---------|
 | v0.1 | 08/20/2026 | Longxiang Lyu (lolv@microsoft.com) | Initial Draft |
+| v0.2 | 08/29/2026 | Longxiang Lyu (lolv@microsoft.com) | Reworked to match the implementation. Scope is now carried by a new per-rule ingress interface match in the VPP ACL plugin, with saivpp fanning each entry out into one rule per named port, replacing the binding-layer partitioning design of v0.1 |
 
 ---
 
@@ -80,11 +80,10 @@ This section covers the abbreviations used in this high-level design document an
 |------|---------|
 | scoped entry | An ACL entry that carries `IN_PORTS`, so it applies only to the ingress ports it names |
 | unscoped entry | An ACL entry with no `IN_PORTS`, so it applies to every port the table is bound to |
-| default ACL | The VPP ACL built from the unscoped entries alone. Bound to the ports of the table that no `IN_PORTS` names. Degrades to a placeholder holding one rule that cannot match legitimate traffic, when the table has no unscoped entries |
-| scoped ACL | A VPP ACL built from the unscoped entries **plus** the scoped entries naming a given interface. Bound only to the interfaces it was built for, in place of the default ACL |
-| applicable entry set | For one interface, the priority-ordered set of entries that apply to it: all unscoped entries plus the scoped entries naming that interface |
-| signature | The ordered vector of ACE OIDs forming an applicable entry set — **including the unscoped entries**, interleaved at their priority positions. Identifies a scoped ACL, groups interfaces that can share one, and serves as the slot-reuse key across reprogramming |
-| dirty port | A port whose VPP binding may not match the recorded scope, because a previous bind/unbind failed or its interface could not be resolved. Forced through unbind/rebind on the next reprogram |
+| fan-out | Expanding one scoped SAI entry into one VPP rule per interface it names, each rule matching that interface |
+| 5-tuple | `fa_5tuple_t`, the per-packet key the ACL plugin builds once and matches every rule against |
+| `in_sw_if_index` | The new per-rule field added to the VPP ACL rule by this design. Names the ingress interface a rule matches; 0 means any |
+| `lsb_of_sw_if_index` | The low 16 bits of the ingress `sw_if_index`, already present in the 5-tuple's L4 key and previously always masked off during matching |
 
 ---
 
@@ -128,9 +127,9 @@ The failure is **inverted and non-proportional**: zero standby ports behaves cor
 | REQ-2 | An ACL entry without `IN_PORTS` must continue to be enforced on every port the table is bound to. |
 | REQ-3 | Relative priority ordering between scoped and unscoped entries of the same table must be preserved on every port. |
 | REQ-4 | Entries within one table carrying **different** `IN_PORTS` sets must each be honoured independently. |
-| REQ-5 | Once a change to an entry's `IN_PORTS` (e.g. a mux state transition) has been applied, ACLs of other tables bound to the same port must be unchanged, and no other port may be touched. A transient rebind window on the changed port is permitted. |
+| REQ-5 | Once a change to an entry's `IN_PORTS` (e.g. a mux state transition) has been applied, ACLs of other tables bound to the same port must be unchanged, and no other port may be touched. |
 | REQ-6 | A failure to read `IN_PORTS` must not silently widen a scoped entry's scope. |
-| REQ-7 | Per-entry ACL counters must remain correct when an entry is replicated into more than one VPP ACL. |
+| REQ-7 | Per-entry ACL counters must remain correct when an entry is replicated into more than one VPP rule. |
 | REQ-8 | Existing behaviour for tables without any `IN_PORTS` entries must be unchanged. |
 
 ---
@@ -186,7 +185,7 @@ Key: `ASIC_STATE:SAI_OBJECT_TYPE_ACL_ENTRY:oid:<entry_oid>`
 | `ACL_INTERFACE_ADD_DEL` | Bind/unbind an ACL to/from an interface. **Appends** to the interface's ACL list |
 | `ACL_INTERFACE_SET_ACL_LIST` | Replace an interface's entire ACL list atomically (not currently wrapped by saivpp) |
 
-The decisive property is the shape of a VPP ACL rule (`vslib/vpp/vppxlate/SaiVppXlate.h:86-99`):
+The decisive property is the shape of a VPP ACL rule (`vslib/vpp/vppxlate/SaiVppXlate.h`), shown here as it stood **before** this design:
 
 ```c
 typedef struct _vpp_acl_rule {
@@ -200,7 +199,9 @@ typedef struct _vpp_acl_rule {
 } vpp_acl_rule_t;
 ```
 
-There is **no interface member**, and this is not a saivpp omission — the struct is a 1:1 mirror of upstream VPP's wire format (`src/plugins/acl/acl_types.api`, `typedef acl_rule`). VPP expresses ingress-port scoping solely by *which interfaces an ACL is bound to*; the port is resolved before rule evaluation begins, as the next section describes.
+There was **no interface member**, and this was not a saivpp omission — the struct is a 1:1 mirror of upstream VPP's wire format (`src/plugins/acl/acl_types.api`, `typedef acl_rule`). Stock VPP expresses ingress-port scoping solely by *which interfaces an ACL is bound to*.
+
+This design changes that, by adding an ingress interface field to the VPP rule itself. The reasoning is in [Two Ways to Express the Scope](#two-ways-to-express-the-scope); the next section covers what the stock behaviour is and why the field is cheap to add.
 
 ### How VPP Evaluates an ACL
 
@@ -229,7 +230,9 @@ flowchart TD
     D -- "no" --> F["Default deny"]
 ```
 
-**Why this forecloses a per-rule port qualifier.** Port identity is consumed *before* rule matching begins: it selects the slot, and it is already compiled into the rules inside that slot. It is never a field compared against the packet during the search. By the time any rule is examined, "which port" has been settled — every candidate rule in that slot is, by construction, one the port already selected. A per-entry `IN_PORTS` therefore has nowhere to live in this model. The only way to express "this rule applies to these ports and no others" is to control **which ports the ACL is bound to**, which is what the design below does.
+**Why stock VPP has no per-rule port qualifier.** Port identity is consumed *before* rule matching begins: it selects the slot, and it is already compiled into the rules inside that slot. Every candidate rule in that slot is, by construction, one the port already selected, so upstream never had a reason to also compare the interface during the search. That is why the rule struct has no interface field — not because the information is unavailable at match time, but because it was redundant given how bindings work.
+
+The information *is* available, though. As the next section shows, the ingress interface is already carried in the per-packet key the matcher uses; it was simply always masked off. That is what makes adding a per-rule qualifier cheap rather than structural.
 
 ### Consumers of `IN_PORTS` in SONiC
 
@@ -247,50 +250,118 @@ The built-in `DROP` table type declares exactly two match qualifiers — `SAI_AC
 
 ## Design
 
-### Why Scoping Must Live in the Binding Layer
+### Two Ways to Express the Scope
 
 The irreducible difficulty is a **cardinality mismatch**:
 
 - SAI carries ingress-port scope **per entry**.
-- VPP carries it **per ACL** — every rule in an ACL shares one set of interface bindings.
+- Stock VPP carries it **per ACL** — every rule in an ACL shares one set of interface bindings.
 
 "Per ACL" is deliberately not "per table". The two models do not have matching object graphs:
 
 | SAI / SONiC | VPP counterpart | Consequence |
 |-------------|-----------------|-------------|
-| ACL entry — `SAI_OBJECT_TYPE_ACL_ENTRY`, CONFIG_DB `ACL_RULE` | ACL rule — `vpp_acl_rule_t` | The VPP rule is match criteria and an action, nothing more. It has no port field, so a per-entry scope has nowhere to go |
-| ACL table — `SAI_OBJECT_TYPE_ACL_TABLE`, CONFIG_DB `ACL_TABLE` | *none* | VPP has no table object. The closest thing is the VPP ACL, but that is a different unit with different cardinality |
-| — | VPP ACL — an ordered list of rules **plus the set of interfaces it is bound to** | This is what owns port scope in VPP, and it is the only place scope can be expressed |
-| Port bind — `SAI_PORT_ATTR_INGRESS_ACL` on a port, referencing an ACL table group whose members name tables | ACL binding — `ACL_INTERFACE_ADD_DEL` | Both sides associate a port with a ruleset here; this is the layer the design operates on |
-| `SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` on one ACL entry | *none* | Must be re-expressed as *which interfaces the ACL is bound to* |
+| ACL entry — `SAI_OBJECT_TYPE_ACL_ENTRY`, CONFIG_DB `ACL_RULE` | ACL rule — `vpp_acl_rule_t` | Stock VPP's rule is match criteria and an action, nothing more |
+| ACL table — `SAI_OBJECT_TYPE_ACL_TABLE`, CONFIG_DB `ACL_TABLE` | *none* | VPP has no table object. The closest thing is the VPP ACL, a different unit with different cardinality |
+| — | VPP ACL — an ordered list of rules **plus the set of interfaces it is bound to** | Where port scope lives in stock VPP |
+| Port bind — `SAI_PORT_ATTR_INGRESS_ACL` on a port | ACL binding — `ACL_INTERFACE_ADD_DEL` | Both sides associate a port with a ruleset here |
+| `SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` on one ACL entry | *none* in stock VPP | Must be given somewhere to live |
 
-Baseline `saivpp` creates exactly one VPP ACL per SAI table (`m_acl_swindex_map`, keyed by table OID), which is why "per ACL" and "per table" look equivalent today. That is an implementation choice, not a VPP constraint — and relaxing it, so one SAI table may map to several VPP ACLs, is what makes this design possible.
+Baseline `saivpp` creates exactly one VPP ACL per SAI table (`m_acl_swindex_map`, keyed by table OID), which is why "per ACL" and "per table" look equivalent today.
 
-Two things follow. A table whose entries carry different `IN_PORTS` sets cannot be represented as one VPP ACL, however that ACL's rules are written. And the obvious fix — adding a `case SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` to `acl_rule_field_update()` — cannot be written at all: that function's sole output is a `vpp_acl_rule_t`, so there is no field to assign. The qualifier is not missing from the switch by oversight; it has no representation at that layer.
+There are two ways to close the gap, and they differ in *which* layer absorbs the mismatch.
 
-It does have an exact equivalent one layer up. `IN_PORTS = {Ethernet4}` means "apply this entry only to traffic arriving on Ethernet4", and VPP states the same thing as "bind the ACL holding this entry to Ethernet4, and to nothing else". The design below is that translation — the scope is preserved, expressed as a binding rather than as a match.
+**Option A — express the scope as a binding.** Keep VPP unchanged and split the table into several VPP ACLs: one per distinct set of entries applying to a port, each bound only to the ports that set belongs to. `IN_PORTS = {Ethernet4}` becomes "bind the ACL holding this entry to Ethernet4 and nothing else".
 
-### Partitioning Ports by Signature
+This works, but the cost is concentrated in the binding layer, and that layer is hostile:
 
-Because scope can only be expressed as a binding, programming a table reduces to one question per port: **which VPP ACL does this port bind?** The answer is derived from the set of entries that apply to that port, and ports that agree on that set share an ACL.
+- `ACL_INTERFACE_ADD_DEL` **appends**, so a newly bound ACL lands after `sonic_acl_default_permit` where it can never be reached.
+- Unbind removes by value and fills the hole with the *last* element, so removing any non-final ACL **reorders** the survivors.
 
-**Step 1 — classify the entries.** Each entry's `IN_PORTS` is read once. An entry that carries the qualifier is *scoped* and records the interfaces it names; an entry without it is *unscoped*.
+Together these mean a port cannot have one ACL swapped in place; the whole port must be unbound and rebound in priority order. That in turn opens a window in which the port enforces nothing, requires dirty-port tracking so a failed unbind is not mistaken for a no-op on the next pass, and makes the number of VPP ACLs a function of how the `IN_PORTS` sets overlap. None of this complexity is inherent to the feature — it is the cost of routing a per-entry concept through a per-ACL mechanism.
 
-**Step 2 — collect the candidate interfaces.** The candidates are the union of every scoped entry's interfaces. Only a candidate can need anything other than the default ACL: a port no entry names sees exactly the unscoped entries, which is what the default ACL already holds.
+**Option B — express the scope as a match.** Give the VPP rule an ingress interface field, and have saivpp emit one rule per named port. The table keeps its single VPP ACL, bindings are untouched, and `IN_PORTS` stays a match qualifier on both sides of the translation.
 
-**Step 3 — build each candidate's applicable set.** For one candidate interface, walk the table's priority-ordered entries once and keep every entry that applies to it — every unscoped entry, plus every scoped entry naming this interface:
+**This design implements Option B.** The deciding factor is that the information Option B needs is *already in the dataplane*: the ingress interface is part of the per-packet key the matcher builds, and was simply never compared. Option A pays a permanent structural cost in the binding layer to avoid a change that turns out to be a few lines of match logic. Option B also leaves the binding layer, its ordering rules, and the ACL-per-table model exactly as they are, so nothing outside the ACL rule path has to reason about scoping at all.
+
+The trade is that Option B requires patching VPP, so saivpp and the VPP package must move together. That is discussed in [Version and Merge Ordering](#version-and-merge-ordering).
+
+### Matching the Ingress Interface in VPP
+
+#### The Interface Is Already in the Key
+
+The ACL plugin builds one `fa_5tuple_t` per packet and matches every candidate rule against it. Its L4 portion is a `u64` union (`src/plugins/acl/fa_node.h`):
+
+```c
+typedef union {
+  u64 as_u64;
+  struct {
+    u16 port[2];
+    union {
+      struct {
+        u8  proto;
+        u8  l4_flags;
+        u16 lsb_of_sw_if_index;
+      };
+      u32 non_port_l4_data;
+    };
+  };
+} fa_session_l4_key_t;
+```
+
+`lsb_of_sw_if_index` is filled for every packet in `acl_fill_5tuple_l4_and_pkt_data()`, from `vnet_buffer(b)->sw_if_index[VLIB_RX]` on the input arc:
+
+```c
+fa_session_l4_key_t tmp_l4 = { .port = { ports[0], ports[1] },
+                               .proto = proto,
+                               .l4_flags = tmp_l4_flags,
+                               .lsb_of_sw_if_index = sw_if_index0 & 0xffff };
+```
+
+The field exists for session handling, and rule matching always masked it off. Restricting a rule to an interface is therefore not a matter of collecting new per-packet state — it only requires *stopping* the mask from discarding what is already there. This is why the change is close to free at packet rate: no new field in the key, no extra load, no change to the key's size or hash.
+
+#### All Three Match Paths Must Agree
+
+A rule reaches a verdict through more than one path, and a scope enforced on only some of them is worse than none at all — it would hold for ordinary traffic and lapse for the rest.
+
+| Path | When it runs | Change |
+|------|--------------|--------|
+| Hash key construction — `make_mask_and_match_from_rule()` | Normal path. The rule's mask and match value are compiled into the bihash key | Unmask `l4.lsb_of_sw_if_index` and set the match value to `in_sw_if_index & 0xffff` |
+| Collision re-check — `single_rule_match_5tuple()` | After a bihash hit, to confirm the rule really matches | Compare the interface explicitly |
+| Linear match — `single_acl_match_5tuple()` | Non-first IP fragments, which bypass the hash entirely | Compare the interface explicitly |
+
+The linear path is not an optimisation detail. `acl_plugin_match_5tuple_inline()` sends non-first fragments to `linear_multi_acl_match_5tuple()` because "tuplemerge does not take fragments into account". A scope applied only in the hash path would silently not apply to fragmented traffic.
+
+The collision re-check matters for a subtler reason. VPP's tuplemerge (`am->use_tuple_merge`, on by default) may assign a rule to an existing, *less specific* mask type when `first_mask_contains_second_mask()` holds — and a mask with `l4 = 0` contains the in-port mask. A folded rule therefore has the interface zeroed out of its key on both sides, so the bihash still hits, but the key no longer proves the interface matched. Re-checking in `single_rule_match_5tuple()` makes the interface authoritative regardless of which mask type the rule ended up in. It cannot cause a missed match, because a folded rule's key is interface-agnostic by construction.
+
+#### Encoding and Its Limit
+
+`in_sw_if_index = 0` means **any interface**. This is safe because `sw_if_index 0` is `local0`, which is never a data-plane port, so no legitimate rule needs to name it. It follows the convention `proto = 0` already uses, and avoids spending a separate valid flag.
+
+Only the low 16 bits take part in the match, since `lsb_of_sw_if_index` is a `u16` packed into the L4 `u64`. Widening it would mean growing `fa_session_l4_key_t` past the word it fits in, which is a far larger change than this feature warrants. An index above `0xffff` would otherwise be programmed as a *different* interface than the one named, with the CLI and API dump still reporting the interface the user asked for, so `acl_add_list()` rejects it with `VNET_API_ERROR_INVALID_SW_IF_INDEX` alongside the existing prefix and port-range validation. Both the binary API and the CLI go through that function, so neither path can install a rule whose scope is not representable. SONiC interface indices stay far below the limit, so this is a guard rather than an expected condition.
+
+### Fanning an Entry Out in saivpp
+
+A VPP rule names **one** interface, while a SAI entry may name several. saivpp closes that last gap by replication: an entry naming N interfaces becomes N rules, identical but for the interface.
+
+This is not a new shape for this code. `fill_acl_rules()` already expands one entry into several rules when a port-based entry specifies no protocol, emitting a UDP rule and a TCP rule. Ingress scoping reuses that mechanism:
+
+**Step 1 — resolve the scope.** `acl_entry_in_ports_get()` looks for `SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` on the entry. Absent or disabled means unscoped. Otherwise the port OIDs are resolved to VPP interface names with `vpp_get_hwif_name()`.
+
+The attribute has to be read twice. The cached copy was fetched with a zero-capacity object list, so it carries only the list's *count* and a null list pointer; the entry is read again with a correctly sized buffer to obtain the OIDs themselves.
+
+**Step 2 — fan out.** The rules just generated for the entry are removed from the output list and re-added once per resolved interface, each carrying that interface's name:
 
 ```
-for each candidate interface I:
-    applicable(I) = [ e for e in entries_in_priority_order
-                        if e is unscoped or I in e.IN_PORTS ]
+base_rules = the rules generated for this entry
+for each interface I in resolved_interfaces:
+    for each rule R in base_rules:
+        emit R with in_hwif_name = I
 ```
 
-Because the walk preserves the table's order, `applicable(I)` is a *subsequence* of the table's priority order — no two entries can end up reordered relative to how the table ranked them.
+**Step 3 — resolve names late.** Rules carry `in_hwif_name`, not an index. `vpp_acl_add_replace()` translates the name to a `sw_if_index` when it builds the API message. The SAI layer therefore keeps working in interface names, exactly as it already does for binding, and nothing above the wire format has to track VPP indices.
 
-**Step 4 — take the signature.** The **signature** is the ordered vector of ACL entry OIDs in the applicable set. It is the identity of that set: two interfaces have equal signatures exactly when the same entries apply to them, in the same order.
-
-**Step 5 — group and program.** Candidates are grouped by signature. Each distinct signature yields one VPP ACL, whose rules are built from that applicable set and which is bound to every interface in the group — **in place of** the default ACL, not in addition to it. The scoped ACL already contains the unscoped entries, so those are still enforced exactly once. Every non-candidate port binds the default ACL.
+Because the copies are appended consecutively, an entry's rules remain **contiguous** from `ace.vpp_rule_base_index`, which is what keeps counters working unchanged — see [Counters](#counters).
 
 #### Worked Example
 
@@ -302,36 +373,34 @@ A table bound to five ports, with three entries:
 | E2 | 50 | *(unscoped)* | `FORWARD` |
 | E3 | 10 | Ethernet8 | `DROP` |
 
-The candidate set is `{Ethernet4, Ethernet8, Ethernet16}` — the union of E1's and E3's interfaces. Ethernet0 and Ethernet12 are named by nothing, so they are not candidates. Walking the entries for each candidate:
+The table is programmed as a single VPP ACL, in priority order:
 
-| Interface | E1 | E2 | E3 | Signature |
-|-----------|----|----|----|-----------|
-| Ethernet4 | kept — names it | kept — unscoped | skipped | `⟨E1, E2⟩` |
-| Ethernet8 | kept — names it | kept — unscoped | kept — names it | `⟨E1, E2, E3⟩` |
-| Ethernet16 | kept — names it | kept — unscoped | skipped | `⟨E1, E2⟩` |
+| Rule | From | `in_sw_if_index` | Action |
+|------|------|------------------|--------|
+| 0 | E1 | Ethernet4 | `DROP` |
+| 1 | E1 | Ethernet8 | `DROP` |
+| 2 | E1 | Ethernet16 | `DROP` |
+| 3 | E2 | 0 (any) | `FORWARD` |
+| 4 | E3 | Ethernet8 | `DROP` |
 
-Ethernet4 and Ethernet16 produce the same signature, so they group together. The table is programmed as three VPP ACLs:
+The ACL stays bound to all five ports. E1's three rules occupy indices 0–2, so E1's counter sums that range; E3's single rule is index 4.
 
-| VPP ACL | Rules, in order | Bound to |
-|---------|-----------------|----------|
-| scoped #1 | E1, E2 | Ethernet4, Ethernet16 |
-| scoped #2 | E1, E2, E3 | Ethernet8 |
-| default | E2 | Ethernet0, Ethernet12 |
+Priority is preserved because the fan-out is local: an entry's copies are emitted where the entry itself sat in the order. E2 remains between E1 and E3, so a packet arriving on Ethernet8 is tried against E1's copy for that port, then E2, then E3 — the table's order, unchanged.
 
-Note where E2 lands. It is unscoped, so it appears in all three ACLs — but at its *priority position* each time, between E1 and E3 in Ethernet8's ACL rather than appended to either end. That interleaving is what makes the port the unit of partitioning.
+Note that Ethernet0 and Ethernet12 are named by nothing. They match only E2, because every other rule names an interface that is not theirs. No separate ACL is needed to arrange that.
 
 #### Cases
 
 | Case | Example | Outcome |
 |------|---------|---------|
-| No entry carries `IN_PORTS` | Any ordinary L3 table | No partitioning is performed at all; every port binds the default ACL, exactly as before this design |
-| Port named by no entry | Ethernet0 above | Binds the default ACL — the unscoped entries only |
-| Ports with identical applicable sets | Ethernet4 and Ethernet16 above | Equal signatures, so one shared scoped ACL rather than a copy each |
-| Ports with different applicable sets | Ethernet8 versus Ethernet4 above | Different signatures, so one scoped ACL each |
-| Distinct entries that happen to match identically | Two `DROP any` entries, one naming Ethernet4 and one naming Ethernet8 | Signatures hold entry OIDs, not rule content, so these differ and produce two ACLs. Deduplication is never inferred from rule text |
-| Every port named, with the same scope | All mux ports standby | One signature covering all of them, so one scoped ACL bound to every port |
-| Table with no unscoped entries | The mux drop table with a single scoped entry | The default ACL has no rules to hold, so it degrades to the placeholder described below; ports that are not candidates bind that and match nothing in practice |
-| `IN_PORTS` present but empty | Qualifier enabled with a zero-length port list | The entry names no interface, so it enters no signature, and being scoped it is excluded from the default ACL — it applies nowhere. Logged as a warning |
+| No entry carries `IN_PORTS` | Any ordinary L3 table | No fan-out; one rule per entry with `in_sw_if_index = 0`, exactly as before this design |
+| Port named by no entry | Ethernet0 above | Binds the same ACL as everyone else, and matches only the unscoped rules |
+| Ports with identical scopes | Two entries naming the same port | Each entry fans out independently; no deduplication is attempted or needed |
+| Ports with different scopes | Ethernet8 versus Ethernet4 above | Distinct rules with distinct `in_sw_if_index`; independent by construction — REQ-4 |
+| Every port named, same scope | All mux ports standby | One rule per standby port within the single ACL |
+| Table with no unscoped entries | The mux drop table with a single scoped entry | Nothing special: the ACL holds only scoped rules. No placeholder is required |
+| Entry fans out with protocol expansion | Port-based entry, no protocol, 2 named ports | 4 rules — the UDP/TCP expansion happens first, then each is replicated per port |
+| `IN_PORTS` present but empty | Qualifier enabled with a zero-length port list | The entry names no interface, so no ingress interface can be a member and it matches nothing. No rule is emitted. Logged as a warning |
 
 ### Programming Flow
 
@@ -339,220 +408,142 @@ Note where E2 lands. It is unscoped, so it appears in all three ACLs — but at 
 sequenceDiagram
     participant Orch as orchagent / syncd
     participant Cfg as AclTblConfig()
-    participant Scope as acl_port_scope_update()
+    participant Fill as fill_acl_rules()
+    participant Xlate as vpp_acl_add_replace()
     participant VPP as VPP ACL plugin
 
     Orch->>Cfg: ACL table programmed (entry add / remove / IN_PORTS change)
     Cfg->>Cfg: get_sorted_aces() — read + priority sort
-    Cfg->>Cfg: split into unscoped (base_aces) and scoped (ace_hwifs)
-
-    alt table has unscoped entries
-        Cfg->>VPP: ACL_ADD_REPLACE — default ACL
-    else every entry is scoped
-        Cfg->>VPP: emptyAclCreate() — placeholder default ACL
+    Cfg->>Fill: build rules
+    loop per ACE, in priority order
+        Fill->>Fill: build rule(s) from match fields
+        Fill->>Fill: acl_entry_in_ports_get() — resolve IN_PORTS
+        alt entry is scoped
+            Fill->>Fill: replicate rules, one per named interface
+        end
+        Fill->>Fill: record base index + num_rules for counters
     end
-
-    Cfg->>Scope: program port scoping
-    Scope->>Scope: group interfaces by signature
-    loop per distinct signature
-        Scope->>VPP: ACL_ADD_REPLACE — scoped ACL (reuse swindex if signature unchanged)
-    end
-    Scope->>Scope: diff new vs old assignment → changed ports
-    Scope->>VPP: unbind ALL ACLs of changed ports (old scope still in effect)
-    Scope->>Scope: commit new scope
-    Scope->>VPP: rebind changed ports in priority order
-    Scope->>VPP: ACL_DEL — now-unused scoped ACLs
+    Fill->>Xlate: rule list
+    Xlate->>Xlate: resolve in_hwif_name → sw_if_index
+    Xlate->>VPP: ACL_ADD_REPLACE (single ACL, unchanged swindex)
+    Note over VPP: bindings untouched
 ```
 
-The default ACL keeps `m_acl_swindex_map[tbl_oid]`, and every port of the table that no `IN_PORTS` names resolves to it. A port that *is* named binds its scoped ACL **instead**: exactly one ACL of a table is ever bound to a given port, which is why the unscoped entries the scoped ACL carries are not enforced twice. When a table has **no** unscoped entries the default ACL degrades to the pre-existing `emptyAclCreate()` placeholder rather than ceasing to exist. This keeps the default ACL's identity independent of the data, which is what allows the existing tunterm, table-removal and binding paths to work unchanged.
+The flow is the pre-existing one with a replication step added. There is no second ACL, no binding change, and no reordering, so the steps carry no ordering constraints beyond those that already applied. A mux transition rewrites the rules of one ACL in place via `ACL_ADD_REPLACE`, which preserves the swindex, so the port's ACL vector is never touched and other tables bound to that port are undisturbed — REQ-5.
 
-The placeholder holds a single rule matching destination `0.0.0.0/32`, because VPP rejects a zero-rule ACL. That is not the same as a rule that can never match: `0.0.0.0` is never a valid unicast destination, so no legitimate packet carries it, but a crafted one can. Since a match ends evaluation of the interface's entire ACL list, a *permit* there would let such a packet bypass every lower-priority table bound to the port. The placeholder's action is therefore **deny**, which both closes that bypass and is the correct treatment for the destination. This matters more under this design than before it: previously the placeholder appeared only for a table with no entries at all, whereas now every non-candidate port of an all-scoped table binds one.
+This is the main practical dividend over Option A. Because the scope lives in the rules rather than in the bindings, changing it never requires unbinding anything, so there is no window in which a port enforces nothing and no dirty-port bookkeeping to recover from a partially applied rebind.
 
-This placeholder path is on the critical path for the mux case, not an edge case: the mux table's only entry *is* the scoped one, so the unscoped set is empty on dual-ToR.
+### Failure Handling
 
-The step order in `acl_port_scope_update()` is load-bearing and must not be rearranged:
+Three distinct conditions can leave the resolved interface set empty, and they do not mean the same thing. Collapsing them would reintroduce the very defect this design fixes, so they are kept separate:
 
-| Step | Reason |
-|------|--------|
-| 1. Program the default ACL (in `AclTblConfig`) | Bindings computed later must refer to swindexes that already exist |
-| 2. Program/replace the scoped ACLs | Same |
-| 3. Compute the new per-interface assignment | |
-| 4. Diff against the old assignment | |
-| 5. **Unbind** changed ports | Must run while the stored scope still describes what VPP has bound |
-| 6. Commit the new scope | |
-| 7. **Bind** changed ports | |
-| 8. Delete unused scoped ACLs | `ACL_DEL` fails on an ACL that is still bound |
+| Condition | Meaning | Behaviour |
+|-----------|---------|-----------|
+| Attribute absent or not enabled | Entry is unscoped | One rule, `in_sw_if_index = 0`, as before |
+| Enabled but names no port | Entry matches nothing | Scoped, no rule emitted |
+| Port list unreadable, or no named port resolves | Scope is **unknown** | Error; ACL programming fails |
 
-### Rebinding Must Replace the Whole Port
+The third row is the one REQ-6 turns on. When the scope cannot be determined, neither available fallback is safe: emitting the rule unscoped applies it to every bound port, which is exactly the outage described in [Observed Impact](#observed-impact), while emitting nothing silently drops an entry orchagent believes is installed. `fill_acl_rules()` therefore returns a failure, `CHECK_STATUS_ACLTBLCONFIG` cleans up, and the function returns **before** `vpp_acl_add_replace()` is reached — so the previously programmed ACL remains in force and the operation is reported as failed.
 
-Changing a port's scoped ACL means changing which ACL it binds. The obvious way to do that — unbind the old swindex, bind the new one — is unsafe, because `ACL_INTERFACE_ADD_DEL` has no notion of position. Understanding why fixes the shape of the whole rebinding step.
+Partial resolution is tolerated: if some named ports resolve and others do not, the entry is scoped to those that did, and each failure is logged. Ports genuinely absent from VPP cannot carry traffic, so scoping to the resolvable subset is equivalent for matching purposes. Only *total* failure to resolve is treated as an error, since that is indistinguishable from a broken read.
 
-#### The Port's ACL List Is Ordered, and the Order Is Built by Position
-
-A port's bound ACLs form an ordered vector, evaluated first-match front to back. On a live system:
-
-```
-sw_if_index 25:  input acl(s): 2, 3, 1
-```
-
-`aclBindUnbindPort()` produces that order by *sequence of calls*: it sorts the table group's members by `SAI_ACL_TABLE_GROUP_MEMBER_ATTR_PRIORITY` descending and binds them in that order, then binds `sonic_acl_default_permit` — two `permit` rules, one `IPV4ANY` and one `IPV6ANY` — **last**. Position in the vector *is* the priority, and the trailing permit-any is the table group's terminal "allow whatever no table claimed".
-
-Two properties of the VPP API follow from this, and both matter:
-
-| Operation | Behaviour | Consequence |
-|-----------|-----------|-------------|
-| bind | Appends to the end of the vector | A newly bound ACL always lands **after** the permit-any, where it can never be reached |
-| unbind | Removes by *value*, then fills the hole with the **last** element | Removing any ACL other than the last one **reorders** the survivors |
-
-The second property is the one that is easy to miss. VPP's `vec_del1` does not shift the tail down; it copies the final element into the vacated slot and shrinks the vector by one. It is O(1) precisely because it does not preserve order.
-
-#### What the Naive Rebind Actually Does
-
-Take `[2, 3, 1]` — table ACL 2, table ACL 3, permit-any 1 — and rescope the table that owns ACL 2 to a new scoped ACL 4:
-
-| Step | Vector | State |
-|------|--------|-------|
-| initial | `2, 3, 1` | Correct: both tables evaluated, permit-any last |
-| unbind 2 | `1, 3` | **Permit-any is now first.** ACL 3 is already dead — before anything was rebound |
-| bind 4 | `1, 3, 4` | Permit-any first; ACLs 3 and 4 are both unreachable |
-
-Every packet now matches the permit-any and is forwarded. The port silently enforces nothing at all — not just the entry being rescoped, but *every* ACL table bound to that port, including ones this operation never touched. That is strictly worse than the bug being fixed: the original defect over-applies a drop, whereas this would un-apply every drop on the port, with no error anywhere, because both API calls returned success.
-
-#### Rebind the Whole Port
-
-`acl_port_scope_update()` therefore never manipulates individual entries in the vector. It calls the existing `aclBindUnbindPort()` twice for a changed port — once with `is_bind = false`, once with `true`:
-
-- The unbind pass removes every ACL of the group **and** the trailing permit-any. SAI binds one ACL group per port per direction, so the vector drains to empty; whatever reordering `vec_del1` performs along the way is irrelevant because nothing survives to be misordered.
-- The bind pass rebuilds the vector from scratch in priority order, permit-any last, using the *new* per-port swindexes from `acl_port_swindex_get()`.
-
-The resulting order is correct by construction, and — importantly — it is produced by the same function that established the order originally, so scoping cannot drift from the ordering rules the rest of the ACL code assumes.
-
-This is also why the step order in `acl_port_scope_update()` is load-bearing. The unbind pass must run while `m_acl_port_scope` still holds the *old* assignment, since `aclBindUnbindPort()` resolves the swindex to unbind through `acl_port_swindex_get()`. Committing the new scope first would make it unbind swindexes the port was never bound to, leaving the real ones in place.
-
-#### Consequences and Costs
-
-**A brief unfiltered window.** The unbind pass is itself a sequence of single removals, so partway through it the permit-any can transiently sit at the front; by the end the vector is empty, at which point VPP releases the interface's lookup context and disables ACL processing on it entirely. Either way traffic passes unfiltered until the bind pass completes — sub-millisecond, and accepted as benign relative to the outage being fixed. Closing it entirely needs atomic whole-list replacement, which VPP does offer as `acl_interface_set_acl_list`, but that requires a new API binding and is deferred.
-
-**A failed unbind must suppress the rebind.** If the unbind pass fails, the port's vector was not drained, and binding onto it would append behind the permit-any — reproducing exactly the failure described above. Such a port is skipped in the bind pass and recorded in `m_acl_tbl_dirty_ports`, which forces a full unbind/rebind on the next reprogram even though its assignment will by then look unchanged.
-
-**Rebinding is idempotent.** `vpp_acl_interface_bind()` maps `VNET_API_ERROR_ACL_IN_USE_INBOUND` (VPP's "already in this vector" rejection) to success, and the unbind path maps `NO_SUCH_ENTRY` the same way. A redundant bind is a genuine no-op in VPP — the duplicate is rejected before any vector mutation — so it cannot silently move an ACL to the end. This is what makes retrying a partially applied rescope safe.
-
-**Ports that did not change are not touched.** Only ports whose swindex assignment actually differs, plus dirty ones, are rebound. A mux transition on one port does not disturb the ACL vector of any other.
-
-#### The Window in the Shipping Consumers
-
-Both consumers of `IN_PORTS` in `IngressTableDrop` represent their scope as **one entry with a growing port list**, not one entry per port — MuxOrch keeps a single `mux_acl_rule`, and the PFC watchdog keeps one `Rule_PfcWdAclHandler_<queue>` per queue id. Adding a port calls `updateAclRule(..., MATCH_IN_PORTS, ..., RULE_OPER_ADD)` on the entry that already exists.
-
-This matters because a port is rebound only when *its own* applicable set changes. Extending an entry's `IN_PORTS` leaves the signature of every port already named by that entry byte-for-byte identical, so those ports reuse their scoped ACL slot and are never unbound.
-
-**Mux toggle.** For a table whose only entry is the mux rule `M`:
-
-| Transition | Ports rebound | Behaviour in the window | Net effect |
-|------------|---------------|-------------------------|------------|
-| First port → standby | that port | Forwards instead of dropping | Drop lands late on the transitioning port |
-| Second port → standby | the new port only — the already-standby port keeps signature `⟨M⟩` and its slot | as above, on the new port | The first port's drop is **never** interrupted |
-| Port → active, others still standby | that port | Forwards | Harmless for this table — forwarding *is* the target state |
-| Last port → active | that port; entry deleted and the scoped ACL reaped | Forwards | Harmless, same reason |
-
-**PFC watchdog.** The shape is identical, with storm-detected in place of standby:
-
-| Transition | Ports rebound | Net effect |
-|------------|---------------|------------|
-| Storm detected on port P, queue q (first port for that queue) | P | The queue's traffic is undropped for the window; detection itself already took hundreds of milliseconds, so the added leak is negligible |
-| Storm on a second port, same queue | the new port only | Ports already dropping are undisturbed |
-| Second queue storms on the same port P | P — its signature grows from `⟨P_q1⟩` to `⟨P_q1, P_q2⟩` | Both queues' drops are briefly lifted together; same negligible magnitude |
-| Storm clears | that port | Harmless — not dropping is the target state |
-
-**The general rule:** Traffic always *passes* during the window, so the direction of the change decides whether that is wrong:
-
-- Toward a **more** restrictive state (forwarding → dropping), the window still behaves like the state being left, so the change lands late and packets that should have been dropped are forwarded.
-- Toward a **less** restrictive state (dropping → forwarding), the window already behaves like the state being entered, so the change merely lands a fraction of a millisecond early. No packet is treated in any way the finished transition would not also have produced.
-
-### Failure Handling and Dirty Ports
-
-Computing the changed-port set by diffing old versus new *intent* is not sufficient. If a rebind fails, the new scope is still committed; on the next reprogram old and new intent agree, the diff is empty, no rebind is attempted, and the operation reports success with the port left unbound.
-
-A `m_acl_tbl_dirty_ports` set records every port whose bind/unbind failed or whose interface could not be resolved. A dirty port is forced through unbind/rebind on the next reprogram even when its assignment appears unchanged. A port whose *unbind* failed is additionally skipped in the bind loop, since binding onto an uncleared list would append out of order.
-
-Marking the port dirty is necessary but not sufficient, because the retry also has to know *what to unbind*. Unbinding resolves the swindex through the stored scope, so committing the new assignment for a port whose unbind just failed would point the retry at an ACL that port was never bound to. VPP answers `NO_SUCH_ENTRY`, which is deliberately mapped to success, so the retry would report a clean unbind, bind the new ACL in front of the stale one, and leave the stale one bound — permanently, since an ACL that is still bound cannot be deleted either. For the mux table that is a port stuck on its previous verdict, which for a standby→active transition means a port that keeps dropping.
-
-Such a port therefore **keeps its old assignment** when the new scope is committed, and its old swindex is excluded from the reap so it is not freed while still bound. If that swindex is a scoped ACL it is additionally carried under the empty signature, so it stays tracked and becomes reapable as soon as a later retry unbinds it. If instead the port was still on the **default** ACL, nothing is carried: that ACL is owned by `m_acl_swindex_map` for the table's lifetime, and adding it to the scoped set would expose it to the reap and leave that map holding a swindex VPP had released. Either way the next reconcile unbinds what VPP actually holds, and the port converges.
-
-A scoped ACL that VPP refuses to delete is retained under an **empty signature**, which the grouping loop can never produce. It can therefore never be reused or rebound — only retried on a later pass.
+The empty-list case is deliberately left as "matches nothing". No ingress interface can be a member of an empty list, so emitting no rule is the faithful translation of the SAI semantics. Treating it as unscoped would invert it into "match every bound port".
 
 ### Counters
 
-An ACE may now be replicated into several VPP ACLs, so per-entry counter tracking becomes a list. `vpp_ace_cntr_info_t` holds a vector of `vpp_ace_placement_t` (`acl_index`, `vpp_rule_base_index`, `num_rules`), and `getAclEntryStats()` sums across all placements. Placements accumulate, so `acl_ace_cntr_info_clear(tbl_oid)` is invoked before reprogramming a table to prevent double counting.
+An entry may now map to several VPP rules, but they are **contiguous** — the fan-out appends copies consecutively, so an entry occupies `[vpp_rule_base_index, vpp_rule_base_index + num_rules)` in one ACL.
 
-Because that clear happens before programming and programming is not staged, a reprogram that fails part way leaves some ACLs of the table still active with their placements already discarded. `getAclEntryStats()` then under-reports for those entries until the next successful reprogram rebuilds the list. Counts are not corrupted or double counted, but REQ-7 holds only in the steady state, not across a partial failure. Removing this needs the same transactional staging that the first restriction below defers.
+This is the same representation the pre-existing UDP/TCP expansion already produced, so `getAclEntryStats()` needs no change: it walks `num_rules` from the base index and sums. `num_rules` is simply larger for a fanned-out entry.
+
+Nothing accumulates across reprograms, because the rule list is rebuilt from scratch on each `AclTblConfig()` and the base indices are recomputed in the same pass. There is no separate placement state to clear and therefore no way for counts to double or to be dropped by a partially applied update — REQ-7 holds without qualification.
 
 ### Scaling
 
-| Scenario | VPP ACLs created |
-|----------|------------------|
-| No entry carries `IN_PORTS` | 1 (unchanged from today) |
-| All mux ports standby | 1 scoped ACL bound to N interfaces, plus the default-ACL placeholder |
-| Single mux port standby | 1 scoped ACL on 1 interface; all other ports sit on the placeholder |
-| K distinct signatures among the candidate ports | K scoped ACLs, plus the default ACL |
+| Scenario | VPP ACLs | VPP rules for the entry |
+|----------|----------|-------------------------|
+| No entry carries `IN_PORTS` | 1 (unchanged) | 1 |
+| Entry scoped to 1 port | 1 (unchanged) | 1 |
+| Entry scoped to N ports | 1 (unchanged) | N |
+| All 32 front-panel ports standby | 1 (unchanged) | 32 |
 
-The count tracks *distinct signatures*, not port count, because interfaces with identical applicable sets share one ACL. It is not the number of distinct `IN_PORTS` sets either: overlapping sets produce more signatures than sets, since a port named by two entries has a signature that neither entry's set produces on its own. Two entries scoped to `{A, B}` and `{B, C}` yield three signatures — `⟨E1⟩`, `⟨E1, E2⟩`, `⟨E2⟩` — from two sets. The default ACL is always present in addition, whether it holds the unscoped entries or degrades to the placeholder. Signature-keyed slot reuse means an unchanged scoped ACL keeps its swindex across a reprogram: its rules are replaced in place and the interfaces already bound to it are never disturbed.
+The ACL count never changes: a table is always one VPP ACL, as it is today. Cost moves to the rule count, which is linear in the number of named ports — an entry naming N ports costs N rules, and a table's total is the sum over its entries.
 
-Because a signature includes the unscoped entries, adding or removing an unscoped entry changes *every* signature in the table, so no slot is reused and all scoped ports are rebound. This is conservative but correct — those ACLs' contents genuinely did change. Scoped-only churn, such as a mux state transition, affects only the signatures that actually differ.
+For the shipping consumers this is small. The mux drop table holds one entry scoped to the standby ports, so its rule count is the standby port count, bounded by the front-panel port count. The PFC watchdog adds one entry per storming queue, each scoped to the storming ports.
+
+Two dataplane notes for larger scopes:
+
+**Tuplemerge folding.** As described above, tuplemerge may fold the fanned-out copies into one less-specific mask type, since a wildcard `l4` mask contains the in-port mask. The copies then share a bihash key and sit on a single collision chain. `split_partition()` splits a chain along whichever of `SRC_ADDR`, `DST_ADDR`, `SRC_PORT`, `DST_PORT` or `PROTO` varies most — it has **no interface dimension**, so it cannot separate rules that differ only by ingress interface. A large fan-out of otherwise identical rules can therefore degrade toward linear scanning within that chain. Correctness is unaffected, because `single_rule_match_5tuple()` re-checks the interface on exactly that path.
+
+**Rule count is not port count.** Only entries carrying `IN_PORTS` replicate. Unscoped entries stay at one rule each regardless of how many ports the table is bound to, so a table with no scoped entries is byte-for-byte what it is today — REQ-8.
 
 ---
 
 ## Proposed Changes
 
-### `SwitchVpp.h` Changes
+### VPP Changes
 
-| Addition | Purpose |
-|----------|---------|
-| `vpp_ace_placement_t` | One `(acl_index, vpp_rule_base_index, num_rules)` placement of an ACE |
-| `vpp_ace_cntr_info_t::placements` | Vector of placements, replacing the previous flat scalars |
-| `vpp_acl_port_scope_t` | `port_swindex` (interface → scoped ACL swindex) and `scoped_acls` (signature → swindex) |
-| `m_acl_port_scope` | Table OID → port scoping currently programmed in VPP |
-| `m_acl_tbl_dirty_ports` | Table OID → ports needing forced reconciliation |
+Carried as a patch in the `sonic-platform-vpp` VPP patch series (`vppbld/patches/0018-acl-match-on-ingress-interface.patch`).
 
-### `SwitchVppAcl.cpp` Changes
+| File | Change |
+|------|--------|
+| `src/plugins/acl/types.h` | `u32 in_sw_if_index` on `acl_rule_t` |
+| `src/plugins/acl/acl_types.api` | `u32 in_sw_if_index` on `typedef acl_rule`, with the "0 means any" and 16-bit contract documented |
+| `src/plugins/acl/acl.c` | API↔rule conversion in both directions; reject an index above `0xffff` in `acl_add_list()`; `in-port` CLI parser; show the interface in ACL display |
+| `src/plugins/acl/hash_lookup.c` | `make_mask_and_match_from_rule()` unmasks `l4.lsb_of_sw_if_index` and sets the match value |
+| `src/plugins/acl/public_inlines.h` | Interface comparison in `single_acl_match_5tuple()` (linear/fragment path) and `single_rule_match_5tuple()` (hash collision re-check) |
 
-New methods:
+No new API message is introduced; the field is added to the existing `acl_rule` type.
+
+### saivpp Changes
+
+| File | Change |
+|------|--------|
+| `vslib/vpp/vppxlate/SaiVppXlate.h` | `char in_hwif_name[64]` on `vpp_acl_rule_t`; empty means any |
+| `vslib/vpp/vppxlate/SaiVppXlate.c` | `vpp_acl_add_replace()` resolves `in_hwif_name` to a `sw_if_index` when building the message; unresolvable name fails the call |
+| `vslib/vpp/SwitchVpp.h` | Declaration of `acl_entry_in_ports_get()` |
+| `vslib/vpp/SwitchVppAcl.cpp` | `acl_entry_in_ports_get()`; fan-out in `fill_acl_rules()`; explicit `IN_PORTS` no-op case in `acl_rule_field_update()` |
+
+New method:
 
 | Method | Purpose |
 |--------|---------|
-| `acl_entry_in_ports_get()` | Two-step `get()` of `IN_PORTS`; `ITEM_NOT_FOUND` means unscoped, all other statuses propagate |
-| `acl_port_swindex_get()` | Resolve the swindex for one interface, falling back to the default ACL |
-| `acl_tbl_port_bindings_get()` | Enumerate `(port_oid, tbl_grp_oid, is_input)` for a table |
-| `acl_port_scope_update()` | Core: group, program, diff, unbind/rebind, reap |
-| `acl_ace_cntr_info_update()` | Accumulate counter placements |
-| `acl_ace_cntr_info_clear()` | Drop a table's placements before reprogramming |
+| `acl_entry_in_ports_get()` | Resolve an entry's `IN_PORTS` to VPP interface names. Returns `sai_status_t` and reports scoping through a separate `scoped` out-parameter, so "is scoped" and "could be resolved" stay distinguishable |
 
 Modified methods:
 
 | Method | Change |
 |--------|--------|
-| `acl_rule_field_update()` | Explicit `IN_PORTS` case pointing at the binding layer, replacing the bogus error log |
-| `AclTblConfig()` | Split ACEs into unscoped/scoped; `emptyAclCreate()` when all are scoped; call `acl_port_scope_update()` |
-| `AclTblRemove()` | Clear counters and dirty ports; delete scoped ACLs; retain undeleted ones and propagate failure |
-| `aclBindUnbindPort()` / `aclBindUnbindPorts()` | Resolve the swindex **per interface** |
-| `getAclEntryStats()` | Sum counters across all placements |
+| `acl_rule_field_update()` | Explicit `IN_PORTS` case, replacing the `default:` fall-through that logged `Unhandled ACL entry attribute ID` and then programmed the entry unscoped |
+| `fill_acl_rules()` | After generating an entry's rules, replicate them once per named interface |
+
+`getAclEntryStats()`, `AclTblConfig()`, `AclTblRemove()` and the binding paths are **unchanged**, because the fan-out preserves the existing contiguous `(base_index, num_rules)` representation and does not alter bindings.
 
 ### Files Changed
 
-| File | Change |
-|------|--------|
-| `vslib/vpp/SwitchVpp.h` | Port-scope and counter-placement structures; new member maps |
-| `vslib/vpp/SwitchVppAcl.cpp` | `IN_PORTS` read, port partitioning, scoped ACL programming, binding reconciliation, counter fan-out |
+| Repository | File | Change |
+|------------|------|--------|
+| `sonic-platform-vpp` | `vppbld/patches/0018-acl-match-on-ingress-interface.patch` | The VPP change above |
+| `sonic-platform-vpp` | `vppbld/patches/series` | Register the patch |
+| `sonic-platform-vpp` | `rules/vpp.mk` | `VPP_VERSION` `2606-0.5` → `2606-0.6` |
+| `sonic-sairedis` | `vslib/vpp/SwitchVpp.h` | Declaration |
+| `sonic-sairedis` | `vslib/vpp/SwitchVppAcl.cpp` | `IN_PORTS` read and rule fan-out |
+| `sonic-sairedis` | `vslib/vpp/vppxlate/SaiVppXlate.{h,c}` | Rule field and name→index resolution |
 
-`vslib/vpp/SwitchVppAcl.h` is deliberately **unchanged** — the design avoids adding fields to `acl_tbl_entries_t` / `ordered_ace_list_t`. No VPP API extension is required.
+### Version and Merge Ordering
+
+Adding a field to `acl_rule` changes the layout of the `acl_add_replace` message and therefore its **CRC**, which VPP uses to detect API mismatch. A syncd built against one version cannot program ACLs on the other, so the two changes must merge together:
+
+- `sonic-platform-vpp` and `sonic-sairedis` are a matched pair; neither is useful alone.
+- `rules/vpp.mk` bumps `VPP_VERSION` to `2606-0.6`. This is required whenever the patch series changes, because the version string is the cache key for the prebuilt debs — without the bump, consumers keep downloading debs built from the old series, and the CRC drift appears as an ACL programming failure at runtime rather than as a build error.
 
 ---
 
 ## Restrictions and Limitations
 
-- **No transactional staging.** Scoped ACLs are programmed in place rather than staged under fresh swindexes. If a scoped ACL fails after the default ACL has succeeded, some ports enforce new rules and others old until the next reprogram. Full staging would double peak ACL usage and is a substantially larger redesign.
-- **Brief unbound window.** Because bindings are appended by VPP, a changed port is fully unbound and rebound, leaving a sub-millisecond window in which no ACL is enforced on that port. `acl_interface_set_acl_list` would remove this but requires a new VPP API binding.
-- **ip2me state remains table-keyed.** `m_ip2me_drop_tables` is keyed by table, not by interface, so the ip2me bypass is enabled for a table if *any* of its ACLs — default or scoped — contains a deny. Re-keying it per interface is out of scope.
-- **The empty-table placeholder is a real rule.** VPP forbids a zero-rule ACL, so the placeholder default ACL matches destination `0.0.0.0/32` and denies it. Nothing legitimate carries that destination, but the ACL is not literally inert, and this design binds it to many more ports than before.
+- **Only the low 16 bits of the interface index are matched.** `lsb_of_sw_if_index` is a `u16` inside the L4 key's `u64`, so an index above `0xffff` cannot be represented. Such an index is rejected at configuration time rather than mismatched, and SONiC indices stay far below the limit, but the ceiling is real and lifting it would mean growing the key.
+- **Rule count grows with the scope.** An entry naming N ports costs N rules. The ACL count is unchanged, but a large fan-out of otherwise identical rules can be folded by tuplemerge onto one collision chain that `split_partition()` cannot split, since it has no interface dimension. Matching stays correct; the cost is lookup efficiency at large N.
+- **Requires a patched VPP.** The field does not exist upstream, so `sonic-sairedis` and the `sonic-platform-vpp` VPP package must stay in step. Upstreaming the plugin change would remove this coupling.
+- **ip2me state remains table-keyed.** `m_ip2me_drop_tables` is keyed by table, not by interface, so the ip2me bypass is enabled for a table if *any* of its rules contains a deny, regardless of which ports those rules name. Re-keying it per interface is out of scope.
 - **Egress scoping is not addressed.** Only `SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` is implemented; `OUT_PORTS` remains unhandled.
 
 ---
@@ -561,29 +552,43 @@ Modified methods:
 
 ### Unit / Dataplane Verification
 
-On a `dualtor-vpp` topology testbed with `Ethernet4` in standby, the expected post-fix dataplane state is:
+On a `vms-kvm-dual-vpp-t0-1` dual-ToR testbed, the expected post-fix dataplane state is one deny rule per standby port inside the table's single ACL, with the ACL still bound to every front-panel port:
 
 ```
-acl-index 3 (deny)  applied inbound on sw_if_index: 2          <-- Ethernet4 only
+acl-index 3 (deny)  applied inbound on sw_if_index: 1 .. 32     <-- binding unchanged
 
-sw_if_index  2 (Ethernet4):    input acl(s): 2, 3, 1           <-- deny present, permit last
-sw_if_index  3 (Ethernet8):    input acl(s): 2, <placeholder>, 1
-sw_if_index 32 (Ethernet124):  input acl(s): <placeholder>, 1
+acl-index 3:
+  rule 0: ipv4 deny any -> any  in-port bobm2      <-- one rule per standby port
+  rule 1: ipv4 deny any -> any  in-port bobm7
+  ...
+
+sw_if_index  2 (Ethernet4,  STANDBY):  input acl(s): 2, 3, 1
+sw_if_index  3 (Ethernet8,  ACTIVE ):  input acl(s): 2, 3, 1    <-- same list, different verdict
 ```
+
+The binding is deliberately identical on standby and active ports; the scope now comes from the rules, which is the whole point of the design.
+
+**Verified on the testbed:**
+
+| Check | Result |
+|-------|--------|
+| Rule count tracks the standby set | `vlab-vpp-03`: 18 standby ports → 18 ingress-scoped deny rules. `vlab-vpp-04`: 6 standby ports → 6 rules. Two ToRs with different mux distributions each matched their own standby set |
+| Binding unchanged | ACL 3 remained bound to all 32 interfaces on both, confirming the scoping comes from the rules and not from the bindings |
+| Complementary mux roles | The two ToRs held opposite mux states, as expected for the topology |
+
+**Outstanding:**
 
 | Check | Expectation |
 |-------|-------------|
-| Deny ACL binding | Bound to the standby port only, not all 32 |
-| Bind order | `sonic_acl_default_permit` remains last on every port |
-| IPv4 reachability | `ping` to a server behind an **active** mux port succeeds |
-| Mux health | `show mux status` reports `HEALTH healthy` on active ports |
-| Toggle | Repeated standby↔active transitions converge, with no ACL or swindex leak in `show acl-plugin acl` |
-| All-active | ACL set matches the known-good all-active baseline |
+| Downstream forwarding under toggle | Standby → active → standby with traffic in each state; packets are dropped only on standby ports and forwarded on active ones — REQ-1, REQ-2 |
+| Fragmented traffic | A scoped deny also drops non-first fragments on the named port, exercising the linear match path, and does not drop them elsewhere |
+| Priority preserved | A scoped `DROP` and a higher-priority unscoped `FORWARD` in one table resolve in priority order on the named port — REQ-3 |
 | Independent scopes | Two entries of one table scoped to *different* ports — the mux drop on one, a PFC watchdog rule on another — each drop only on the port its own entry names, and removing one entry leaves the other's port still dropping — REQ-4 |
 | Other tables preserved | After a toggle, every other table bound to the transitioning port is still bound, with unchanged content and position — REQ-5 |
-| Scoped read failure | A forced `IN_PORTS` read failure leaves the entry out of the dataplane rather than applying it everywhere — REQ-6 |
-| Counter fan-out | An unscoped entry replicated across several scoped ACLs reports the **sum** of the traffic hitting it on every port, not one port's share — REQ-7 |
-| Counter stability across reprogram | After a reprogram that changes the signatures, the same entry's counters are neither doubled nor reset, i.e. placements are rebuilt exactly once — REQ-7 |
+| Scoped read failure | A forced `IN_PORTS` read failure leaves the previous ACL in place and reports failure, rather than applying the entry everywhere — REQ-6 |
+| Counter fan-out | An entry scoped to several ports reports the **sum** of the traffic hitting it on all of them, not one port's share — REQ-7 |
+| Oversized index rejected | An `in_sw_if_index` above `0xffff` is refused by `acl_add_list()` on both the API and CLI paths rather than matching a different interface |
+| No-`IN_PORTS` regression | A table with no scoped entries produces byte-for-byte the same ACL as before the change — REQ-8 |
 
 ### sonic-mgmt Coverage
 
@@ -594,7 +599,7 @@ sw_if_index 32 (Ethernet124):  input acl(s): <placeholder>, 1
 | `tests/dualtor_mgmt` / mux switchover suites | Exercises REQ-1 and REQ-5 on the mux table |
 | `tests/acl/test_acl.py` | Regression guard for REQ-8 (tables with no `IN_PORTS` entries) |
 
-The results of these checks are not yet recorded: the implementation has not been run on a testbed, and the sub-millisecond figure quoted for the rebind window is an estimate from the number of binary API calls involved, not a measurement.
+Rule-level state was verified on a live testbed as recorded above. The forwarding checks listed as outstanding have not been run yet, so the dataplane effect is currently evidenced by rule inspection rather than by packets.
 
 ---
 
@@ -602,9 +607,12 @@ The results of these checks are not yet recorded: the implementation has not bee
 
 - SAI ACL attributes: `SAI/inc/saiacl.h` (`SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS`)
 - VPP ACL plugin API: `vpp/src/plugins/acl/acl.api`, `acl_types.api`
-- VPP ACL evaluation: `vpp/src/plugins/acl/dataplane_node.c` (context selection), `public_inlines.h` (hash and linear matchers), `hash_lookup.c` (key construction), `lookup_context.c` (context lifecycle)
+- VPP ACL rule and key layout: `vpp/src/plugins/acl/types.h` (`acl_rule_t`), `fa_node.h` (`fa_5tuple_t`, `fa_session_l4_key_t`)
+- VPP ACL evaluation: `vpp/src/plugins/acl/dataplane_node.c` (context selection), `public_inlines.h` (5-tuple construction, hash and linear matchers), `hash_lookup.c` (key construction, tuplemerge, `split_partition()`), `lookup_context.c` (context lifecycle)
 - VPP lookup context rationale: `vpp/src/plugins/acl/acl_lookup_context.rst`, `acl_hash_lookup_doc.rst`
 - SONiC ACL orchestration: `sonic-swss/orchagent/aclorch.cpp`
 - MuxOrch ACL handling: `sonic-swss/orchagent/muxorch.cpp` (`MuxAclHandler`)
 - PFC watchdog ACL handling: `sonic-swss/orchagent/pfcactionhandler.cpp` (`PfcWdAclHandler`)
 - sonic-mgmt dynamic ACL tests: `tests/generic_config_updater/test_dynamic_acl.py`
+- Implementation — VPP plugin patch: [sonic-net/sonic-platform-vpp#278](https://github.com/sonic-net/sonic-platform-vpp/pull/278)
+- Implementation — saivpp fan-out: [sonic-net/sonic-sairedis#2064](https://github.com/sonic-net/sonic-sairedis/pull/2064)
