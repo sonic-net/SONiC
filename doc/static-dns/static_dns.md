@@ -4,9 +4,10 @@
 
 ### Revision
 
- |  Rev  | Date  |       Author       | Change Description |
- | :---: | :---: | :----------------: | ------------------ |
- |  0.1  |       | Oleksandr Ivantsiv | Initial version    |
+ |  Rev  |    Date    |       Author       | Change Description                   |
+ | :---: | :--------: | :----------------: | ------------------------------------ |
+ |  0.1  |            | Oleksandr Ivantsiv | Initial version                      |
+ |  0.2  | 2025-04-24 | Brad House         | Add search, ndots, timeout, attempts |
 
 ### Scope  
 
@@ -129,27 +130,62 @@ fe80:1000:2000:3000::1
 
 ```yang
 /* table for static DNS nameservers configuration */
-container sonic-dns {
+    container sonic-dns {
 
-	container DNS_NAMESERVER {
+        container DNS_NAMESERVER {
 
-		description "DNS_NAMESERVER part of config_db.json";
+            description "DNS_NAMESERVER part of config_db.json";
 
-		list DNS_NAMESERVER_LIST {
-			max-elements 3;
-			description "List of nameservers IPs";
+            list DNS_NAMESERVER_LIST {
+                max-elements 3;
+                description "List of nameservers IPs";
 
-			key "ip";
+                key "ip";
 
-			leaf ip {
-				description "IP as DHCP_SERVER";
-				type inet:ip-address;
-			}
-		} /* end of list DNS_NAMESERVER_LIST */
+                leaf ip {
+                    description "IP as DHCP_SERVER";
+                    type inet:ip-address;
+                }
+            } /* end of list DNS_NAMESERVER_LIST */
 
-	} /* end of container DNS_NAMESERVER */
+        } /* end of container DNS_NAMESERVER */
 
-} /* end of container sonic-dns */
+        container DNS_OPTIONS {
+            description "DNS_OPTIONS requires at least one DNS_NAMESERVER to be set.";
+
+            leaf-list search {
+                description "Configure the DNS search suffix list";
+                type inet:host;
+            }
+
+            leaf ndots {
+                description "Sets a threshold for the number of dots which must appear in a name given before an initial absolute query will be made";
+                type uint8 {
+                    range "0..15";
+                }
+                default 1;
+            }
+
+            leaf timeout {
+                description "Sets the amount of time in seconds the resolver will wait for a response from a remote name server before retrying the query via a different name server.";
+                type uint8 {
+                    range "1..30";
+                }
+                default 5;
+            }
+
+            leaf attempts {
+                description "Sets the number of times the resolver will send a query to its name servers before giving up and returning an error to the calling application.";
+                type uint8 {
+                    range "1..5";
+                }
+                default 2;
+            }
+
+            when "count(../DNS_NAMESERVER/DNS_NAMESERVER_LIST/ip) > 0";
+        } /* end of container DNS_OPTIONS */
+
+    } /* end of container sonic-dns */
 
 ```
 
@@ -162,6 +198,12 @@ Config DB will be extended with the following table:
 		"1.1.1.1": {},
 		"fe80:1000:2000:3000::1": {}
 	},
+	"DNS_OPTIONS": {
+		"search": [ "d1.example.com", "d2.example.com", "d3.example.com" ],
+		"ndots": 0,
+		"timeout": 1,
+		"attempts": 2
+	}
 }
 ```
 
