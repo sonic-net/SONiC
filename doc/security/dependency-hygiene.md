@@ -26,7 +26,7 @@
   - [9.2 CLI/YANG model Enhancements](#92-cliyang-model-enhancements)
   - [9.3 Config DB Enhancements](#93-config-db-enhancements)
   - [9.4 Renovate configuration](#94-renovate-configuration)
-  - [9.5 Steps for organization administrators](#95-steps-for-organization-administrators)
+  - [9.5 Setup steps](#95-setup-steps)
 - [10. Warmboot and Fastboot Design Impact](#10-warmboot-and-fastboot-design-impact)
 - [11. Memory Consumption](#11-memory-consumption)
 - [12. Restrictions/Limitations](#12-restrictionslimitations)
@@ -338,37 +338,35 @@ Renovate cannot approve its own pull requests. Something must supply the approva
 | Option | How | Trade-off |
 |--------|-----|-----------|
 | Ruleset bypass | Add Renovate to the list of actors that skip required reviews | Simple. Applies to every Renovate PR. Cannot be limited to security updates. |
-| **`renovate-approve` app** | Approves only PRs Renovate already marked for automerge | **Recommended.** Scope is set in `renovate.json`, so "security only on release branches" is enforced in config. Review requirements stay intact for everyone else. |
+| `renovate-approve` app | Approves only PRs Renovate already marked for automerge | Satisfies branch protection properly. Costs an extra app plus an admin setting on every repository. |
 | `automergeType: branch` | No PR at all; commits straight to the branch when tests pass | Quietest. No audit trail. Poor fit for a release branch. |
 | Bot account plus approval workflow | A machine account approves via GitHub Actions | Most control, most to maintain, standing credential in org secrets. |
-| **Reuse the existing merge robot** | Renovate labels its pull requests `automerge`; `automation-pr-scan.yml` in `sonic-pipelines` merges them, as it already does for other bot pull requests | **Nothing for org admins to enable.** Reuses machinery the project already runs. But it merges with `gh pr merge --admin`, which bypasses branch protection outright. |
+| **Reuse the existing merge robot** ← chosen | Renovate labels its pull requests `automerge`; `automation-pr-scan.yml` in `sonic-pipelines` merges them, as it already does for other bot pull requests | **Nothing for org admins to enable.** Reuses machinery the project already runs. But it merges with `gh pr merge --admin`, which bypasses branch protection outright. |
 
-**The project already has a merge robot, and it is worth understanding before choosing.** `azure-pipelines/automation-pr-scan.yml` in `sonic-pipelines` runs hourly across roughly 25 repositories. It finds bot pull requests carrying an `automerge` label, evaluates their checks itself, and merges the ones that pass. It is how the nightly version upgrade pull requests land today, and it already escalates failures to the release branch owner.
+**Decision: reuse the existing merge robot.** It is the least new machinery, and it is the pattern the project already runs.
 
-Pointing it at Renovate needs only a change to which authors it looks for. That removes both admin prerequisites above: no `allow_auto_merge`, no second app.
+`azure-pipelines/automation-pr-scan.yml` in `sonic-pipelines` runs hourly across roughly 25 repositories. It finds bot pull requests carrying an `automerge` label, evaluates their checks itself, merges the ones that pass, and escalates the ones that do not to the release branch owner. It is how the nightly version upgrade pull requests land today.
 
-Two things to be comfortable with before choosing it:
+What this needs:
 
-- **It merges with `gh pr merge --admin`**, which bypasses branch protection rather than satisfying it. The guarantee that the test suite passed comes from the robot's own logic, not from GitHub enforcing it.
-- **That logic skips any check whose name matches `OPTIONAL` or `vulnerability scan`.** For pull requests whose entire purpose is fixing vulnerabilities, that exclusion should be revisited.
+| | |
+|---|---|
+| In `renovate.json` | Apply the `automerge` label to the updates that should merge unattended. Nothing else — Renovate's own automerge stays off. |
+| In `automation-pr-scan.yml` | Widen the author filter, which is `-A mssonicbld` today, to include the Renovate bot. |
+| From org admins | Nothing. No `allow_auto_merge`, no second app. |
 
-Either path works, and the choice is a judgement about privilege:
+The scoping stays where it belongs: Renovate decides which pull requests carry the label, so "security updates only on release branches" is still enforced in `renovate.json`.
 
-| | `renovate-approve` | Existing merge robot |
-|---|---|---|
-| Branch protection | Satisfied | Bypassed with `--admin` |
-| Org admin work | Enable auto-merge, install an app | None |
-| Who decides what merges | `renovate.json` | `renovate.json` via the label, plus the robot's check logic |
-| New machinery | One app | None |
+Two consequences to accept openly:
 
-Both keep the scoping decision in `renovate.json`, because both are triggered by what Renovate marks. The Working Group should choose based on whether bypassing branch protection for dependency updates is acceptable. If it is, reusing the robot is less to build and less to explain.
+- **The robot merges with `gh pr merge --admin`**, so it bypasses branch protection rather than satisfying it. The assurance that the test suite passed comes from the robot's own logic, not from GitHub enforcing it. This is already true of every bot pull request that merges in this project today; this proposal does not make it worse, but it does extend it to a new class of change.
+- **That logic skips any check whose name matches `OPTIONAL` or `vulnerability scan`.** For pull requests that exist to fix vulnerabilities, that exclusion should be revisited before automerge is switched on.
 
-Two prerequisites for the organization administrators:
+The alternative considered and not chosen was the [`renovate-approve` app](https://github.com/apps/renovate-approve), which satisfies branch protection properly instead of bypassing it, at the cost of an extra app and an admin setting on every repository. If the `--admin` bypass later proves unacceptable, that is the path back.
 
-1. **`allow_auto_merge` is currently `false` on `sonic-buildimage`.** It must be enabled per repository.
-2. **`EasyCLA` is a required status check on `master`.** A bot author has to clear it. The existing `mssonicbld` version upgrade bot already opens pull requests against these branches, so this has been solved before in this organization and that solution should be reused.
+One prerequisite remains regardless of which path is taken. **`EasyCLA` is a required status check**, and a pull request from a bot has to clear it. The existing `mssonicbld` bot already opens pull requests against these branches, so this has been solved before here and that solution should be reused.
 
-Required checks on `master` today are `EasyCLA`, `Azure.sonic-buildimage`, and `Semgrep`. All three must pass before an automerge fires. The SONiC test suite is thorough, so a green run on a dependency bump is strong evidence the bump is good. That is the basis for merging without a person.
+Checks on `master` today are `EasyCLA`, `Azure.sonic-buildimage`, and `Semgrep`. The SONiC test suite is thorough, so a green run on a dependency bump is strong evidence the bump is good. That is the basis for merging without a person.
 
 #### 7.7 Reviewers
 
@@ -487,8 +485,7 @@ Configuration lives in `renovate.json` at the root of each repository. A worked 
   "enabledManagers": ["gomod", "cargo", "github-actions", "dockerfile", "custom.regex"],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security"],
-    "automerge": true
+    "labels": ["security", "automerge"]
   },
   "packageRules": [
     {
@@ -525,57 +522,48 @@ Put the preset at `renovate/default.json` there, and every repository reduces to
 
 Repository-specific settings, such as which managers are enabled, are added alongside the `extends` line. The double slash selects a file in a subdirectory; a preset at the repository root would be `local>sonic-net/sonic-pipelines:default`.
 
-#### 9.5 Steps for organization administrators
+#### 9.5 Setup steps
 
-Nothing here requires a server, a build machine, or a stored credential. It is all GitHub settings. Five steps, in order.
+Most of this is not an organization setting at all. Because the existing merge robot is doing the merging, only the first step needs an administrator.
 
-**Step 1 — Let Renovate see the repositories.**
+**Step 1 — Let Renovate see the repositories.** *(organization administrator)*
 
 - Go to <https://github.com/apps/renovate> and select **Configure**.
 - Choose the **sonic-net** organization.
 - Grant access to all repositories.
 
-Renovate does nothing until a repository contains a `renovate.json`. Granting access org-wide is safe; each repository still opts in by adding that file.
+Renovate does nothing until a repository contains a `renovate.json`. Granting access across the organization is safe; each repository still opts in by adding that file.
 
-**Step 2 — Turn on auto-merge in each repository.**
+**Step 2 — Create the reviewer team.** *(organization administrator, with the Security Working Group)*
 
-This is off today in `sonic-buildimage`, and nothing merges automatically until it is on.
+- Create a team named `sonic-security-wg` in the `sonic-net` organization.
+- Add the public Working Group membership.
+- Do **not** reuse `sonic-private-security-group`. That team handles embargoed vulnerabilities, and these pull requests are public.
 
-- In the repository: **Settings → General → Pull Requests**.
-- Tick **Allow auto-merge**.
+**Step 3 — Let the bot pass the CLA check.** *(Build Working Group)*
 
-Repeat for every repository in scope. This only permits auto-merge; it does not make anything merge on its own.
+`EasyCLA` is a required check, and a pull request from a bot has to clear it or it can never merge. The `mssonicbld` bot already opens pull requests against these branches, so this has been solved before here. Find how that bot is handled in the Linux Foundation EasyCLA configuration and apply the same treatment to the Renovate bot.
 
-**Step 3 — Let approvals happen without a person.**
+**Step 4 — Point the merge robot at Renovate.** *(Build Working Group)*
 
-GitHub does not let Renovate approve its own pull requests, so a second app supplies the approval.
+In `sonic-pipelines`, edit `azure-pipelines/automation-pr-scan.yml`. It looks for pull requests authored by `mssonicbld`; widen that to include the Renovate bot. Everything else about the robot stays as it is.
 
-- Install <https://github.com/apps/renovate-approve> on the same organization.
-- If a repository requires two approving reviews, also install `renovate-approve-2`.
+Before switching this on, look at the rule that skips checks named `OPTIONAL` or `vulnerability scan`. Merging a security fix without regard to the vulnerability scan result is not what anyone intends.
 
-This app only approves pull requests that Renovate has already marked for automatic merging. Which ones those are is decided in `renovate.json`, not here. Everything else still needs a human review as it does today.
+**Step 5 — Add the configuration.** *(Build Working Group)*
 
-**Step 4 — Let the bot pass the CLA check.**
+- Add `renovate/default.json` to `sonic-pipelines`.
+- Add a `renovate.json` to `sonic-buildimage` and to each owned submodule, extending that preset.
 
-`EasyCLA` is a required check on these branches, and a pull request from a bot has to clear it or it can never merge.
-
-The `mssonicbld` bot already opens pull requests against these same branches for nightly version upgrades, so this has been solved before in this organization. Find how that bot is handled in the Linux Foundation EasyCLA configuration and apply the same treatment to the Renovate bot.
-
-**Step 5 — Check the branch rules.**
-
-For each branch in scope, `master` and `202611`:
-
-- Confirm which checks are required. Today on `master` they are `EasyCLA`, `Azure.sonic-buildimage`, and `Semgrep`. All of them must pass before anything merges automatically. That is the intended behaviour and should not be relaxed.
-- Confirm whether approving reviews are required. This cannot be read without administrator access, so someone with those rights has to check it. If reviews are required, step 3 is what satisfies them.
-- Do **not** add Renovate to any bypass list. The design deliberately routes approval through step 3 instead, because that is the only place where "security updates only on release branches" can actually be enforced.
+Nothing happens until this step. Steps 1 through 4 are permission and plumbing.
 
 **What to expect afterwards.**
 
-- A burst of pull requests on `master` the first week, as a backlog of never-applied updates clears. It shrinks quickly.
+- A burst of pull requests on `master` in the first week, as a backlog of never-applied updates clears. It shrinks quickly.
 - Only security updates on `202611`. Never a feature or major version bump.
-- Anything that fails the test suite stays open as a normal pull request for a person to look at. Nothing broken merges itself.
+- Anything that fails its checks stays open as a normal pull request, and the robot escalates it to the release branch owner. Nothing broken merges itself.
 
-**How to stop it.** Remove the `renovate.json` from a repository, or uninstall the app from the organization. There is no other state to unwind.
+**How to stop it.** Remove the `automerge` label from the Renovate configuration and nothing merges unattended any more. Remove the `renovate.json` from a repository and Renovate ignores it. Uninstall the app and it all stops. There is no other state to unwind.
 
 ### 10. Warmboot and Fastboot Design Impact
 
@@ -598,6 +586,7 @@ No change. Nothing is added to the image.
 
 | Limitation | Effect |
 |------------|--------|
+| Automerge bypasses branch protection | The merge robot uses `gh pr merge --admin`. Checks are enforced by the robot's own logic rather than by GitHub. Accepted in [7.6](#76-approval-and-merge); this is already how every bot pull request merges here. |
 | About one in twelve in-scope findings is unreachable | npm lockfiles inside Debian's Go and Ruby packages. Not SONiC dependencies. |
 | Findings with no available fix are excluded throughout | About a third of all findings. Nothing can act on them, so they are not counted. They are still real, and shrinking them is a matter of shipping less. See [12](#12-restrictionslimitations) below. |
 | The FIPS Go pin depends on a FIPS build existing | Renovate reports the lag; it cannot merge until SONiC publishes the package. See [7.3](#73-custom-managers-for-sonics-own-pins). |
@@ -646,16 +635,13 @@ Drift between two scans is reported by `scripts/sbom_vuln_diff.py`. A scheduled 
 | # | Item | Owner |
 |---|------|-------|
 | 1 | Authorize the Renovate app on the `sonic-net` organization | Org admins |
-| 2 | Enable `allow_auto_merge` on the repositories in scope | Org admins |
-| 3 | Install `renovate-approve` and confirm it satisfies branch protection | Org admins |
-| 4 | Confirm how `mssonicbld` clears `EasyCLA`, and reuse it for Renovate | Build WG |
-| 5 | Create a `sonic-security-wg` team in the organization and populate it with the public Working Group membership | Org admins, Security WG |
-| 6 | Confirm whether required reviews are configured on the branches in scope. The branch protection API does not expose this without admin rights | Org admins |
-| 7 | Choose a resolution for the pip constraint seam | Build WG |
-| 8 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | Build WG |
-| 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | Build WG |
-| 10 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | Security WG |
-| 11 | Agree that the shared preset lands in `sonic-pipelines` at `renovate/default.json` | Build WG |
-| 12 | Choose between `renovate-approve` and the existing merge robot. See [7.6](#76-approval-and-merge) | Security WG, Build WG |
-| 13 | If the merge robot is chosen, revisit its rule that skips checks named `vulnerability scan` | Build WG |
-| 14 | Add a `202611` entry to `release-owners_github_account.json` | Release manager |
+| 2 | Create a `sonic-security-wg` team and populate it with the public Working Group membership | Org admins, Security WG |
+| 3 | Confirm how `mssonicbld` clears `EasyCLA`, and reuse it for Renovate | Build WG |
+| 4 | Widen the author filter in `automation-pr-scan.yml` to include the Renovate bot | Build WG |
+| 5 | Revisit the robot's rule that skips checks named `vulnerability scan`, before automerge is switched on | Build WG |
+| 6 | Add the shared preset to `sonic-pipelines` at `renovate/default.json` | Build WG |
+| 7 | Add a `202611` entry to `release-owners_github_account.json` | Release manager |
+| 8 | Choose a resolution for the pip constraint seam | Build WG |
+| 9 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | Build WG |
+| 10 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | Build WG |
+| 11 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | Security WG |
