@@ -25,6 +25,7 @@
 |---|---|---|---|
 | v1.0 | 2026-07-31 | Aaron Bernardino | Initial SONiC-VPP packet-trimming design |
 | v1.1 | 2026-08-26 | Aaron Bernardino | Document disabling / opt-out behavior (§9.1) |
+| v1.2 | 2026-08-31 | Aaron Bernardino | Surface binary-admission and switch-wide-QoS limitations in summary (review: lolyu) |
 
 ## 2. Scope
 
@@ -51,6 +52,23 @@ and validated end to end, SAI-VPP advertises the capability truthfully as
 **supported**
 (`SWITCH_TRIMMING_CAPABLE=true`), at which point the `sonic-mgmt` symmetric suite
 runs.
+
+> **Maturity and key limitations (read first).** On VPP, packet trimming in this
+> increment is **functionally demonstrated, not yet operationally useful under
+> real congestion**, for two reasons that are load-bearing enough to state up
+> front (both detailed in [13.2](#132-design-limitations)):
+>
+> 1. **Binary admission, not occupancy-driven.** The delivered SAI-VPP
+>    translation programs each eligible queue's token bucket as either
+>    always-admit or always-reject; there is no proportional rate or
+>    buffer-occupancy modeling. An admission failure is therefore produced only
+>    by an explicitly blocking scheduler (the test topology's `PIR=1`), never by
+>    organic queue buildup under real traffic ([7.10](#710-scheduler-and-capacity-inputs)).
+> 2. **Switch-wide QoS classification, not per-port.** Original-queue
+>    classification uses a single switch-wide DSCP-to-queue table built from the
+>    first port that has both QoS maps. This is correct only under uniform
+>    per-port QoS and is **not safe for heterogeneous-QoS deployments**, where a
+>    non-matching port can misclassify the original queue ([6.1](#61-control-plane-flow)).
 
 The capability stays honest by narrowing *what* is advertised rather than gating
 the switch capability off: SAI-VPP advertises only the enum values the datapath
@@ -267,6 +285,13 @@ contract into compact VPP policy:
 - A switch-wide DSCP-to-queue table composed from the first front-panel port
   that has both `DSCP_TO_TC` and `TC_TO_QUEUE` maps.
 - Binary blocked/unlimited admission state derived from the effective scheduler.
+
+Composing one switch-wide DSCP-to-queue table from a single port assumes uniform
+per-port QoS. This is **not safe for heterogeneous-QoS deployments**: on a port
+whose maps differ from the chosen reference port, original-queue classification
+can be wrong. It is masked on the uniform testbed today because a misclassified
+queue changes behavior only when it is both trim-eligible and blocking
+([13.2](#132-design-limitations)).
 
 ACL trim-disable programming, per-port TC-to-DSCP resolution, and SAI trim
 counter sourcing are deferred.
@@ -860,7 +885,12 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
   by the vendor path.
 - The admission shim models only the token-bucket behavior needed to produce a
   recoverable admission failure; it is not full hardware-MMU or multi-level HQoS
-  emulation.
+  emulation. Because the delivered translation is binary (always-admit vs
+  always-reject), an admission failure is produced only by an explicitly
+  blocking scheduler (the test topology's `PIR=1`), never by organic queue
+  occupancy under real traffic. Trimming on VPP is thus functionally
+  demonstrated, not yet operationally useful under real congestion
+  ([7.10](#710-scheduler-and-capacity-inputs)).
 - SAI-VPP programs only unicast (or `ALL`) queue objects into the admission
   shim. Multicast queues are skipped by type regardless of index so a colliding
   multicast index cannot overwrite the same-indexed unicast admission slot.
@@ -882,7 +912,10 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
   required by the single-worker KVM topology.
 - The global trim policy and the DSCP-to-queue table are switch-wide; per-port
   QoS-map variation is not modeled in the initial implementation, which matches
-  the uniform testbed configuration.
+  the uniform testbed configuration. This design is therefore **not safe for
+  heterogeneous-QoS deployments**: a port whose QoS maps differ from the
+  reference port can have its original queue misclassified (it only changes
+  behavior when the misclassified queue is both trim-eligible and blocking).
 - When no front-panel port currently has both a `DSCP_TO_TC` and a `TC_TO_QUEUE`
   map bound, SAI-VPP keeps the plugin's last-good switch-wide DSCP-to-queue table
   rather than pushing an all-zero table (which would collapse every DSCP onto
