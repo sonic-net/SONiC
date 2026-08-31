@@ -56,7 +56,8 @@ Out of scope:
 | Item | Reason |
 |------|--------|
 | The Linux kernel | Highest risk change in the tree. Needs config refresh and out-of-tree module rebuilds on every platform. Stays a human process. |
-| Debian packages | Debian ships the fixes. The nightly version freeze pipeline already sweeps them forward. See [7.8](#78-relationship-to-the-nightly-version-freeze). |
+| Stock Debian packages | Debian ships the fixes and the nightly version freeze pipeline already sweeps them forward. See [7.8](#78-relationship-to-the-nightly-version-freeze). |
+| Packages SONiC rebuilds from its own pinned sources | A real gap, but not one Renovate should close. The pins are git commits and FIPS builds, and moving them needs judgement a bot cannot supply. Tracked separately by an SBOM-driven triage effort. See [4.1](#41-where-the-findings-come-from). |
 | Locally patched components | A version bump fights the patch series. Handled by hand. |
 | Removing unused dependencies | Belongs to the [202611 EOL and deprecation plan](../eol-planning/202611-eol-and-deprecation.md). |
 
@@ -87,21 +88,29 @@ The numbers below come from the CycloneDX SBOM of a `sonic-broadcom` image built
 
 #### 4.1 Where the findings come from
 
-Absolute finding counts are deliberately withheld until the work below has landed. Everything here is expressed as a share, which is what the argument rests on anyway.
+Two conventions apply to every number below.
 
-Where the findings sit:
+- **Only findings with a published fix are counted.** A finding nobody has fixed cannot be acted on by automation or by a person, so it tells us nothing about whether this proposal is worth doing. Roughly a third of all findings are discarded on this basis. Note that "no fix" is not the same as "not a real problem" — some are genuinely unpatched upstream. They are excluded because they are not actionable, not because they are invalid.
+- **Counts are given as shares, not absolute numbers**, until the work below has landed.
 
-| Source | Share of all findings | In scope |
-|--------|----------------------:|----------|
-| Linux kernel and packages built from it | ~71% | No |
-| Debian packages | ~18% | No |
-| Go, Rust, Python, npm components | ~10% | Yes |
+Where the fixable findings sit:
 
-Nearly all of the in-scope findings have a published fix available. The rest of this section is about that in-scope tenth.
+| Source | Share of fixable findings | In scope |
+|--------|--------------------------:|----------|
+| Linux kernel and packages built from it | ~82% | No |
+| Go, Rust, Python, npm components | ~16% | Yes |
+| Debian packages, all of them SONiC rebuilds | ~3% | No |
+
+Two observations about what is excluded:
+
+- **No stock Debian package appears in the fixable set at all.** Every Debian finding with an available fix is a package SONiC builds itself from a pinned source — grub, the FIPS OpenSSL, monit, lldpd and lm-sensors. Debian published fixes for all of them; none reach us, because we do not ship Debian's build. The nightly snapshot refresh is doing its job; the pins are the problem.
+- Those rebuilds are **not** handled here. Re-pinning a git commit or waiting on a FIPS build is a judgement call, not a version bump, so they are tracked by a separate SBOM-driven triage effort rather than by Renovate.
+
+That leaves the Go, Rust and Python components. The rest of this section is about them.
 
 #### 4.2 What automation can reach
 
-Every fixable in-scope finding was traced back to the file that would have to change. Grouped by that file:
+Every in-scope fixable finding was traced back to the file that would have to change. Grouped by that file:
 
 | Fixed by changing | Share of in-scope findings | Actions |
 |-------------------|---------------------------:|---------|
@@ -116,9 +125,9 @@ Every fixable in-scope finding was traced back to the file that would have to ch
 
 Three results drive this proposal:
 
-1. **Three version strings account for more than four in ten in-scope findings**, and a disproportionate share of the most severe ones. They sit in a shell script and a Dockerfile template, and today a person edits them by hand, rarely. This is the single largest win and it needs custom managers.
-2. **The build slaves carry three Go toolchains**, worth about one in seven in-scope findings. Nobody decided that. It is what happens without this workflow. See [7.3](#73-custom-managers-for-sonics-own-pins).
-3. **The rest is ordinary dependency drift.** 59 Go bumps, 13 Rust, 14 Python. Routine work no one is doing.
+1. **Version numbers a person pinned and then stopped watching are the bulk of the problem.** Docker, containerd, OpenTelemetry and the Go and Rust toolchains together account for well over half of in-scope findings. Not one of them sits in a file Renovate reads by default. All of them need custom managers, and that is where most of the value is.
+2. **Under a third is ordinary dependency drift** in `go.mod`, `Cargo.toml` and Python requirements — the part a stock Renovate setup would handle on day one.
+3. **Almost everything in scope is reachable.** Around eleven in twelve in-scope findings can be closed by editing a file in this tree.
 
 Only the npm findings are out of reach, about one in twelve. They are lockfiles buried inside Debian's own Go and Ruby packages, and are not SONiC dependencies in any useful sense. There is no tracked `package.json` in the tree.
 
@@ -269,7 +278,7 @@ Rust is a plain version string and needs only a pattern:
 }
 ```
 
-Go needs one caveat. `FIPS_GOLANG_VERSION` points at a FIPS patched package SONiC publishes to its own mirror, so the bump cannot land until that package exists. Renovate can still watch upstream Go and open a pull request reporting how far behind we are. Treat the Go toolchain as a notification, not an automerge candidate.
+The Go toolchain needs one caveat. `FIPS_GOLANG_VERSION` points at a FIPS patched package SONiC publishes to its own mirror, so the bump cannot land until that package exists. Renovate can still watch upstream Go and open a pull request reporting how far behind we are. Treat the Go toolchain as a notification, not an automerge candidate.
 
 Each new hand-pinned version added to the tree should come with a custom manager entry. That is the rule this document asks for: **if a person pins it, the bot maintains it.**
 
@@ -405,8 +414,8 @@ Option 1 is the cheapest and is what this document proposes for the first phase.
 | Phase | Work | Share addressed |
 |-------|------|----------------:|
 | 1 | Custom managers for Docker, containerd, and OpenTelemetry in `sonic-buildimage` | ~43% |
-| 2 | Remove the duplicate Go toolchain from the trixie slave, then add toolchain custom managers | ~15% |
-| 3 | Native managers on `master` in `sonic-buildimage` and the 6 repositories holding `go.mod` and `Cargo.toml` | ~31% |
+| 2 | Native managers on `master` in `sonic-buildimage` and the 6 repositories holding `go.mod` and `Cargo.toml` | ~30% |
+| 3 | Remove the duplicate Go toolchain from the trixie slave, then add toolchain custom managers | ~15% |
 | 4 | Enable automerge for security updates once the earlier phases have run manually for one cycle | — |
 | 5 | Extend to the remaining owned repositories and to the `202611` branch | — |
 | 6 | Resolve the pip seam | ~4% |
@@ -555,8 +564,10 @@ No change. Nothing is added to the image.
 
 | Limitation | Effect |
 |------------|--------|
-| About one in twelve fixable findings is unreachable | npm lockfiles inside Debian's Go and Ruby packages. Not SONiC dependencies. |
-| The Go toolchain bump depends on a FIPS build | Renovate reports the lag; it cannot merge the bump until the FIPS package exists. See [7.3](#73-custom-managers-for-sonics-own-pins). |
+| About one in twelve in-scope findings is unreachable | npm lockfiles inside Debian's Go and Ruby packages. Not SONiC dependencies. |
+| Findings with no available fix are excluded throughout | About a third of all findings. Nothing can act on them, so they are not counted. They are still real, and shrinking them is a matter of shipping less. See [12](#12-restrictionslimitations) below. |
+| The FIPS Go pin depends on a FIPS build existing | Renovate reports the lag; it cannot merge until SONiC publishes the package. See [7.3](#73-custom-managers-for-sonics-own-pins). |
+| SONiC's Debian rebuilds are not covered | grub, FIPS OpenSSL, monit, lldpd and lm-sensors. Debian has fixed all of them and the fixes do not reach us. Handled by SBOM-driven triage, not by this proposal. |
 | Renovate only sees what is in a manifest | Anything resolved at build time is invisible to it. That is the nightly pipeline's job. |
 | A bump can conflict with a local patch | Locally patched components are out of scope for this document. |
 | `CODEOWNERS` coverage is thin | Automatic reviewer assignment will not work well until this is fixed. See [7.7](#77-reviewers). |
@@ -610,3 +621,4 @@ Drift between two scans is reported by `scripts/sbom_vuln_diff.py`. A scheduled 
 | 7 | Choose a resolution for the pip constraint seam | Build WG |
 | 8 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | Build WG |
 | 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | Build WG |
+| 10 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | Security WG |
