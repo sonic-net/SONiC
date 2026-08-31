@@ -341,8 +341,27 @@ Renovate cannot approve its own pull requests. Something must supply the approva
 | **`renovate-approve` app** | Approves only PRs Renovate already marked for automerge | **Recommended.** Scope is set in `renovate.json`, so "security only on release branches" is enforced in config. Review requirements stay intact for everyone else. |
 | `automergeType: branch` | No PR at all; commits straight to the branch when tests pass | Quietest. No audit trail. Poor fit for a release branch. |
 | Bot account plus approval workflow | A machine account approves via GitHub Actions | Most control, most to maintain, standing credential in org secrets. |
+| **Reuse the existing merge robot** | Renovate labels its pull requests `automerge`; `automation-pr-scan.yml` in `sonic-pipelines` merges them, as it already does for other bot pull requests | **Nothing for org admins to enable.** Reuses machinery the project already runs. But it merges with `gh pr merge --admin`, which bypasses branch protection outright. |
 
-The recommendation is the [`renovate-approve` app](https://github.com/apps/renovate-approve). It is the only option where the decision about what merges unattended lives in the same file that defines what a security update is.
+**The project already has a merge robot, and it is worth understanding before choosing.** `azure-pipelines/automation-pr-scan.yml` in `sonic-pipelines` runs hourly across roughly 25 repositories. It finds bot pull requests carrying an `automerge` label, evaluates their checks itself, and merges the ones that pass. It is how the nightly version upgrade pull requests land today, and it already escalates failures to the release branch owner.
+
+Pointing it at Renovate needs only a change to which authors it looks for. That removes both admin prerequisites above: no `allow_auto_merge`, no second app.
+
+Two things to be comfortable with before choosing it:
+
+- **It merges with `gh pr merge --admin`**, which bypasses branch protection rather than satisfying it. The guarantee that the test suite passed comes from the robot's own logic, not from GitHub enforcing it.
+- **That logic skips any check whose name matches `OPTIONAL` or `vulnerability scan`.** For pull requests whose entire purpose is fixing vulnerabilities, that exclusion should be revisited.
+
+Either path works, and the choice is a judgement about privilege:
+
+| | `renovate-approve` | Existing merge robot |
+|---|---|---|
+| Branch protection | Satisfied | Bypassed with `--admin` |
+| Org admin work | Enable auto-merge, install an app | None |
+| Who decides what merges | `renovate.json` | `renovate.json` via the label, plus the robot's check logic |
+| New machinery | One app | None |
+
+Both keep the scoping decision in `renovate.json`, because both are triggered by what Renovate marks. The Working Group should choose based on whether bypassing branch protection for dependency updates is acceptable. If it is, reusing the robot is less to build and less to explain.
 
 Two prerequisites for the organization administrators:
 
@@ -381,6 +400,8 @@ Two notes:
 - **The team does not exist yet.** It has to be created in the `sonic-net` organization and populated with the public Working Group membership.
 - **It must not be `sonic-private-security-group`.** That team exists, but it is for embargoed vulnerability handling. These pull requests are public and describe already-published fixes. Routing them there mixes two things that should stay apart.
 
+For release branches, add the release branch owner alongside the Working Group. The project already tracks them in `azure-pipelines/release-owners_github_account.json` in `sonic-pipelines`, and the existing merge robot escalates to that person when a bot pull request fails. `202611` is not in that file yet and will need an entry.
+
 Renovate adds reviewers when it opens a pull request and does not revisit them afterwards. If the Working Group grows, existing open pull requests keep the reviewers they were created with.
 
 #### 7.8 Relationship to existing automation
@@ -391,6 +412,7 @@ Two nightly pipelines already automate parts of this, both running as `mssonicbl
 |---|---|---|
 | **Version freeze** | Builds 9 platforms with version pinning switched off so `apt` and `pip` resolve whatever is current, runs `make freeze`, and opens a pull request with the result | `sonic-buildimage`, `.azure-pipelines/azure-pipelines-UpgrateVersion.yml` |
 | **Submodule update** | Advances the submodule pointers in `sonic-buildimage` across every supported branch and opens a pull request | `sonic-pipelines`, `azure-pipelines/submodule-update.yml` |
+| **PR merge robot** | Merges bot pull requests that carry an `automerge` label and pass their checks, and escalates the ones that do not | `sonic-pipelines`, `azure-pipelines/automation-pr-scan.yml` |
 | **Renovate** | Updates the dependency versions written inside those repositories, and the versions SONiC pins by hand | proposed here |
 
 **Both existing pipelines stay.** Each does something Renovate cannot:
@@ -634,3 +656,6 @@ Drift between two scans is reported by `scripts/sbom_vuln_diff.py`. A scheduled 
 | 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | Build WG |
 | 10 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | Security WG |
 | 11 | Agree that the shared preset lands in `sonic-pipelines` at `renovate/default.json` | Build WG |
+| 12 | Choose between `renovate-approve` and the existing merge robot. See [7.6](#76-approval-and-merge) | Security WG, Build WG |
+| 13 | If the merge robot is chosen, revisit its rule that skips checks named `vulnerability scan` | Build WG |
+| 14 | Add a `202611` entry to `release-owners_github_account.json` | Release manager |
