@@ -540,17 +540,17 @@ Renovate does nothing until a repository contains a `renovate.json`. Granting ac
 - Add the public Working Group membership.
 - Do **not** reuse `sonic-private-security-group`. That team handles embargoed vulnerabilities, and these pull requests are public.
 
-**Step 3 — Let the bot pass the CLA check.** *(Build Working Group)*
+**Step 3 — Let the bot pass the CLA check.** *(SONiC Foundation / EasyCLA administrators)*
 
 `EasyCLA` is a required check, and a pull request from a bot has to clear it or it can never merge. The `mssonicbld` bot already opens pull requests against these branches, so this has been solved before here. Find how that bot is handled in the Linux Foundation EasyCLA configuration and apply the same treatment to the Renovate bot.
 
-**Step 4 — Point the merge robot at Renovate.** *(Build Working Group)*
+**Step 4 — Point the merge robot at Renovate.** *(`sonic-pipelines` maintainers)*
 
 In `sonic-pipelines`, edit `azure-pipelines/automation-pr-scan.yml`. It looks for pull requests authored by `mssonicbld`; widen that to include the Renovate bot. Everything else about the robot stays as it is.
 
 Before switching this on, look at the rule that skips checks named `OPTIONAL` or `vulnerability scan`. Merging a security fix without regard to the vulnerability scan result is not what anyone intends.
 
-**Step 5 — Add the configuration.** *(Build Working Group)*
+**Step 5 — Add the configuration.** *(`sonic-pipelines` maintainers, plus each repository's owners)*
 
 - Add `renovate/default.json` to `sonic-pipelines`.
 - Add a `renovate.json` to `sonic-buildimage` and to each owned submodule, extending that preset.
@@ -632,16 +632,18 @@ Drift between two scans is reported by `scripts/sbom_vuln_diff.py`. A scheduled 
 
 ### 14. Open/Action items
 
-| # | Item | Owner |
-|---|------|-------|
-| 1 | Authorize the Renovate app on the `sonic-net` organization | Org admins |
-| 2 | Create a `sonic-security-wg` team and populate it with the public Working Group membership | Org admins, Security WG |
-| 3 | Confirm how `mssonicbld` clears `EasyCLA`, and reuse it for Renovate | Build WG |
-| 4 | Widen the author filter in `automation-pr-scan.yml` to include the Renovate bot | Build WG |
-| 5 | Revisit the robot's rule that skips checks named `vulnerability scan`, before automerge is switched on | Build WG |
-| 6 | Add the shared preset to `sonic-pipelines` at `renovate/default.json` | Build WG |
-| 7 | Add a `202611` entry to `release-owners_github_account.json` | Release manager |
-| 8 | Choose a resolution for the pip constraint seam | Build WG |
-| 9 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | Build WG |
-| 10 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | Build WG |
-| 11 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | Security WG |
+Owners below are taken from `CODEOWNERS` where the repository has one, and from the organization or Foundation where the action is an account or policy setting. `sonic-pipelines` has no `CODEOWNERS`, so items touching it are addressed to its maintainers. Nothing here is assigned to a body that has not agreed to take it — these are the people who own the files, not a commitment on their part.
+
+| # | Item | Touches | Suggested owner |
+|---|------|---------|-----------------|
+| 1 | Authorize the Renovate app on the `sonic-net` organization | org settings | Org admins |
+| 2 | Create a `sonic-security-wg` team and populate it with the public Working Group membership | org settings | Org admins, Security WG |
+| 3 | Confirm how `mssonicbld` clears `EasyCLA`, and reuse it for Renovate | EasyCLA configuration | SONiC Foundation / EasyCLA admins |
+| 4 | Widen the author filter in `automation-pr-scan.yml` to include the Renovate bot | `sonic-pipelines` | `sonic-pipelines` maintainers |
+| 5 | Revisit the robot's rule that skips checks named `vulnerability scan`, before automerge is switched on | `sonic-pipelines` | `sonic-pipelines` maintainers, Security WG |
+| 6 | Add the shared preset at `renovate/default.json` | `sonic-pipelines` | `sonic-pipelines` maintainers |
+| 7 | Add a `202611` entry to `release-owners_github_account.json` | `sonic-pipelines` | 202611 release manager |
+| 8 | Choose a resolution for the pip constraint seam | `src/sonic-build-hooks/` | `@sonic-net/sonic-build` |
+| 9 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | `sonic-slave-trixie/Dockerfile.j2`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build`, plus `/rules/` owners |
+| 10 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | `src/sonic-fips/`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build` |
+| 11 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | — | Security WG |
