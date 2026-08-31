@@ -134,7 +134,7 @@ Only the npm findings are out of reach, about one in twelve. They are lockfiles 
 | R6 | One pull request per ecosystem per update type. Not one per dependency. |
 | R7 | Major version bumps get their own pull request, one dependency at a time. |
 | R8 | Version numbers SONiC pins by hand are updated by the same automation. |
-| R9 | Reviewers are assigned automatically. |
+| R9 | Reviewers are assigned automatically, to the Security Working Group. |
 | R10 | The existing reproducible build version files keep working. |
 
 Exemptions: the kernel (R1–R9 do not apply), Debian packages, and locally patched components.
@@ -355,7 +355,24 @@ Automatic reviewer assignment needs `CODEOWNERS`, and coverage is thin:
 
 In `sonic-buildimage` itself, most paths Renovate touches are not covered by a specific rule. `build_debian.sh` and the `src/*/Cargo.toml` trees fall through to the catch-all `* @lguohan`, which would route a large share of the first wave to one person.
 
-Either write explicit `reviewers` lists into each `renovate.json`, or extend `CODEOWNERS` first. This is a prerequisite of the rollout, not a detail to discover after the pull requests start arriving.
+**Decision: use an explicit `reviewers` list, not `CODEOWNERS`.** Renovate pull requests go to the Security Working Group, which is the group that wants this work done. `CODEOWNERS` is left alone.
+
+Prefer a GitHub team over a list of names. A team is one place to edit when membership changes, instead of a `renovate.json` in every repository:
+
+```json
+{
+  "reviewers": ["team:sonic-security-wg"]
+}
+```
+
+The `team:` prefix takes the last part of the team name, so `team:sonic-security-wg` means `@sonic-net/sonic-security-wg`.
+
+Two notes:
+
+- **The team does not exist yet.** It has to be created in the `sonic-net` organization and populated with the public Working Group membership.
+- **It must not be `sonic-private-security-group`.** That team exists, but it is for embargoed vulnerability handling. These pull requests are public and describe already-published fixes. Routing them there mixes two things that should stay apart.
+
+Renovate adds reviewers when it opens a pull request and does not revisit them afterwards. If the Working Group grows, existing open pull requests keep the reviewers they were created with.
 
 #### 7.8 Relationship to the nightly version freeze
 
@@ -423,6 +440,7 @@ Configuration lives in `renovate.json` at the root of each repository. A worked 
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "baseBranchPatterns": ["master", "202611"],
+  "reviewers": ["team:sonic-security-wg"],
   "dependencyDashboard": true,
   "osvVulnerabilityAlerts": true,
   "separateMajorMinor": true,
@@ -587,7 +605,7 @@ Drift between two scans is reported by `scripts/sbom_vuln_diff.py`. A scheduled 
 | 2 | Enable `allow_auto_merge` on the repositories in scope | Org admins |
 | 3 | Install `renovate-approve` and confirm it satisfies branch protection | Org admins |
 | 4 | Confirm how `mssonicbld` clears `EasyCLA`, and reuse it for Renovate | Build WG |
-| 5 | Decide whether `CODEOWNERS` is extended or explicit reviewer lists are used | Component owners |
+| 5 | Create a `sonic-security-wg` team in the organization and populate it with the public Working Group membership | Org admins, Security WG |
 | 6 | Confirm whether required reviews are configured on the branches in scope. The branch protection API does not expose this without admin rights | Org admins |
 | 7 | Choose a resolution for the pip constraint seam | Build WG |
 | 8 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | Build WG |
