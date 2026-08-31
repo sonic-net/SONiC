@@ -98,7 +98,7 @@ Where the fixable findings sit:
 | Source | Share of fixable findings | In scope |
 |--------|--------------------------:|----------|
 | Linux kernel and packages built from it | ~82% | No |
-| Go, Rust, Python, npm components | ~16% | Yes |
+| Go, Rust and Python components | ~16% | Yes |
 | Debian packages, all of them SONiC rebuilds | ~3% | No |
 
 Two observations about what is excluded:
@@ -146,7 +146,7 @@ Only the npm findings are out of reach, about one in twelve. They are lockfiles 
 | R9 | Reviewers are assigned automatically, to the Security Working Group. |
 | R10 | The existing reproducible build version files keep working. |
 
-Exemptions: the kernel (R1–R9 do not apply), Debian packages, and locally patched components.
+Exemptions, per [section 2](#2-scope): the kernel, stock Debian packages, SONiC's own Debian rebuilds, and locally patched components. R1–R9 do not apply to any of them.
 
 ### 6. Architecture Design
 
@@ -235,7 +235,7 @@ These come from `download.docker.com`, not from Debian. Debian will never move t
 ARG OTEL_VERSION=0.144.0
 ```
 
-This is a Dockerfile, but with a `.j2` suffix, so Renovate skips it. Point the built-in Dockerfile manager at the template and give it a datasource:
+The built-in `dockerfile` manager does not match a `.j2` suffix, and even where it did it has no datasource for a bare `ARG`. A custom manager handles both:
 
 ```json
 {
@@ -270,11 +270,15 @@ Rust is a plain version string and needs only a pattern:
 
 ```json
 {
-  "customType": "regex",
-  "managerFilePatterns": ["/^sonic-slave-trixie/Dockerfile\\.j2$/"],
-  "matchStrings": ["--default-toolchain (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
-  "depNameTemplate": "rust-lang/rust",
-  "datasourceTemplate": "github-releases"
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^sonic-slave-trixie/Dockerfile\\.j2$/"],
+      "matchStrings": ["--default-toolchain (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "rust-lang/rust",
+      "datasourceTemplate": "github-releases"
+    }
+  ]
 }
 ```
 
@@ -295,7 +299,7 @@ Not one pull request per dependency. Grouping keeps the count manageable and kee
 
 Major bumps are isolated because they are the ones that break. When a grouped PR fails, nobody knows which dependency did it. When an isolated major fails, everybody does.
 
-Expected volume at steady state is a handful of pull requests per week per repository. The initial sweep will be larger and will shrink as the backlog clears.
+Steady-state volume has not been estimated and should not be guessed at here; it depends on upstream release cadence across every dependency in [7.2](#72-what-renovate-reads). What is known is the shape: the first sweep clears a backlog nobody has touched and will be far larger than what follows. `prConcurrentLimit` and `prHourlyLimit` are the levers if it proves too much.
 
 #### 7.5 Branch policy
 
@@ -329,11 +333,35 @@ Expected volume at steady state is a handful of pull requests per week per repos
 }
 ```
 
-What counts as a security update is decided by GitHub's vulnerability alerts and by the OSV database. Both cover Go, Rust, Python, and npm, which is the whole of the in-scope set. Debian and the kernel are excluded from this document, so nothing in scope depends on a source Renovate cannot see.
+**What counts as a security update, and what does not.** Renovate classifies an update as a security fix from GitHub's vulnerability alerts or the OSV database. Both are keyed by ecosystem:
+
+| Lane | Datasource | Can Renovate call it a security update? |
+|------|-----------|------------------------------------------|
+| `gomod`, `cargo`, `pip` | ecosystem registries | Yes |
+| Docker, containerd | `deb` on `download.docker.com` | **No** |
+| OpenTelemetry Collector, Rust toolchain | `github-releases` | **No** |
+| Go toolchain | SONiC's FIPS mirror | **No** |
+
+There is no advisory feed behind a custom manager, so Renovate has nothing to match a CVE against. **This matters: the security-only rule above would silence exactly the lane that carries the most findings.** Left as written, a release branch would receive the `go.mod` and `Cargo.toml` bumps and none of the Docker, OpenTelemetry or toolchain ones — around three fifths of what is in scope.
+
+Resolving it means naming the hand-pinned dependencies explicitly on release branches rather than relying on classification:
+
+```json
+{
+  "matchBaseBranches": ["202611"],
+  "matchManagers": ["custom.regex"],
+  "matchUpdateTypes": ["patch", "minor"],
+  "enabled": true
+}
+```
+
+Those pull requests are opened but **not** labelled `automerge`, because nothing has established they are security fixes. A person reviews them. That keeps the release branch's promise — no unreviewed change that is not a published security fix — while not silently dropping the largest lane.
+
+The alternative is to accept that hand-pinned versions move on `master` only, and that a release branch carries whatever it was cut with. For a branch that lives a year, that is not acceptable for Docker and containerd.
 
 #### 7.6 Approval and merge
 
-Renovate cannot approve its own pull requests. Something must supply the approval.
+Renovate cannot approve its own pull requests. Either something supplies the approval, or something merges past the requirement.
 
 | Option | How | Trade-off |
 |--------|-----|-----------|
@@ -404,7 +432,7 @@ Renovate adds reviewers when it opens a pull request and does not revisit them a
 
 #### 7.8 Relationship to existing automation
 
-Two nightly pipelines already automate parts of this, both running as `mssonicbld`. Renovate is a third leg, not a replacement for either.
+Three pipelines already automate parts of this, all acting as `mssonicbld`. Renovate is a fourth piece, not a replacement for any of them.
 
 | | What it does | Where it lives |
 |---|---|---|
@@ -413,7 +441,7 @@ Two nightly pipelines already automate parts of this, both running as `mssonicbl
 | **PR merge robot** | Merges bot pull requests that carry an `automerge` label and pass their checks, and escalates the ones that do not | `sonic-pipelines`, `azure-pipelines/automation-pr-scan.yml` |
 | **Renovate** | Updates the dependency versions written inside those repositories, and the versions SONiC pins by hand | proposed here |
 
-**Both existing pipelines stay.** Each does something Renovate cannot:
+**All three stay.** The two that update versions do something Renovate cannot:
 
 | | Version freeze | Submodule update | Renovate |
 |---|---|---|---|
@@ -510,7 +538,7 @@ Configuration lives in `renovate.json` at the root of each repository. A worked 
 }
 ```
 
-Shared settings should live in one preset so that 33 files do not drift apart. **`sonic-net/sonic-pipelines` is the right home for it** — that repository is already where shared cross-repo automation lives, and it has an established review population.
+Shared settings should live in one preset so that 33 files do not drift apart. **`sonic-net/sonic-pipelines` is the right home for it** — that repository already holds the shared cross-repo automation this design depends on, including the merge robot and the submodule updater. It has no `CODEOWNERS`, so review there falls to its existing maintainers.
 
 Put the preset at `renovate/default.json` there, and every repository reduces to:
 
@@ -575,7 +603,7 @@ Against the specific questions in the template:
 
 - Nothing is added to the boot critical chain.
 - No new CPU work is added to the boot path.
-- Third party bumps are the point of the feature, and each one is measured by the existing pipeline like any other change.
+- Third party bumps are the point of the feature. Each is gated by the same pipeline as any other pull request. No additional boot-time measurement is proposed here.
 - No new service or container is introduced, so there is nothing to delay.
 
 ### 11. Memory Consumption
@@ -586,14 +614,15 @@ No change. Nothing is added to the image.
 
 | Limitation | Effect |
 |------------|--------|
+| Hand-pinned versions cannot be auto-classified as security fixes | No advisory feed sits behind a custom manager. On release branches they are enabled by name and reviewed by a person rather than automerged. See [7.5](#75-branch-policy). |
 | Automerge bypasses branch protection | The merge robot uses `gh pr merge --admin`. Checks are enforced by the robot's own logic rather than by GitHub. Accepted in [7.6](#76-approval-and-merge); this is already how every bot pull request merges here. |
 | About one in twelve in-scope findings is unreachable | npm lockfiles inside Debian's Go and Ruby packages. Not SONiC dependencies. |
-| Findings with no available fix are excluded throughout | About a third of all findings. Nothing can act on them, so they are not counted. They are still real, and shrinking them is a matter of shipping less. See [12](#12-restrictionslimitations) below. |
+| Findings with no available fix are excluded throughout | About a third of all findings. Nothing can act on them, so they are not counted. They are still real; shrinking them means shipping less, which belongs to the [EOL plan](../eol-planning/202611-eol-and-deprecation.md). |
 | The FIPS Go pin depends on a FIPS build existing | Renovate reports the lag; it cannot merge until SONiC publishes the package. See [7.3](#73-custom-managers-for-sonics-own-pins). |
 | SONiC's Debian rebuilds are not covered | grub, FIPS OpenSSL, monit, lldpd and lm-sensors. Debian has fixed all of them and the fixes do not reach us. Handled by SBOM-driven triage, not by this proposal. |
 | Renovate only sees what is in a manifest | Anything resolved at build time is invisible to it. That is the nightly pipeline's job. |
 | A bump can conflict with a local patch | Locally patched components are out of scope for this document. |
-| `CODEOWNERS` coverage is thin | Automatic reviewer assignment will not work well until this is fixed. See [7.7](#77-reviewers). |
+| Reviewers depend on a team that does not exist yet | `sonic-security-wg` has to be created before reviewer assignment works. `CODEOWNERS` is deliberately not used. See [7.7](#77-reviewers). |
 | The pip constraint seam | See [7.8](#78-relationship-to-existing-automation). Python is excluded in phase 1. |
 | Renovate's `git-submodules` manager is deliberately left off | Submodule pointers are already advanced nightly by `submodule-update.yml` in `sonic-pipelines`. Enabling it here would duplicate that and produce competing pull requests. |
 
@@ -606,7 +635,7 @@ Renovate ships no code into SONiC, so there is nothing to unit test in the usual
 | Test | Method |
 |------|--------|
 | Configuration is valid | `npx --yes --package renovate -- renovate-config-validator` in CI on every change to a `renovate.json` |
-| Custom managers match the right lines | Renovate dry run against a branch; confirm it finds `DOCKER_VERSION`, `CONTAINERD_IO_VERSION`, and `OTEL_VERSION` and no others |
+| Custom managers match the right lines | Renovate dry run against a branch; confirm it finds `DOCKER_VERSION`, `CONTAINERD_IO_VERSION`, `OTEL_VERSION`, `FIPS_GOLANG_VERSION` and the rustup toolchain, and nothing else |
 | Release branch rules hold | Dry run against `202611`; confirm only security updates are proposed |
 | Grouping is correct | Dry run against `master`; confirm one PR per ecosystem per update type, and majors ungrouped |
 
@@ -647,3 +676,4 @@ Owners below are taken from `CODEOWNERS` where the repository has one, and from 
 | 9 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | `sonic-slave-trixie/Dockerfile.j2`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build`, plus `/rules/` owners |
 | 10 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | `src/sonic-fips/`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build` |
 | 11 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | — | Security WG |
+| 12 | Confirm the release-branch handling of hand-pinned versions in [7.5](#75-branch-policy): enabled by name and human reviewed, rather than dropped | `renovate.json` | Security WG |
