@@ -18,7 +18,7 @@
   - [7.5 Branch policy](#75-branch-policy)
   - [7.6 Approval and merge](#76-approval-and-merge)
   - [7.7 Reviewers](#77-reviewers)
-  - [7.8 Relationship to the nightly version freeze](#78-relationship-to-the-nightly-version-freeze)
+  - [7.8 Relationship to existing automation](#78-relationship-to-existing-automation)
   - [7.9 Rollout](#79-rollout)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
@@ -56,7 +56,7 @@ Out of scope:
 | Item | Reason |
 |------|--------|
 | The Linux kernel | Highest risk change in the tree. Needs config refresh and out-of-tree module rebuilds on every platform. Stays a human process. |
-| Stock Debian packages | Debian ships the fixes and the nightly version freeze pipeline already sweeps them forward. See [7.8](#78-relationship-to-the-nightly-version-freeze). |
+| Stock Debian packages | Debian ships the fixes and the nightly version freeze pipeline already sweeps them forward. See [7.8](#78-relationship-to-existing-automation). |
 | Packages SONiC rebuilds from its own pinned sources | A real gap, but not one Renovate should close. The pins are git commits and FIPS builds, and moving them needs judgement a bot cannot supply. Tracked separately by an SBOM-driven triage effort. See [4.1](#41-where-the-findings-come-from). |
 | Locally patched components | A version bump fights the patch series. Handled by hand. |
 | Removing unused dependencies | Belongs to the [202611 EOL and deprecation plan](../eol-planning/202611-eol-and-deprecation.md). |
@@ -383,21 +383,29 @@ Two notes:
 
 Renovate adds reviewers when it opens a pull request and does not revisit them afterwards. If the Working Group grows, existing open pull requests keep the reviewers they were created with.
 
-#### 7.8 Relationship to the nightly version freeze
+#### 7.8 Relationship to existing automation
 
-`.azure-pipelines/azure-pipelines-UpgrateVersion.yml` already automates part of this. It runs nightly, builds 9 platforms with version pinning switched off so `apt` and `pip` resolve whatever is current, runs `make freeze` to record what was actually installed, and opens a pull request as `mssonicbld`.
+Two nightly pipelines already automate parts of this, both running as `mssonicbld`. Renovate is a third leg, not a replacement for either.
 
-**It stays.** It does something Renovate cannot do:
-
-| | Nightly freeze | Renovate |
+| | What it does | Where it lives |
 |---|---|---|
-| Works from | What a build actually resolved | What a manifest declares |
-| Covers transitive packages | Yes | No |
-| Per platform, per architecture, per container | Yes | No |
-| Pins the Debian snapshot timestamp | Yes | No |
-| Reads `go.mod`, `Cargo.toml`, `package.json` | No | Yes |
+| **Version freeze** | Builds 9 platforms with version pinning switched off so `apt` and `pip` resolve whatever is current, runs `make freeze`, and opens a pull request with the result | `sonic-buildimage`, `.azure-pipelines/azure-pipelines-UpgrateVersion.yml` |
+| **Submodule update** | Advances the submodule pointers in `sonic-buildimage` across every supported branch and opens a pull request | `sonic-pipelines`, `azure-pipelines/submodule-update.yml` |
+| **Renovate** | Updates the dependency versions written inside those repositories, and the versions SONiC pins by hand | proposed here |
 
-The dividing line: **the pipeline owns what the build resolves. Renovate owns what a manifest declares.** They do not overlap, with one exception.
+**Both existing pipelines stay.** Each does something Renovate cannot:
+
+| | Version freeze | Submodule update | Renovate |
+|---|---|---|---|
+| Works from | What a build resolved | Repository HEADs | What a manifest declares |
+| Covers transitive packages | Yes | No | No |
+| Per platform, architecture, container | Yes | No | No |
+| Pins the Debian snapshot timestamp | Yes | No | No |
+| Moves submodule pointers | No | Yes | No |
+| Reads `go.mod`, `Cargo.toml` | No | No | Yes |
+| Updates hand-pinned version strings | No | No | Yes |
+
+The dividing line: **the freeze pipeline owns what the build resolves, the submodule pipeline owns which commit of each repository we build, and Renovate owns what the manifests inside those repositories declare.** They do not overlap, with one exception.
 
 **The pip seam.** The `pip` build hook (`src/sonic-build-hooks/scripts/buildinfo_base.sh`, lines 327-350) passes the frozen `versions-py3` file to every `pip install` as a constraint file. It removes a package from that constraint only when an exact version appears on the pip command line. It never reads `-r requirements.txt`. So if Renovate bumps a pin inside a `requirements.txt`, the frozen constraint still names the old version, and the build either fails on a conflict or quietly installs the old one until the next nightly freeze.
 
@@ -483,13 +491,17 @@ Configuration lives in `renovate.json` at the root of each repository. A worked 
 }
 ```
 
-Shared settings should live in a preset in the `sonic-net/.github` repository so that 33 files do not drift apart:
+Shared settings should live in one preset so that 33 files do not drift apart. **`sonic-net/sonic-pipelines` is the right home for it** — that repository is already where shared cross-repo automation lives, and it has an established review population.
+
+Put the preset at `renovate/default.json` there, and every repository reduces to:
 
 ```json
 {
-  "extends": ["local>sonic-net/.github:renovate-config"]
+  "extends": ["local>sonic-net/sonic-pipelines//renovate/default"]
 }
 ```
+
+Repository-specific settings, such as which managers are enabled, are added alongside the `extends` line. The double slash selects a file in a subdirectory; a preset at the repository root would be `local>sonic-net/sonic-pipelines:default`.
 
 #### 9.5 Steps for organization administrators
 
@@ -571,9 +583,8 @@ No change. Nothing is added to the image.
 | Renovate only sees what is in a manifest | Anything resolved at build time is invisible to it. That is the nightly pipeline's job. |
 | A bump can conflict with a local patch | Locally patched components are out of scope for this document. |
 | `CODEOWNERS` coverage is thin | Automatic reviewer assignment will not work well until this is fixed. See [7.7](#77-reviewers). |
-| The pip constraint seam | See [7.8](#78-relationship-to-the-nightly-version-freeze). Python is excluded in phase 1. |
-| The `git-submodules` manager is beta | Automatic bumping of the 52 submodule pointers is not proposed here. Submodule pointers stay manual. |
-| Renovate cannot tell why a submodule pointer moved | Even if enabled later, a pointer bump cannot be classified as a security update, so it could not be automerged on a release branch. |
+| The pip constraint seam | See [7.8](#78-relationship-to-existing-automation). Python is excluded in phase 1. |
+| Renovate's `git-submodules` manager is deliberately left off | Submodule pointers are already advanced nightly by `submodule-update.yml` in `sonic-pipelines`. Enabling it here would duplicate that and produce competing pull requests. |
 
 ### 13. Testing Requirements/Design
 
@@ -622,3 +633,4 @@ Drift between two scans is reported by `scripts/sbom_vuln_diff.py`. A scheduled 
 | 8 | Remove the duplicate Go toolchain from the trixie slave. Debian `golang-go` and the FIPS build are both installed | Build WG |
 | 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | Build WG |
 | 10 | Stand up SBOM-driven triage for the rebuilt Debian packages, which this proposal does not cover | Security WG |
+| 11 | Agree that the shared preset lands in `sonic-pipelines` at `renovate/default.json` | Build WG |
