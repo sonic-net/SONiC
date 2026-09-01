@@ -28,9 +28,11 @@
 | sonic-platform-common | sonic-platform-common-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-common-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-common-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
+|  | sonic-platform-common-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
 | sonic-platform-daemons | sonic-platform-daemons-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-daemons-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-daemons-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
+|  | sonic-platform-daemons-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
 | sonic-platform-pdk-pde | sonic-platform-pdk-pde-maintainer | Geans Pin (BRCM) | geans-pin | enabled |
 | sonic-py-swsssdk | sonic-py-swsssdk-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
 | sonic-restapi | sonic-restapi-maintainer | Lawrence Lee (Microsoft) | theasianpianist | enabled |
