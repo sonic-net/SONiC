@@ -1,0 +1,435 @@
+# Secure Boot Certificate Management CLI
+
+## 1. <a name='TableofContent'></a>Table of Content
+
+<!-- vscode-markdown-toc -->
+* 1. [Table of Content](#TableofContent)
+    * 1.1. [Revision](#Revision)
+    * 1.2. [Scope](#Scope)
+    * 1.3. [Definitions/Abbreviations](#DefinitionsAbbreviations)
+    * 1.4. [Overview](#Overview)
+    * 1.5. [Requirements](#Requirements)
+    * 1.6. [Architecture Design](#ArchitectureDesign)
+    * 1.7. [High-Level Design](#HighLevelDesign)
+        * 1.7.1. [UEFI Flow](#UEFIFlow)
+        * 1.7.2. [Module Elements Breakdown](#ModuleElementsBreakdown)
+        * 1.7.3. [Security Model](#SecurityModel)
+        * 1.7.4. [CLI Design](#CLIDesign)
+        * 1.7.5. [Command Examples](#CommandExamples)
+        * 1.7.6. [Backend Contract](#BackendContract)
+    * 1.8. [SAI API](#SAIAPI)
+    * 1.9. [Configuration and Management](#ConfigurationandManagement)
+        * 1.9.1. [CLI/YANG Model Enhancements](#CLIYANGModelEnhancements)
+        * 1.9.2. [Config DB Enhancements](#ConfigDBEnhancements)
+    * 1.10. [Warmboot and Fastboot Design Impact](#WarmbootandFastbootDesignImpact)
+    * 1.11. [Restrictions/Limitations](#RestrictionsLimitations)
+    * 1.12. [Testing Requirements/Design](#TestingRequirementsDesign)
+        * 1.12.1. [Unit Test Cases](#UnitTestCases)
+        * 1.12.2. [System Test Cases](#SystemTestCases)
+    * 1.13. [Open/Action Items](#OpenActionItems)
+<!-- /vscode-markdown-toc -->
+
+### 1.1. <a name='Revision'></a>Revision
+
+| Rev | Date | Author | Change Description |
+| :---: | :---: | :--- | :--- |
+| 0.1 | 08/2026 | Platform Team | Initial HLD for Secure Boot certificate management CLI and backend contract |
+
+### 1.2. <a name='Scope'></a>Scope
+
+This HLD defines a platform-agnostic SONiC CLI and backend contract for managing Secure Boot certificate state and authenticated certificate update operations.
+
+The scope is:
+
+* Show Secure Boot backend status.
+* Show Secure Boot mode/policy information when exposed by the platform.
+* Show state for Platform Key (`PK`), Key Exchange Key (`KEK`), allowed signature database (`db`), and forbidden/revoked signature database (`dbx`).
+* Submit authenticated-variable update files for `PK`, `KEK`, `db`, and `dbx`.
+* Keep all platform-specific storage, client/service, hardware root-of-trust, and persistence details behind a backend abstraction.
+* Keep private signing keys off the device.
+
+The initial implementation uses a platform helper and native platform client/service APIs to access the secure-variable backend. The permanent architectural model remains UEFI compatible so that the same logical variables and authenticated-variable semantics are preserved independent of the underlying storage technology.
+
+### 1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
+
+| Term | Description |
+| :--- | :--- |
+| Secure Boot | UEFI mechanism that verifies boot components before execution |
+| PK | UEFI Platform Key |
+| KEK | UEFI Key Exchange Key |
+| db | UEFI allowed signature database |
+| dbx | UEFI forbidden/revoked signature database |
+| ESL | EFI Signature List |
+| Authenticated Variable / AV | UEFI authenticated-variable update payload |
+| Secure Variable Backend | Persistent implementation used to store and protect PK/KEK/db/dbx |
+| Hardware Root of Trust / RoT | Optional platform security hardware that anchors trust and protects persistent security state |
+| Backend helper | Platform-provided executable implementing the SONiC Secure Boot backend contract |
+| Setup/provisioning mode | Initial enrollment state |
+| Deployed mode | Normal field state where updates require authenticated authorization |
+
+### 1.4. <a name='Overview'></a>Overview
+
+SONiC Secure Boot and Secure Upgrade flows depend on trusted public certificates being available through the standard UEFI Secure Boot variables `PK`, `KEK`, `db`, and `dbx`.
+
+The SONiC CLI provides a stable management interface while the platform-specific implementation remains below a backend contract. A platform may implement the secure-variable backend using firmware NVRAM, a protected hardware-backed store, a security service, or another persistent mechanism. Those implementation details are intentionally outside the SONiC CLI contract.
+
+The CLI does not replace or weaken UEFI authenticated-variable semantics. It submits requests to the backend. The backend is responsible for authenticated update validation, ownership/policy enforcement, replay/timestamp checks where applicable, and protected persistence.
+
+### 1.5. <a name='Requirements'></a>Requirements
+
+#### Functional requirements
+
+| ID | Requirement |
+| :--- | :--- |
+| SB-CERT-REQ-1 | SONiC shall provide show commands for Secure Boot backend state. |
+| SB-CERT-REQ-2 | SONiC shall provide a show command for Secure Boot mode/policy when supported. |
+| SB-CERT-REQ-3 | SONiC shall show state for `PK`, `KEK`, `db`, and `dbx`. |
+| SB-CERT-REQ-4 | SONiC may distinguish vendor/platform and customer stores when the backend exposes that distinction. |
+| SB-CERT-REQ-5 | SONiC shall provide a config command to submit authenticated-variable update files for `PK`, `KEK`, `db`, and `dbx`. |
+| SB-CERT-REQ-6 | SONiC shall not accept, generate, or persist private signing keys. |
+| SB-CERT-REQ-7 | SONiC shall not directly modify protected storage. |
+| SB-CERT-REQ-8 | Platform-specific behavior shall be hidden behind the backend contract. |
+| SB-CERT-REQ-9 | The backend shall provide structured output suitable for CLI formatting and automated testing. |
+| SB-CERT-REQ-10 | Read and update operations shall use the same logical UEFI variable model regardless of the underlying storage implementation. |
+
+#### Security requirements
+
+| ID | Requirement |
+| :--- | :--- |
+| SB-CERT-SEC-1 | Local root access shall not bypass authenticated-variable authorization. |
+| SB-CERT-SEC-2 | Deployed-mode updates shall use authenticated-variable payloads. |
+| SB-CERT-SEC-3 | Setup/provisioning behavior shall remain distinct from normal field updates. |
+| SB-CERT-SEC-4 | The generic CLI shall not expose zeroize, factory reset, or ownership transition operations. |
+| SB-CERT-SEC-5 | The secure-variable backend shall enforce platform ownership and policy state. |
+| SB-CERT-SEC-6 | Certificate payloads shall not be logged by default. |
+| SB-CERT-SEC-7 | Error reporting shall not expose secret material. |
+
+### 1.6. <a name='ArchitectureDesign'></a>Architecture Design
+
+The design is split into three logical layers:
+
+1. **SONiC Secure Boot CLI** — provides the platform-neutral user interface.
+2. **Secure Boot backend contract** — defines stable operations and structured responses independent of platform implementation.
+3. **Platform implementation** — uses the platform's native client/service and secure-variable mechanisms to access protected persistent storage.
+
+The current implementation uses a platform helper binary that invokes native platform client/service APIs. The helper returns structured data to SONiC and submits authenticated-variable update payloads to the backend.
+
+The specific hardware root of trust, security processor, daemon, transport, object identifiers, and storage technology are platform implementation details and are not part of the upstream SONiC interface.
+
+### 1.7. <a name='HighLevelDesign'></a>High-Level Design
+
+#### 1.7.1. <a name='UEFIFlow'></a>UEFI Flow
+
+The permanent flow starts from the SONiC CLI and preserves standard UEFI variable semantics:
+
+```text
+User
+ |
+ | show/config secure-boot ...
+ v
+SONiC Secure Boot CLI
+ |
+ v
+Platform-neutral Secure Boot backend contract
+ |
+ v
+UEFI variable interface
+GetVariable() / SetVariable()
+ |
+ v
+UEFI authenticated-variable processing
+ |
+ v
+Platform Secure Variable Backend
+ |
+ v
+Protected Persistent Storage
+```
+
+For `show` operations, the flow reads `PK`, `KEK`, `db`, or `dbx` through the same logical UEFI variable interface.
+
+For `config` operations, SONiC submits an authenticated-variable payload. The backend validates the payload and policy before persistent state is changed.
+
+The current platform helper implementation is an adapter to this contract. It uses the platform's native client/service path to reach the secure-variable backend while retaining the same logical variable names, update operations, and authorization semantics.
+
+#### 1.7.2. <a name='ModuleElementsBreakdown'></a>Module Elements Breakdown
+
+| Module | Location / Interface | Responsibility |
+| :--- | :--- | :--- |
+| `show secure-boot` CLI | `sonic-utilities` | Display backend status, mode, and key state |
+| `config secure-boot` CLI | `sonic-utilities` | Submit authenticated-variable update files |
+| Backend contract | Platform-neutral interface | Define stable request/response behavior for SONiC |
+| Platform helper | Platform package | Adapt SONiC requests to native platform client/service APIs |
+| UEFI variable interface | Platform/firmware interface | Represent `PK`, `KEK`, `db`, and `dbx` using standard UEFI semantics |
+| Secure Variable Backend | Platform implementation | Validate policy and access protected storage |
+| Protected Persistent Storage | Platform implementation | Persist Secure Boot variable state |
+
+#### 1.7.3. <a name='SecurityModel'></a>Security Model
+
+The SONiC CLI is an administrative submission interface, not the cryptographic authorization boundary.
+
+| Layer | Responsibility |
+| :--- | :--- |
+| CLI authorization | Permission to submit a Secure Boot management request |
+| Authenticated-variable authorization | Cryptographic validation of the requested update |
+| Backend authorization | Ownership, mode, replay/timestamp, and storage-policy enforcement |
+
+A privileged user may submit an authenticated-variable file, but an unauthorized or malformed update must still be rejected by the secure-variable backend.
+
+Private signing keys remain outside the device. The device receives only the authenticated-variable payload and associated public certificate material.
+
+#### 1.7.4. <a name='CLIDesign'></a>CLI Design
+
+The generic upstream CLI has two command groups:
+
+```text
+show secure-boot ...
+config secure-boot ...
+```
+
+##### Show commands
+
+```text
+show secure-boot status
+show secure-boot mode
+show secure-boot keys
+show secure-boot key <PK|KEK|db|dbx> [--store vendor|customer|unified]
+```
+
+The optional `--store` argument is meaningful only on platforms that expose multiple logical stores. A backend that exposes only the standard unified UEFI view may return the unified state.
+
+##### Config command
+
+```text
+config secure-boot certificate update <PK|KEK|db|dbx> <auth-var-file> [--operation append|update|remove]
+```
+
+Supported operations:
+
+| Operation | Meaning |
+| :--- | :--- |
+| `append` | Add entries using authenticated-variable append semantics |
+| `update` | Replace/update the variable using authenticated-variable semantics |
+| `remove` | Remove authorized entries using backend-supported authenticated semantics |
+
+The generic CLI does not expose platform ownership transitions, zeroization, factory reset, or backend-specific provisioning commands.
+
+#### 1.7.5. <a name='CommandExamples'></a>Command Examples
+
+##### Show backend status
+
+```bash
+show secure-boot status
+```
+
+Example output:
+
+```text
+Secure Boot Backend: ready
+```
+
+##### Show mode
+
+```bash
+show secure-boot mode
+```
+
+Example output:
+
+```text
+Mode        11
+Mode Hex    0x000b
+State       backend-defined
+```
+
+Mode values and names are backend-defined data. The SONiC CLI displays them without depending on a particular security device implementation.
+
+##### Show all key state
+
+```bash
+show secure-boot keys
+```
+
+Example output:
+
+```text
+Variable    Store     State    Certificates
+----------  --------  -------  ------------
+PK          vendor    present  1
+KEK         vendor    present  1
+db          vendor    present  2
+dbx         vendor    empty    0
+PK          customer  empty    0
+KEK         customer  empty    0
+db          customer  empty    0
+dbx         customer  empty    0
+```
+
+On a backend exposing only the standard UEFI view, `Store` may be reported as `unified`.
+
+##### Show one key
+
+```bash
+show secure-boot key db --store unified
+```
+
+##### Update `db`
+
+```bash
+config secure-boot certificate update db /host/secureboot/db-update.auth --operation append
+```
+
+Expected behavior:
+
+* SONiC validates CLI arguments and verifies that the input file is accessible.
+* SONiC does not sign the request and does not handle a private key.
+* The backend receives the authenticated-variable payload.
+* The backend validates the payload, ownership/policy state, and replay/timestamp requirements.
+* Persistent storage is updated only when authorization succeeds.
+
+##### Rotate KEK
+
+```bash
+config secure-boot certificate update KEK /host/secureboot/kek-rotation.auth --operation update
+```
+
+##### Update the revocation database
+
+```bash
+config secure-boot certificate update dbx /host/secureboot/dbx-update.auth --operation append
+```
+
+#### 1.7.6. <a name='BackendContract'></a>Backend Contract
+
+The SONiC CLI communicates with a platform-provided Secure Boot helper or equivalent platform API.
+
+The HLD does not mandate a platform-specific executable name, transport, daemon, library, or hardware implementation.
+
+The backend shall support the following logical operations:
+
+```text
+status
+mode
+keys
+key <PK|KEK|db|dbx> [store]
+update <PK|KEK|db|dbx> <authenticated-variable-file> <operation>
+```
+
+The current implementation uses a helper executable and native client/service APIs. Structured JSON is used between the helper and the SONiC CLI.
+
+##### Mode response
+
+Example:
+
+```json
+{
+  "raw": 11,
+  "hex": "0x000b",
+  "name": "backend-defined"
+}
+```
+
+##### Key response
+
+Example:
+
+```json
+{
+  "variable": "db",
+  "store": "unified",
+  "state": "present",
+  "entry_count": 2
+}
+```
+
+##### Update response
+
+Example:
+
+```json
+{
+  "result": "success",
+  "variable": "db",
+  "operation": "append"
+}
+```
+
+Backend-specific object names, secure-store identifiers, socket names, service names, hardware identifiers, and internal policy bits shall not be exposed through the upstream SONiC CLI contract.
+
+### 1.8. <a name='SAIAPI'></a>SAI API
+
+NA.
+
+### 1.9. <a name='ConfigurationandManagement'></a>Configuration and Management
+
+#### 1.9.1. <a name='CLIYANGModelEnhancements'></a>CLI/YANG Model Enhancements
+
+The initial implementation is CLI-based. No YANG model is required for the first implementation.
+
+A future northbound model may reuse the same logical Secure Boot backend contract.
+
+#### 1.9.2. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
+
+No persistent Config DB schema is required.
+
+Certificate payloads, authenticated-variable files, private keys, and backend credentials shall not be persisted in Config DB.
+
+### 1.10. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
+
+No direct impact is expected.
+
+Secure Boot variable state is persistent and shall not be modified by warmboot or fastboot.
+
+An accepted certificate update may require a reboot or power cycle before it affects boot-time verification, depending on firmware behavior.
+
+### 1.11. <a name='RestrictionsLimitations'></a>Restrictions/Limitations
+
+* The generic SONiC interface supports Secure Boot status, mode, key-state display, and authenticated-variable update submission.
+* Private keys are not accepted, generated, or stored by the SONiC CLI.
+* The CLI does not generate authenticated-variable payloads.
+* Setup/provisioning and ownership-transition operations are outside the generic CLI.
+* Zeroization and factory-reset operations are outside the generic CLI.
+* Certificate payloads are not displayed or logged by default.
+* Platform-specific client/service and protected-storage implementations remain below the backend contract.
+* Standard UEFI Runtime Services integration depends on platform firmware support.
+
+### 1.12. <a name='TestingRequirementsDesign'></a>Testing Requirements/Design
+
+#### 1.12.1. <a name='UnitTestCases'></a>Unit Test Cases
+
+| Test | Description |
+| :--- | :--- |
+| show-mode-success | Mock backend mode response and verify CLI output |
+| show-keys-success | Mock backend key response and verify CLI table |
+| show-status-success | Mock backend status response |
+| backend-timeout | Verify timeout is reported cleanly |
+| backend-error | Verify structured backend errors are handled |
+| invalid-variable | Reject unsupported Secure Boot variable |
+| invalid-operation | Reject unsupported update operation |
+| missing-file | Reject missing authenticated-variable input file |
+| config-update-success | Verify successful authenticated update response |
+| config-update-failure | Verify invalid/rejected authenticated update is reported |
+
+#### 1.12.2. <a name='SystemTestCases'></a>System Test Cases
+
+| Test | Description |
+| :--- | :--- |
+| backend-present | Verify the platform Secure Boot backend is available |
+| show-cli-status | Verify `show secure-boot status` |
+| show-cli-mode | Verify `show secure-boot mode` matches backend state |
+| show-cli-keys | Verify `show secure-boot keys` matches backend state |
+| read-only-no-change | Verify show commands do not modify state |
+| update-invalid-auth | Submit invalid authenticated-variable payload and verify rejection |
+| update-valid-auth | Submit valid authenticated-variable payload and verify acceptance |
+| persistence | Verify accepted state persists across reboot/power cycle |
+| uefi-read | Verify standard UEFI variable reads expose the same logical state when firmware integration is present |
+| uefi-write | Verify standard UEFI authenticated writes follow the same authorization semantics when firmware integration is present |
+
+### 1.13. <a name='OpenActionItems'></a>Open/Action Items
+
+| Item | Owner | Notes |
+| :--- | :--- | :--- |
+| UEFI `GetVariable()` integration | Platform firmware | Required for the permanent standard read path |
+| UEFI `SetVariable()` integration | Platform firmware | Required for the permanent standard write path |
+| Authenticated update file generation | Security/release workflow | Signing and private-key handling remain off-device |
+| YANG/northbound model | SONiC community | Future enhancement |
