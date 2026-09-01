@@ -33,7 +33,7 @@
 
 | Rev | Date | Author | Change Description |
 | :---: | :---: | :--- | :--- |
-| 0.1 | 08/2026 | Platform Team | Initial HLD for Secure Boot certificate management CLI and backend contract |
+| 0.1 | 08/2026 | Ramesh Raghupathy | Initial HLD for Secure Boot certificate management CLI and backend contract |
 
 ### 1.2. <a name='Scope'></a>Scope
 
@@ -120,37 +120,163 @@ The specific hardware root of trust, security processor, daemon, transport, obje
 
 #### 1.7.1. <a name='UEFIFlow'></a>UEFI Flow
 
-The permanent flow starts from the SONiC CLI and preserves standard UEFI variable semantics:
+The following sequence shows the end-to-end Secure Boot variable-management flow starting from the SONiC CLI. The interface remains platform-independent while the platform-specific backend provides access to protected Secure Boot variable storage.
 
-```text
-User
- |
- | show/config secure-boot ...
- v
-SONiC Secure Boot CLI
- |
- v
-Platform-neutral Secure Boot backend contract
- |
- v
-UEFI variable interface
-GetVariable() / SetVariable()
- |
- v
-UEFI authenticated-variable processing
- |
- v
-Platform Secure Variable Backend
- |
- v
-Protected Persistent Storage
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Arial",
+    "fontSize": "16px",
+
+    "primaryColor": "#DDEBFF",
+    "primaryTextColor": "#102A43",
+    "primaryBorderColor": "#2F6BBD",
+
+    "secondaryColor": "#E7F7ED",
+    "secondaryTextColor": "#163A24",
+    "secondaryBorderColor": "#3A8F5B",
+
+    "tertiaryColor": "#FFF2CC",
+    "tertiaryTextColor": "#5C4400",
+    "tertiaryBorderColor": "#C99200",
+
+    "actorBkg": "#DDEBFF",
+    "actorBorder": "#2F6BBD",
+    "actorTextColor": "#102A43",
+
+    "actorLineColor": "#6B7C93",
+
+    "signalColor": "#34495E",
+    "signalTextColor": "#102A43",
+
+    "labelBoxBkgColor": "#F4F7FA",
+    "labelBoxBorderColor": "#7A8CA5",
+    "labelTextColor": "#102A43",
+
+    "loopTextColor": "#102A43",
+
+    "noteBkgColor": "#FFF4CC",
+    "noteBorderColor": "#D6A900",
+    "noteTextColor": "#503D00",
+
+    "activationBkgColor": "#E8DDF8",
+    "activationBorderColor": "#7650A6",
+
+    "sequenceNumberColor": "#FFFFFF"
+  }
+}}%%
+
+sequenceDiagram
+    autonumber
+
+    actor User as User / Operator
+    participant CLI as SONiC CLI
+    participant UTIL as SONiC Utilities Backend
+    participant TOOL as Platform Secure Boot Backend
+    participant SVC as Secure Variable Service
+    participant STORE as Protected Secure Variable Store
+    participant UEFI as UEFI Firmware
+    participant VERIFY as Secure Boot Verification
+
+    rect rgb(230, 242, 255)
+        Note over User,STORE: Runtime Secure Boot Management
+
+        User->>CLI: show secure-boot mode
+        activate CLI
+        CLI->>UTIL: Request Secure Boot mode
+        activate UTIL
+        UTIL->>TOOL: Get mode
+        activate TOOL
+        TOOL->>SVC: Read Secure Boot mode / policy
+        activate SVC
+        SVC->>STORE: Read protected mode state
+        activate STORE
+        STORE-->>SVC: Mode state
+        deactivate STORE
+        SVC-->>TOOL: Mode result
+        deactivate SVC
+        TOOL-->>UTIL: Platform-neutral response
+        deactivate TOOL
+        UTIL-->>CLI: Format CLI output
+        deactivate UTIL
+        CLI-->>User: Display Secure Boot mode
+        deactivate CLI
+    end
+
+    rect rgb(232, 247, 237)
+        User->>CLI: show secure-boot keys
+        activate CLI
+        CLI->>UTIL: Request PK / KEK / db / dbx state
+        activate UTIL
+        UTIL->>TOOL: Get Secure Boot variables
+        activate TOOL
+        TOOL->>SVC: Read variable state
+        activate SVC
+        SVC->>STORE: Read PK / KEK / db / dbx
+        activate STORE
+        STORE-->>SVC: Variable contents / metadata
+        deactivate STORE
+        SVC-->>TOOL: Variable state and entry counts
+        deactivate SVC
+        TOOL-->>UTIL: Platform-neutral response
+        deactivate TOOL
+        UTIL-->>CLI: Format key-state table
+        deactivate UTIL
+        CLI-->>User: Display variable state
+        deactivate CLI
+    end
+
+    rect rgb(255, 244, 214)
+        Note over User,STORE: Authenticated Secure Boot Variable Update
+
+        User->>CLI: config secure-boot certificate update<br/><PK|KEK|db|dbx> <auth-var-file>
+        activate CLI
+        CLI->>UTIL: Validate arguments
+        activate UTIL
+        UTIL->>TOOL: Set authenticated variable
+        activate TOOL
+        TOOL->>SVC: Submit authenticated-variable update
+        activate SVC
+        SVC->>SVC: Validate variable, operation,<br/>authentication, and policy
+        SVC->>STORE: Persist updated secure variable
+        activate STORE
+        STORE-->>SVC: Update status
+        deactivate STORE
+        SVC-->>TOOL: Success / failure
+        deactivate SVC
+        TOOL-->>UTIL: Platform-neutral result
+        deactivate TOOL
+        UTIL-->>CLI: Format operation result
+        deactivate UTIL
+        CLI-->>User: Display update status
+        deactivate CLI
+    end
+
+    rect rgb(239, 231, 250)
+        Note over UEFI,VERIFY: Secure Boot Enforcement During System Boot
+
+        UEFI->>SVC: Get PK / KEK / db / dbx
+        activate SVC
+        SVC->>STORE: Read protected Secure Boot variables
+        activate STORE
+        STORE-->>SVC: Persisted variable contents
+        deactivate STORE
+        SVC-->>UEFI: Secure Boot variables
+        deactivate SVC
+
+        UEFI->>VERIFY: Verify boot components<br/>using db / dbx policy
+        activate VERIFY
+        VERIFY-->>UEFI: Verification result
+        deactivate VERIFY
+
+        alt Verification succeeds
+            UEFI-->>User: Continue trusted boot
+        else Verification fails
+            UEFI-->>User: Block or reject untrusted component
+        end
+    end
 ```
-
-For `show` operations, the flow reads `PK`, `KEK`, `db`, or `dbx` through the same logical UEFI variable interface.
-
-For `config` operations, SONiC submits an authenticated-variable payload. The backend validates the payload and policy before persistent state is changed.
-
-The current platform helper implementation is an adapter to this contract. It uses the platform's native client/service path to reach the secure-variable backend while retaining the same logical variable names, update operations, and authorization semantics.
 
 #### 1.7.2. <a name='ModuleElementsBreakdown'></a>Module Elements Breakdown
 
