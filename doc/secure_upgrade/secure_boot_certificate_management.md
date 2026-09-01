@@ -230,7 +230,7 @@ sequenceDiagram
     rect rgb(255, 244, 214)
         Note over User,STORE: Authenticated Secure Boot Variable Update
 
-        User->>CLI: config secure-boot certificate update<br/><PK|KEK|db|dbx> <auth-var-file>
+        User->>CLI: config secure-boot certificate update<br/><PK|KEK|db|dbx> <auth-var-file><br/>[--operation append|update|remove]
         activate CLI
         CLI->>UTIL: Validate arguments
         activate UTIL
@@ -322,7 +322,9 @@ show secure-boot keys
 show secure-boot key <PK|KEK|db|dbx> [--store vendor|customer|unified]
 ```
 
-The optional `--store` argument is meaningful only on platforms that expose multiple logical stores. A backend that exposes only the standard unified UEFI view may return the unified state.
+The optional `--store` argument selects the logical store exposed by the backend. `vendor` and `customer` represent platform-defined store views. `unified` represents the effective Secure Boot variable view exposed by the platform.
+
+SONiC does not merge or synthesize these stores; store composition and policy are backend responsibilities.
 
 ##### Config command
 
@@ -351,8 +353,18 @@ show secure-boot status
 Example output:
 
 ```text
-Secure Boot Backend: ready
+Secure Boot Backend: platform
+UEFI Mode: 43 (0x002b, Generic Mode)
+
+Variable    Vendor State    Vendor Entries    Customer State    Customer Entries
+----------  --------------  ----------------  ----------------  ------------------
+PK          present         1                 empty             0
+KEK         present         1                 empty             0
+db          present         23                empty             0
+dbx         empty           0                 empty             0
 ```
+
+The backend name, mode value, and per-store state and entry counts are backend-defined data.
 
 ##### Show mode
 
@@ -363,12 +375,15 @@ show secure-boot mode
 Example output:
 
 ```text
-Mode        11
-Mode Hex    0x000b
-State       backend-defined
+Mode                  43 (Generic Mode)
+Mode Hex              0x002b
+Vendor store write    yes
+Vendor store lock     yes
+Customer store write  no
+Customer store lock   yes
 ```
 
-Mode values and names are backend-defined data. The SONiC CLI displays them without depending on a particular security device implementation.
+Mode values, names, and the write/lock policy are backend-defined data. The SONiC CLI displays them without depending on a particular security device implementation.
 
 ##### Show all key state
 
@@ -379,24 +394,41 @@ show secure-boot keys
 Example output:
 
 ```text
-Variable    Store     State    Certificates
-----------  --------  -------  ------------
+Variable    Store     State    Entries
+----------  --------  -------  -------
 PK          vendor    present  1
-KEK         vendor    present  1
-db          vendor    present  2
-dbx         vendor    empty    0
 PK          customer  empty    0
+KEK         vendor    present  1
 KEK         customer  empty    0
+db          vendor    present  23
 db          customer  empty    0
+dbx         vendor    empty    0
 dbx         customer  empty    0
 ```
 
-On a backend exposing only the standard UEFI view, `Store` may be reported as `unified`.
+The `show secure-boot keys` command displays the vendor and customer store views when exposed by the backend.
+
+The effective or unified view may be queried for an individual variable using:
+
+```text
+show secure-boot key <PK|KEK|db|dbx> --store unified
+```
 
 ##### Show one key
 
+The optional `--store` argument selects the store to query and defaults to `customer`.
+
 ```bash
 show secure-boot key db --store unified
+```
+
+Example output:
+
+```text
+Variable    db
+Store       unified
+State       present
+Entries     23
 ```
 
 ##### Update `db`
@@ -427,9 +459,15 @@ config secure-boot certificate update dbx /host/secureboot/dbx-update.auth --ope
 
 #### 1.7.6. <a name='BackendContract'></a>Backend Contract
 
-The SONiC CLI communicates with a platform-provided Secure Boot helper or equivalent platform API.
+The SONiC CLI communicates with a platform-provided Secure Boot backend through the platform-neutral executable interface:
 
-The HLD does not mandate a platform-specific executable name, transport, daemon, library, or hardware implementation.
+```text
+/usr/sbin/secure-boot-backend
+```
+
+A platform supporting this CLI shall provide this entry point.
+
+The implementation behind this entry point is platform-specific. The HLD does not mandate the underlying executable, daemon, transport, library, secure element, hardware root of trust, or storage implementation.
 
 The backend shall support the following logical operations:
 
@@ -437,11 +475,11 @@ The backend shall support the following logical operations:
 status
 mode
 keys
-key <PK|KEK|db|dbx> [store]
-update <PK|KEK|db|dbx> <authenticated-variable-file> <operation>
+key <PK|KEK|db|dbx> [--store <vendor|customer|unified>]
+update <PK|KEK|db|dbx> --file <authenticated-variable-file> --operation <append|update|remove>
 ```
 
-The current implementation uses a helper executable and native client/service APIs. Structured JSON is used between the helper and the SONiC CLI.
+Structured JSON is used between the platform-neutral backend entry point and the SONiC CLI.
 
 ##### Mode response
 
@@ -449,22 +487,75 @@ Example:
 
 ```json
 {
-  "raw": 11,
-  "hex": "0x000b",
-  "name": "backend-defined"
+  "raw": 43,
+  "hex": "0x002b",
+  "name": "Generic Mode",
+  "policy": {
+    "vendor_store_write": true,
+    "vendor_store_lock": true,
+    "customer_store_write": false,
+    "customer_store_lock": true
+  }
 }
 ```
 
-##### Key response
+##### Keys response
+
+Each variable/store pair is keyed by `<variable><Store>` (for example `dbVendor`, `dbCustomer`).
 
 Example:
 
 ```json
 {
-  "variable": "db",
-  "store": "unified",
-  "state": "present",
-  "entry_count": 2
+  "PKVendor":    { "state": "present", "entry_count": 1 },
+  "PKCustomer":  { "state": "empty",   "entry_count": 0 },
+  "KEKVendor":   { "state": "present", "entry_count": 1 },
+  "KEKCustomer": { "state": "empty",   "entry_count": 0 },
+  "dbVendor":    { "state": "present", "entry_count": 23 },
+  "dbCustomer":  { "state": "empty",   "entry_count": 0 },
+  "dbxVendor":   { "state": "empty",   "entry_count": 0 },
+  "dbxCustomer": { "state": "empty",   "entry_count": 0 }
+}
+```
+
+##### Status response
+
+The `status` operation returns the combined mode and keys state.
+
+Example:
+
+```json
+{
+  "mode": {
+    "raw": 43,
+    "hex": "0x002b",
+    "name": "Generic Mode",
+    "policy": {
+      "vendor_store_write": true,
+      "vendor_store_lock": true,
+      "customer_store_write": false,
+      "customer_store_lock": true
+    }
+  },
+  "keys": {
+    "PKVendor":   { "state": "present", "entry_count": 1 },
+    "PKCustomer": { "state": "empty",   "entry_count": 0 }
+  }
+}
+```
+
+##### Key response
+
+The `key` operation returns a single variable/store entry keyed by `<variable><Store>`.
+
+Example:
+
+```json
+{
+  "dbCustomer": {
+    "state": "present",
+    "entry_count": 2
+  }
 }
 ```
 
@@ -490,7 +581,7 @@ NA.
 
 #### 1.9.1. <a name='CLIYANGModelEnhancements'></a>CLI/YANG Model Enhancements
 
-The initial implementation is CLI-based. No YANG model is required for the first implementation.
+The initial implementation is CLI-based and does not introduce persistent configuration in ConfigDB; therefore, it does not introduce a new YANG configuration model.
 
 A future northbound model may reuse the same logical Secure Boot backend contract.
 
@@ -526,15 +617,19 @@ An accepted certificate update may require a reboot or power cycle before it aff
 | Test | Description |
 | :--- | :--- |
 | show-mode-success | Mock backend mode response and verify CLI output |
-| show-keys-success | Mock backend key response and verify CLI table |
-| show-status-success | Mock backend status response |
-| backend-timeout | Verify timeout is reported cleanly |
+| show-status-success | Mock backend status response and verify CLI output |
+| show-keys-success | Mock backend keys response and verify CLI table |
+| show-key-success | Mock a single variable/store response and verify CLI output |
+| show-key-unified | Verify `--store unified` is passed to the backend and displayed correctly |
+| backend-not-installed | Verify missing platform backend is reported cleanly |
+| backend-timeout | Verify backend timeout is reported cleanly |
+| backend-invalid-json | Verify malformed backend output is rejected |
 | backend-error | Verify structured backend errors are handled |
 | invalid-variable | Reject unsupported Secure Boot variable |
 | invalid-operation | Reject unsupported update operation |
 | missing-file | Reject missing authenticated-variable input file |
-| config-update-success | Verify successful authenticated update response |
-| config-update-failure | Verify invalid/rejected authenticated update is reported |
+| config-update-success | Verify successful authenticated-variable update response |
+| config-update-failure | Verify rejected backend update is reported correctly |
 
 #### 1.12.2. <a name='SystemTestCases'></a>System Test Cases
 
