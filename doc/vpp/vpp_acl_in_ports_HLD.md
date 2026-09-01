@@ -23,6 +23,7 @@
     - [Two Ways to Express the Scope](#two-ways-to-express-the-scope)
     - [Matching the Ingress Interface in VPP](#matching-the-ingress-interface-in-vpp)
       - [The Interface Is Already in the Key](#the-interface-is-already-in-the-key)
+      - [Why This Is Ingress-Only](#why-this-is-ingress-only)
       - [All Three Match Paths Must Agree](#all-three-match-paths-must-agree)
       - [Encoding and Its Limit](#encoding-and-its-limit)
     - [Fanning an Entry Out in saivpp](#fanning-an-entry-out-in-saivpp)
@@ -51,6 +52,7 @@
 |-----|------|-----------|---------|
 | v0.1 | 08/20/2026 | Longxiang Lyu (lolv@microsoft.com) | Initial Draft |
 | v0.2 | 08/29/2026 | Longxiang Lyu (lolv@microsoft.com) | Reworked to match the implementation. Scope is now carried by a new per-rule ingress interface match in the VPP ACL plugin, with saivpp fanning each entry out into one rule per named port, replacing the binding-layer partitioning design of v0.1 |
+| v0.3 | 09/01/2026 | Longxiang Lyu (lolv@microsoft.com) | Review feedback. Documented that the matched 5-tuple slot holds the TX interface on an outbound-bound ACL, so `IN_PORTS` in an egress table is now rejected at programming time instead of silently matching the egress port; explained `sw_if_index` pool recycling and the resulting bound on the 16-bit limit; separated the terms *bound* and *named* to keep binding distinct from matching |
 
 ---
 
@@ -81,6 +83,8 @@ This section covers the abbreviations used in this high-level design document an
 | scoped entry | An ACL entry that carries `IN_PORTS`, so it applies only to the ingress ports it names |
 | unscoped entry | An ACL entry with no `IN_PORTS`, so it applies to every port the table is bound to |
 | fan-out | Expanding one scoped SAI entry into one VPP rule per interface it names, each rule matching that interface |
+| **bound** (port ↔ ACL) | The VPP-level attachment of an ACL to an interface, via `vpp_acl_interface_bind()`. Decides **which ACL a packet is evaluated against**. Set by the table's port list, and **not changed by this design** |
+| **named** (entry → port) | A port appearing in an entry's `IN_PORTS` list, which this design compiles into that rule's `in_sw_if_index` match. Decides **whether a rule matches** once the ACL is already being evaluated. Purely a match condition — it never attaches or detaches anything |
 | 5-tuple | `fa_5tuple_t`, the per-packet key the ACL plugin builds once and matches every rule against |
 | `in_sw_if_index` | The new per-rule field added to the VPP ACL rule by this design. Names the ingress interface a rule matches; 0 means any |
 | `lsb_of_sw_if_index` | The low 16 bits of the ingress `sw_if_index`, already present in the 5-tuple's L4 key and previously always masked off during matching |
@@ -320,6 +324,35 @@ fa_session_l4_key_t tmp_l4 = { .port = { ports[0], ports[1] },
 
 The field exists for session handling, and rule matching always masked it off. Restricting a rule to an interface is therefore not a matter of collecting new per-packet state — it only requires *stopping* the mask from discarding what is already there. This is why the change is close to free at packet rate: no new field in the key, no extra load, no change to the key's size or hash.
 
+#### Why This Is Ingress-Only
+
+`sw_if_index0` above is not always the ingress interface. The ACL node picks it by direction (`src/plugins/acl/dataplane_node.c`):
+
+```c
+always_inline void
+get_sw_if_index_xN (int vector_sz, int is_input, vlib_buffer_t ** b,
+                    u32 * out_sw_if_index)
+{
+  for (ii = 0; ii < vector_sz; ii++)
+    if (is_input)
+      out_sw_if_index[ii] = vnet_buffer (b[ii])->sw_if_index[VLIB_RX];
+    else
+      out_sw_if_index[ii] = vnet_buffer (b[ii])->sw_if_index[VLIB_TX];
+}
+```
+
+The same `lsb_of_sw_if_index` slot therefore carries the **RX** interface in an inbound-bound ACL and the **TX** interface in an outbound-bound one. The field this design matches on is only an *ingress* interface because of where the ACL is bound — nothing in the key itself distinguishes them.
+
+That matters because an egress `IN_PORTS` entry is expressible. SAI does not restrict the qualifier to ingress: `SAI_ACL_TABLE_ATTR_FIELD_IN_PORTS` carries no stage constraint, and saivpp binds egress groups for real — `aclBindUnbindPort()` maps `SAI_ACL_STAGE_EGRESS` to `is_input = false` and calls `vpp_acl_interface_bind(..., is_input)`. So an entry naming `IN_PORTS` in an egress table would be fanned out and programmed exactly like an ingress one, and would then be evaluated against the **egress** interface.
+
+The failure mode is the dangerous kind: not an error and not a no-op, but a rule that quietly enforces a different thing than it says. A rule meaning "drop what arrives on Ethernet4" would become "drop what leaves on Ethernet4" — plausible-looking, and wrong in a way no counter or dump would reveal, since the CLI would still print the interface the operator asked for.
+
+The design therefore **rejects the combination at programming time rather than mis-programming it**, matching the treatment of an out-of-range index in [Encoding and Its Limit](#encoding-and-its-limit): where the scope cannot be represented faithfully, fail loudly instead of installing something that merely resembles the request. Silently dropping the scope instead was rejected because that reproduces the original bug this design exists to fix — an over-broad rule applying to every bound port.
+
+Concretely, `fill_acl_rules()` resolves the table's stage (from `SAI_ACL_TABLE_GROUP_ATTR_ACL_STAGE`, as `aclBindUnbindPort()` already does) and fails the entry with a logged error when a table at `SAI_ACL_STAGE_EGRESS` carries an entry with `IN_PORTS` enabled. No SONiC consumer creates such a table today — every consumer in [Consumers of `IN_PORTS` in SONiC](#consumers-of-in_ports-in-sonic) is ingress — so this is a guard against a future or third-party configuration, not a path expected to be taken.
+
+Supporting egress scoping properly would mean matching `OUT_PORTS` against the TX interface, which the same mechanism could carry. That is deliberately out of scope here; see [Restrictions and Limitations](#restrictions-and-limitations).
+
 #### All Three Match Paths Must Agree
 
 A rule reaches a verdict through more than one path, and a scope enforced on only some of them is worse than none at all — it would hold for ordinary traffic and lapse for the rest.
@@ -339,6 +372,30 @@ The collision re-check matters for a subtler reason. VPP's tuplemerge (`am->use_
 `in_sw_if_index = 0` means **any interface**. This is safe because `sw_if_index 0` is `local0`, which is never a data-plane port, so no legitimate rule needs to name it. It follows the convention `proto = 0` already uses, and avoids spending a separate valid flag.
 
 Only the low 16 bits take part in the match, since `lsb_of_sw_if_index` is a `u16` packed into the L4 `u64`. Widening it would mean growing `fa_session_l4_key_t` past the word it fits in, which is a far larger change than this feature warrants. An index above `0xffff` would otherwise be programmed as a *different* interface than the one named, with the CLI and API dump still reporting the interface the user asked for, so `acl_add_list()` rejects it with `VNET_API_ERROR_INVALID_SW_IF_INDEX` alongside the existing prefix and port-range validation. Both the binary API and the CLI go through that function, so neither path can install a rule whose scope is not representable. SONiC interface indices stay far below the limit, so this is a guard rather than an expected condition.
+
+**Interface churn does not walk the index upward.** The 16-bit ceiling would be a much weaker guarantee if `sw_if_index` grew monotonically, because a long-lived box that repeatedly creates and deletes sub-interfaces or LAGs would eventually cross `0xffff` even while holding only a handful of interfaces at once. It does not. `sw_if_index` is a pool index, not a counter:
+
+```c
+/* src/vnet/interface.c — vnet_create_sw_interface_no_callbacks() */
+pool_get (im->sw_interfaces, sw);
+sw_if_index = sw - im->sw_interfaces;
+```
+
+Deleting an interface returns its slot with `pool_put()`, and `pool_get()` takes from the free list before it ever extends the vector (`src/vppinfra/pool.h`):
+
+```c
+uword n_free = vec_len (ph->free_indices);
+if (n_free)
+  {
+    uword index = ph->free_indices[n_free - 1];   /* reuse, LIFO */
+    ...
+  }
+/* Nothing on free list, make a new element and return it. */
+```
+
+So a freed index is reused — most-recently-freed first — and the pool only grows when every existing slot is occupied. The high-water mark is therefore the number of interfaces that exist **simultaneously**, not the number ever created. Delete/create cycles reuse the same small set of indices indefinitely, and reaching the limit would require 65 535 interfaces present at once, far beyond any SONiC configuration.
+
+Reuse does raise a second question — whether a rule holding an index could outlive the interface it named and then silently apply to whatever later inherits that index. A rule stores the index resolved at programming time, and neither the VPP patch nor saivpp invalidates it on interface deletion. What makes this safe is the qualifier's object type rather than any cleanup logic: `SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` is declared `@objects SAI_OBJECT_TYPE_PORT`, so it can only name front-panel ports, which VPP creates from the platform's hardware interfaces at startup and does not delete at runtime. The churn-prone objects — sub-interfaces, tunnels, LAGs — are exactly the ones that cannot appear in `IN_PORTS`. This is a property worth stating explicitly rather than assuming: it is listed under [Restrictions and Limitations](#restrictions-and-limitations), because it would need revisiting if `IN_PORTS` were ever extended to LAGs.
 
 ### Fanning an Entry Out in saivpp
 
@@ -387,14 +444,16 @@ The ACL stays bound to all five ports. E1's three rules occupy indices 0–2, so
 
 Priority is preserved because the fan-out is local: an entry's copies are emitted where the entry itself sat in the order. E2 remains between E1 and E3, so a packet arriving on Ethernet8 is tried against E1's copy for that port, then E2, then E3 — the table's order, unchanged.
 
-Note that Ethernet0 and Ethernet12 are named by nothing. They match only E2, because every other rule names an interface that is not theirs. No separate ACL is needed to arrange that.
+Note that Ethernet0 and Ethernet12 appear in no entry's `IN_PORTS` list. They match only E2, because every other rule names an interface that is not theirs. No separate ACL is needed to arrange that, and their **binding is identical to every other port's** — all five ports are bound to this one ACL. The difference between a port that is named and one that is not is entirely in which rules match, never in what is attached to the port.
 
 #### Cases
+
+Throughout this table, "the ACL" is the table's single VPP ACL — the one every port the table covers is bound to. **No case below changes any binding**; the binding is fixed by the table's port list, and `IN_PORTS` only ever decides which rules match.
 
 | Case | Example | Outcome |
 |------|---------|---------|
 | No entry carries `IN_PORTS` | Any ordinary L3 table | No fan-out; one rule per entry with `in_sw_if_index = 0`, exactly as before this design |
-| Port named by no entry | Ethernet0 above | Binds the same ACL as everyone else, and matches only the unscoped rules |
+| Port named by no entry | Ethernet0 above | Stays bound to the table's ACL exactly as every other port does, and matches only the unscoped rules within it. Being unnamed is not a weaker binding — it simply means no scoped rule's `in_sw_if_index` equals this port |
 | Ports with identical scopes | Two entries naming the same port | Each entry fans out independently; no deduplication is attempted or needed |
 | Ports with different scopes | Ethernet8 versus Ethernet4 above | Distinct rules with distinct `in_sw_if_index`; independent by construction — REQ-4 |
 | Every port named, same scope | All mux ports standby | One rule per standby port within the single ACL |
@@ -482,7 +541,7 @@ Two dataplane notes for larger scopes:
 
 ### VPP Changes
 
-Carried as a patch in the `sonic-platform-vpp` VPP patch series (`vppbld/patches/0018-acl-match-on-ingress-interface.patch`).
+Carried as a patch in the `sonic-platform-vpp` VPP patch series (`vppbld/patches/0019-acl-match-on-ingress-interface.patch`).
 
 | File | Change |
 |------|--------|
@@ -514,7 +573,7 @@ Modified methods:
 | Method | Change |
 |--------|--------|
 | `acl_rule_field_update()` | Explicit `IN_PORTS` case, replacing the `default:` fall-through that logged `Unhandled ACL entry attribute ID` and then programmed the entry unscoped |
-| `fill_acl_rules()` | After generating an entry's rules, replicate them once per named interface |
+| `fill_acl_rules()` | After generating an entry's rules, replicate them once per named interface. Reject an entry carrying `IN_PORTS` when the table's stage is `SAI_ACL_STAGE_EGRESS`, where the matched field would be the TX rather than the RX interface — see [Why This Is Ingress-Only](#why-this-is-ingress-only) |
 
 `getAclEntryStats()`, `AclTblConfig()`, `AclTblRemove()` and the binding paths are **unchanged**, because the fan-out preserves the existing contiguous `(base_index, num_rules)` representation and does not alter bindings.
 
@@ -522,7 +581,7 @@ Modified methods:
 
 | Repository | File | Change |
 |------------|------|--------|
-| `sonic-platform-vpp` | `vppbld/patches/0018-acl-match-on-ingress-interface.patch` | The VPP change above |
+| `sonic-platform-vpp` | `vppbld/patches/0019-acl-match-on-ingress-interface.patch` | The VPP change above |
 | `sonic-platform-vpp` | `vppbld/patches/series` | Register the patch |
 | `sonic-platform-vpp` | `rules/vpp.mk` | `VPP_VERSION` `2606-0.5` → `2606-0.6` |
 | `sonic-sairedis` | `vslib/vpp/SwitchVpp.h` | Declaration |
@@ -535,6 +594,7 @@ Adding a field to `acl_rule` changes the layout of the `acl_add_replace` message
 
 - `sonic-platform-vpp` and `sonic-sairedis` are a matched pair; neither is useful alone.
 - `rules/vpp.mk` bumps `VPP_VERSION` to `2606-0.6`. This is required whenever the patch series changes, because the version string is the cache key for the prebuilt debs — without the bump, consumers keep downloading debs built from the old series, and the CRC drift appears as an ACL programming failure at runtime rather than as a build error.
+- An unrelated patch in flight ([sonic-platform-vpp#280](https://github.com/sonic-net/sonic-platform-vpp/pull/280), which stops VPP counting ACL policy denies as interface drops) also takes `2606-0.6`, since either may merge first. Because both make the *identical* edit to that line, git auto-resolves `rules/vpp.mk` without flagging a conflict — only `vppbld/patches/series` conflicts. **Whoever merges second must bump `VPP_VERSION` to `2606-0.7` by hand** while resolving that conflict, or the published deb will carry a version minted for only one of the two patch series.
 
 ---
 
@@ -544,7 +604,9 @@ Adding a field to `acl_rule` changes the layout of the `acl_add_replace` message
 - **Rule count grows with the scope.** An entry naming N ports costs N rules. The ACL count is unchanged, but a large fan-out of otherwise identical rules can be folded by tuplemerge onto one collision chain that `split_partition()` cannot split, since it has no interface dimension. Matching stays correct; the cost is lookup efficiency at large N.
 - **Requires a patched VPP.** The field does not exist upstream, so `sonic-sairedis` and the `sonic-platform-vpp` VPP package must stay in step. Upstreaming the plugin change would remove this coupling.
 - **ip2me state remains table-keyed.** `m_ip2me_drop_tables` is keyed by table, not by interface, so the ip2me bypass is enabled for a table if *any* of its rules contains a deny, regardless of which ports those rules name. Re-keying it per interface is out of scope.
-- **Egress scoping is not addressed.** Only `SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS` is implemented; `OUT_PORTS` remains unhandled.
+- **`IN_PORTS` on an egress table is rejected, not honoured.** The 5-tuple slot this design matches on holds the TX interface when an ACL is bound outbound, so an ingress scope programmed into an egress table would silently match the *egress* port. Rather than mis-programme it, saivpp fails such an entry with a logged error — see [Why This Is Ingress-Only](#why-this-is-ingress-only). No SONiC consumer creates this configuration today.
+- **`OUT_PORTS` is not implemented.** Egress scoping as a feature is untouched; `SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORTS` remains unhandled and is still accepted-and-discarded, exactly as `IN_PORTS` was before this design. The same per-rule mechanism could carry it — matching the TX interface an outbound-bound ACL already puts in the key — but that is separate work with its own test surface.
+- **A rule's interface index is resolved once, at programming time.** VPP recycles `sw_if_index` from a free list, and nothing here invalidates a rule's stored index if the interface it names is deleted. This is safe only because `IN_PORTS` is declared `@objects SAI_OBJECT_TYPE_PORT` and front-panel ports are created at startup and not deleted at runtime; it would need revisiting if the qualifier were ever extended to objects with runtime churn, such as LAGs. See [Encoding and Its Limit](#encoding-and-its-limit).
 
 ---
 
@@ -588,6 +650,7 @@ The binding is deliberately identical on standby and active ports; the scope now
 | Scoped read failure | A forced `IN_PORTS` read failure leaves the previous ACL in place and reports failure, rather than applying the entry everywhere — REQ-6 |
 | Counter fan-out | An entry scoped to several ports reports the **sum** of the traffic hitting it on all of them, not one port's share — REQ-7 |
 | Oversized index rejected | An `in_sw_if_index` above `0xffff` is refused by `acl_add_list()` on both the API and CLI paths rather than matching a different interface |
+| Egress `IN_PORTS` rejected | An entry carrying `IN_PORTS` in a table at `SAI_ACL_STAGE_EGRESS` fails programming with a logged error, rather than being installed and matched against the TX interface. The check is that no rule reaches VPP — a test asserting only "traffic is not dropped" would pass for the wrong reason |
 | No-`IN_PORTS` regression | A table with no scoped entries produces byte-for-byte the same ACL as before the change — REQ-8 |
 
 ### sonic-mgmt Coverage
