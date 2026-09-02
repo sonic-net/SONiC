@@ -52,7 +52,7 @@
 |-----|------|-----------|---------|
 | v0.1 | 08/20/2026 | Longxiang Lyu (lolv@microsoft.com) | Initial Draft |
 | v0.2 | 08/29/2026 | Longxiang Lyu (lolv@microsoft.com) | Reworked to match the implementation. Scope is now carried by a new per-rule ingress interface match in the VPP ACL plugin, with saivpp fanning each entry out into one rule per named port, replacing the binding-layer partitioning design of v0.1 |
-| v0.3 | 09/01/2026 | Longxiang Lyu (lolv@microsoft.com) | Review feedback. Documented that the matched 5-tuple slot holds the TX interface on an outbound-bound ACL, so `IN_PORTS` in an egress table is now rejected at programming time instead of silently matching the egress port; explained `sw_if_index` pool recycling and the resulting bound on the 16-bit limit; separated the terms *bound* and *named* to keep binding distinct from matching |
+| v0.3 | 09/01/2026 | Longxiang Lyu (lolv@microsoft.com) | Review feedback. Documented that the matched 5-tuple slot holds the TX interface on an outbound-bound ACL, so an `IN_PORTS` entry in an egress table now produces no rule instead of silently matching the egress port; explained `sw_if_index` pool recycling and the resulting bound on the 16-bit limit; separated the terms *bound* and *named* to keep binding distinct from matching |
 
 ---
 
@@ -347,9 +347,15 @@ That matters because an egress `IN_PORTS` entry is expressible. SAI does not res
 
 The failure mode is the dangerous kind: not an error and not a no-op, but a rule that quietly enforces a different thing than it says. A rule meaning "drop what arrives on Ethernet4" would become "drop what leaves on Ethernet4" — plausible-looking, and wrong in a way no counter or dump would reveal, since the CLI would still print the interface the operator asked for.
 
-The design therefore **rejects the combination at programming time rather than mis-programming it**, matching the treatment of an out-of-range index in [Encoding and Its Limit](#encoding-and-its-limit): where the scope cannot be represented faithfully, fail loudly instead of installing something that merely resembles the request. Silently dropping the scope instead was rejected because that reproduces the original bug this design exists to fix — an over-broad rule applying to every bound port.
+The design therefore **emits no rule for such an entry**, logs the reason, and lets the rest of the table program normally. The scope cannot be represented faithfully at egress, so installing something that merely resembles the request is not an option; but neither is failing the whole table, for reasons specific to how saivpp registers entries.
 
-Concretely, `fill_acl_rules()` resolves the table's stage (from `SAI_ACL_TABLE_GROUP_ATTR_ACL_STAGE`, as `aclBindUnbindPort()` already does) and fails the entry with a logged error when a table at `SAI_ACL_STAGE_EGRESS` carries an entry with `IN_PORTS` enabled. No SONiC consumer creates such a table today — every consumer in [Consumers of `IN_PORTS` in SONiC](#consumers-of-in_ports-in-sonic) is ingress — so this is a guard against a future or third-party configuration, not a path expected to be taken.
+An entry is recorded in `m_objectHash` and `m_acl_tbl_rules_map` by `createAclEntry()` *before* `AclAddRemoveCheck()` runs, and is not rolled back if that check fails. orchagent does not remove a rule whose create failed, and on its retry `create_internal()` returns `SAI_STATUS_ITEM_ALREADY_EXISTS`, which `AclRule::create()` treats as success. Failing the entry would therefore leave the table permanently unprogrammable while orchagent reported the rule `ACTIVE` — a silent failure of exactly the kind this section exists to prevent, and a **regression** for a configuration that programs today, since `IN_PORTS` was previously ignored outright rather than rejected.
+
+Skipping the entry keeps the failure contained and matches how an enabled-but-empty `IN_PORTS` list is already handled: log it, emit nothing, keep the table programmable. It does mean a scoped rule in an egress table has no effect, which is why it is logged at error severity rather than as a warning.
+
+Concretely, `fill_acl_rules()` resolves the table's stage (from `SAI_ACL_TABLE_ATTR_ACL_STAGE`) the first time it meets an entry carrying `IN_PORTS`, and emits no rule for such an entry when the stage is `SAI_ACL_STAGE_EGRESS`. A table with no scoped entry never reaches this path, and an unreadable stage is treated as ingress, so the guard cannot itself take a table down.
+
+No SONiC consumer creates such a table today — every consumer in [Consumers of `IN_PORTS` in SONiC](#consumers-of-in_ports-in-sonic) is ingress — but the combination is reachable by configuration alone rather than requiring a code change: both `TABLE_TYPE_MIRROR` and `TABLE_TYPE_L3V4V6` declare `IN_PORTS` as a match, aclorch enables both stages for this platform, and `EVERFLOW_EGRESS` is a standard minigraph-generated egress `MIRROR` table.
 
 Supporting egress scoping properly would mean matching `OUT_PORTS` against the TX interface, which the same mechanism could carry. That is deliberately out of scope here; see [Restrictions and Limitations](#restrictions-and-limitations).
 
@@ -573,7 +579,7 @@ Modified methods:
 | Method | Change |
 |--------|--------|
 | `acl_rule_field_update()` | Explicit `IN_PORTS` case, replacing the `default:` fall-through that logged `Unhandled ACL entry attribute ID` and then programmed the entry unscoped |
-| `fill_acl_rules()` | After generating an entry's rules, replicate them once per named interface. Reject an entry carrying `IN_PORTS` when the table's stage is `SAI_ACL_STAGE_EGRESS`, where the matched field would be the TX rather than the RX interface — see [Why This Is Ingress-Only](#why-this-is-ingress-only) |
+| `fill_acl_rules()` | After generating an entry's rules, replicate them once per named interface. Emit no rule for an entry carrying `IN_PORTS` when the table's stage is `SAI_ACL_STAGE_EGRESS`, where the matched field would be the TX rather than the RX interface — see [Why This Is Ingress-Only](#why-this-is-ingress-only) |
 
 `getAclEntryStats()`, `AclTblConfig()`, `AclTblRemove()` and the binding paths are **unchanged**, because the fan-out preserves the existing contiguous `(base_index, num_rules)` representation and does not alter bindings.
 
@@ -604,7 +610,7 @@ Adding a field to `acl_rule` changes the layout of the `acl_add_replace` message
 - **Rule count grows with the scope.** An entry naming N ports costs N rules. The ACL count is unchanged, but a large fan-out of otherwise identical rules can be folded by tuplemerge onto one collision chain that `split_partition()` cannot split, since it has no interface dimension. Matching stays correct; the cost is lookup efficiency at large N.
 - **Requires a patched VPP.** The field does not exist upstream, so `sonic-sairedis` and the `sonic-platform-vpp` VPP package must stay in step. Upstreaming the plugin change would remove this coupling.
 - **ip2me state remains table-keyed.** `m_ip2me_drop_tables` is keyed by table, not by interface, so the ip2me bypass is enabled for a table if *any* of its rules contains a deny, regardless of which ports those rules name. Re-keying it per interface is out of scope.
-- **`IN_PORTS` on an egress table is rejected, not honoured.** The 5-tuple slot this design matches on holds the TX interface when an ACL is bound outbound, so an ingress scope programmed into an egress table would silently match the *egress* port. Rather than mis-programme it, saivpp fails such an entry with a logged error — see [Why This Is Ingress-Only](#why-this-is-ingress-only). No SONiC consumer creates this configuration today.
+- **`IN_PORTS` on an egress table has no effect.** The 5-tuple slot this design matches on holds the TX interface when an ACL is bound outbound, so an ingress scope programmed into an egress table would silently match the *egress* port. saivpp therefore emits no rule for such an entry and logs an error, leaving the rest of the table programmable — see [Why This Is Ingress-Only](#why-this-is-ingress-only). No SONiC consumer creates this configuration today, though it is reachable by configuration alone.
 - **`OUT_PORTS` is not implemented.** Egress scoping as a feature is untouched; `SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORTS` remains unhandled and is still accepted-and-discarded, exactly as `IN_PORTS` was before this design. The same per-rule mechanism could carry it — matching the TX interface an outbound-bound ACL already puts in the key — but that is separate work with its own test surface.
 - **A rule's interface index is resolved once, at programming time.** VPP recycles `sw_if_index` from a free list, and nothing here invalidates a rule's stored index if the interface it names is deleted. This is safe only because `IN_PORTS` is declared `@objects SAI_OBJECT_TYPE_PORT` and front-panel ports are created at startup and not deleted at runtime; it would need revisiting if the qualifier were ever extended to objects with runtime churn, such as LAGs. See [Encoding and Its Limit](#encoding-and-its-limit).
 
@@ -650,7 +656,7 @@ The binding is deliberately identical on standby and active ports; the scope now
 | Scoped read failure | A forced `IN_PORTS` read failure leaves the previous ACL in place and reports failure, rather than applying the entry everywhere — REQ-6 |
 | Counter fan-out | An entry scoped to several ports reports the **sum** of the traffic hitting it on all of them, not one port's share — REQ-7 |
 | Oversized index rejected | An `in_sw_if_index` above `0xffff` is refused by `acl_add_list()` on both the API and CLI paths rather than matching a different interface |
-| Egress `IN_PORTS` rejected | An entry carrying `IN_PORTS` in a table at `SAI_ACL_STAGE_EGRESS` fails programming with a logged error, rather than being installed and matched against the TX interface. The check is that no rule reaches VPP — a test asserting only "traffic is not dropped" would pass for the wrong reason |
+| Egress `IN_PORTS` skipped | An entry carrying `IN_PORTS` in a table at `SAI_ACL_STAGE_EGRESS` produces **no** VPP rule and logs an error, rather than being installed and matched against the TX interface. Assert both halves: no rule reaches VPP for that entry, **and** the table's other entries still program — a test asserting only "traffic is not dropped" would pass for the wrong reason |
 | No-`IN_PORTS` regression | A table with no scoped entries produces byte-for-byte the same ACL as before the change — REQ-8 |
 
 ### sonic-mgmt Coverage
