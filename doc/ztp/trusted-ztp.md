@@ -1002,13 +1002,13 @@ sequenceDiagram
     AGT->>BS: RESTCONF get-bootstrapping-data
     BS-->>AGT: onboarding info + ownership voucher + owner cert
     AGT->>AGT: validate voucher, verify server, verify CMS signature
-    AGT->>BS: progress report (bootstrap-initiated)
+    AGT->>BS: progress report (bootstrap-initiated: trusted-server mode)
     AGT-->>ADP: exit 0 + onboarding.json
     ADP->>TA: anchor trusted time (if clock invalid)
     ADP->>ENG: ztp_data.json (firmware, configdb-json, …)
     ENG->>ENG: backup, apply, roll back on failure
     ENG->>DB: status = SUCCESS + audit events
-    AGT->>BS: progress report (bootstrap-complete)
+    AGT->>BS: progress report (bootstrap-complete: trusted-server)
 ```
 *Figure 10 : Successful voucher-anchored provisioning*
 
@@ -1240,7 +1240,7 @@ module sonic-tztp {
                   enum "trusted-server";
                   enum "voucher-anchored";
               }
-              default "voucher-anchored";
+              default "trusted-server";
               description
                 "RFC 8572 trust model. 'trusted-server' validates the server
                  certificate against a factory-pinned CA; 'voucher-anchored'
@@ -1482,7 +1482,7 @@ Trusted ZTP runs only during initial provisioning (factory default or an explici
 
 ### 13. Restrictions/Limitations  
 
-- **Requires a bootstrap server.** The mature server (Watsen) is proprietary; `google/open-sztp` is the open-source candidate but is young and needs an interoperability gate.
+- **Requires a bootstrap server.** The mature server (Watsen) is proprietary; `opiproject/sztp` is the open-source candidate but is young and needs an interoperability gate.
 - **Phase 1 device identity is file-based.** It relies on a pre-installed device certificate and operator-provisioned trust anchors; it does not establish identity from a hardware root of trust until Phase 2.
 - **DHCPv6-only networks.** If only option 136 is available, client support must be confirmed; otherwise enforced mode may be restricted to dual-stack in Phase 1 .
 - **Reused client is written in Go.** SONiC invokes it as a subprocess, which adds a Go build and runtime artifact to the image.
@@ -1937,7 +1937,7 @@ sequenceDiagram
     Note right of Switch: Input: signed-data-preferred=false,<br/>hw-model, os-name, os-version
 
     Server-->>Switch: 200 OK
-    Note left of Server: Output: unsigned onboarding-information (JSON/XML),<br/>reporting-level
+    Note left of Server: Output: onboarding-information (JSON/XML),<br/>reporting-level
 
     Note over Switch,Server: 3. Execution & Telemetry Progress Reporting
 
@@ -2109,7 +2109,7 @@ In trusted-server mode, the switch relies directly on transport-layer security (
 
 **Operator:**
 - Server TLS Certificate & Private Key: Issued by a CA chain that resolves back to the manufacturer's trust anchor stored on the switch.
-- Bootstrapping Data / Conveyed Information: The unsigned payload containing onboarding instructions (boot image download URIs, hashes, pre/post-configuration scripts, initial NOS configuration).
+- Bootstrapping Data / Conveyed Information: The payload containing onboarding instructions (boot image download URIs, hashes, pre/post-configuration scripts, initial NOS configuration).
 - Device Identity Records: List of allowed serial numbers / IDevID identities for mTLS client authorization.
 
 ---
