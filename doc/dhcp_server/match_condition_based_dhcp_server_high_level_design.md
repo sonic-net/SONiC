@@ -48,7 +48,7 @@
 
 # About this Manual
 
-This document describes the design details of extending the **ipv4 port based DHCP server** feature to support **match condition based IP assignment**. This allows operators to assign different IP addresses to DHCP clients based on configurable match conditions such as port identity (Option 82 Circuit ID) and Vendor Class Identifier (Option 60).
+This document describes the design details of extending the **IPv4 port-based DHCP server** feature to support **match-condition-based IP assignment**. This allows operators to assign different IP addresses to DHCP clients based on configurable match conditions such as port identity (Option 82 Circuit ID) and Vendor Class Identifier (Option 60).
 
 A key insight of this design is that **port identification is itself a DHCP option match** (via Option 82 Circuit ID). By treating port as a first-class match condition type alongside other DHCP option matches, the design becomes uniform and extensible — all conditions are defined in the same table and composed freely.
 
@@ -131,7 +131,7 @@ Configuration of match condition feature can be done via:
 
 * In the current design, only **exact matching** is supported. Substring/prefix matching may be added in future releases.
 
-* IP assignments will be same if the device reconnects within the lease expiry, after the lease expiry a new IP can be assigned from the available IP range.
+* IP assignments remain the same if the device reconnects before the lease expires; after lease expiry, a new IP can be assigned from the available IP range.
 
 ## Design Overview
 
@@ -190,7 +190,7 @@ When a VLAN has multiple bindings with overlapping conditions, more-specific bin
 
 For example, a "VendorA device on etp1" matches both a 2-condition binding [port_etp1, vendor_a] and a 1-condition binding [port_etp1]. The more-specific 2-condition binding takes priority.
 
-**Note:** Operators should avoid creating multiple bindings with the same number of conditions that can both match the same client. If such an overlap exists, the behavior is non-deterministic. This is considered a misconfiguration. This becomes specially applicable when more match conditions are supported in future like MAC address.  Example :
+**Note:** Operators should avoid creating multiple bindings with the same number of conditions that can both match the same client. If such an overlap exists, the behavior is non-deterministic. This is considered a misconfiguration. This becomes especially applicable when more match conditions are supported in future like MAC address.  Example :
 
 ```json
 "Vlan100|vendor_a_on_etp1": {
@@ -202,7 +202,7 @@ For example, a "VendorA device on etp1" matches both a 2-condition binding [port
     "ips": ["100.1.1.20", "100.1.1.21"]
 }
 ```
-There are chances that a device can match both of the above match conditions. The behaviour becomes non-deterministic in this case and the bindings should be updated to avoid ambiguity.
+There is a chance that a device can match both of the above match conditions. The behavior becomes non-deterministic in this case and the bindings should be updated to avoid ambiguity.
 
 ## DB Changes
 
@@ -641,8 +641,8 @@ This command is used to show bindings.
 ## Unit Test
 
 Unit tests cover the new `match` and `binding` command groups, as well as the
-extensions to existing commands (`config dhcp_server ipv4 add|update --mode`,
-`show dhcp_server ipv4 info`). Existing `PORT` mode test cases remain unchanged
+extensions to existing commands (`config dhcp_server ipv4 add|update --mode`).
+Existing `PORT` mode test cases remain unchanged
 and must continue to pass, to verify backward compatibility.
 
 ### Config CLI
@@ -708,7 +708,7 @@ and must continue to pass, to verify backward compatibility.
   |Add with range not exist|Add failed because range not exist|
   |Add with binding name longer than 255 characters|Add failed because binding name length invalid|
   |Add to a vlan_interface whose mode is PORT|Add success with warning that binding is not effective under PORT mode|
-  |Add a binding that has the same number of matches as an existing binding and can match the same client|Add failed because binding is ambiguous, conflicting binding is reported|
+  |Add a binding that has the same number of matches as an existing binding and can match the same client|Add success, Behavior becomes non-deterministic and this is an operator level misconfiguration|
   |Add a binding whose matches are a strict superset of an existing binding|Add success, more specific binding takes priority|
 
 - config dhcp_server ipv4 binding update \<vlan_interface\> \<binding_name\> [--match \<match_list\>] [--range \<ip_range_list\> | \<ip_list\>]
