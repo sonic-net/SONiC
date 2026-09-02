@@ -273,7 +273,7 @@ In this context, "secure" describes the protection of the communication channel,
 | FR-5 | The device shall validate the ownership voucher, the owner certificate, and the CMS signature over the onboarding information before applying any part of the payload. | Must |
 | FR-6 | On any trust-validation failure, the device shall apply no configuration, image, or script (fail-closed). | Must |
 | FR-7 | The device shall support RFC 8572 redirects and follow authorized bootstrap server references, while enforcing limits to prevent redirect loops. | Must |
-| FR-8 | The device shall send RFC 8572 progress reports to a **trusted** bootstrap server (report-progress is defined only over the authenticated connection to a trusted server; it is not available on the voucher anchor model). | Must |
+| FR-8 | The device shall send RFC 8572 progress reports to a **trusted** bootstrap server (report-progress is defined only once the authentication connection is established with server. `trust` is established pre-boot in `trusted-server model` & dynamically validated via a signed voucher in `voucher-anchored model`). | Must |
 | FR-9 | Validated onboarding information shall be applied through the existing `sonic-ztp` engine and plugins, with configuration backup and rollback on failure. | Must |
 | FR-10 | In enforced mode, the SZTP URL shall be accepted only from DHCP option 143/136; legacy option 67/239 discovery shall be rejected. | Must |
 | FR-11 | The device shall read its initial trust configuration from a read-only bootstrap.json during first boot. | Must |
@@ -806,7 +806,7 @@ Records onboarding events, trust-validation outcomes, and operational status. In
 
 **7. IdentityManager**
 
-Manages device identity and authentication credentials. In Phase 1, it supports file-based device certificates. In Phase 2, it integrates with TPM-based IDevID/LDevID identities.
+Manages device identity and authentication credentials. In Phase 1, it supports file-based device certificates with strict file permissions (0400), restricted mount paths. In Phase 2, it integrates with TPM-based IDevID/LDevID identities - suitable for production deployments.
 
 **8. sztp-agent (Reused)**
 
