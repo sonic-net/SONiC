@@ -1002,13 +1002,13 @@ sequenceDiagram
     AGT->>BS: RESTCONF get-bootstrapping-data
     BS-->>AGT: onboarding info + ownership voucher + owner cert
     AGT->>AGT: validate voucher, verify server, verify CMS signature
-    AGT->>BS: progress report (bootstrap-initiated: trusted-server mode)
+    AGT->>BS: progress report (bootstrap-initiated)
     AGT-->>ADP: exit 0 + onboarding.json
     ADP->>TA: anchor trusted time (if clock invalid)
     ADP->>ENG: ztp_data.json (firmware, configdb-json, …)
     ENG->>ENG: backup, apply, roll back on failure
     ENG->>DB: status = SUCCESS + audit events
-    AGT->>BS: progress report (bootstrap-complete: trusted-server)
+    AGT->>BS: progress report (bootstrap-complete)
 ```
 *Figure 10 : Successful voucher-anchored provisioning*
 
