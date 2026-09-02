@@ -63,7 +63,7 @@ The initial implementation uses a platform helper and native platform client/ser
 | Authenticated Variable / AV | UEFI authenticated-variable update payload |
 | Secure Variable Backend | Persistent implementation used to store and protect PK/KEK/db/dbx |
 | Hardware Root of Trust / RoT | Optional platform security hardware that anchors trust and protects persistent security state |
-| Backend helper | Platform-provided executable implementing the SONiC Secure Boot backend contract |
+| Secure Boot backend | Implementation of the SONiC Secure Boot backend contract; may be the SONiC generic UEFI backend or a platform-specific backend |
 | Setup/provisioning mode | Initial enrollment state |
 | Deployed mode | Normal field state where updates require authenticated authorization |
 
@@ -110,9 +110,9 @@ The design is split into three logical layers:
 
 1. **SONiC Secure Boot CLI** — provides the platform-neutral user interface.
 2. **Secure Boot backend contract** — defines stable operations and structured responses independent of platform implementation.
-3. **Platform implementation** — uses the platform's native client/service and secure-variable mechanisms to access protected persistent storage.
+3. **Secure Boot backend implementation** — uses either the SONiC generic UEFI backend or a platform-specific backend to access Secure Boot variables.
 
-The current implementation uses a platform helper binary that invokes native platform client/service APIs. The helper returns structured data to SONiC and submits authenticated-variable update payloads to the backend.
+If a platform-specific backend is explicitly registered, SONiC uses it. Otherwise, when standard UEFI variable services are available, SONiC uses the generic UEFI backend. If neither is available, Secure Boot management is reported as unsupported.
 
 The specific hardware root of trust, security processor, daemon, transport, object identifiers, and storage technology are platform implementation details and are not part of the upstream SONiC interface.
 
@@ -173,7 +173,7 @@ sequenceDiagram
     actor User as User / Operator
     participant CLI as SONiC CLI
     participant UTIL as SONiC Utilities Backend
-    participant TOOL as Platform Secure Boot Backend
+    participant TOOL as Secure Boot Backend
     participant SVC as Secure Variable Service
     participant STORE as Protected Secure Variable Store
     participant UEFI as UEFI Firmware
@@ -285,7 +285,7 @@ sequenceDiagram
 | `show secure-boot` CLI | `sonic-utilities` | Display backend status, mode, and key state |
 | `config secure-boot` CLI | `sonic-utilities` | Submit authenticated-variable update files |
 | Backend contract | Platform-neutral interface | Define stable request/response behavior for SONiC |
-| Platform helper | Platform package | Adapt SONiC requests to native platform client/service APIs |
+| Secure Boot backend | SONiC generic / platform package | Access Secure Boot variables using standard UEFI services or a platform-specific interface |
 | UEFI variable interface | Platform/firmware interface | Represent `PK`, `KEK`, `db`, and `dbx` using standard UEFI semantics |
 | Secure Variable Backend | Platform implementation | Validate policy and access protected storage |
 | Protected Persistent Storage | Platform implementation | Persist Secure Boot variable state |
@@ -459,15 +459,21 @@ config secure-boot certificate update dbx /host/secureboot/dbx-update.auth --ope
 
 #### 1.7.6. <a name='BackendContract'></a>Backend Contract
 
-The SONiC CLI communicates with a platform-provided Secure Boot backend through the platform-neutral executable interface:
+The SONiC CLI communicates through the platform-neutral Secure Boot backend entry point:
 
 ```text
 /usr/sbin/secure-boot-backend
 ```
 
-A platform supporting this CLI shall provide this entry point.
+SONiC provides a generic UEFI backend for platforms that expose standard UEFI variable services. A platform may explicitly register a platform-specific backend when specialized Secure Boot variable handling is required.
 
-The implementation behind this entry point is platform-specific. The HLD does not mandate the underlying executable, daemon, transport, library, secure element, hardware root of trust, or storage implementation.
+Backend selection follows this order:
+
+1. If a platform-specific backend is explicitly registered, use the platform backend.
+2. Otherwise, if standard UEFI variable services are available, use the SONiC generic UEFI backend.
+3. Otherwise, report Secure Boot management as unsupported.
+
+The backend selection is based on the available Secure Boot interface, not CPU architecture. The HLD does not mandate the underlying executable, daemon, transport, library, secure element, hardware root of trust, or storage implementation.
 
 The backend shall support the following logical operations:
 
@@ -621,7 +627,7 @@ An accepted certificate update may require a reboot or power cycle before it aff
 | show-keys-success | Mock backend keys response and verify CLI table |
 | show-key-success | Mock a single variable/store response and verify CLI output |
 | show-key-unified | Verify `--store unified` is passed to the backend and displayed correctly |
-| backend-not-installed | Verify missing platform backend is reported cleanly |
+| backend-unavailable | Verify Secure Boot management is reported unsupported when neither a platform backend nor standard UEFI variable services are available |
 | backend-timeout | Verify backend timeout is reported cleanly |
 | backend-invalid-json | Verify malformed backend output is rejected |
 | backend-error | Verify structured backend errors are handled |
@@ -635,7 +641,7 @@ An accepted certificate update may require a reboot or power cycle before it aff
 
 | Test | Description |
 | :--- | :--- |
-| backend-present | Verify the platform Secure Boot backend is available |
+| backend-selected | Verify the platform backend is selected when registered, otherwise the generic UEFI backend is used when standard UEFI variable services are available |
 | show-cli-status | Verify `show secure-boot status` |
 | show-cli-mode | Verify `show secure-boot mode` matches backend state |
 | show-cli-keys | Verify `show secure-boot keys` matches backend state |
