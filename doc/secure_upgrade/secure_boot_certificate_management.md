@@ -133,11 +133,11 @@ The following sequence shows the end-to-end Secure Boot variable-management flow
     "primaryTextColor": "#102A43",
     "primaryBorderColor": "#2F6BBD",
 
-    "secondaryColor": "#E7F7ED",
+    "secondaryColor": "#E8F8EE",
     "secondaryTextColor": "#163A24",
     "secondaryBorderColor": "#3A8F5B",
 
-    "tertiaryColor": "#FFF2CC",
+    "tertiaryColor": "#FFF1CC",
     "tertiaryTextColor": "#5C4400",
     "tertiaryBorderColor": "#C99200",
 
@@ -145,8 +145,7 @@ The following sequence shows the end-to-end Secure Boot variable-management flow
     "actorBorder": "#2F6BBD",
     "actorTextColor": "#102A43",
 
-    "actorLineColor": "#6B7C93",
-
+    "actorLineColor": "#75869E",
     "signalColor": "#34495E",
     "signalTextColor": "#102A43",
 
@@ -172,98 +171,139 @@ sequenceDiagram
 
     actor User as User / Operator
     participant CLI as SONiC CLI
-    participant UTIL as SONiC Utilities Backend
-    participant TOOL as Secure Boot Backend
-    participant SVC as Secure Variable Service
+    participant SEL as /usr/sbin/secure-boot-backend
+    participant BE as Selected Secure Boot Backend
+    participant SVC as Platform Secure Variable Service
     participant STORE as Protected Secure Variable Store
-    participant UEFI as UEFI Firmware
+    participant UEFI as Standard UEFI Variable Services
     participant VERIFY as Secure Boot Verification
 
+    rect rgb(239, 231, 250)
+        Note over CLI,UEFI: Backend Selection — Platform-specific first, Generic UEFI fallback
+
+        CLI->>SEL: Secure Boot operation
+        activate SEL
+
+        alt Platform backend registered
+            SEL->>BE: Select platform backend
+            Note over BE,STORE: Platform-specific implementation path
+        else Standard UEFI variable services available
+            SEL->>BE: Select generic UEFI backend
+            Note over BE,UEFI: Generic UEFI implementation path
+        else No supported backend
+            SEL-->>CLI: Secure Boot management unsupported
+        end
+
+        deactivate SEL
+    end
+
     rect rgb(230, 242, 255)
-        Note over User,STORE: Runtime Secure Boot Management
+        Note over User,UEFI: Runtime Secure Boot Management — Mode / Policy
 
         User->>CLI: show secure-boot mode
         activate CLI
-        CLI->>UTIL: Request Secure Boot mode
-        activate UTIL
-        UTIL->>TOOL: Get mode
-        activate TOOL
-        TOOL->>SVC: Read Secure Boot mode / policy
-        activate SVC
-        SVC->>STORE: Read protected mode state
-        activate STORE
-        STORE-->>SVC: Mode state
-        deactivate STORE
-        SVC-->>TOOL: Mode result
-        deactivate SVC
-        TOOL-->>UTIL: Platform-neutral response
-        deactivate TOOL
-        UTIL-->>CLI: Format CLI output
-        deactivate UTIL
+        CLI->>SEL: mode
+        activate SEL
+        SEL->>BE: Get Secure Boot mode / policy
+        activate BE
+
+        alt Platform backend selected
+            BE->>SVC: Read mode / policy
+            activate SVC
+            SVC->>STORE: Read protected mode state
+            activate STORE
+            STORE-->>SVC: Mode state
+            deactivate STORE
+            SVC-->>BE: Mode result
+            deactivate SVC
+        else Generic UEFI backend selected
+            BE->>UEFI: Read standard UEFI Secure Boot state
+            activate UEFI
+            UEFI-->>BE: Mode / policy state
+            deactivate UEFI
+        end
+
+        BE-->>SEL: Structured result
+        deactivate BE
+        SEL-->>CLI: JSON response
+        deactivate SEL
         CLI-->>User: Display Secure Boot mode
         deactivate CLI
     end
 
     rect rgb(232, 247, 237)
+        Note over User,UEFI: Secure Boot Variable State — PK / KEK / db / dbx
+
         User->>CLI: show secure-boot keys
         activate CLI
-        CLI->>UTIL: Request PK / KEK / db / dbx state
-        activate UTIL
-        UTIL->>TOOL: Get Secure Boot variables
-        activate TOOL
-        TOOL->>SVC: Read variable state
-        activate SVC
-        SVC->>STORE: Read PK / KEK / db / dbx
-        activate STORE
-        STORE-->>SVC: Variable contents / metadata
-        deactivate STORE
-        SVC-->>TOOL: Variable state and entry counts
-        deactivate SVC
-        TOOL-->>UTIL: Platform-neutral response
-        deactivate TOOL
-        UTIL-->>CLI: Format key-state table
-        deactivate UTIL
+        CLI->>SEL: keys
+        activate SEL
+        SEL->>BE: Get Secure Boot variables
+        activate BE
+
+        alt Platform backend selected
+            BE->>SVC: Read variable state
+            activate SVC
+            SVC->>STORE: Read PK / KEK / db / dbx
+            activate STORE
+            STORE-->>SVC: Variable contents / metadata
+            deactivate STORE
+            SVC-->>BE: State and entry counts
+            deactivate SVC
+        else Generic UEFI backend selected
+            BE->>UEFI: GetVariable(PK / KEK / db / dbx)
+            activate UEFI
+            UEFI-->>BE: Variable contents / metadata
+            deactivate UEFI
+        end
+
+        BE-->>SEL: Structured result
+        deactivate BE
+        SEL-->>CLI: JSON response
+        deactivate SEL
         CLI-->>User: Display variable state
         deactivate CLI
     end
 
     rect rgb(255, 244, 214)
-        Note over User,STORE: Authenticated Secure Boot Variable Update
+        Note over User,UEFI: Authenticated Secure Boot Variable Update
 
         User->>CLI: config secure-boot certificate update<br/><PK|KEK|db|dbx> <auth-var-file><br/>[--operation append|update|remove]
         activate CLI
-        CLI->>UTIL: Validate arguments
-        activate UTIL
-        UTIL->>TOOL: Set authenticated variable
-        activate TOOL
-        TOOL->>SVC: Submit authenticated-variable update
-        activate SVC
-        SVC->>SVC: Validate variable, operation,<br/>authentication, and policy
-        SVC->>STORE: Persist updated secure variable
-        activate STORE
-        STORE-->>SVC: Update status
-        deactivate STORE
-        SVC-->>TOOL: Success / failure
-        deactivate SVC
-        TOOL-->>UTIL: Platform-neutral result
-        deactivate TOOL
-        UTIL-->>CLI: Format operation result
-        deactivate UTIL
+        CLI->>CLI: Validate CLI arguments
+        CLI->>SEL: update authenticated variable
+        activate SEL
+        SEL->>BE: Submit authenticated-variable update
+        activate BE
+
+        alt Platform backend selected
+            BE->>SVC: Validate authentication, operation and policy
+            activate SVC
+            SVC->>STORE: Persist authorized update
+            activate STORE
+            STORE-->>SVC: Update status
+            deactivate STORE
+            SVC-->>BE: Success / failure
+            deactivate SVC
+        else Generic UEFI backend selected
+            BE->>UEFI: SetVariable() authenticated update
+            activate UEFI
+            UEFI-->>BE: Success / failure
+            deactivate UEFI
+        end
+
+        BE-->>SEL: Structured result
+        deactivate BE
+        SEL-->>CLI: JSON result
+        deactivate SEL
         CLI-->>User: Display update status
         deactivate CLI
     end
 
-    rect rgb(239, 231, 250)
-        Note over UEFI,VERIFY: Secure Boot Enforcement During System Boot
+    rect rgb(245, 238, 255)
+        Note over STORE,VERIFY: Secure Boot Enforcement During System Boot
 
-        UEFI->>SVC: Get PK / KEK / db / dbx
-        activate SVC
-        SVC->>STORE: Read protected Secure Boot variables
-        activate STORE
-        STORE-->>SVC: Persisted variable contents
-        deactivate STORE
-        SVC-->>UEFI: Secure Boot variables
-        deactivate SVC
+        Note over STORE,UEFI: Firmware obtains the persistent PK / KEK / db / dbx state<br/>through the platform-supported Secure Boot variable mechanism
 
         UEFI->>VERIFY: Verify boot components<br/>using db / dbx policy
         activate VERIFY
