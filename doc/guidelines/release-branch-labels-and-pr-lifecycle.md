@@ -64,59 +64,59 @@ transitions. `release` represents the target release branch and
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"background": "#ffffff", "darkMode": false, "primaryColor": "#ffffff", "primaryTextColor": "#111111", "primaryBorderColor": "#666666", "lineColor": "#2e75b6", "secondaryColor": "#eaf2f8", "tertiaryColor": "#ffffff", "edgeLabelBackground": "#ffffff"}}}%%
 flowchart TD
-    A([PR merged into master branch]) --> B{"Tested for release branch<br/>label present?"}
+    A(["S1: PR merged into<br/>master branch"]) --> B{"S2: Tested for release branch<br/>label present?"}
 
-    B -- No --> B1[Backport request blocked]
-    B1 --> B2[Test change against release branch]
-    B2 --> B2A["Select Tested branch and<br/>provide Test result"]
-    B2A --> B3["Automation: + Tested for<br/>release branch"]
+    B -- No --> B1["S2.1: Backport request blocked"]
+    B1 --> B2["S2.2: Test change against<br/>release branch"]
+    B2 --> B2A["S2.3: Select Tested branch and<br/>provide Test result"]
+    B2A --> B3["S2.4: Automation adds<br/>Tested for release branch"]
     B3 --> C0
-    B -- Yes --> C0{"Backport requested<br/>in PR description?"}
-    C0 -- No --> C1([No backport requested])
-    C0 -- Yes --> C["Automation: + Request for<br/>release Branch"]
+    B -- Yes --> C0{"S3: Backport requested<br/>in PR description?"}
+    C0 -- No --> C1(["S3.1: No backport requested"])
+    C0 -- Yes --> C["S3.2: Automation adds<br/>Request for release Branch"]
 
-    C --> F[Review request]
-    F --> G{Approved?}
-    G -- No response in 5 days --> F2[Notify release manager]
+    C --> F["S4: Review request"]
+    F --> G{"S4.1: Approved?"}
+    G -- No response in 5 days --> F2["S4.2: Notify release manager"]
     F2 --> G
-    G -- No --> H["+ Rejected for release Branch"]
+    G -- No --> H["S4.3: + Rejected for<br/>release Branch"]
     H --> Z([End])
-    G -- Yes --> I["+ Approved for release Branch"]
+    G -- Yes --> I["S4.4: + Approved for<br/>release Branch"]
 
-    I --> I1{Added by a<br/>release manager?}
-    I1 -- No --> I2["Automation: - Approved for<br/>release Branch"]
+    I --> I1{"S4.5: Added by a<br/>release manager?"}
+    I1 -- No --> I2["S4.6: Automation removes<br/>Approved for release Branch"]
     I2 --> G
-    I1 -- Yes --> D{Older release?}
+    I1 -- Yes --> D{"S5: Older release?"}
     D -- No --> J
-    D -- Yes --> E{Latest release approved?}
+    D -- Yes --> E{"S5.1: Latest release approved?"}
     E -- Yes --> J
-    E -- No --> E1[Pause older-branch cherry-pick]
-    E1 --> E2["Wait for + Approved for<br/>latest-release Branch"]
+    E -- No --> E1["S5.2: Pause older-branch<br/>cherry-pick"]
+    E1 --> E2["S5.3: Wait for + Approved for<br/>latest-release Branch"]
     E2 --> J
 
-    J{Automatic cherry-pick<br/>has conflicts?}
-    J -- Yes --> K["+ Cherry Pick Conflict_release"]
-    K --> L[Leave comment to notify PR author]
-    J -- No --> M[Create backport PR]
-    M --> N["+ Created PR to release Branch"]
+    J{"S6: Automatic cherry-pick<br/>has conflicts?"}
+    J -- Yes --> K["S6.1: + Cherry Pick<br/>Conflict_release"]
+    K --> L["S6.2: Leave comment to<br/>notify PR author"]
+    J -- No --> M["S6.3: Create backport PR"]
+    M --> N["S6.4: + Created PR to<br/>release Branch"]
 
-    N --> O{Backport PR checks<br/>and review pass?}
-    O -- No --> P[Wait until checker has<br/>been open for 3 days]
-    P --> P1[Automatically retry checker]
-    P1 --> P2{Retry passes?}
+    N --> O{"S7: Backport PR checks<br/>and review pass?"}
+    O -- No --> P["S7.1: Wait until checker has<br/>been open for 3 days"]
+    P --> P1["S7.2: Automatically retry checker"]
+    P1 --> P2{"S7.3: Retry passes?"}
     P2 -- Yes --> Q
-    P2 -- No --> P3[Notify release owner and PR author]
-    P3 --> T{Backport PR open<br/>for 180 days?}
-    T -- No --> P4[Await updates to the backport PR]
+    P2 -- No --> P3["S7.4: Notify release owner<br/>and PR author"]
+    P3 --> T{"S8: Backport PR open<br/>for 180 days?"}
+    T -- No --> P4["S7.5: Await updates to<br/>the backport PR"]
     P4 --> O
-    T -- Yes --> T1[Close backport PR]
-    T1 --> T2["+ Backport Expired for release Branch"]
-    T2 --> T3["- Created PR to release Branch"]
-    T3 --> T4[Notify release manager and PR author]
+    T -- Yes --> T1["S8.1: Close backport PR"]
+    T1 --> T2["S8.2: + Backport Expired for<br/>release Branch"]
+    T2 --> T3["S8.3: - Created PR to<br/>release Branch"]
+    T3 --> T4["S8.4: Notify release manager<br/>and PR author"]
     T4 --> Z
-    O -- Yes --> Q[Merge backport PR]
-    Q --> R["+ Included in release Branch"]
-    R --> S["- Request / Approved / Created PR<br/>workflow labels<br>(only keep Included in label)"]
+    O -- Yes --> Q["S9: Merge backport PR"]
+    Q --> R["S9.1: + Included in<br/>release Branch"]
+    R --> S["S9.2: - Request / Approved / Created PR<br/>workflow labels<br>(only keep Included in label)"]
     S --> Z
 
     classDef initial fill:#f2f2f2,stroke:#666,color:#000
