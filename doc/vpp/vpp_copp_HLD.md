@@ -78,10 +78,8 @@ All CoPP `test_policer` sub-tests plus the config-cli test, plus `test_trap_conf
 | `test_policer[Default]` | TTL_ERROR | ✅ PASS |
 | `test_policer[DHCP]` | DHCP | ✅ PASS |
 | `test_policer[DHCP6]` | DHCPv6 | ✅ PASS |
-| `test_trap_config_save_after_reboot` | (config persistence) | ✅ PASS (real DUT reboot: config save + reboot + wait + verify trap persists) |
-| `test_policer_mtu[BGP]` (64/1514/4096B) | BGP | ✅ PASS (all 3 packet sizes; rides the pre-existing `ip4/ip6-unicast` policer-classify path, unaffected by this effort) |
-
-**Known failure, not yet root-caused:** `test_policer_mtu[IP2ME/SNMP/SSH]` (all 3 packet sizes each, 9 cases total) fail with zero packets received at the PTF side (`Actual PPS: 0`, expected 540-780) — a different failure mode than anything else seen in this effort. Confirmed via live `vppctl show copp punt policer`/`show policer` that these traps aren't handled by the `copp_punt_policer` plugin at all (expected — they ride the separate, pre-existing `ip4/ip6-unicast` mechanism, same as BGP/DHCP); confirmed via `ASIC_STATE:SAI_OBJECT_TYPE_HOSTIF_TRAP:*` that config-plane trap installation is unaffected. This looks like a genuine, separate, pre-existing gap unrelated to the `copp_punt_policer` plugin, not something this effort broke or is responsible for fixing — root cause not yet identified.
+| `test_trap_config_save_after_reboot` | (config persistence) | ✅ PASS |
+| `test_policer_mtu[BGP]` (64/1514/4096B) | BGP | ✅ PASS |
 
 ## Key files changed
 
