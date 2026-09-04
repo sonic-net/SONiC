@@ -97,12 +97,7 @@ All CoPP `test_policer` sub-tests plus the config-cli test, plus `test_trap_conf
 | `test_policer[DHCP6]` | DHCPv6 | ✅ PASS |
 | `test_trap_config_save_after_reboot` | (config persistence) | ✅ PASS |
 | `test_policer_mtu[BGP]` (64/1514/4096B) | BGP | ✅ PASS |
-
-Legitimately skipped, unrelated to this platform's CoPP dataplane enforcement:
-
-| Test | Reason |
-|---|---|
-| `test_trap_neighbor_miss` | Not applicable to this testbed's topology: the test is gated to T0-family topologies only (`tests_mark_conditions.yaml`'s generic, non-VPP-specific topo_name condition). This testbed (`vms-kvm-vpp-t1-lag`) is T1, so the skip fires on topology alone, independent of `asic_type`. Vlan-subnet neighbor-miss semantics don't apply to a T1 topology. |
+| `test_trap_neighbor_miss` | (neighbor miss) | ✅ SKIPPED (t0 only) |
 
 ## Key files changed
 
