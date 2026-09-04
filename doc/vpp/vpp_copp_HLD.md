@@ -4,13 +4,13 @@
 
 | Rev | Date | Author(s) | Changes |
 |-----|------|-----------|---------|
-| 1.0 | 2026-09-02 | Vesper | Initial HLD for  `copp_punt_policer` design. |
+| 1.0 | 2026-09-02 | nhegde-microsoft | Initial HLD for  `copp_punt_policer` design. |
 
 ---
 
 ## Background
 
-[sonic-buildimage#25801](https://github.com/sonic-net/sonic-buildimage/issues/25801) asks to enable Control Plane Policing (CoPP) testing for `t1-lag` topology on the SONiC-VPP KVM testbed.
+[sonic-buildimage#25801](https://github.com/sonic-net/sonic-buildimage/issues/25801) asks to enable Control Plane Policing (CoPP) testing for the `t1-lag-vpp` topology (`vms-kvm-vpp-t1-lag` testbed) on the SONiC-VPP KVM testbed.
 
 CoPP on real ASICs classifies control-plane protocols, traps them to the CPU, groups traps under trap-groups, and rate-limits each group with a policer. On SONiC-VPP, the SAI `config plane` already worked end-to-end before this effort (`orchagent`'s `CoppOrch` issues normal SAI calls, accepted and stored by `saivpp`) — what was missing was the `dataplane enforcement`: no VPP mechanism actually rate-limited or even punted most CoPP-relevant traffic to the CPU.
 
@@ -37,9 +37,9 @@ ARP, LACP, LLDP, UDLD, TTL_ERROR are ethertype/L2-level control-plane traffic on
 | # | Requirement |
 |---|-------------|
 | REQ-1 | Creating a SAI `POLICER` object must program an equivalent policer in the VPP dataplane (CIR/CBS/PIR/PBS, meter type, mode, conform/exceed/violate actions), not just store the attributes. |
-| REQ-2 | Creating a SAI `HOSTIF_TRAP` for a given `trap_type` must cause matching control-plane traffic (ARP, BGP, LACP, LLDP, DHCP/DHCPv6, UDLD, TTL_ERROR, IP2ME, SNMP, SSH, etc.) to be classified and punted to the CPU via the existing TAP/genetlink punt path. |
+| REQ-2 | Creating a SAI `HOSTIF_TRAP` for a given `trap_type` must cause matching control-plane traffic (ARP, BGP, LACP, LLDP, DHCP/DHCPv6, UDLD, TTL_ERROR, IP2ME) to be classified and punted to the CPU via the existing TAP/genetlink punt path. SNMP and SSH are IP-destined-to-router traffic already covered pre-effort by VPP's existing `ip4-unicast`/`ip6-unicast` policer-classify path (same as BGP/DHCP/IP2ME) and are not part of this effort's new plugin. |
 | REQ-3 | Traffic punted for a trap must first pass through the VPP policer bound to that trap's `HOSTIF_TRAP_GROUP` (`SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER`), so excess traffic is dropped (or marked, per `SAI_POLICER_ATTR_RED_PACKET_ACTION`) rather than delivered to the CPU. |
-| REQ-4 | Removing/disabling a trap at runtime (`test_add_new_trap`, `test_remove_trap`) must add/remove the corresponding classify/punt binding immediately, with no swss/syncd restart required. |
+| REQ-4 | Removing/disabling a trap at runtime (`test_add_new_trap`, `test_remove_trap`) must add/remove the corresponding classify/punt binding immediately, with no swss/syncd restart required. **Not yet validated** — blocked on an unrelated testbed harness issue; see Status. |
 | REQ-5 | SAI `getStats`/`getStatsExt` on a `POLICER` object must return live counters (`SAI_POLICER_STAT_GREEN/YELLOW/RED_PACKETS/BYTES`) sourced from VPP's policer conform/exceed/violate counters, not stubbed zeros. |
 | REQ-6 | Trap/trap-group/policer configuration must persist and be re-applied after `config save` + reboot, matching existing SONiC CoPP semantics. |
 | REQ-7 | The feature must not regress existing ACL, FDB, or routing dataplane behavior in `saivpp` — new code is additive (new object-type dispatch cases + new files), following the existing `SwitchVpp` extension pattern. |
@@ -56,6 +56,23 @@ ARP, LACP, LLDP, UDLD, TTL_ERROR are ethertype/L2-level control-plane traffic on
 3. **Deliver**: for a conforming packet, sets the buffer's TX interface directly to the mapped linux-cp TAP and dispatches straight to `interface-output`. Resolves against the raw ingress port for every ethertype uniformly, matching what this project's PTF test harness (`ptf_nn_agent`) actually observes.
 
 SAI wiring (`SwitchVppHostifTrap.cpp`) mirrors the existing per-trap dispatch pattern used for bookkeeping: on `createHostifTrap`/`setHostifTrap`/`setHostifTrapGroup`, resolve the trap's bound policer to its VPP policer name and call the plugin's `copp_punt_policer_bind` API — switch-wide, since the plugin auto-enables its feature on every interface as it's created (`VNET_SW_INTERFACE_ADD_DEL_FUNCTION`), no per-port bind needed.
+
+**Node graph:**
+
+```
+Before (bypasses policer-classify entirely):
+  device-input -> ethernet-input -> arp-input / linux-cp-punt-xc -> TAP
+
+After:
+  device-input -> copp_punt_policer -> police -> { interface-output(TAP) | drop }
+```
+
+**Scope and cost notes:**
+
+- **Tagged/VLAN frames are out of scope.** This project's ports are untagged L3-routed access ports; no VLAN sub-interface case exists on this testbed. The fixed 14-byte parse assumes untagged Ethernet — an 802.1Q-tagged frame's ethertype (and, for TTL_ERROR, the IPv4 TTL) would be read from the wrong offset and misclassified. Handling tagged frames is not attempted by this design.
+- **Metering is pps-based, not byte-rate.** SONiC CoPP CIR/CBS on this platform are configured in pps, not bytes/sec, so the policing decision is deliberately packet-size-independent — the fixed 256-byte reference length passed to `vnet_police_packet()` is purely VPP's internal pps-to-token-bucket calibration constant, not a byte-accounting choice, and does not scale with real frame size. This is why `test_policer_mtu[BGP]` passes identically at 64/1514/4096B. This is orthogonal to the byte-oriented `SAI_POLICER_STAT_*_BYTES` counters (REQ-5): those still report real packet lengths for statistics purposes; only the policing *verdict* uses the fixed 256.
+- **The node consumes matched, conforming packets.** A single `vlib_buffer_enqueue_to_next` per packet redirects it straight to `interface-output`/TAP; there is no double-punt. This means a trapped ARP packet's normal path (`arp-input`) is skipped, and VPP's own ARP-learning side effect on that path is lost for punted traffic — the equivalent function is expected to happen at the CPU/Linux side (kernel ARP handling on the TAP), matching the existing `linux-cp` model.
+- **Fast-path cost for non-punted traffic.** Every packet on every port pays a 14-byte Ethernet header read plus a linear scan of a small, bounded table (`COPP_PUNT_POLICER_MAX_ENTRIES` = 16 today); no policer/counter work happens unless an entry matches. The lookup is linear, not hashed — acceptable given the table's small, static size, but noted here as a known optimization opportunity if entry count grows materially.
 
 ## Alternate Designs Considered
 
@@ -80,6 +97,8 @@ All CoPP `test_policer` sub-tests plus the config-cli test, plus `test_trap_conf
 | `test_policer[DHCP6]` | DHCPv6 | ✅ PASS |
 | `test_trap_config_save_after_reboot` | (config persistence) | ✅ PASS |
 | `test_policer_mtu[BGP]` (64/1514/4096B) | BGP | ✅ PASS |
+| `test_add_new_trap` (REQ-4) | BGP (dynamic install) | ⏳ Not yet validated (unrelated testbed harness issue) |
+| `test_remove_trap` (REQ-4) | BGP (dynamic remove) | ⏳ Not yet validated (unrelated testbed harness issue) |
 
 ## Key files changed
 
