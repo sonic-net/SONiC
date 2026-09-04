@@ -39,7 +39,7 @@ ARP, LACP, LLDP, UDLD, TTL_ERROR are ethertype/L2-level control-plane traffic on
 | REQ-1 | Creating a SAI `POLICER` object must program an equivalent policer in the VPP dataplane (CIR/CBS/PIR/PBS, meter type, mode, conform/exceed/violate actions), not just store the attributes. |
 | REQ-2 | Creating a SAI `HOSTIF_TRAP` for a given `trap_type` must cause matching control-plane traffic (ARP, BGP, LACP, LLDP, DHCP/DHCPv6, UDLD, TTL_ERROR, IP2ME) to be classified and punted to the CPU via the existing TAP/genetlink punt path. SNMP and SSH are IP-destined-to-router traffic already covered pre-effort by VPP's existing `ip4-unicast`/`ip6-unicast` policer-classify path (same as BGP/DHCP/IP2ME) and are not part of this effort's new plugin. |
 | REQ-3 | Traffic punted for a trap must first pass through the VPP policer bound to that trap's `HOSTIF_TRAP_GROUP` (`SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER`), so excess traffic is dropped (or marked, per `SAI_POLICER_ATTR_RED_PACKET_ACTION`) rather than delivered to the CPU. |
-| REQ-4 | Removing/disabling a trap at runtime (`test_add_new_trap`, `test_remove_trap`) must add/remove the corresponding classify/punt binding immediately, with no swss/syncd restart required. **Not yet validated** — blocked on an unrelated testbed harness issue; see Status. |
+| REQ-4 | Removing/disabling a trap at runtime (`test_add_new_trap`, `test_remove_trap`) must add/remove the corresponding classify/punt binding immediately, with no swss/syncd restart required. **Not yet validated** — blocked on an unrelated testbed harness issue. |
 | REQ-5 | SAI `getStats`/`getStatsExt` on a `POLICER` object must return live counters (`SAI_POLICER_STAT_GREEN/YELLOW/RED_PACKETS/BYTES`) sourced from VPP's policer conform/exceed/violate counters, not stubbed zeros. |
 | REQ-6 | Trap/trap-group/policer configuration must persist and be re-applied after `config save` + reboot, matching existing SONiC CoPP semantics. |
 | REQ-7 | The feature must not regress existing ACL, FDB, or routing dataplane behavior in `saivpp` — new code is additive (new object-type dispatch cases + new files), following the existing `SwitchVpp` extension pattern. |
@@ -97,8 +97,12 @@ All CoPP `test_policer` sub-tests plus the config-cli test, plus `test_trap_conf
 | `test_policer[DHCP6]` | DHCPv6 | ✅ PASS |
 | `test_trap_config_save_after_reboot` | (config persistence) | ✅ PASS |
 | `test_policer_mtu[BGP]` (64/1514/4096B) | BGP | ✅ PASS |
-| `test_add_new_trap` (REQ-4) | BGP (dynamic install) | ⏳ Not yet validated (unrelated testbed harness issue) |
-| `test_remove_trap` (REQ-4) | BGP (dynamic remove) | ⏳ Not yet validated (unrelated testbed harness issue) |
+
+Legitimately skipped, unrelated to this platform's CoPP dataplane enforcement:
+
+| Test | Reason |
+|---|---|
+| `test_trap_neighbor_miss` | Not applicable to this testbed's topology: the test is gated to T0-family topologies only (`tests_mark_conditions.yaml`'s generic, non-VPP-specific topo_name condition). This testbed (`vms-kvm-vpp-t1-lag`) is T1, so the skip fires on topology alone, independent of `asic_type`. Vlan-subnet neighbor-miss semantics don't apply to a T1 topology. |
 
 ## Key files changed
 
