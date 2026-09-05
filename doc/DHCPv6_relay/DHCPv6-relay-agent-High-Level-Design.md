@@ -19,12 +19,15 @@
   - [CONFIG DB schema](#config-db-schema)
   - [YANG Model schema](#yang-model-schema)
   - [Option 79 for client link-layer address](#option-79-for-client-link-layer-address)
+  - [Option 18 for Interface-ID](#option-18-for-interface-id)
+  - [Config Update](#config-update)
   - [Option for Dual ToR](#option-for-dual-tor)
   - [Feature table](#feature-table)
   - [RADV modification](#radv-modification)
   - [CoPP manager](#copp-manager)
   - [Source IP](#source-ip)
 * [Performance](#performance)
+* [Scalability](#scalability)
 * [Testing](#testing)
 
 # Scope
@@ -166,33 +169,138 @@ RELAY-REPLY
 DHCP|intf-i|dhcpv6_servers: [&quot;dhcp-server-0&quot;, &quot;dhcp-server-1&quot;, ...., &quot;dhcp-server-n-1&quot;]
 
 DHCP|intf-i|dhcpv6_option|rfc6939_support: &quot;true&quot;
+
+DHCP|intf-i|dhcpv6_option|interface_id: &quot;true&quot;
+</pre>
+
+<pre>
+{
+        "DHCP_RELAY" :{
+                "Vlan100" : {
+                        "dhcpv6_servers" : ["fc02:2000::2"]
+			"dhcpv6_option|rfc6939_support" : "true"
+			"dhcpv6_option|interface_id" : "true"
+                }
+        }
+}
 </pre>
 
 # YANG Model schema
 
 sonic-dhcpv6-relay.yang
 <pre>
-module DHCP  
-    container DHCP {  	
-        list VLAN_LIST {
-    		key name;
-   		    leaf name {
-    			type string;
-  		    }
-   		    leaf dhcpv6_servers {
-     		    	type inet6:ip-address;
-  		    }
-		    leaf dhcpv6_option|rfc6939_support {
-			    type bool;
-		    }
+module sonic-dhcpv6-relay {
+
+	namespace "http://github.com/Azure/sonic-dhcpv6-relay";
+
+	prefix sdhcpv6relay;
+
+	yang-version 1.1;
+
+	import ietf-inet-types {
+		prefix inet;
+	}
+
+	organization "SONiC";
+
+	contact "SONiC";
+
+	description "DHCPv6 Relay yang Module for SONiC OS";
+
+	revision 2021-10-30 {
+		description "First Revision";
+	}
+
+	container sonic-dhcpv6-relay {
+
+		container DHCP_RELAY {
+
+			description "DHCP_RELAY part of config_db.json";
+
+			list DHCP_RELAY_LIST {
+
+				key "name";
+        
+				leaf name {
+					type string;
+				}
+
+        leaf-list dhcpv6_servers {
+                description "Configure the dhcpv6 servers";
+                type inet:ipv6-address;
         }
+
+        leaf dhcpv6_option|rfc6939_support {
+                description "Set rfc6939 for the relay";
+        		    type bool;
+		    }
+
+        leaf dhcpv6_option|interface_id {
+                description "Set interface-id for the relay";
+        		    type bool;
+		    }
     }
+  }
 }
 </pre>
 
 # Option 79 for client link-layer address
 
-Option 79 should be enabled by default and can be disabled through command line.
+Option 79 should be enabled by default and can be disabled through editing config_db.json and reapplying configuration or config database directly by the following commands:
+
+Usage:
+```
+redis-cli -n 4 hset DHCP_RELAY|<vlan> dhcpv6_option|rfc6939_support <true/false>
+config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
+```
+Restart dhcp_relay after updating ipv6 helper information.
+
+Or edit directly in config_db.json and apply config_reload:
+```
+/etc/sonic/config_db.json:
+{
+        "DHCP_RELAY" :{
+                "Vlan100" : {
+                        "dhcpv6_servers" : ["fc02:2000::2"]
+			"dhcpv6_option|rfc6939_support" : "true"
+                }
+        }
+}
+
+sudo config reload
+```
+
+# Option 18 for Interface-ID
+
+Option 18 is disabled by default and can be enabled through editing config_db.json and reapplying configuration or config database directly by the following commands:
+
+Usage:
+```
+config vlan dhcp_relay add <vlan_id> <dhcp_relay_destination_ip>
+redis-cli -n 4 hset DHCP_RELAY|<vlan> dhcpv6_option|interface_id <true/false>
+```
+Or edit directly in config_db.json and apply config_reload:
+/etc/sonic/config_db.json:
+{
+        "DHCP_RELAY" :{
+                "Vlan100" : {
+                        "dhcpv6_servers" : ["fc02:2000::2"],
+			"dhcpv6_option|interface_id" : "true"
+                }
+        }
+}
+
+sudo config reload
+
+Example:
+```
+admin@sonic:~$ redis-cli -n 4 hset DHCP_RELAY|Vlan1000 dhcpv6_option|interface_id true
+```
+
+# Config Update
+
+We have shifted from VLAN table to DHCP_RELAY table to store ipv6 helper information.
+Only DHCP_RELAY table needs to be updated for the versions containing PR https://github.com/sonic-net/sonic-buildimage/pull/10654, or version 20201231.75 and 20181130.98 and above
 
 # Option for Dual ToR
 
@@ -223,6 +331,17 @@ Configurable option to use loopback address for dual ToR
 # Performance
 
 SONiC DHCP relay agent is currently not relaying many DHCP requests. Frequency arrival rate of DHCP packets is not high so it is not going to affect performance.
+
+# Scalability
+Typical number of vlans used with dhcp6relay is around 2 vlans. Performance degration and high CPU utilization is seen on devices with more than 25 vlans configured, especially devices with weaker CPU's.
+Tests have shown functionality and performance degradation when there are more than 20 vlans configured on weaker CPU's.
+
+•	25 Vlans - Passed on SPC1.
+
+•	100 and 50 Vlans - Failed on SPC1.
+
+•	100 Vlans - Passed on SPC2 and SPC3 with high CPU utilization.
+
 
 # Testing
 
