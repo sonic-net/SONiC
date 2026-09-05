@@ -53,6 +53,7 @@
 |  | sonic-swss-common-maintainer | Myron Sosyak (Intel) | msosyak | enabled |
 |  | sonic-swss-common-maintainer | Marian Pritsak (Nvidia) | marian-pritsak | enabled |
 |  | sonic-swss-common-maintainer | Runming Wu(Google) | mint570 | enabled |
+|  | sonic-swss-common-maintainer | Stephen Sun (Nvidia) | stephenxs | Request on 08/25/2026 |
 | sonic-gnmi (previously sonic-telemetry) | sonic-gnmi-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 |  | sonic-gnmi-maintainer | Shashank Neelam | sneelam20 | Replace Tomek on 3/5/2024 |
 |  | sonic-gnmi-maintainer | Shishao (Alibaba) | shishao7sxm | invitation sent |
