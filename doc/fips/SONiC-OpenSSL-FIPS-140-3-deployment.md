@@ -51,7 +51,9 @@ It is for the security requirement, the FIPS 140-3 feature should be enabled for
 
 If the enforce is true, then enable is ignored. If the enforce is not set, it supports to disable the FIPS in the runtime.
 
-The enable setting is a transition mode for the scenario to change the devices from the FIPS none enforce mode to the enforce mode. It allows you to rollback the change without rebooting the devices if any issues in your datacenters.
+The enable setting is a transition mode for the scenario to change the devices from the FIPS none enforce mode to the enforce mode. It only restarts some of the known required services that do not have impact on the data plane automatically, but it does not guarantee all the required service restarted, you have to restart it manually. And it allows you to rollback the change without rebooting the devices if any issues in your datacenters.
+
+Currently the known impacted services are sshd, docker container telemetry, and docker container restapi. The services will restart when you change the FIPS from none to enable.
 
 ### FIPS None Enforce Mode
 It is supported to enable the [OpenSSL SymCrypt engine](https://github.com/microsoft/SymCrypt-OpenSSL) (see [design](https://github.com/sonic-net/SONiC/blob/master/doc/fips/SONiC-OpenSSL-FIPS-140-3.md)) in the runtime by using the FIPS flag file or Kernel options, (see [OpenSSL patch](https://github.com/sonic-net/sonic-fips/blob/main/src/openssl.patch/10-support-fips-mode.patch)).
@@ -78,7 +80,7 @@ systemctl restart sshd
 
 The script will be automatically triggred when the DB FIPS config change detected by the [hostcfgd](https://github.com/sonic-net/sonic-buildimage/blob/master/src/sonic-host-services-data/debian/sonic-host-services-data.hostcfgd.service), so it does not need to run it manually again in the new images.
 
-### FIPS enable Mode
+### FIPS Enforce Mode
 It is required to reboot the SONiC device when changing the FIPS mode from the mode none-enforce to the enforce mode, or from the mode enforce to the mode none-enforce.
 When installing the SONiC image at the first time, or upgrading the SONiC image, the default FIPS option is disabled by default (see [ENABLE_FIPS](https://github.com/sonic-net/sonic-buildimage/blob/6ba5b84d980983312f779ad65cfc8c90b9674707/rules/config#L292)). You can override the option in the build time to set ENABLE_FIPS=y, so it is not required for an additional reboot, after you install or upgrade the SONiC OS.
 
