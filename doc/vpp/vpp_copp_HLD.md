@@ -39,7 +39,7 @@ ARP, LACP, LLDP, UDLD, TTL_ERROR are ethertype/L2-level control-plane traffic on
 | REQ-1 | Creating a SAI `POLICER` object must program an equivalent policer in the VPP dataplane (CIR/CBS/PIR/PBS, meter type, mode, conform/exceed/violate actions), not just store the attributes. |
 | REQ-2 | Creating a SAI `HOSTIF_TRAP` for a given `trap_type` must cause matching control-plane traffic (ARP, BGP, LACP, LLDP, DHCP/DHCPv6, UDLD, TTL_ERROR, IP2ME) to be classified and punted to the CPU via the existing TAP/genetlink punt path. SNMP and SSH are IP-destined-to-router traffic already covered pre-effort by VPP's existing `ip4-unicast`/`ip6-unicast` policer-classify path (same as BGP/DHCP/IP2ME) and are not part of this effort's new plugin. |
 | REQ-3 | Traffic punted for a trap must first pass through the VPP policer bound to that trap's `HOSTIF_TRAP_GROUP` (`SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER`), so excess traffic is dropped (or marked, per `SAI_POLICER_ATTR_RED_PACKET_ACTION`) rather than delivered to the CPU. |
-| REQ-4 | Removing/disabling a trap at runtime (`test_add_new_trap`, `test_remove_trap`) must add/remove the corresponding classify/punt binding immediately, with no swss/syncd restart required. **Not yet validated** — blocked on an unrelated testbed harness issue. |
+| REQ-4 | Removing/disabling a trap at runtime (`test_add_new_trap`, `test_remove_trap`) must add/remove the corresponding classify/punt binding immediately, with no swss/syncd restart required. **Validated** — both pass live. |
 | REQ-5 | SAI `getStats`/`getStatsExt` on a `POLICER` object must return live counters (`SAI_POLICER_STAT_GREEN/YELLOW/RED_PACKETS/BYTES`) sourced from VPP's policer conform/exceed/violate counters, not stubbed zeros. |
 | REQ-6 | Trap/trap-group/policer configuration must persist and be re-applied after `config save` + reboot, matching existing SONiC CoPP semantics. |
 | REQ-7 | The feature must not regress existing ACL, FDB, or routing dataplane behavior in `saivpp` — new code is additive (new object-type dispatch cases + new files), following the existing `SwitchVpp` extension pattern. |
@@ -83,7 +83,7 @@ Two earlier enforcement designs were built, deployed, and disproven before landi
 
 ## Status
 
-All CoPP `test_policer` sub-tests plus the config-cli test, plus `test_trap_config_save_after_reboot` and the BGP variant of `test_policer_mtu`, pass on `vlab-vpp-01` (testbed `vms-kvm-vpp-t1-lag`):
+All CoPP `test_policer` sub-tests plus the config-cli test, `test_trap_config_save_after_reboot`, the BGP variant of `test_policer_mtu`, and the dynamic trap add/remove tests all pass on `vlab-vpp-01` (testbed `vms-kvm-vpp-t1-lag`):
 
 | Test | Protocol | Result |
 |---|---|---|
@@ -97,6 +97,9 @@ All CoPP `test_policer` sub-tests plus the config-cli test, plus `test_trap_conf
 | `test_policer[DHCP6]` | DHCPv6 | ✅ PASS |
 | `test_trap_config_save_after_reboot` | (config persistence) | ✅ PASS |
 | `test_policer_mtu[BGP]` (64/1514/4096B) | BGP | ✅ PASS |
+| `test_add_new_trap` | BGP (dynamic add) | ✅ PASS |
+| `test_remove_trap[delete_feature_entry]` | BGP (dynamic remove) | ✅ PASS |
+| `test_remove_trap[disable_feature_status]` | BGP (dynamic remove) | ✅ PASS |
 | `test_trap_neighbor_miss` | (neighbor miss) | ✅ SKIPPED (t0 only) |
 
 ## Key files changed
@@ -105,8 +108,9 @@ All CoPP `test_policer` sub-tests plus the config-cli test, plus `test_trap_conf
 |---|---|---|
 | `sonic-platform-vpp` (`platform/vpp` submodule) | `vppbld/plugins/copp_punt_policer/{copp_punt_policer.c,.h,.api,_node.c,CMakeLists.txt}` | New VPP plugin: device-input classify+police+direct-to-TAP, incl. TTL_ERROR IPv4-TTL match support |
 | `sonic-sairedis` | `vslib/vpp/SwitchVppHostifTrap.cpp` | Per-trap-type ethertype/TTL match-key table, plugin bind/unbind wiring, default-trap-group tracking fix |
-| `sonic-sairedis` | `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | `vpp_copp_punt_policer_bind()`/`_get_counters()` VAPI wrappers, extended with `match_ip4_ttl_expiring` |
-| `sonic-mgmt` | `tests/common/plugins/conditional_mark/tests_mark_conditions_sonic_vpp.yaml` | Lift `copp` skip for `asic_type in ['vpp']` |
+| `sonic-sairedis` | `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | `vpp_copp_punt_policer_bind()`/`_get_counters()` VAPI wrappers, extended with `match_ip4_ttl_expiring`; also fixed a missing `POLICER_CLASSIFY_SET_INTERFACE_REPLY` client reply-handler registration (caused an infinite CPU-spin retry loop on IP2ME L3-interface classify bind) |
+| `sonic-mgmt` | `tests/common/plugins/conditional_mark/tests_mark_conditions_sonic_vpp.yaml` | Lift `copp` skip for `asic_type in ['vpp']`; unskip `test_add_new_trap`/`test_remove_trap` |
+| `sonic-mgmt` | `ansible/roles/test/files/ptftests/py3/copp_tests.py` | Added `'vpp'` to `BGPTest.check_constraints()`'s asic_type exception list (same treatment as `broadcom`/`marvell-teralynx`: the always-installed TTL_ERROR default trap independently punts the test's ttl=1 BGP packet regardless of the BGP trap's own state) |
 
 ## References
 
