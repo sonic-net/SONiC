@@ -23,10 +23,10 @@
     - [Preserve SONIC_INCLUDE pass-through](#preserve-sonic_include-pass-through)
     - [Preserve conditional checks in init_cfg.json.j2](#preserve-conditional-checks-in-init_cfgjsonj2)
   - [Canonical Feature Makefile Pattern](#canonical-feature-makefile-pattern)
-- [Default Build Configuration Variables - Zero Regression](#default-build-configuration-variables---zero-regression)
-- [Profile System](#profile-system)
   - [Build Configuration Variable Combinations](#build-configuration-variable-combinations)
-  - [Listing Available Profiles](#listing-available-profiles)
+- [Default Build Configuration Variables - Zero Regression](#default-build-configuration-variables---zero-regression)
+- [Reference Deployment Profiles](#reference-deployment-profiles)
+  - [Available Profiles](#available-profiles)
   - [Inspecting profile feature settings](#inspecting-profile-feature-settings)
 - [Adding a New Optional Docker Feature](#adding-a-new-optional-docker-feature)
   - [Checklist for a new feature](#checklist-for-a-new-feature)
@@ -38,10 +38,11 @@
 
 ## Revision
 
-| Version | Date       | Author       | Description                          |
-|---------|------------|--------------|--------------------------------------|
-| 0.1     | 2024-07-30 | Amir Mazor   | Initial Draft                        |
-| 0.2     | 2026-06-28 | Nitin Saxena | Refactored for latest SONiC          |
+| Version | Date       | Author       | Description                                                                              |
+|---------|------------|--------------|------------------------------------------------------------------------------------------|
+| 0.1     | 2024-07-30 | Amir Mazor   | Initial Draft                                                                            |
+| 0.2     | 2026-06-28 | Nitin Saxena | Refactored for latest SONiC                                                              |
+| 0.3     | 2026-09-09 | Nitin Saxena | Added section _Reference Deployment Profiles_ and _Unwired features in init_cfg.json.j2_ |
 
 ---
 
@@ -130,14 +131,14 @@ variables are **not** consistent across features in existing build system
 The same flow used in _Makefile.work_ and _slave.mk_.
 
 - *rules/config stays the default configuration file*
-- **When $(SONIC_PROFILE) is unset**, preserve existing build flow to avoid any
+- **When `$(SONIC_PROFILE)` is unset**, preserve existing build flow to avoid any
   regression. Streamline usage of _INCLUDE\_\<FEATURE>_ with consistent
 definition of <u>_whether to build_</u>. Add missing _ENABLE\_\<FEATURE\>_
 variables with consistent definition of <u>_whether to enable feature at
 boot_</u>.  New _AUTORESTART\_\<FEATURE\>_ and _DELAY\_\<FEATURE\>_ are added
 and described further in this HLD
 
-- **When $(SONIC_PROFILE) is set**, include _rules/config.\<SONIC_PROFILE>_
+- **When `$(SONIC_PROFILE)` is set**, include _rules/config.\<SONIC_PROFILE>_
   with white-listed configuration variables initialized for each optional
 feature
    ```bash
@@ -233,9 +234,10 @@ _SONIC_PROFILE_ is unset. Eg:
  ```
 - **rules/config.\<SONIC_PROFILE>**
 
-Profile authors set all four variables for each feature they **want** in the
-image. Omitted features from _rules/config.\<SONIC_PROFILE\>_ are treated as
-disabled from compilation (i.e. _INCLUDE\_\<FEATURE>_=`n`)
+Profile authors set all four variables **only** for features they **want** in
+the image (_INCLUDE\_\<FEATURE>_=`y`). Any feature omitted from
+_rules/config.\<SONIC_PROFILE\>_ is implicitly disabled from compilation
+(_INCLUDE\_\<FEATURE>_=`n`) and is never built.
 
  ```makefile
  INCLUDE_NAT = y
@@ -243,6 +245,13 @@ disabled from compilation (i.e. _INCLUDE\_\<FEATURE>_=`n`)
  AUTORESTART_NAT = y
  DELAY_NAT = n
  ```
+
+Excluded features should be **left out entirely** rather than written with
+_INCLUDE\_\<FEATURE>_=`n` plus _ENABLE\_/AUTORESTART\_/DELAY\__ values. When
+_INCLUDE\_\<FEATURE>_=`n`, the docker is not built, so the _init_cfg.json.j2_
+append for that feature never runs and its _ENABLE\_/AUTORESTART\_/DELAY\__
+values are never consumed.
+
 - **rules/config.user**
 
 Features can be overridden by `rules/config.user` by setting any or all build
@@ -297,6 +306,45 @@ _AUTORESTART\_\<FEATURE>_ variables
 {% do features.append(("nat", feat_enable(enable_nat), feat_delay(delay_nat), feat_autorestart(autorestart_nat))) %}
 {%- endif %}
 ```
+
+**4. Unwired features in init_cfg.json.j2**
+
+A few feature's wiring were either missing from, or inconsistently gated in,
+the _init_cfg.json.j2_ FEATURE table. These are gaps are factored as part of
+this design:
+
+- _BMP_ (_bmp_): build, install and `export include_system_bmp` were all
+  present, but there was no `features.append()` entry, so the container could
+  never be managed at runtime. A gated entry is added:
+
+```jinja
+{%- if include_system_bmp == "y" %}{% do features.append(("bmp", feat_enable(enable_system_bmp), feat_delay(delay_system_bmp), feat_autorestart(autorestart_system_bmp))) %}{% endif %}
+```
+
+- _STP_ (_stp_): STP was completely disabled from top rules/config. Four
+  variables _\*_stp_ variables are exported and valid `features.append()` entry
+  (STP also used _SONIC_INCLUDE_STP_ rather than _INCLUDE_STP_) is added. A
+  gated entry is added:
+
+```jinja
+{%- if include_stp == "y" %}{% do features.append(("stp", feat_enable(enable_stp), feat_delay(delay_stp), feat_autorestart(autorestart_stp))) %}{% endif %}
+```
+
+- _DHCP_RELAY_ (_dhcp_relay_): the entry was gated only on _enable_dhcp_relay_
+  because _include_dhcp_relay_ was never exported. `export include_dhcp_relay`
+  is added to _slave.mk_. With the stock default _INCLUDE_DHCP_RELAY=y_ this is
+  a no-op (zero regression):
+
+```jinja
+{%- if include_dhcp_relay == "y" %}
+{%- if enable_dhcp_relay == "y" %}
+{% do features.append(("dhcp_relay", "{% if not (...ToRRouter... conditional...) %}enabled{% else %}disabled{% endif %}", feat_delay(delay_dhcp_relay), feat_autorestart(autorestart_dhcp_relay))) %}
+{%- else %}
+{% do features.append(("dhcp_relay", "disabled", feat_delay(delay_dhcp_relay), feat_autorestart(autorestart_dhcp_relay))) %}
+{%- endif %}
+{%- endif %}
+```
+
 ### Preserve existing configuration variables
 
 #### Preserve SYSTEM_EVENTD computation
@@ -369,22 +417,26 @@ Such conditional checks are further guarded by proposed configuration variables
 ```
 ### Canonical Feature Makefile Pattern
 
-After migration, every docker feature's `.mk` file must follow this pattern:
+After migration, every docker feature's `.mk` file gates only its **build and
+install** on `INCLUDE_<FEATURE>`:
 
 ```makefile
 ifeq ($(INCLUDE_NAT), y)
 SONIC_DOCKER_IMAGES += $(DOCKER_NAT)
 SONIC_INSTALL_DOCKER_IMAGES += $(DOCKER_NAT)
 endif
-
-ifeq ($(AUTORESTART_NAT), y)
-SONIC_AUTORESTART_DOCKER_IMAGES += $(DOCKER_NAT)
-endif
-
-ifeq ($(DELAY_NAT), y)
-SONIC_DELAYED_DOCKER_IMAGES += $(DOCKER_NAT)
-endif
 ```
+
+### Build Configuration Variable Combinations
+
+Build configuration variables also support the following valid combinations:
+
+| Profile setting | Build / install | init_cfg boot state |
+|---|---|---|
+| _INCLUDE\_\<FEATURE> = n_ | Not built, not in image | FEATURE absent |
+| _INCLUDE\_\<FEATURE> = y_ + _ENABLE\_\<FEATURE> = y_ | Built and installed | Enabled on boot |
+| _INCLUDE\_\<FEATURE> = y_ + _ENABLE\_\<FEATURE> = n_ | **Built and installed** | **Disabled on boot** |
+
 ## Default Build Configuration Variables - Zero Regression
 
 Default _ENABLE_*_, _AUTORESTART_*_, and _DELAY_*_ values match what was
@@ -396,11 +448,11 @@ regression).
 |---|---|---|---|---|---|
 | _SYSTEM_GNMI_ | _y_ | _y_ | _y_ | _y_ | _enabled_ |
 | _SYSTEM_BMP_ | _y_ | _n_ | _y_ | _n_ | _disabled_ |
-| _SYSTEM_EVENTD_ | _y_ | _derived*_ | _y_ | _n_ | _disabled_ |
+| _SYSTEM_EVENTD_ | _y_ | _derived*_ | _y_ | _n_ | _enabled*_ |
 | _SYSTEM_TELEMETRY_ | _n_ | _y_ | _y_ | _y_ | _enabled_ |
 | _SYSTEM_OTEL_ | _y_ | _n_ | _y_ | _n_ | _disabled_ |
 | _ICCPD_ | _n_ | _n_ | _y_ | _n_ | _disabled_ |
-| _STP_ | _n_ | _n_ | _y_ | _n_ | _not in init_cfg FEATURE*_ |
+| _STP_ | _n_ | _y_ | _y_ | _n_ | _disabled*_ |
 | _SNMP_ | _y_ | _y_ | _y_ | _y_ | _enabled_ |
 | _LLDP_ | _y_ | _y_ | _y_ | _y_ | _enabled_ |
 | _SFLOW_ | _y_ | _n_ | _y_ | _y_ | _disabled_ |
@@ -409,63 +461,172 @@ regression).
 | _NAT_ | _y_ | _n_ | _y_ | _n_ | _disabled_ |
 | _DHCP_RELAY_ | _y_ | _y_ | _y_ | _n_ | _conditional checks preserved_ |
 | _DHCP_SERVER_ | _n_ | _n_ | _y_ | _n_ | _disabled_ |
-| _P4RT_ | _n_ | _n_ | _y_ | _n_ | _disabled_ |
+| _P4RT_ | _y_ | _n_ | _y_ | _n_ | _disabled_ |
 | _MACSEC_ | _y_ | _n_ | _y_ | _n_ | _conditional checks preserved_ |
 | _TEAMD_ | _y_ | _y_ | _y_ | _n_ | _conditional checks preserved_ |
 | _ROUTER_ADVERTISER_ | _y_ | _y_ | _y_ | _n_ | _enabled_ |
 | _MUX_ | _y_ | _y_ | _y_ | _n_ | _conditional checks preserved_ |
 
-_ENABLE_SYSTEM_EVENTD_ is derived in _rules/config-eventd-defaults.mk_ when unset.
+_ENABLE_SYSTEM_EVENTD_ is derived in _rules/config-eventd-defaults.mk_ when
+unset: _disabled_ when _BUILD_REDUCE_IMAGE_SIZE=y_, _enabled_ otherwise. The
+stock default _BUILD_REDUCE_IMAGE_SIZE=n_ (rules/config) yields _enabled_.
 
-For STP, _SONIC_INCLUDE_STP_ was used instead of _INCLUDE_STP_. This HLD adds
-required configuration variables in _rules/config_.
+For STP, _SONIC\_INCLUDE\_STP_ was historically used and by default set to "n".
+For regression purpose, _SONIC\_INCLUDE\_STP_ is kept in addition to
+_INCLUDE\_STP_. Setting any of these variables to "y" will build STP.
 
 _conditional checks preserved_: Refer to [Preserve conditional checks in
 init_cfg.json.j2](#preserve-conditional-checks-in-init_cfgjsonj2)
 
-## Profile System
-### Build Configuration Variable Combinations
+## Reference Deployment Profiles
 
-Build configuration variables also support the following valid combinations:
+Two reference profiles illustrate how the same set of optional features maps to
+very different deployment targets
 
-| Profile setting | Build / install | init_cfg boot state |
-|---|---|---|
-| _INCLUDE\_\<FEATURE> = n_ | Not built, not in image | FEATURE absent |
-| _INCLUDE\_\<FEATURE> = y_ + _ENABLE\_\<FEATURE> = y_ | Built and installed | Enabled on boot |
-| _INCLUDE\_\<FEATURE> = y_ + _ENABLE\_\<FEATURE> = n_ | **Built and installed** | **Disabled on boot** |
+- **ENTERPRISE** (`rules/config.ENTERPRISE`) - campus/branch access and
+  aggregation switches. Favors classic enterprise LAN traits: spanning tree
+  loop prevention, self-contained branch-site NAT/DHCP server, SNMP-based NMS
+  integration, and access-layer MACsec. BMP is shipped but disabled on boot
+  (`INCLUDE=y`/`ENABLE=n`); enable it at runtime if a BMP collector is deployed.
+- **DATACENTER** (`rules/config.DATACENTER`) - leaf-spine fabric ToR/leaf
+  switches. Favors a BGP-based L3 Clos fabric with no STP, MLAG (ICCPD) for
+  dual-homed servers, dual-ToR MUX, and a streaming telemetry/oTel/BMP
+  observability stack for fleet-scale automation.
 
-### Listing Available Profiles
+Both exist today as committed `rules/config.<SONIC_PROFILE>` files.
 
-Profile files follow the naming convention _rules/config.<PROFILE_NAME>_. To
-list available profiles:
+### Available Profiles
+
+List the SONIC_PROFILE values present in the repo:
 
 ```bash
-ls rules/config.* | grep -v config.user
+$ make list-sonic-profiles
+Available SONIC_PROFILE values (rules/config.<NAME>):
+  DATACENTER
+  ENTERPRISE
 ```
 ### Inspecting profile feature settings
 
-Profile authors and reviewers need a quick way to see, for a given
+Profile authors and developers need a quick way to see, for a given
 _SONIC_PROFILE_, which optional features are **built into the image** and which
-will **start enabled on boot** — without running a full image build. This can
-be done using
+will **start enabled on boot** — without running a full image build.
+
+Stock defaults (no _SONIC_PROFILE_):
 
 ```bash
-# Stock defaults
-make show-sonic-profile
+$ make show-sonic-profile
+SONIC_PROFILE: {NULL} # Defaults
 
-# Named profile
-make SONIC_PROFILE=DATACENTER show-sonic-profile
+FEATURE              INCLUDE   ENABLE   AUTORESTART   DELAY
+--------             -------   ------   -----------   -----
+SYSTEM_GNMI          y         y        y             y
+SYSTEM_BMP           y                  y
+SYSTEM_EVENTD        y         y        y
+SYSTEM_TELEMETRY               y        y             y
+SYSTEM_OTEL          y                  y
+ICCPD                                   y
+STP                            y        y
+SNMP                 y         y        y             y
+LLDP                 y         y        y             y
+SFLOW                y                  y             y
+MGMT_FRAMEWORK       y         y        y             y
+RESTAPI                        y        y
+NAT                  y                  y
+DHCP_RELAY           y         y        y
+DHCP_SERVER                             y
+P4RT                 y                  y
+MACSEC               y                  y
+TEAMD                y         y        y
+ROUTER_ADVERTISER    y         y        y
+MUX                  y         y        y
+REDFISH              y
+
+y = on; blank = off (variable set to n or left unset). INCLUDE=y means
+built into the image; ENABLE=y means started on boot.
 ```
+> **Note:** Some platforms (like aspeed) override enabled/disabled features
+> passed from top-level Makefiles. Output of this debugging `show-sonic-profile`
+> would not be accurate for such platforms, although it does not impact any
+> change in build behavior.
+
+Named profile (_SONIC_PROFILE=ENTERPRISE_)
+
+```bash
+$ make SONIC_PROFILE=ENTERPRISE show-sonic-profile
+SONIC_PROFILE: ENTERPRISE
+
+FEATURE              INCLUDE   ENABLE   AUTORESTART   DELAY
+--------             -------   ------   -----------   -----
+SYSTEM_GNMI          y         y        y             y
+SYSTEM_BMP           y                  y
+SYSTEM_EVENTD        y         y        y
+SYSTEM_TELEMETRY     y         y        y             y
+SYSTEM_OTEL
+ICCPD
+STP                  y         y        y
+SNMP                 y         y        y             y
+LLDP                 y         y        y             y
+SFLOW                y         y        y             y
+MGMT_FRAMEWORK       y         y        y             y
+RESTAPI              y         y        y
+NAT                  y         y        y
+DHCP_RELAY           y         y        y
+DHCP_SERVER          y         y        y
+P4RT
+MACSEC               y         y        y
+TEAMD                y         y        y
+ROUTER_ADVERTISER    y         y        y
+MUX
+REDFISH
+
+y = on; blank = off (variable set to n or left unset). INCLUDE=y means
+built into the image; ENABLE=y means started on boot.
+```
+
+Named profile (_SONIC_PROFILE=DATACENTER_)
+
+```bash
+$ make SONIC_PROFILE=DATACENTER show-sonic-profile
+SONIC_PROFILE: DATACENTER
+
+FEATURE              INCLUDE   ENABLE   AUTORESTART   DELAY
+--------             -------   ------   -----------   -----
+SYSTEM_GNMI          y         y        y             y
+SYSTEM_BMP           y         y        y
+SYSTEM_EVENTD        y         y        y
+SYSTEM_TELEMETRY     y         y        y             y
+SYSTEM_OTEL          y         y        y
+ICCPD                y         y        y
+STP
+SNMP
+LLDP                 y         y        y             y
+SFLOW                y         y        y             y
+MGMT_FRAMEWORK       y         y        y             y
+RESTAPI              y         y        y
+NAT
+DHCP_RELAY           y         y        y
+DHCP_SERVER
+P4RT
+MACSEC
+TEAMD                y         y        y
+ROUTER_ADVERTISER    y         y        y
+MUX                  y         y        y
+REDFISH
+
+y = on; blank = off (variable set to n or left unset). INCLUDE=y means
+built into the image; ENABLE=y means started on boot.
+```
+
 ## Adding a New Optional Docker Feature
 
 Every new optional docker feature can be independently added in rules/config
-without any obligation to add in rules/config.<SONIC_PROFILE>. However
+without any obligation to add in _rules/config.\<SONIC_PROFILE\>_. However
 community can consciously decide to add a particular feature to some or all
 deployment profiles.
 
 ### Checklist for a new feature
 
-Replace _<FEATURE>_ with the canonical name used in existing variables (e.g.
+Replace _\<FEATURE\>_ with the canonical name used in existing variables (e.g.
 _NAT_, _SYSTEM_GNMI_, _STP_).
 
 #### 1. rules/config
@@ -481,15 +642,24 @@ endif
 ```
 #### 2. rules/config.SONIC_PROFILE
 
-For each _rules/config.\<SONIC_PROFILE>_, define all four variables for each
-included feature. Omitted features stay at profile-mode with implicit `n`;
-_rules/docker-*.mk_ does not build them.
+With a profile selected, the _ifndef SONIC_PROFILE_ default block in
+_rules/config_ is skipped entirely, so _rules/config.\<SONIC_PROFILE>_ is the
+**sole** source of every feature variable. Only the features a profile actually
+uses must be defined:
+
+- **Compile Feature** - set _INCLUDE\_\<FEATURE>_=`y` plus the desired
+  _ENABLE\_/AUTORESTART\_/DELAY\__ values.
+- **Built into image but off at boot** - set _INCLUDE\_\<FEATURE>_=`y` and
+  _ENABLE\_\<FEATURE>_=`n`. The container is built into the image but disabled;
+  enable it at runtime with `config feature state <feature> enabled`
+- **Excluded** - simply omit the feature. An undefined _INCLUDE\_\<FEATURE>_ is
+  treated as `n`, so _rules/docker-*.mk_ does not build it.
 
 #### 3. Build and runtime wiring
 
 | Area | Action |
 |---|---|
-| _rules/docker-\<feature>.mk_ | Gate _SONIC_DOCKER_IMAGES_ / install lists on _ifeq ($(INCLUDE\_\<FEATURE>), y)_ |
-| _Makefile.work_ | Export _INCLUDE_<FEATURE>_ (and _ENABLE_ / _AUTORESTART_ / _DELAY_ if used by templates) into the slave build; |
+| _rules/docker-\<feature>.mk_ | Gate _SONIC_DOCKER_IMAGES_ / install lists on `ifeq ($(INCLUDE_<FEATURE>), y)` |
+| _Makefile.work_ | Export _INCLUDE\_\<FEATURE\>_ (and _ENABLE_ / _AUTORESTART_ / _DELAY_ if used by templates) into the slave build; |
 | _slave.mk_ | export lowercase variables for _init_cfg.json.j2_ (e.g. _export enable\_\<feature>=..._) where applicable |
 | _files/build_templates/init_cfg.json.j2_ | Add new feature entry in feature.append() |
