@@ -18,6 +18,7 @@
 - [3.4 CLI changes](#34-cli-changes)
 - [3.5 SAI](#35-sai)
 - [3.6 YANG Model](#36-yang-model )
+- [3.7 SRv6 MySID Warm Boot Design](#37-srv6-mysid-warm-boot-design)
 - [4 Unit Test](#4-unit-test)
 - [5 References ](#5-references) 
 
@@ -30,6 +31,7 @@
 | 0.3  | 10/15/2021| Kumaresh Perumal           |  Minor updates          |
 | 0.4  | 10/26/2021| Kumaresh Perumal           |  Update MY_SID table.   |
 | 0.5  | 4/7/2024  | Yakiv Huryk                |  Add MySID counters     |
+| 0.6  | 9/2/2026  | Changrong Wu               |  Add static MySID warm boot support |
 
 
 # Definition/Abbreviation
@@ -118,7 +120,9 @@ This document will focus on Phase #1, while keep the design extendable for futur
 
 ## 2.3 Warm Boot Requirements
 
-Warm reboot is intended to be supported for planned system, swss and BGP warm reboot.
+Warm reboot is supported for planned system warm reboot and warm restart of the
+SWSS and BGP containers. MySID forwarding entries remain programmed in
+the ASIC while the control-plane state is restored and reconciled.
 
  
 
@@ -744,12 +748,79 @@ container SRV6 {
 }
 ```
 
+## 3.7 SRv6 MySID Warm Boot Design
+
+Currently, only static SRv6 MySID entries are guaranteed to have full warmboot
+support. Additional FRR support is needed for other sources of MySID entries
+to ensure that FRR state is correctly reconciled.
+
+### 3.7.1 Static MySID State Ownership
+
+Static MySID entries are owned by FRR `staticd` or the Linux kernel. Zebra
+replays the entries to `fpmsyncd` over FPM using `RTM_NEWSRV6LOCALSID` and
+`RTM_DELSRV6LOCALSID` messages. `fpmsyncd` is the producer of
+`SRV6_MY_SID_TABLE` in `APPL_DB`. The
+`SRV6_MY_LOCATORS` table in `CONFIG_DB` provides supplemental locator and
+decapsulation policy; they do not replace replay of the MySID forwarding
+entries.
+
+### 3.7.2 BGP and fpmsyncd Warm Restart
+
+`ROUTE_TABLE` and `SRV6_MY_SID_TABLE` are restored and reconciled by one
+`WarmStartHelper` instance under the existing BGP warm-start state machine.
+The helper maintains independent restoration and refresh state for each table
+so that identical keys in different tables do not collide.
+
+When warm restart begins, `fpmsyncd` reads the existing entries from both
+`APPL_DB` tables as the restored state. MySID SET and DEL messages replayed by
+Zebra are deferred in the `SRV6_MY_SID_TABLE` refresh state instead of being
+written directly to `APPL_DB`. At the BGP reconciliation barrier, the restored
+and replayed views are compared per table:
+
+- An unchanged entry produces no `APPL_DB` operation.
+- A changed entry is explicitly deleted and then set with the replayed fields.
+- A new entry is added.
+- An explicit delete or a restored entry absent from the replay is removed as
+    stale.
+- A delete for an entry that does not exist in the restored view is discarded.
+
+When BGP warm restart is disabled, `fpmsyncd` writes MySID SET and DEL
+operations directly to `SRV6_MY_SID_TABLE`.
+
+Reconciliation is safe only when Zebra replays every MySID before the
+selected BGP reconciliation barrier closes. When BGP EOIU is used, the
+zebra or kernel replay must precede the IPv4 and IPv6 EOIU markers and the
+configured hold interval. The timer fallback has the same complete-replay
+requirement. `fpmsyncd` cannot infer completion from an idle FPM stream; a
+deployment that cannot guarantee this ordering must provide a dedicated
+replay-complete indication before enabling BGP warm restart for MySIDs.
+
+### 3.7.3 SWSS and Srv6Orch Warm Restart
+
+During an SWSS warm restart, the retained or restored
+`SRV6_MY_SID_TABLE` entries are replayed to `Srv6Orch`. The corresponding SAI
+MySID entries remain in the ASIC. `Srv6Orch` processes the replay
+idempotently: an entry that already matches the requested action and resources
+is accepted without reprogramming it. If SAI reports that a MySID already
+exists, `Srv6Orch` reads its attributes and reconciles any differences in
+place instead of deleting and recreating the forwarding entry.
+
+Actions that depend on a VRF or adjacency may be replayed before those objects
+are restored. Such entries are placed in the Orchagent retry cache, keyed by
+the missing VRF or next-hop constraint, and are retried when `VRFOrch` or
+`NeighOrch` reports that the dependency is available. Duplicate replay does
+not create duplicate references. Transient SAI failures remain pending for
+retry, and partial resource updates are rolled back or cleaned up before a
+retry. Orchagent reports reconciliation complete only after the MySID replay
+and all resolvable dependencies have been processed.
+
 ## 4 Unit Test
 
 TBD
 
 ## 5 References
 
+-  [Static MySID warm boot support implementation](https://github.com/sonic-net/sonic-swss/pull/4814)
 -  [SAI IPv6 Segment Routing Proposal for SAI 1.2.0](https://github.com/opencomputeproject/SAI/blob/1066c815ddd7b63cb9dbf4d76e06ee742bc0af9b/doc/SAI-Proposal-IPv6_Segment_Routing-1.md)
 
 -  [RFC 8754](https://tools.ietf.org/html/rfc8754)
