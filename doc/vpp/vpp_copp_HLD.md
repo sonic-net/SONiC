@@ -5,6 +5,7 @@
 | Rev | Date | Author(s) | Changes |
 |-----|------|-----------|---------|
 | 1.0 | 2026-09-02 | nhegde-microsoft | Initial HLD for  `copp_punt_policer` design. |
+| 1.1 | 2026-09-10 | nhegde-microsoft | Added `copp_ip2me_policer` plugin (IP2ME/SNMP/SSH enforcement on `ip4-punt`); updated status table. |
 
 ---
 
@@ -28,6 +29,7 @@ SONiC's default CoPP config (`copp_cfg.j2`) traps the following protocols on thi
 | BGP / BGPv6 (`bgp`, `bgpv6`) | `queue4_group1` | 600 | Already worked pre-effort (rides `ip4-unicast`/`ip6-unicast`) |
 | DHCP / DHCPv6 (`dhcp`, `dhcpv6`) | `queue4_group3` | 100 | Already worked pre-effort |
 | IP2ME (`ip2me`) | `queue1_group1` | 600 | Already worked pre-effort (IP-destined-to-router traffic) |
+| SNMP / SSH | `queue1_group1` (same as IP2ME) | 600 | Addressed by this effort (`copp_ip2me_policer` plugin) |
 | Neighbor discovery (`neigh_discovery`) | `queue4_group2` | 600 | Already worked pre-effort |
 
 ARP, LACP, LLDP, UDLD, TTL_ERROR are ethertype/L2-level control-plane traffic on `linux-cp`-paired, L3-routed ports, which never reaches any of VPP's existing classify-based policing arcs. BGP/DHCP/IP2ME/neighbor-discovery are IP-layer traffic that were already targeted by VPP's `ip4-unicast`/`ip6-unicast` policer-classify feature prior to this effort.
@@ -37,7 +39,7 @@ ARP, LACP, LLDP, UDLD, TTL_ERROR are ethertype/L2-level control-plane traffic on
 | # | Requirement |
 |---|-------------|
 | REQ-1 | Creating a SAI `POLICER` object must program an equivalent policer in the VPP dataplane (CIR/CBS/PIR/PBS, meter type, mode, conform/exceed/violate actions), not just store the attributes. |
-| REQ-2 | Creating a SAI `HOSTIF_TRAP` for a given `trap_type` must cause matching control-plane traffic (ARP, BGP, LACP, LLDP, DHCP/DHCPv6, UDLD, TTL_ERROR, IP2ME) to be classified and punted to the CPU via the existing TAP/genetlink punt path. SNMP and SSH are IP-destined-to-router traffic already covered pre-effort by VPP's existing `ip4-unicast`/`ip6-unicast` policer-classify path (same as BGP/DHCP/IP2ME) and are not part of this effort's new plugin. |
+| REQ-2 | Creating a SAI `HOSTIF_TRAP` for a given `trap_type` must cause matching control-plane traffic (ARP, BGP, LACP, LLDP, DHCP/DHCPv6, UDLD, TTL_ERROR, IP2ME/SNMP/SSH) to be classified and punted to the CPU via the existing TAP/genetlink punt path. |
 | REQ-3 | Traffic punted for a trap must first pass through the VPP policer bound to that trap's `HOSTIF_TRAP_GROUP` (`SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER`), so excess traffic is dropped (or marked, per `SAI_POLICER_ATTR_RED_PACKET_ACTION`) rather than delivered to the CPU. |
 | REQ-4 | Removing/disabling a trap at runtime (`test_add_new_trap`, `test_remove_trap`) must add/remove the corresponding classify/punt binding immediately, with no swss/syncd restart required. **Validated** — both pass live. |
 | REQ-5 | SAI `getStats`/`getStatsExt` on a `POLICER` object must return live counters (`SAI_POLICER_STAT_GREEN/YELLOW/RED_PACKETS/BYTES`) sourced from VPP's policer conform/exceed/violate counters, not stubbed zeros. |
@@ -74,6 +76,27 @@ After:
 - **The node consumes matched, conforming packets.** A single `vlib_buffer_enqueue_to_next` per packet redirects it straight to `interface-output`/TAP; there is no double-punt. This means a trapped ARP packet's normal path (`arp-input`) is skipped, and VPP's own ARP-learning side effect on that path is lost for punted traffic — the equivalent function is expected to happen at the CPU/Linux side (kernel ARP handling on the TAP), matching the existing `linux-cp` model.
 - **Fast-path cost for non-punted traffic.** Every packet on every port pays a 14-byte Ethernet header read plus a linear scan of a small, bounded table (`COPP_PUNT_POLICER_MAX_ENTRIES` = 16 today); no policer/counter work happens unless an entry matches. The lookup is linear, not hashed — acceptable given the table's small, static size, but noted here as a known optimization opportunity if entry count grows materially.
 
+### `copp_ip2me_policer` VPP plugin (IP2ME/SNMP/SSH)
+
+**Why not `copp_punt_policer` or VPP's classify feature:** IP2ME/SNMP/SSH traffic has no ethertype to
+match on (`copp_punt_policer` runs on `device-input`, pre-routing) — it is identified by destination IP
+*after* routing. VPP's built-in classify-based policer only meters on interfaces it is explicitly bound
+to, and since a shared classify table matches purely on destination IP, IP2ME traffic for interface A's
+address can arrive via interface B — requiring binding on every L3 interface, which proved fragile
+(binding-scope bugs, missing reply handler, watchdog stalls) during initial implementation.
+
+**What we built:** a second plugin, `copp_ip2me_policer`, registered on the `ip4-punt` feature arc
+(global, always-on, reached only after `ip4-lookup`/`ip4-local` already decide a packet is host-bound —
+so no per-interface binding is ever needed). It tracks router-owned IPv4 addresses (added/removed as SAI
+router-interface addresses change) and meters matches with the existing SAI-created policer via
+`vnet_police_packet()`, the same primitive `copp_punt_policer` uses. Conforming/unmatched packets fall
+through unchanged to `ip4-punt-redirect`; exceed/violate packets go to `ip4-drop`.
+
+SAI wiring: `createHostifTrap`/`setHostifTrapGroup` for `SAI_HOSTIF_TRAP_TYPE_IP2ME` bind the shared
+policer via `copp_ip2me_policer_bind`; router-interface IPv4 address add/remove calls
+`copp_ip2me_policer_addr_add_del`. Both replace an earlier `ip4-policer-classify`-based implementation
+(per-interface bind, deferred work queue) that is removed by this change.
+
 ## Alternate Designs Considered
 
 Two earlier enforcement designs were built, deployed, and disproven before landing on the design above.
@@ -83,7 +106,8 @@ Two earlier enforcement designs were built, deployed, and disproven before landi
 
 ## Status
 
-All CoPP `test_policer` sub-tests plus the config-cli test, `test_trap_config_save_after_reboot`, the BGP variant of `test_policer_mtu`, and the dynamic trap add/remove tests all pass on `vlab-vpp-01` (testbed `vms-kvm-vpp-t1-lag`):
+All CoPP tests pass on `vlab-vpp-01` (testbed `vms-kvm-vpp-t1-lag`), including `test_policer_mtu` for
+every protocol (IP2ME/SNMP/SSH/BGP):
 
 | Test | Protocol | Result |
 |---|---|---|
@@ -96,6 +120,9 @@ All CoPP `test_policer` sub-tests plus the config-cli test, `test_trap_config_sa
 | `test_policer[DHCP]` | DHCP | ✅ PASS |
 | `test_policer[DHCP6]` | DHCPv6 | ✅ PASS |
 | `test_trap_config_save_after_reboot` | (config persistence) | ✅ PASS |
+| `test_policer_mtu[IP2ME]` (64/1514B) | IP2ME | ✅ PASS |
+| `test_policer_mtu[SNMP]` (64/1514B) | SNMP | ✅ PASS |
+| `test_policer_mtu[SSH]` (64/1514B) | SSH | ✅ PASS |
 | `test_policer_mtu[BGP]` (64/1514/4096B) | BGP | ✅ PASS |
 | `test_add_new_trap` | BGP (dynamic add) | ✅ PASS |
 | `test_remove_trap[delete_feature_entry]` | BGP (dynamic remove) | ✅ PASS |
@@ -107,10 +134,12 @@ All CoPP `test_policer` sub-tests plus the config-cli test, `test_trap_config_sa
 | Repo | File | Change |
 |---|---|---|
 | `sonic-platform-vpp` (`platform/vpp` submodule) | `vppbld/plugins/copp_punt_policer/{copp_punt_policer.c,.h,.api,_node.c,CMakeLists.txt}` | New VPP plugin: device-input classify+police+direct-to-TAP, incl. TTL_ERROR IPv4-TTL match support |
+| `sonic-platform-vpp` (`platform/vpp` submodule) | `vppbld/plugins/copp_ip2me_policer/{copp_ip2me_policer.c,.h,.api,_node.c,CMakeLists.txt}` | New VPP plugin: `ip4-punt`-arc IP2ME/SNMP/SSH classify+police |
 | `sonic-sairedis` | `vslib/vpp/SwitchVppHostifTrap.cpp` | Per-trap-type ethertype/TTL match-key table, plugin bind/unbind wiring, default-trap-group tracking fix |
 | `sonic-sairedis` | `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | `vpp_copp_punt_policer_bind()`/`_get_counters()` VAPI wrappers, extended with `match_ip4_ttl_expiring`; also fixed a missing `POLICER_CLASSIFY_SET_INTERFACE_REPLY` client reply-handler registration (caused an infinite CPU-spin retry loop on IP2ME L3-interface classify bind) |
+| `sonic-sairedis` | `vslib/vpp/SwitchVpp{.cpp,.h}`, `SwitchVppHostifTrap.cpp`, `SwitchVppPolicer.cpp`, `SwitchVppRif.cpp`, `vppxlate/SaiVppXlate.{c,h}` | Removed the earlier `ip4-policer-classify`-based IP2ME implementation; added `vpp_copp_ip2me_policer_{addr_add_del,bind,get_counters}()` VAPI wrappers and call sites |
 | `sonic-mgmt` | `tests/common/plugins/conditional_mark/tests_mark_conditions_sonic_vpp.yaml` | Lift `copp` skip for `asic_type in ['vpp']`; unskip `test_add_new_trap`/`test_remove_trap` |
-| `sonic-mgmt` | `ansible/roles/test/files/ptftests/py3/copp_tests.py` | Added `'vpp'` to `BGPTest.check_constraints()`'s asic_type exception list (same treatment as `broadcom`/`marvell-teralynx`: the always-installed TTL_ERROR default trap independently punts the test's ttl=1 BGP packet regardless of the BGP trap's own state) |
+| `sonic-mgmt` | `ansible/roles/test/files/ptftests/py3/copp_tests.py` | Added `'vpp'` to `BGPTest.check_constraints()`'s asic_type exception list (same treatment as `broadcom`/`marvell-teralynx`); added `ip_src` to `IP2METest`/`SNMPTest` packet construction (previously defaulted to an unroutable address, failing VPP's uRPF check) |
 
 ## References
 
