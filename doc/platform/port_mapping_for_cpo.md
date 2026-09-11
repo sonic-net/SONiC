@@ -187,11 +187,7 @@ The key details of this configuration approach are as follows:
 * platform.json remains the same, providing information about how ASIC lanes map to interfaces, what breakout modes are supported and mapping information about interfaces to physical front-panel ports.
 * A new file called cpo.json is introduced. This file describes all the optical devices present in the chassis in the "devices" section. It also describes how each of those devices are used by the interfaces defined in platform.json in the "interfaces" section.
 * The association of CMIS banks for each device is also encoded in the "interfaces" section of the cpo.json file. This can be used by banking logic in SONiC platform APIs, per the [banking HLD](https://github.com/sonic-net/SONiC/pull/2183).
-* `cpo.json` supports a two-stage lookup to accommodate hwsku-specific port mappings. Different SKUs under the same platform may wire logical interfaces to physical optical devices differently, so the file can be placed in either the hwsku or platform directory:
-  1. First, look for `cpo.json` in the current hwsku directory: `/usr/share/sonic/device/<platform>/<hwsku>/cpo.json`. If found, use it.
-  2. If no hwsku-specific file is found, fall back to the platform directory: `/usr/share/sonic/device/<platform>/cpo.json`.
-
-  This allows a single file to be shared across many hwskus under the same platform while still permitting per-hwsku overrides when the port mapping differs.
+* `cpo.json` lives alongside `platform.json` in the platform directory: `/usr/share/sonic/device/<platform>/cpo.json`. Its "interfaces" section is keyed by the interface names defined in `platform.json`, so like `platform.json` it describes the platform as a whole and is shared by every hwsku under that platform.
 
 #### **7.2 Future Proofing**
 
