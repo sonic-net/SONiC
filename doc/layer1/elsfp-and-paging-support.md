@@ -19,9 +19,9 @@
     - [7.2.4 The CmisFlatMemMap and CmisMemMap classes](#724-the-cmisflatmemmap-and-cmismemmap-classes)
     - [7.2.5 Derived memory maps: C-CMIS and CDB](#725-derived-memory-maps-c-cmis-and-cdb)
   - [7.3 ELSFP Memory mapping](#73-elsfp-memory-mapping)
-    - [7.3.1 ELSFP constants](#731-elsfp-constants)
-    - [7.3.2 ElsfpPage classes](#732-ElsfpPage-classes)
-    - [7.3.3 ElsfpMemMap class](#733-ElsfpMemMap-class)
+    - [7.3.1 ELSFP constants and codes](#731-elsfp-constants-and-codes)
+    - [7.3.2 ElsfpPage classes](#732-elsfppage-classes)
+    - [7.3.3 ElsfpMemMap class](#733-elsfpmemmap-class)
     - [7.3.4 Custom Page remapping and vendor extensions](#734-custom-page-remapping-and-vendor-extensions)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and Management](#9-configuration-and-management)
@@ -79,9 +79,8 @@ ELSFP describes Upper memory CMIS pages it supports in its memory map. Existing 
 | 0x00 | Administrative Information |
 | 0x01 | Advertising |
 | 0x02 | Threshold Information |
-| 0x03 | User NV RAM |
+| 0x2F | VDM Advertising and Control (optional on ELSFP modules) |
 | 0x9F | CDB Command/Response with local payload |
-| A0-AF | CDB EPL extended payload segments |
 
 
 While, SONiC registers these paged registers, it does not explicitly sort them in individual pages. As the CMIS spec grows and new specs that branch off CMIS are defined (such as ELSFP and C-CMIS) , more registers may be added and the memory map will continue to grow. Furthermore, currently, other memory classes such as the CCmisMemMap inherit the CMIS memory map and add their own registers. However, not all pages in the CMIS memory map are used by every device. For example, if an ELSFPMemoryMap object derives from the CMIS memory map, it will contain registers from pages that do not comply to the ELSFP spec. Therefore, there is a need to explicitly define pages and provide the ability to pick a subset of CMIS pages for a memory map.
@@ -323,109 +322,126 @@ class CdbMemMap(XcvrMemMap):
 
 ### 7.3 ELSFP Memory mapping
 
-#### 7.3.1 ELSFP constants
+#### 7.3.1 ELSFP constants and codes
 
-**File**: `sonic_platform_base/sonic_xcvr/fields/elsfp_consts.py`
+**Files**: `fields/elsfp_consts.py`, `codes/public/elsfp.py`, `mem_maps/public/cmis/elsfp/pages/consts.py`
 
-New constant values are added for ELSFP registers in a new file.
+ELSFP field names live in a new `elsfp_consts` module. Each ELSFP page exposes a small number of top-level `RegGroupField`s, one per table in OIF-ELSFP-CMIS-01.0, and per-lane registers are nested `RegGroupField`s inside them.
 
 ```python
+# Top-level group names (one per spec table)
+ELSFP_MODULE_ADVERTISEMENTS_FIELD = "ElsfpModuleAdvertisements"      # 1Ah 128-164, Table 4
+ELSFP_LANE_FAULTS_WARNINGS_FIELD = "ElsfpLaneFaultsWarnings"        # 1Ah 165-181, Table 5
+...
 
-# page 0x1A
-# ELSFP Advertisements 
-OPTICAL_POWER_FIELD = "OpticalPower"
+ELSFP_SETPOINTS_FIELD = "ElsfpSetpoints"                            # 1Bh 128-183, Table 11
+ELSFP_MONITORS_FIELD = "ElsfpMonitors"                              # 1Bh 184-255, Table 12
+
+# Page 1Ah members
 MAX_OPTICAL_POWER = "MaxOpticalPower"
 MIN_OPTICAL_POWER = "MinOpticalPower"
-
-LASER_BIAS_FIELD = "LaserBias"
-MIN_LASER_BIAS = "MinLaserBias"
 MAX_LASER_BIAS = "MaxLaserBias"
+MIN_LASER_BIAS = "MinLaserBias"
 ...
-# Lane fault and warnings
-FAULT_FLAG_LANE_FIELD = "FaultFlagLane"
+FAULT_FLAG_LANE_FIELD = "FaultFlagLanes"
 ...
-# Lane setting and saving and restoring factory/customer settings
-SAVE_RESTORE_FIELD = "SaveRestore"
-SAVE_RESTORE_COMMAND = "SaveRestoreCommand"
-SAVE_RESTORE_CONFIRM = "SaveRestoreConfirm"
-# Alarms/warnings values, alarm/warning codes and masks for set lane bank
-...
-# Per lane enable/disable control and lane state for set lane bank
-...
-# Per lane output fiber link checked flag for selected lane bank 
-...
-# Additional per lane information 
+HIGH_BIAS_ALARM_INDEXED_FIELD = "HighBiasAlarmIndexed"   # ... and the other indexed alarm/warn/mask groups
+FAULT_CODE_FIELD = "FaultCode"
+WARNING_CODE_FIELD = "WarningCode"
 
-
-# page 0x1B
-# ELSFP Controls and Monitors 
+# Page 1Bh members
 BIAS_CURRENT_SETPOINT_FIELD = "BiasCurrentSetpoint"
 OPT_POWER_SETPOINT_FIELD = "OptPowerSetpoint"
+BIAS_CURRENT_MONITOR_FIELD = "BiasCurrentMonitor"
+OPT_POWER_MONITOR_FIELD = "OptPowerMonitor"
 ...
 ```
+
+Page numbers are defined in `mem_maps/public/cmis/elsfp/pages/consts.py`:
+
+```python
+ELSFP_ADVERTISEMENTS_FLAGS_CTRL_PAGE = 0x1A
+ELSFP_SETPOINTS_MON_PAGE = 0x1B
+```
+
+Two additions are made to the shared CMIS code and field tables so that an ELSFP module can be identified through the standard module-info path:
+
+- `codes/public/cmis.py`: `MODULE_FUNCTION_TYPE` (`Transmission Module` / `Resource Module`) is added to `CmisCodes`, and VDM observable types 77-84 (Vcc rail voltage monitors and ELS input power) are added to the VDM type table.
+- `fields/consts.py` and `mem_maps/public/cmis/pages/page00_lower.py`: a new `EXTENDED_MODULE_INFO_FIELD` group containing `MODULE_FUNCTION_TYPE` at page 00h byte 57 is added to `CmisAdministrativeLowerPage`.
 
 #### 7.3.2 ElsfpPage classes
 
-**Files**: `sonic_platform_base/sonic_xcvr/mem_maps/public/cmis/elsfp/pages/page1a.py`, `mem_maps/public/cmis/elsfp/pages/page1b.py`, `mem_maps/public/cmis/elsfp/pages/consts.py`
+**Files**: `mem_maps/public/cmis/elsfp/pages/page1a.py`, `mem_maps/public/cmis/elsfp/pages/page1b.py`
 
-Two new pages are created. The ElsfpAdvertisementsFlagsPage and the ElsfpControlsMonitorsPage corresponding to page 0x1A and 0x1B respectively. These will require the bank parameter in their constructor.
+Two new banked page classes are created, following the banked-page constructor convention `(codes, bank=0, page=<default>)` from 7.2.3:
+
+| Class | Page | Spec tables | Contents |
+|-------|------|-------------|----------|
+| `ElsfpAdvertisementsFlagsCtrlPage` | 1Ah | 4-10 | Module advertisements, lane faults/warnings, laser save/restore, alarm/warning masks and codes, lane enable/state, output fiber checked, lane-to-fiber mapping, per-lane frequency |
+| `ElsfpSetpointsMonitorsPage` | 1Bh | 11-12 | Per-lane bias-current and optical-power setpoints, per-lane bias-current, optical-power and voltage monitors, ICC monitor |
 
 ```python
-class ElsfpAdvertisementsFlagsPage(CmisPage): #0x1A
-    def __init__(codes, page=0x1A, bank=0):
-        super(ElsfpAdvertisementsFlagsPage, self).__init__(codes, page, bank)
-        self.fields[elsfp_consts.OPTICAL_POWER_FIELD] = [
-          NumberRegField(elsfp_consts.MAX_OPTICAL_POWER, self.getaddr(128), size=2, ro=True),
-          NumberRegField(elsfp_consts.MIN_OPTICAL_POWER, self.getaddr(130), size=2, ro=True),
-        ]
-        self.fields[elsfp_consts.LASER_BIAS_FIELD] = [
-          NumberRegField(elsfp_consts.MAX_LASER_BIAS, self.getaddr(132), size=2, ro=True),
-          NumberRegField(elsfp_consts.MIN_LASER_BIAS, self.getaddr(134), size=2, ro=True),
-        ]
-        .
-        .
-        .
-        # How one would register 32 lanes, one per bit
-        self.fields[elsfp_consts.FAULT_FLAG_LANE_FIELD] = [
-          NumberRegField(elsfp_consts.FAULT_FLAG_LANE, self.getaddr(166),
-              *(RegBitField("Bit%d" % (bit), bit) for bit in range (0, 32))
-          )
-        ]
-        .
-        .
-        .
+class ElsfpAdvertisementsFlagsCtrlPage(CmisPage):  # 1Ah
+    def __init__(self, codes, bank=0, page=ELSFP_ADVERTISEMENTS_FLAGS_CTRL_PAGE):
+        super().__init__(codes, page=page, bank=bank)
 
-class ElsfpControlsMonitorsPage(CmisPage): #0x1B
-    def __init__(codes, page=0x1B, bank=0):
-        super(ElsfpControlsMonitorsPage, self).__init__(codes, page, bank)
-        
-        # Setpoint1 to Setpoint8, 2 bytes each
-        self.fields[elsfp_consts.BIAS_CURRENT_SETPOINT_FIELD] = [
-          *(NumberRegField("%s%d" % (elsfp_consts.BIAS_CURRENT_SETPOINT, lane_number), self.getaddr(128), size=2, ro=False) for lane_number in range (0, 9)),
+        self.fields[elsfp_consts.ELSFP_MODULE_ADVERTISEMENTS_FIELD] = [
+            NumberRegField(elsfp_consts.MAX_OPTICAL_POWER, self.getaddr(128), size=2, format=">H", scale=100.0),
+            NumberRegField(elsfp_consts.MIN_OPTICAL_POWER, self.getaddr(130), size=2, format=">H", scale=100.0),
+            # byte 140: control mode (bit 0) and number of lanes (bits 7-1)
+            ...
         ]
-        .
-        .
-        .
 
+        self.fields[elsfp_consts.ELSFP_LANE_FAULTS_WARNINGS_FIELD] = [
+            ...
+            # Bytes 166-169: one fault flag bit per lane, 32 lanes
+            RegGroupField(elsfp_consts.FAULT_FLAG_LANE_FIELD,
+                *(NumberRegField("FaultFlagLane%d" % lane,
+                                 self.getaddr(166 + (lane - 1) // 8),
+                                 RegBitField("Bit%d" % ((lane - 1) % 8), (lane - 1) % 8))
+                  for lane in range(1, 33))
+            ),
+            ...
+        ]
+        ...
+
+class ElsfpSetpointsMonitorsPage(CmisPage):  # 1Bh
+    def __init__(self, codes, bank=0, page=ELSFP_SETPOINTS_MON_PAGE):
+        super().__init__(codes, page=page, bank=bank)
+
+        self.fields[elsfp_consts.ELSFP_SETPOINTS_FIELD] = [
+            # Bytes 128-143: BiasCurrentSetpoint1..8, 2 bytes per lane, 100 uA steps
+            RegGroupField(elsfp_consts.BIAS_CURRENT_SETPOINT_FIELD,
+                *(NumberRegField("%s%d" % (elsfp_consts.BIAS_CURRENT_SETPOINT_FIELD, lane),
+                                 self.getaddr(128 + 2 * (lane - 1)),
+                                 size=2, format=">H", scale=10000.0, ro=False)
+                  for lane in range(1, 9))
+            ),
+            # Bytes 144-159: OptPowerSetpoint1..8, 2 bytes per lane, 10 uW steps
+            ...
+        ]
+        self.fields[elsfp_consts.ELSFP_MONITORS_FIELD] = [
+            ...  # BiasCurrentMonitor1..8 @184, OptPowerMonitor1..8 @200, VoltageMonitor1..8 @232, ICCMonitor @240
+        ]
 ```
+
 #### 7.3.3 ElsfpMemMap class
 
-The ElsfpMemMap will only take a subset of CMIS pages and add the ELSFP pages. It will also accept the bank parameter in its constructor.
+**File**: `mem_maps/public/cmis/elsfp/elsfp.py`
+
+`ElsfpMemMap` inherits `CmisFlatMemMap` rather than `CmisMemMap`, so that it starts from page 00h only and picks the subset of CMIS pages an ELSFP module exposes.
 
 ```python
 class ElsfpMemMap(CmisFlatMemMap):
     def __init__(self, codes, bank=0):
-        super(ElsfpMemMap, self).__init__(codes, bank=bank)
+        super(ElsfpMemMap, self).__init__(codes, bank=bank)   # page 00h lower + upper
         self.add_pages(
-            # CMIS pages applicable to ELSFP
-            CmisAdvertisingPage(codes),                   # 0x01
-            CmisThresholdsPage(codes),                    # 0x02
-            # ELSFP pages
-            ElsfpAdvertisementsFlagsPage(codes, bank=bank),  # 0x1A
-            ElsfpControlsMonitorsPage(codes, bank=bank),     # 0x1B
-            .
-            .
-            .
+            CmisAdvertisingPage(codes),                          # 0x01
+            CmisThresholdsPage(codes),                           # 0x02
+            ElsfpAdvertisementsFlagsCtrlPage(codes, bank=bank),  # 0x1A
+            ElsfpSetpointsMonitorsPage(codes, bank=bank),        # 0x1B
+            CmisVdmAdvertisingCtrlPage(codes, bank=bank),        # 0x2F
+            CmisCdbMessagePage(codes, bank=bank),                # 0x9F
         )
 ```
 
