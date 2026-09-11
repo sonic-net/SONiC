@@ -16,7 +16,7 @@
     - [7.2.1 Page constants](#721-page-constants)
     - [7.2.2 The CmisPage class](#722-the-cmispage-class)
     - [7.2.3 New CMIS pages](#723-new-cmis-pages)
-    - [7.2.4 The CmisMemMap class](#724-the-cmismemmap-class)
+    - [7.2.4 The CmisFlatMemMap and CmisMemMap classes](#724-the-cmisflatmemmap-and-cmismemmap-classes)
     - [7.2.5 Derived memory maps: C-CMIS and CDB](#725-derived-memory-maps-c-cmis-and-cdb)
   - [7.3 ELSFP Memory mapping](#73-elsfp-memory-mapping)
     - [7.3.1 ELSFP constants](#731-elsfp-constants)
@@ -102,7 +102,7 @@ In addition, the ELSFP spec describes new pages that are not currently implement
 
 ### Non-Functional Requirements
 
-1. Existing maps should remain functionally identical and cause no API changes
+1. Existing maps should expose the same named fields at the same EEPROM offsets, so that `XcvrApi` consumers require no changes.
 2. Easy remapping of pages to another page
 
 ### 6. Architecture Design 
@@ -205,71 +205,90 @@ class CmisPage(XcvrMemMap):
 
 #### 7.2.3 New CMIS pages
 
-All pages registered in CmisMemMap are moved to their respective page classes.
+**Files**: `mem_maps/public/cmis/pages/page*.py`
 
-Existing CMIS registers are grouped into their respective pages. For example, registers for CmisMemMap.ADVERTISING are moved to a AdvertisingCmisPage with the page number hardcoded to 0x01.
+All registers previously declared inline in `CmisFlatMemMap` and `CmisMemMap` are moved into one page class per module. Field names and EEPROM offsets are unchanged; only the field-declaration site moves. Page 00h is split into two classes because its lower half (offsets 0-127) is fixed memory and its upper half (offsets 128-255) is paged.
+
+| Module | Class | Page |
+|--------|-------|------|
+| `page00_lower.py` | `CmisAdministrativeLowerPage` | 00h lower |
+| `page00_upper.py` | `CmisAdministrativeUpperPage` | 00h upper |
+| `page01.py` | `CmisAdvertisingPage` | 01h |
+| `page02.py` | `CmisThresholdsPage` | 02h |
+...
+
+Two constructor conventions are used, depending on whether the page can be banked:
+
+- Non-banked pages (00h-0Fh) take `(codes, page=<default>)` and always pass `bank=0` to `CmisPage`.
+- Banked pages (10h and above) take `(codes, bank=0, page=<default>)`.
 
 ```python
-  class CmisAdvertisingPage(CmisPage): #0x01
-	    def __init__(codes, page=0x01, bank=0):
-        super(CmisAdvertisingPage, self).__init__(codes, page, bank)
-		        self.fields[consts.TRANS_CDB_FIELD] = [
-              # Page number not required, only offset provided
-              NumberRegField(consts.CDB_SUPPORT, self.getaddr(163),
-                  *(RegBitField("Bit%d" % (bit), bit) for bit in range (6, 8))
-              ),
-              .
-              .
-              .
-            ]
-            self.fields[consts.ADVERTISING_FIELD] = [
-                        NumberRegField(consts.INACTIVE_FW_MAJOR_REV, self.getaddr(128), format="B", size=1),
-                        NumberRegField(consts.INACTIVE_FW_MINOR_REV, self.getaddr(129), format="B", size=1),
-              .
-              .
-              .
-            ]
-  class CmisCdbMessagePage(CmisPage): #0x9F
-    def __init__(codes, page=0x9F, bank=0):
-        super(CmisCdbMessagePage, self).__init__(codes, page, bank)
-        self.fields[consts.TRANS_CDB_FIELD] = [
-          NumberRegField(consts.CDB_RPL_LENGTH, self.getaddr(134), size=1, ro=False),
-          NumberRegField(consts.CDB_RPL_CHKCODE, self.getaddr(135), size=1, ro=False),
-          .
-          .
-          .
+class CmisAdvertisingPage(CmisPage):  # 01h, non-banked
+    def __init__(self, codes, page=ADVERTISING_PAGE):
+        super().__init__(codes, page=page, bank=0)
+        self.fields[consts.ADVERTISING_FIELD] = [
+            NumberRegField(consts.INACTIVE_FW_MAJOR_REV, self.getaddr(128), format="B", size=1),
+            NumberRegField(consts.INACTIVE_FW_MINOR_REV, self.getaddr(129), format="B", size=1),
+            ...
         ]
-        .
-        .
-        .
+        self.fields[consts.TRANS_CDB_FIELD] = [
+            NumberRegField(consts.CDB_SUPPORT, self.getaddr(163),
+                *(RegBitField("Bit%d" % (bit), bit) for bit in range(6, 8))
+            ),
+            ...
+        ]
 
+class CmisCdbMessagePage(CmisPage):  # 9Fh, banked constructor (bank clamped to 0 by linear_offset)
+    def __init__(self, codes, bank=0, page=CDB_MESSAGE_PAGE):
+        super().__init__(codes, page=page, bank=bank)
+        # TRANS_CDB_FIELD contribution from page 9Fh; merged with the page 01h contribution
+        self.fields[consts.TRANS_CDB_FIELD] = [
+            NumberRegField(consts.CDB_RPL_LENGTH, self.getaddr(134), size=1, ro=False),
+            NumberRegField(consts.CDB_RPL_CHKCODE, self.getaddr(135), size=1, ro=False),
+        ]
+        ...
 ```
-#### 7.2.4 The CmisMemMap class
 
-The CmisMemMap class is refactored to be a container for CmisPage objects, while remaining functionally identical. A helper is added to get fields from multiple pages at once, since a single field may have registers across multiple pages.
+#### 7.2.4 The CmisFlatMemMap and CmisMemMap classes
+
+**File**: `mem_maps/public/cmis/cmis.py`
+
+`CmisFlatMemMap` becomes the container for pages. It owns the `pages` list, the `add_pages` helper and the `bank` property, and composes only the two halves of page 00h. `CmisMemMap` inherits it and adds the upper pages. Only banked pages receive the `bank` argument.
 
 ```python
-class CmisMemMap(XcvrMemMap):
-    def __init__(self, codes):
-        super(CmisMemMap, self).__init__(codes)
+class CmisFlatMemMap(XcvrMemMap):
+    def __init__(self, codes, bank=0):
+        self._bank = bank
+        super(CmisFlatMemMap, self).__init__(codes)
         self.pages = []
         self.add_pages(
-            CmisAdministrativeUpperPage(codes),  # 0x00U
-            CmisAdvertisingPage(codes),          # 0x01
-            .
-            .
-            .
-            CmisCdbMessagePage(codes),           # 0x9F
+            CmisAdministrativeLowerPage(codes),
+            CmisAdministrativeUpperPage(codes),
         )
 
     def add_pages(self, *pages):
-        """Append pages to self.pages and register their fields onto self."""
         self.pages.extend(pages)
         for page in pages:
             page.register_fields(self)
-```
+        # XcvrMemMap caches _fields on first get_field(); invalidate so newly
+        # registered RegGroupFields are picked up on the next lookup.
+        self._fields = None
 
-Each `CmisPage` exposes a `register_fields(memmap)` method that sets its fields on the memory map. When multiple pages contribute to the same `RegGroupField` (e.g. `TRANS_CDB_FIELD` spans pages 01h and 9Fh), `register_fields` merges the new contributions into the existing group and re-sorts members by offset.
+    @property
+    def bank(self):
+        return self._bank
+
+
+class CmisMemMap(CmisFlatMemMap):
+    def __init__(self, codes, bank=0):
+        super(CmisMemMap, self).__init__(codes, bank=bank)
+        self.add_pages(
+            CmisAdvertisingPage(codes),                           # 0x01
+            CmisThresholdsPage(codes),                            # 0x02
+            CmisLaneDatapathConfigPage(codes, bank=bank),         # 0x10
+            ...          # 0x9F
+        )
+```
 
 #### 7.2.5 Derived memory maps: C-CMIS and CDB
 
