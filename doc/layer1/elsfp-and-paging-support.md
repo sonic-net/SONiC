@@ -13,10 +13,11 @@
 - [7. High-Level Design](#7-high-level-design)
   - [7.1 Repositories Changed](#71-repositories-changed)
   - [7.2 Memory Map Abstraction Changes (cmis package)](#72-memory-map-abstraction-changes-cmis-package)
-    - [7.2.1 The CmisPage class](#721-the-cmispage-class)
-    - [7.2.2 New CMIS pages](#722-new-cmis-pages)
-    - [7.2.3 The CmisMemMap class](#723-the-cmismemmap-class)
-    - [7.2.4 Derived memory maps: C-CMIS and CDB](#724-derived-memory-maps-c-cmis-and-cdb)
+    - [7.2.1 Page constants](#721-page-constants)
+    - [7.2.2 The CmisPage class](#722-the-cmispage-class)
+    - [7.2.3 New CMIS pages](#723-new-cmis-pages)
+    - [7.2.4 The CmisMemMap class](#724-the-cmismemmap-class)
+    - [7.2.5 Derived memory maps: C-CMIS and CDB](#725-derived-memory-maps-c-cmis-and-cdb)
   - [7.3 ELSFP Memory mapping](#73-elsfp-memory-mapping)
     - [7.3.1 ELSFP constants](#731-elsfp-constants)
     - [7.3.2 ElsfpPage classes](#732-ElsfpPage-classes)
@@ -124,43 +125,85 @@ All changes are in `sonic-platform-common`, under `sonic_platform_base/sonic_xcv
 
 ### 7.2 Memory Map Abstraction Changes (cmis package)
 
-**Files**: `sonic_platform_base/sonic_xcvr/mem_maps/public/cmis/cmis.py`, `mem_maps/public/cmis/pages/page.py`, `mem_maps/public/cmis/pages/consts.py`, `mem_maps/public/cmis/pages/page*.py`
+All paths in this section are relative to `sonic_platform_base/sonic_xcvr/`.
 
-#### 7.2.1 The CmisPage class
+#### 7.2.1 Page constants
 
-A new base class called the CmisPage is defined. This represents a single page in the CMIS memory map. It uses the same, banking compliant address calculation as CmisMemMap as defined in the Banking HLD, with the page and bank parameters being derived from the class member.
-It provides a getter for fields that are defined in the page.
+**File**: `mem_maps/public/cmis/pages/consts.py`
+
+Layout constants matching the optoe driver.
+
+```python
+# Constants matching optoe driver
+CMIS_EEPROM_PAGE_SIZE = 128
+CMIS_NUM_NON_BANKED_PAGES = 16   # pages 00h-0Fh
+CMIS_ARCH_PAGES = 256            # architectural pages per bank
+
+# CMIS page number constants
+ADMINISTRATIVE_PAGE = 0x00
+ADVERTISING_PAGE = 0x01
+THRESHOLDS_PAGE = 0x02
+...
+```
+
+#### 7.2.2 The CmisPage class
+
+**File**: `mem_maps/public/cmis/pages/page.py`
+
+A new base class `CmisPage` represents a single page in the CMIS memory map. It stores its page and bank numbers, owns a dictionary of field contributions keyed by `RegGroupField` name, and computes linear EEPROM offsets and and registers its fields onto a parent memory map.
+
+The address calculation lives in the static method `linear_offset`, so that tests and callers without a page instance can use the same formula. `getaddr` is the instance-bound convenience wrapper. The formula follows the optoe driver layout: each bank is a full 256-page block.
 
 ```python
 class CmisPage(XcvrMemMap):
-    fields = Dict[str, list[RegField]] # This is a Dictionary of list of fields
-    def __init__(codes, page, bank):
-      super(XcvrMemMap, self).__init__(codes)
-      self._page = page
-      self._bank = bank
+    fields: Dict[str, List[XcvrField]]  # RegGroupField name -> list of member fields
+
+    def __init__(self, codes, page, bank=0):
+        super(CmisPage, self).__init__(codes)
+        self._page = page
+        self._bank = bank
+        self.fields = {}
+
+    @property
+    def page(self):
+        return self._page
+
+    @property
+    def bank(self):
+        return self._bank
+
+    @staticmethod
+    def linear_offset(page, bank, offset, page_size=128):
+        if page == 0 and offset < 128:
+            # Lower memory: not affected by paging or banking
+            return offset
+        if page < CMIS_NUM_NON_BANKED_PAGES or 0x9F <= page <= 0xAF:
+            bank = 0
+        return (bank * CMIS_ARCH_PAGES + page) * page_size + offset
 
     def getaddr(self, offset, page_size=128):
-        if self._page == 0 and offset < 128:
-            # Lower memory - not affected by banking
-            return offset
+        return CmisPage.linear_offset(self._page, self._bank, offset, page_size)
 
-        if self._bank == 0:
-            # Bank 0: standard linear offset
-            return self._page * page_size + offset
-        else:
-            # Banks 1+: only pages 10h-FFh (0x10+) are banked
-            # Pages < 0x10 are never banked, even for bank > 0
-            if self._page < 0x10:
-                # Non-banked pages (00h-0Fh): same as bank 0
-                return self._page * page_size + offset
-            else:
-                # Banked pages (10h-FFh): offset by bank * OPTOE_BANKED_PAGE_SIZE pages
-                return ((self._bank * OPTOE_BANKED_PAGE_SIZE) + self._page) * page_size + offset
-
-    def get_field_values(field : str):
+    def get_field_values(self, field: str):
         return self.fields[field]
+
+    def register_fields(self, memmap):
+        for key, contribs in self.fields.items():
+            if not contribs:
+                continue
+            existing = getattr(memmap, key, None)
+            field_key = key
+            field_values = contribs
+            if isinstance(existing, RegGroupField):
+                field_key = existing.name
+                field_values = sorted(
+                    list(existing.fields) + list(contribs),
+                    key=lambda f: f.get_offset(),
+                )
+            setattr(memmap, key, RegGroupField(field_key, *field_values))
 ```
-#### 7.2.2 New CMIS pages
+
+#### 7.2.3 New CMIS pages
 
 All pages registered in CmisMemMap are moved to their respective page classes.
 
@@ -201,7 +244,7 @@ Existing CMIS registers are grouped into their respective pages. For example, re
         .
 
 ```
-#### 7.2.3 The CmisMemMap class
+#### 7.2.4 The CmisMemMap class
 
 The CmisMemMap class is refactored to be a container for CmisPage objects, while remaining functionally identical. A helper is added to get fields from multiple pages at once, since a single field may have registers across multiple pages.
 
@@ -228,7 +271,7 @@ class CmisMemMap(XcvrMemMap):
 
 Each `CmisPage` exposes a `register_fields(memmap)` method that sets its fields on the memory map. When multiple pages contribute to the same `RegGroupField` (e.g. `TRANS_CDB_FIELD` spans pages 01h and 9Fh), `register_fields` merges the new contributions into the existing group and re-sorts members by offset.
 
-#### 7.2.4 Derived memory maps: C-CMIS and CDB
+#### 7.2.5 Derived memory maps: C-CMIS and CDB
 
 The other memory maps that previously subclassed `CmisMemMap` or defined CMIS-addressed fields inline are converted to the same page scheme, so that every CMIS-derived map declares its contents as a list of pages.
 
