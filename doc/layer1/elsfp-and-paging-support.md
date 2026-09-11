@@ -43,6 +43,7 @@
 | Rev | Date       | Author | Change Description |
 |-----|------------|--------|--------------------|
 | 0.1 | 2025-02-03 | abhi-nexthop      | Initial version    |
+| 0.2 | 2026-09-11 | abhi-nexthop      | Aligned with merged implementation (sonic-platform-common #667, #678): cmis package layout, CmisPage API, page constructor conventions, ELSFP class and field names, C-CMIS/CDB/vendor map conversions, test plan |
 
 
 ### 2. Scope  
@@ -61,9 +62,9 @@ This high-level design document describes the design for adding paging support i
 
 The CMIS spec provides the memory layout for certain i2c transceivers. This layout consists of a fixed lower memory, and a paged upper memory. The upper memory has certain pages that are banked, providing a 3D memory layout for the device.
 
-While SONiC does not currently provide banking support, it has been proposed in the [Banking HLD](https://github.com/sonic-net/SONiC/pull/2183) PR and this document depends on it.
+Banking support was added by the [Banking HLD](./cmis_banking_support.md), and this document builds on it.
 
-CMIS layout (Taken from the Banking HLD PR):
+CMIS layout (taken from the Banking HLD):
 
 | Memory Region | Address Range | Description |
 |---------------|---------------|-------------|
@@ -106,7 +107,7 @@ In addition, the ELSFP spec describes new pages that are not currently implement
 
 ### 6. Architecture Design 
 
-This design depends on the implementation of the [Banking HLD](https://github.com/sonic-net/SONiC/pull/2183). The changes in this design however, do not affect the SONiC architecture. Rather, these changes are limited to a refactoring of the CMIS memory map to support paging and the addition of ELSFP pages.
+This design builds on the implementation of the [Banking HLD](./cmis_banking_support.md). The changes in this design do not affect the SONiC architecture. Rather, these changes are limited to a refactoring of the CMIS memory map to support paging and the addition of ELSFP pages.
 
 ### 7. High-Level Design 
 
@@ -493,22 +494,23 @@ No significant memory consumption impact. The overhead of new classes is minimal
 ### 12. Restrictions/Limitations  
 
 1. Applies to CMIS devices only
-2. Depends on Banking HLD to be implemented
 
 ### 13. Testing Requirements/Design  
 
-#### 13.1. Unit Test cases  
+#### 13.1. Unit Test cases
 
-Existing tests should continue to pass without changes in
-`sonic-platform-common/tests/sonic_xcvr/test_cmis.py`
+**Existing CMIS tests.** The field-level tests in `tests/sonic_xcvr/test_cmis.py`, `test_ccmis.py`, `test_cdb.py` and `test_sfp_optoe_base.py` continue to pass with only mechanical edits:
 
-Add new tests for ELSFP memory map. in
-`sonic-platform-common/tests/sonic_xcvr/test_elsfp.py`
+- Import paths move to the `mem_maps.public.cmis` package
+- The address-calculation tests that exercised `CmisMemMap.getaddr(page, offset)` are rewritten against `CmisPage.linear_offset(page, bank, offset)`. 
+- `test_cdb.py` looks fields up with `get_field(cdb_consts.<NAME>)`.
 
-register ELSFPMemoryMap with XcvrEeprom across different bank numbers like in test_cmis.py
-- Read/Write supported CMIS pages
-- Read/Write to supported ELSFP pages
-- Attempt Read/Write to unsupported CMIS pages and expect exceptions
+**New ELSFP tests** in `tests/sonic_xcvr/test_elsfp.py`, constructing `ElsfpMemMap(ElsfpCodes)`:
+
+- `ElsfpMemMap` composes exactly eight pages (page 00h lower and upper plus the six added pages).
+- Each of pages 01h, 02h, 1Ah, 1Bh, 2Fh, 9Fh is present, and each of 10h-13h is absent.
+- Every ELSFP top-level group and a representative set of CMIS groups resolve through `get_field()`.
+- `ElsfpCodes` inherits the CMIS tables (including the new VDM observable 84) and defines `CONTROL_MODE`, `LANE_FAULT_CODE`, `LANE_WARNING_CODE` and `LANE_STATE`.
 
 #### 13.2. System Test cases
 
