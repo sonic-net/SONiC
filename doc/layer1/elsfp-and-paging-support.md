@@ -21,7 +21,7 @@
     - [7.3.1 ELSFP constants](#731-elsfp-constants)
     - [7.3.2 ElsfpPage classes](#732-ElsfpPage-classes)
     - [7.3.3 ElsfpMemMap class](#733-ElsfpMemMap-class)
-    - [7.3.4 Custom Page remapping](#734-custom-page-remapping)
+    - [7.3.4 Custom Page remapping and vendor extensions](#734-custom-page-remapping-and-vendor-extensions)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and Management](#9-configuration-and-management)
   - [9.1 Manifest](#91-manifest)
@@ -367,38 +367,22 @@ class ElsfpMemMap(CmisFlatMemMap):
         )
 ```
 
-#### 7.3.4 Custom Page remapping
+#### 7.3.4 Custom Page remapping and vendor extensions
 
-The mechanism described here enables one to remap pages or duplicate pages for vendor specific implementations.
+Because every page class takes its page number as a constructor argument, a page can be remapped or duplicated without re-declaring its fields, and vendor-specific fields can be added by declaring a small `CmisPage` subclass and registering it with `add_pages`. Fields that a vendor page contributes to an existing `RegGroupField` are merged by `register_fields`.
 
-For example, consider Device 1 that controls Device 2. Device 2's advertising page is mapped onto a vendor reserved page B0.
-
-This is how a vendor may implement this:
+**Remapping an existing page.** Consider Device 1 that controls Device 2, where Device 2's advertising page is exposed on the vendor-reserved page B0h of Device 1:
 
 ```python
-
 class Device2AdvertisingPage(CmisAdvertisingPage):
-    def __init__(codes, page=0xB0, bank=0):
-        # Device 2's advertising page which is set to 0x01 by default is mapped onto page 0xB0
-        super(Device2AdvertisingPage, self).__init__(codes, page, bank)
-        .
-        .
-        .
-  
+    def __init__(self, codes, page=0xB0):
+        # Same fields as CMIS page 01h, addressed on page 0xB0
+        super().__init__(codes, page=page)
+
 class Device1MemMap(CmisMemMap):
-    def __init__(self, codes, bank):
-        super(Device1MemMap, self).__init__(codes, bank)
-        .
-        .
-        .
-        # Device 1's own page is mapped to the default CMIS page
-        self.advertising_page = CmisAdvertisingPage(codes)
-        # Device 2's advertising page is mapped to the vendor reserved page 0xB0
-        self.device2_advertising_page = Device2AdvertisingPage(codes)
-        .
-        .
-        .
-```
+    def __init__(self, codes, bank=0):
+        super().__init__(codes, bank=bank)
+        self.add_pages(Device2AdvertisingPage(codes))
 
 ### 8. SAI API
 
