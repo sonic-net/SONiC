@@ -12,7 +12,7 @@
 - [6. Architecture Design](#6-architecture-design)
 - [7. High-Level Design](#7-high-level-design)
   - [7.1 Repositories Changed](#71-repositories-changed)
-  - [7.2 Memory Map Abstraction Changes (cmis.py)](#72-memory-map-abstraction-changes-cmispy)
+  - [7.2 Memory Map Abstraction Changes (cmis package)](#72-memory-map-abstraction-changes-cmis-package)
     - [7.2.1 The CmisPage class](#721-the-cmispage-class)
     - [7.2.2 New CMIS pages](#722-new-cmis-pages)
     - [7.2.3 The CmisMemMap class](#723-the-cmismemmap-class)
@@ -111,18 +111,19 @@ This design depends on the implementation of the [Banking HLD](https://github.co
 
 ### 7.1 Repositories Changed
 
-| Repository | Files Modified |
-|------------|----------------|
-| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py` |
+All changes are in `sonic-platform-common`, under `sonic_platform_base/sonic_xcvr/`. The former `mem_maps/public/cmis.py` module becomes a `mem_maps/public/cmis/` package so that page classes, the C-CMIS and CDB maps, and the ELSFP map can live alongside the base CMIS map. `mem_maps/public/cmis/__init__.py` re-exports `CmisFlatMemMap` and `CmisMemMap`, so existing `from ...mem_maps.public.cmis import CmisMemMap` imports keep resolving.
 
+| Change Type | Files |
+|-------------|-------|
+| Moved into package | `mem_maps/public/cmis.py` -> `mem_maps/public/cmis/cmis.py`, `mem_maps/public/c_cmis.py` -> `mem_maps/public/cmis/c_cmis.py`, `mem_maps/public/cdb.py` -> `mem_maps/public/cmis/cdb.py` |
+| Added (CMIS pages) | `mem_maps/public/cmis/__init__.py`, `mem_maps/public/cmis/pages/__init__.py`, `mem_maps/public/cmis/pages/page.py`, `mem_maps/public/cmis/pages/consts.py`, `mem_maps/public/cmis/pages/page00_lower.py`, `page00_upper.py`, `page00_cdb.py`, `page01.py`, `page02.py`, `page04.py`, `page10.py`, `page11.py`, `page12.py`, `page13.py`, `page2f.py`, `page34.py`, `page35.py`, `page9f.py`, `page9f_cdb.py` |
+| Added (ELSFP) | `mem_maps/public/cmis/elsfp/__init__.py`, `mem_maps/public/cmis/elsfp/elsfp.py`, `mem_maps/public/cmis/elsfp/pages/__init__.py`, `mem_maps/public/cmis/elsfp/pages/consts.py`, `mem_maps/public/cmis/elsfp/pages/page1a.py`, `mem_maps/public/cmis/elsfp/pages/page1b.py`, `fields/elsfp_consts.py`, `codes/public/elsfp.py` |
+| Modified (import path or page conversion) | `api/public/cmis.py`, `xcvr_api_factory.py`, `mem_maps/amphenol/backplane.py`, `mem_maps/credo/aec_800g.py`, `codes/public/cmis.py`, `fields/consts.py`, `setup.py` |
+| Tests | `tests/sonic_xcvr/test_cmis.py`, `test_ccmis.py`, `test_cdb.py`, `test_sfp_optoe_base.py` (modified), `tests/sonic_xcvr/test_elsfp.py` (added) |
 
-| Repository | Files Added |
-|------------|----------------|
-| sonic-platform-common | `sonic_xcvr/mem_maps/public/elsfp.py`, `sonic_xcvr/fields/elsfp_consts.py` |
+### 7.2 Memory Map Abstraction Changes (cmis package)
 
-### 7.2 Memory Map Abstraction Changes (cmis.py)
-
-**File**: `src/sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/cmis.py`
+**Files**: `sonic_platform_base/sonic_xcvr/mem_maps/public/cmis/cmis.py`, `mem_maps/public/cmis/pages/page.py`, `mem_maps/public/cmis/pages/consts.py`, `mem_maps/public/cmis/pages/page*.py`
 
 #### 7.2.1 The CmisPage class
 
@@ -230,7 +231,7 @@ Each `CmisPage` exposes a `register_fields(memmap)` method that sets its fields 
 
 #### 7.3.1 ELSFP constants
 
-**File**: `src/sonic-platform-common/sonic_platform_base/sonic_xcvr/fields/elsfp_consts.py`
+**File**: `sonic_platform_base/sonic_xcvr/fields/elsfp_consts.py`
 
 New constant values are added for ELSFP registers in a new file.
 
@@ -271,7 +272,7 @@ OPT_POWER_SETPOINT_FIELD = "OptPowerSetpoint"
 
 #### 7.3.2 ElsfpPage classes
 
-**File**: `src/sonic-platform-common/sonic_platform_base/sonic_xcvr/mem_maps/public/elsfp.py`
+**Files**: `sonic_platform_base/sonic_xcvr/mem_maps/public/cmis/elsfp/pages/page1a.py`, `mem_maps/public/cmis/elsfp/pages/page1b.py`, `mem_maps/public/cmis/elsfp/pages/consts.py`
 
 Two new pages are created. The ElsfpAdvertisementsFlagsPage and the ElsfpControlsMonitorsPage corresponding to page 0x1A and 0x1B respectively. These will require the bank parameter in their constructor.
 
@@ -421,12 +422,32 @@ No regression in existing XcvrApi operations.
 
 ### 14. Files Changed Summary
 
-| Repository | File Path | Change Type | Description |
-|------------|-----------|-------------|-------------|
-| sonic-platform-common | `sonic_xcvr/mem_maps/public/cmis.py` | Modified | Refactored to support paging with CmisPage base class and individual page classes |
-| sonic-platform-common | `sonic_xcvr/mem_maps/public/elsfp.py` | Added | New ELSFP memory map implementation with pages 0x1A and 0x1B |
-| sonic-platform-common | `sonic_xcvr/fields/elsfp_consts.py` | Added | ELSFP-specific field constants and register definitions |
-| sonic-platform-common | `tests/sonic_xcvr/test_elsfp.py` | Added | Unit tests for ELSFP memory map functionality |
+All paths are relative to `sonic-platform-common/sonic_platform_base/sonic_xcvr/` unless noted.
+
+| File Path | Change Type | Description |
+|-----------|-------------|-------------|
+| `mem_maps/public/cmis/__init__.py` | Added | Package init; re-exports `CmisFlatMemMap`, `CmisMemMap` and layout constants so existing imports keep working |
+| `mem_maps/public/cmis/cmis.py` | Moved + Modified | `CmisFlatMemMap` and `CmisMemMap` refactored into page containers with `add_pages` |
+| `mem_maps/public/cmis/c_cmis.py` | Moved + Modified | `CCmisMemMap` composes pages 04h, 34h, 35h via `add_pages` |
+| `mem_maps/public/cmis/cdb.py` | Moved + Modified | `CdbMemMap` composes `CdbAdminStatusPage` and `CdbLplMessagePage` |
+| `mem_maps/public/cmis/pages/page.py` | Added | `CmisPage` base class: `linear_offset`, `getaddr`, `register_fields` |
+| `mem_maps/public/cmis/pages/consts.py` | Added | CMIS layout constants and page-number constants |
+| `mem_maps/public/cmis/pages/page*.py` | Added | One module per CMIS / C-CMIS / CDB page (00h lower, 00h upper, 00h CDB, 01h, 02h, 04h, 10h-13h, 2Fh, 34h, 35h, 9Fh, 9Fh CDB) |
+| `mem_maps/public/cmis/pages/__init__.py` | Added | Re-exports all page classes and constants |
+| `mem_maps/public/cmis/elsfp/elsfp.py` | Added | `ElsfpMemMap` composing pages 01h, 02h, 1Ah, 1Bh, 2Fh, 9Fh |
+| `mem_maps/public/cmis/elsfp/pages/page1a.py` | Added | `ElsfpAdvertisementsFlagsCtrlPage` (page 1Ah) |
+| `mem_maps/public/cmis/elsfp/pages/page1b.py` | Added | `ElsfpSetpointsMonitorsPage` (page 1Bh) |
+| `mem_maps/public/cmis/elsfp/pages/consts.py` | Added | ELSFP page-number constants |
+| `mem_maps/public/cmis/elsfp/__init__.py`, `elsfp/pages/__init__.py` | Added | Package inits and re-exports |
+| `fields/elsfp_consts.py` | Added | ELSFP field-name constants |
+| `codes/public/elsfp.py` | Added | `ElsfpCodes(CmisCodes)` with ELSFP code tables |
+| `codes/public/cmis.py` | Modified | Adds `MODULE_FUNCTION_TYPE` codes and ELSFP-related VDM observable types |
+| `fields/consts.py` | Modified | Adds `MODULE_FUNCTION_TYPE` and `EXTENDED_MODULE_INFO_FIELD` |
+| `mem_maps/amphenol/backplane.py`, `mem_maps/credo/aec_800g.py` | Modified | Vendor maps converted to private `CmisPage` subclasses registered via `add_pages` |
+| `api/public/cmis.py`, `xcvr_api_factory.py` | Modified | Import paths updated for the `cmis/` package |
+| `sonic-platform-common/setup.py` | Modified | Registers the new `cmis`, `cmis.pages`, `cmis.elsfp`, `cmis.elsfp.pages` packages |
+| `sonic-platform-common/tests/sonic_xcvr/test_cmis.py`, `test_ccmis.py`, `test_cdb.py`, `test_sfp_optoe_base.py` | Modified | Import paths and address-calculation tests moved to `CmisPage.linear_offset` |
+| `sonic-platform-common/tests/sonic_xcvr/test_elsfp.py` | Added | Unit tests for `ElsfpMemMap` and `ElsfpCodes` |
 
 ### 15. Code Changes
 
