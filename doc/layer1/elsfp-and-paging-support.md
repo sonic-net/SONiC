@@ -16,6 +16,7 @@
     - [7.2.1 The CmisPage class](#721-the-cmispage-class)
     - [7.2.2 New CMIS pages](#722-new-cmis-pages)
     - [7.2.3 The CmisMemMap class](#723-the-cmismemmap-class)
+    - [7.2.4 Derived memory maps: C-CMIS and CDB](#724-derived-memory-maps-c-cmis-and-cdb)
   - [7.3 ELSFP Memory mapping](#73-elsfp-memory-mapping)
     - [7.3.1 ELSFP constants](#731-elsfp-constants)
     - [7.3.2 ElsfpPage classes](#732-ElsfpPage-classes)
@@ -226,6 +227,37 @@ class CmisMemMap(XcvrMemMap):
 ```
 
 Each `CmisPage` exposes a `register_fields(memmap)` method that sets its fields on the memory map. When multiple pages contribute to the same `RegGroupField` (e.g. `TRANS_CDB_FIELD` spans pages 01h and 9Fh), `register_fields` merges the new contributions into the existing group and re-sorts members by offset.
+
+#### 7.2.4 Derived memory maps: C-CMIS and CDB
+
+The other memory maps that previously subclassed `CmisMemMap` or defined CMIS-addressed fields inline are converted to the same page scheme, so that every CMIS-derived map declares its contents as a list of pages.
+
+**C-CMIS** (`mem_maps/public/cmis/c_cmis.py`): `CCmisMemMap` still inherits `CmisMemMap` and adds the C-CMIS specific pages via `add_pages`. The field definitions move to `CCmisModuleConfigSupportPage` (04h), `CCmisMediaLaneFecPmPage` (34h) and `CCmisMediaLaneLinkPmPage` (35h).
+
+```python
+class CCmisMemMap(CmisMemMap):
+    def __init__(self, codes, bank=0):
+        super(CCmisMemMap, self).__init__(codes, bank=bank)
+        self.add_pages(
+            CCmisModuleConfigSupportPage(codes, bank=bank),  # 0x04
+            CCmisMediaLaneFecPmPage(codes, bank=bank),       # 0x34
+            CCmisMediaLaneLinkPmPage(codes, bank=bank),      # 0x35
+        )
+```
+
+**CDB** (`mem_maps/public/cmis/cdb.py`): `CdbMemMap` is not a `CmisFlatMemMap`, but it addresses CMIS pages 00h and 9Fh. Its fields move to two page classes, `CdbAdminStatusPage` (the CDB1 status byte at page 00h offset 37) and `CdbLplMessagePage` (query status, firmware info and firmware management features in the page 9Fh LPL area). `CdbMemMap` carries its own `add_pages` helper identical to the one on `CmisFlatMemMap`.
+
+```python
+class CdbMemMap(XcvrMemMap):
+    def __init__(self, codes):
+        super(CdbMemMap, self).__init__(codes)
+        self.cdb_cmds = {}
+        self.pages = []
+        self.add_pages(
+            CdbAdminStatusPage(codes),   # 0x00, CDB1 status byte
+            CdbLplMessagePage(codes),    # 0x9F, LPL message area
+        )
+```
 
 ### 7.3 ELSFP Memory mapping
 
