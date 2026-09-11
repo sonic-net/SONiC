@@ -150,7 +150,7 @@ THRESHOLDS_PAGE = 0x02
 
 **File**: `mem_maps/public/cmis/pages/page.py`
 
-A new base class `CmisPage` represents a single page in the CMIS memory map. It stores its page and bank numbers, owns a dictionary of field contributions keyed by `RegGroupField` name, and computes linear EEPROM offsets and and registers its fields onto a parent memory map.
+A new base class `CmisPage` represents a single page in the CMIS memory map. It stores its page and bank numbers, owns a dictionary of field contributions keyed by `RegGroupField` name, and computes linear EEPROM offsets and registers its fields onto a parent memory map.
 
 The address calculation lives in the static method `linear_offset`, so that tests and callers without a page instance can use the same formula. `getaddr` is the instance-bound convenience wrapper. The formula follows the optoe driver layout: each bank is a full 256-page block.
 
@@ -365,6 +365,8 @@ ELSFP_ADVERTISEMENTS_FLAGS_CTRL_PAGE = 0x1A
 ELSFP_SETPOINTS_MON_PAGE = 0x1B
 ```
 
+ELSFP code tables (`CONTROL_MODE`, `LANE_FAULT_CODE`, `LANE_WARNING_CODE`, `LANE_STATE`) are added in `ElsfpCodes(CmisCodes)` in `codes/public/elsfp.py`. `ElsfpMemMap` is constructed with `ElsfpCodes`.
+
 Two additions are made to the shared CMIS code and field tables so that an ELSFP module can be identified through the standard module-info path:
 
 - `codes/public/cmis.py`: `MODULE_FUNCTION_TYPE` (`Transmission Module` / `Resource Module`) is added to `CmisCodes`, and VDM observable types 77-84 (Vcc rail voltage monitors and ELS input power) are added to the VDM type table.
@@ -462,6 +464,7 @@ class Device1MemMap(CmisMemMap):
     def __init__(self, codes, bank=0):
         super().__init__(codes, bank=bank)
         self.add_pages(Device2AdvertisingPage(codes))
+```
 
 ### 8. SAI API
 
