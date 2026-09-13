@@ -40,7 +40,7 @@ HLDs and PRs SII calculation includes both LFX SONiC and OCP SAI Projects
 
 [5]: SONiC community view quality as the foundation to deliver a stable and reliable product. Therefore, we consciously attribute more weight to quality contribution.
 
-[6]: SONiC Production Deployment Small/Medium/Large based on production network instances deployed within the organization (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001).
+[6]: SONiC Production Deployment Small/Medium/Large based on production network instances deployed within the organization (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001). Production deployment size should be the total number of active SONiC instances deployed in the organization at the time of the submission. SONiC instance can be virtual or physical instance. Test equipment and test instance should be excluded. Production size (Small/Medium/Large) should be reported during each TSC election cycle to reflect the organization's investment in SONiC.
 
 [7]: SONiC end consumer proliferation Small/Medium/Large based on open source or commercial distribution of SONiC. This is for contribution in enabling consumers/broader market across trainings, deployment support, engineering assistance, and anything related to helping them move in production with SONiC. Weightage is assigned based on production network deployment size (Small: 100 - 500, Medium: 501 - 50,000, Large: >50,001). Production Deployment score is counted per election cycle, eg, an organization which supported 1000 SONiC production node rollout will add 50 points to its SII, an organization which supported 11,000 SONiC production node rollout will add 100 points to its SII
 
