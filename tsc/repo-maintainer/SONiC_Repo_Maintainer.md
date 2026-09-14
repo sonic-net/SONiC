@@ -49,6 +49,7 @@
 |  | sonic-swss-maintainer | Stephen Wang(Google) | StephenWangGoogle | enabled |
 |  | sonic-swss-maintainer | Laveen Thamilchelvam (BRCM) | LaveenBrcm | Approved on 5/3/2023 and enabled |
 |  | sonic-swss-maintainer | Rajesh Sankaran (BRCM) | srj102 | Approved on 5/3/2023 and enabled |
+|  | sonic-swss-maintainer | Stephen Sun (Nvidia) | stephenxs | Request on 08/25/2026 |
 | sonic-swss-common | sonic-swss-common-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 |  | sonic-swss-common-maintainer | Myron Sosyak (Intel) | msosyak | enabled |
 |  | sonic-swss-common-maintainer | Marian Pritsak (Nvidia) | marian-pritsak | enabled |
