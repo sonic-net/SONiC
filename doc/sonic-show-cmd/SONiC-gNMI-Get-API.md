@@ -12,6 +12,7 @@ SONiC on-demand show command execution via gNMI
 - [Test](#test)
 - [Rollout plan](#rollout-plan)
 - [Future plan](#future-plan)
+- [Other approaches](#other-approaches-considered)
 
 # Goals
 1. Provide a gNMI based API as a read only interface for retrieving SONiC device metadata, which can allow remote invocation without interactive user login.
@@ -319,3 +320,15 @@ We can roll out in two ways:
 4. Add schema validation for output consistency across releases.
 5. Add unit and scale tests for concurrency and throttling behavior.
 6. Publish API/query path catalog for automation consumers.
+
+# Other Approaches Considered
+
+### Direct gNMI Library Integration into CLI
+
+An alternative approach is to integrate the gNMI implementation directly into the Python-based CLI by linking the Go gNMI library and invoking APIs from within the CLI process. This approach can eliminate the local gNMI request/response overhead and provide a more direct execution path between the CLI and the underlying implementation.
+
+However, this model introduces tighter coupling between the Python CLI and the Go-based gNMI implementation. It also requires an additional cross-language integration layer for method invocation, data marshaling, error handling, packaging, versioning, and long-term compatibility. As the solution evolves, changes in gNMI library interfaces may require corresponding updates in the CLI integration layer, increasing maintenance complexity.
+
+The proposed design leverages the existing gNMI server as a stable, language-neutral boundary. The CLI acts as a thin client that issues gNMI requests, while the gNMI server owns request processing and execution. This keeps business logic centralized within the gNMI layer and establishes a single implementation that can be consumed consistently by multiple clients, including CLI, automation frameworks, SDKs, and future integrations.
+
+While direct library integration may be suitable for CLI-specific scenarios, it primarily optimizes for a single consumer. The proposed architecture optimizes for platform reuse, extensibility, and long-term maintainability by treating the CLI as one of many gNMI clients. This approach establishes gNMI APIs as the single source of truth for diagnostic operations, minimizes technology-specific dependencies, and provides a cleaner foundation for future enhancements across the SONiC ecosystem.
