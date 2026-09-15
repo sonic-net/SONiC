@@ -30,21 +30,27 @@
         - [State DB](#state-db)
 - [CLI](#cli)
     - [Config CLI](#config-cli)
+    - [Clear CLI](#clear-cli)
     - [Show CLI](#show-cli)
+- [Debuggability](#debuggability)
+    - [Existing behaviour](#existing-behaviour)
+    - [Changes](#changes)
+    - [Operator workflow](#operator-workflow)
 - [Test](#test)
     - [Unit Test](#unit-test)
         - [Config CLI](#config-cli-1)
+        - [Clear CLI](#clear-cli-1)
         - [Show CLI](#show-cli-1)
     - [Test Plan](#test-plan)
 
 <!-- /TOC -->
 
-
 # Revision
 
 | Rev |     Date    |       Author       | Change Description                  |
-|:---:|:-----------:|:-------------------|:-----------------------------------|
-| 0.1 |  2026/08/31 |                    | Initial version                     |
+|:---:|:-----------:|:-------------------|:------------------------------------|
+| 0.1 |  2026/08/31 | Nishant Sharma     | Initial version                     |
+| 0.2 |  2026/09/15 | Nishant Sharma     | Review Updates                      |
 
 # About this Manual
 
@@ -242,6 +248,14 @@ Key format: `<vlan>|<binding_name>`
 | ips     | leaf-list | No       | Direct IP assignment. Mutually exclusive with `ranges`. At least one of `ips` or `ranges` must be provided (enforced at application level). |
 | ranges  | leaf-list | No       | Range references. Mutually exclusive with `ips`. At least one of `ips` or `ranges` must be provided (enforced at application level). |
 
+**DHCP_SERVER_IPV4_GLOBAL** — Server wide dhcp_server settings that are not specific to a dhcp_interface.
+
+Key format: `global`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| log_level | enum | No | Verbosity of the `kea-dhcp4` logger: `info` (default), `debug`, `trace`. The setting is server wide because a Kea logger applies to the whole `kea-dhcp4` process, not to an individual subnet. |
+
 #### Unchanged Tables
 
 The following existing tables are **not modified**:
@@ -427,9 +441,50 @@ container DHCP_SERVER_IPV4_BINDING {
 /* end of DHCP_SERVER_IPV4_BINDING container */
 ```
 
+A container is also added for the server wide settings:
+
+```yang
+container DHCP_SERVER_IPV4_GLOBAL {
+
+    description "DHCP_SERVER_IPV4_GLOBAL part of config_db.json";
+
+    list DHCP_SERVER_IPV4_GLOBAL_LIST {
+
+        description "Server wide dhcp_server settings";
+
+        key "name";
+
+        leaf name {
+            description "Fixed key, always 'global'";
+            type string {
+                pattern "global";
+            }
+        }
+
+        leaf log_level {
+            description "Verbosity of the kea-dhcp4 logger";
+            type enumeration {
+                enum info;
+                enum debug;
+                enum trace;
+            }
+            default info;
+        }
+    }
+}
+```
+
 ### State DB
 
 No new State DB tables are required. The existing `DHCP_SERVER_IPV4_LEASE` table continues to track leases regardless of whether they were assigned via port-only or match condition rules.
+
+Three fields are added to each `DHCP_SERVER_IPV4_LEASE` entry, so that an operator can determine how an address was assigned and not merely that it was assigned.
+
+| Field | Description |
+|:-|:-|
+| `mode` | Mode of the dhcp_interface at the time the address was assigned, `PORT` or `MATCH` |
+| `binding` | Name of the binding that supplied the address. Empty in `PORT` mode. Comma separated when more than one binding resolves to the same address pool, see the note below |
+| `assign_time` | Epoch time at which this client first received this address. Unlike `lease_start`, it is preserved across renewals, and is reset only when the client is assigned a different address |
 
 # CLI
 
@@ -442,12 +497,19 @@ No new State DB tables are required. The existing `DHCP_SERVER_IPV4_LEASE` table
   | config dhcp_server ipv4 binding add | Add a binding (match condition(s) → IP pool) |
   | config dhcp_server ipv4 binding update | Update a binding |
   | config dhcp_server ipv4 binding del | Delete a binding |
+  | config dhcp_server ipv4 log-level | Set the verbosity of the kea-dhcp4 logger |
+
+* New Clear CLI
+  | CLI |               Description                        |
+  |:----------------------|:-----------------------------------------------------------|
+  | sonic-clear dhcp_server ipv4 lease | Delete an existing lease |
 
 * New show CLI
   | CLI |               Description                        |
   |:----------------------|:-----------------------------------------------------------|
   | show dhcp_server ipv4 match | Show defined match conditions |
   | show dhcp_server ipv4 binding | Show bindings |
+  | show dhcp_server ipv4 log-level | Show the configured verbosity of the kea-dhcp4 logger |
 
 * Update existing config CLI to support MATCH mode
   | CLI |               Description                        |
@@ -583,6 +645,54 @@ This command is used to set the match mode to either PORT or MATCH. This CLI alr
   config dhcp_server ipv4 update --mode MATCH Vlan1000
   ```
 
+**config dhcp_server ipv4 log-level**
+
+This command is used to set the verbosity of the `kea-dhcp4` logger. The setting is server wide, and is intended to be raised for the duration of an investigation and returned to `info` afterwards. See the Debuggability section for what each level records.
+
+- Usage
+  ```
+  config dhcp_server ipv4 log-level <info|debug|trace>
+  ```
+
+- Example
+  ```
+  # Record the match conditions that were rejected for each client
+  config dhcp_server ipv4 log-level debug
+
+  # Additionally record the option values that were compared
+  config dhcp_server ipv4 log-level trace
+
+  # Return to the default
+  config dhcp_server ipv4 log-level info
+  ```
+
+## Clear CLI
+
+**sonic-clear dhcp_server ipv4 lease**
+
+This command is used to delete an existing lease. This is helpful when a device is being replaced: the operator can remove the existing lease so that the same IP address can be re-assigned to the new device without waiting for the current lease to expire.
+
+`<dhcp_interface>` is mandatory, since leases are scoped per subnet. Exactly one selector must be supplied: `IP_ADDRESS`, `--mac` or `--all`.
+
+- Usage
+  ```
+  sonic-clear dhcp_server ipv4 lease <dhcp_interface> [IP_ADDRESS] [--mac <MAC>] [--all]
+  ```
+
+- Example
+  ```
+  # Clear the lease for an IP address on the interface
+  sonic-clear dhcp_server ipv4 lease Vlan100 192.168.0.10
+
+  # Clear the lease for a MAC address on the interface
+  sonic-clear dhcp_server ipv4 lease Vlan100 --mac AA:BB:CC:DD:EE:FF
+
+  # Clear all leases on the interface
+  sonic-clear dhcp_server ipv4 lease Vlan100 --all
+  ```
+
+The lease is removed both from the DHCP server and from the `DHCP_SERVER_IPV4_LEASE` table in State DB, so that a subsequent `show dhcp_server ipv4 lease` no longer reports the cleared entry. If no lease matches the given selector, the command reports this and exits with a non-zero status.
+
 ## Show CLI
 
 **show dhcp_server ipv4 match**
@@ -637,6 +747,99 @@ This command is used to show bindings.
   | Vlan100|default_etp1       | port_etp1          | 100.1.1.10   |
   +----------------------------+--------------------+--------------+
   ```
+
+**show dhcp_server ipv4 log-level**
+
+This command displays the configured verbosity of the `kea-dhcp4` logger, together with the Kea severity and debug level it maps to.
+
+- Usage
+  ```
+  show dhcp_server ipv4 log-level
+  ```
+
+- Example
+  ```
+  admin@sonic:~$ show dhcp_server ipv4 log-level
+  +-----------+------------+--------------+
+  | Log Level | Severity   |   Debuglevel |
+  +===========+============+==============+
+  | info      | INFO       |            0 |
+  +-----------+------------+--------------+
+  ```
+
+# Debuggability
+
+## Existing behaviour
+
+`kea-dhcp4` already reports the result of every match condition evaluation through its `EVAL_RESULT` message, and this is emitted at `INFO` severity, which is the severity configured by default. A successful assignment therefore already leaves a trace in `/var/log/kea/kea-dhcp4.log`:
+
+```
+INFO  EVAL_RESULT [hwtype=1 00:11:22:33:44:01], cid=[no info], tid=0x6f2f79d8: Expression sonic_match_1000_20050c49d907bea1 evaluated to true
+INFO  DHCP4_LEASE_ALLOC [hwtype=1 00:11:22:33:44:01], cid=[no info], tid=0x6f2f79d8: lease 192.168.0.21 has been allocated for 300 seconds
+```
+
+Two properties of this output limit its usefulness for an operator:
+
+* The client class name is derived from a hash of the interface, subnet and address intervals, so it cannot be related back to a configured binding or match condition without reading the generated Kea configuration.
+* Only the condition that matched is recorded at the default severity. Conditions that were evaluated and did not match are reported only at `DEBUG` severity with a raised debug level, so the common question of why a client did not match an expected binding cannot be answered from the default log.
+
+## Changes
+
+**Match condition class mapping.** Whenever `dhcpservd` regenerates the Kea configuration, it logs the mapping between each generated client class and the configuration it was generated from. This makes the existing `EVAL_RESULT` output directly interpretable, and covers the merged binding case described in the State DB section, where one class corresponds to more than one binding.
+
+```
+DHCP_SERVER_MATCH_CLASS sonic_match_1000_20050c49d907bea1 interface=Vlan1000 binding=bmc_on_etp1 matches=port_etp1,vendor_bmc pool=192.168.0.21-192.168.0.21 pool_id=1
+```
+
+**Assignment result.** `dhcpservd` logs the resolved binding when a lease is added or changed, so that the assignment is recorded in the SONiC log as well as in the Kea log.
+
+```
+DHCP_SERVER_LEASE_ASSIGNED interface=Vlan1000 mac=00:11:22:33:44:01 ip=192.168.0.21 mode=MATCH binding=bmc_on_etp1
+```
+
+**Configurable log severity.** The `severity` and `debuglevel` of the `kea-dhcp4` logger are fixed in `kea-dhcp4.conf.j2` today. They are made configurable, so that an operator can raise the verbosity for an investigation and lower it again afterwards without editing files inside the container:
+
+```
+config dhcp_server ipv4 log-level <info|debug|trace>
+```
+
+The setting is server wide rather than per dhcp_interface, because a Kea logger applies to the whole `kea-dhcp4` process. It is held in Config DB, so it survives a service restart and an image upgrade, is visible to `show` and to configuration backup, and can be reverted from the CLI. `dhcpservd` re-renders the Kea configuration and reloads `kea-dhcp4` when the value changes, in the same way as for any other DHCP configuration change.
+
+Each level maps to a Kea `severity` and `debuglevel` pair. The mapping follows the detail that Kea actually produces at each level:
+
+| CLI level | Kea severity | Kea debuglevel | What is recorded |
+|:-|:-|:-|:-|
+| `info` | `INFO` | `0` | Default. The match condition that matched, through `EVAL_RESULT ... evaluated to true`, together with `DHCP4_LEASE_ALLOC` |
+| `debug` | `DEBUG` | `50` | Additionally every match condition that was evaluated and did not match, through `EVAL_RESULT ... evaluated to false`. This identifies which bindings were rejected for a given client |
+| `trace` | `DEBUG` | `55` | Additionally the evaluation of each individual term, through the `EVAL_DEBUG_*` messages, which record the option values that were compared. This identifies why a condition was rejected |
+
+Kea debug levels below 50 produce additional output without adding any classification detail, so they are not exposed as separate CLI levels.
+
+At `trace`, the comparison that caused a client to miss a binding is visible directly:
+
+```
+DEBUG EVAL_DEBUG_EQUAL Popping 0x4D4149412D475055 and 0x4D4149412D424D43 pushing result 'false'
+DEBUG EVAL_RESULT Expression sonic_match_1000_44bd8eaab98cbb3b evaluated to false
+```
+
+**Warning on non-default severity.** `dhcpservd` emits a warning to syslog each time it renders the Kea configuration at a level other than `info`, so that a debugging session left enabled is visible in the SONiC log and not only in the growth of the Kea log.
+
+```
+WARNING dhcpservd: DHCP_SERVER_LOG_SEVERITY kea-dhcp4 logger rendered at log-level=trace (severity=DEBUG debuglevel=55). This is intended for temporary debugging and should be reverted with 'config dhcp_server ipv4 log-level info'.
+```
+
+**Log rotation.** `/var/log/kea/kea-dhcp4.log` is added to the existing logrotate configuration, since raising the severity materially increases the volume written.
+
+## Operator workflow
+
+| Question | Where it is answered |
+|:-|:-|
+| Which address does a client currently hold | `show dhcp_server ipv4 lease` |
+| Which binding assigned that address, and when it was first assigned | `binding` and `assign_time` fields of the lease, displayed by `show dhcp_server ipv4 lease` |
+| Which match conditions a binding is built from | `show dhcp_server ipv4 binding` and `show dhcp_server ipv4 match` |
+| Which class matched for a given client | `EVAL_RESULT` in the Kea log, resolved to a binding through the `DHCP_SERVER_MATCH_CLASS` mapping |
+| Why a client did not match the expected binding | `config dhcp_server ipv4 log-level debug`, then the failing `EVAL_RESULT` for that client |
+| Whether a client is sending the expected Option 60 or Option 82 | `config dhcp_server ipv4 log-level trace`, whose `EVAL_DEBUG_*` output records the option values that were compared |
 
 # Test
 
@@ -755,6 +958,26 @@ and must continue to pass, to verify backward compatibility.
   |Update --mode to MATCH while DHCP_SERVER_IPV4_PORT entries exist for this interface|Update success with warning that port entries are ignored under MATCH mode|
   |Update --mode to PORT while DHCP_SERVER_IPV4_BINDING entries exist for this interface|Update success with warning that bindings are ignored under PORT mode|
   |Update --mode=DYNAMIC|Update failed because mode not supported|
+
+### Clear CLI
+
+- sonic-clear dhcp_server ipv4 lease \<dhcp_interface\> [\<ip_address\>] [--mac \<mac\>] [--all]
+
+  |Case Description|Expected res|
+  |:-|:-|
+  |Clear an existing lease by IP address|Lease is deleted and the corresponding DHCP_SERVER_IPV4_LEASE entry is removed from State DB|
+  |Clear an existing lease by MAC address|Lease is deleted and the corresponding DHCP_SERVER_IPV4_LEASE entry is removed from State DB|
+  |Clear all leases of specified dhcp_interface with --all|All leases of that interface are deleted, leases of other interfaces are retained|
+  |Show lease after clear|Cleared lease is no longer displayed by show dhcp_server ipv4 lease|
+  |Clear lease for an IP address that has no lease|Clear failed|
+  |Clear lease for a MAC address that has no lease|Clear failed|
+  |Clear lease of dhcp_interface not exist|Clear failed|
+  |Clear lease without any selector|Clear failed|
+  |Clear lease with more than one selector|Clear failed|
+  |Clear lease of an IP address that is leased on a different dhcp_interface|Clear failed, lease is retained|
+  |Clear lease while dhcp_server feature is disabled|Clear failed|
+  |Clear lease while no lease is present on the interface|Clear failed|
+
 
 ### Show CLI
 
