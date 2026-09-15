@@ -25,7 +25,7 @@
   - [3.4 Deferred post-promotion rekey](#34-deferred-post-promotion-rekey)
   - [3.5 SAK rollover hardening](#35-sak-rollover-hardening)
 - [4 Configuration](#4-configuration)
-  - [4.1 Network block parameters](#41-network-block-parameters)
+  - [4.1 wpa_supplicant network block parameters](#41-wpa_supplicant-network-block-parameters)
   - [4.2 Control interface](#42-control-interface)
 - [5 Interaction with MACsecMgr](#5-interaction-with-macsecmgr)
 - [6 Backward compatibility](#6-backward-compatibility)
@@ -270,19 +270,25 @@ validated within its CA.
 
 ### 3.3 Hitless failover
 
-The promotion itself must not disturb the datapath. Control plane and data plane
-are decoupled, so changing the principal does not select an old or new SAK
-again. The shared CP and SecY remain in their exact current rollover state.
+The promotion itself must preserve the active datapath. Control plane and data
+plane are decoupled, so changing the principal does not normally select an old
+or new SAK again. The exception is an incomplete receive-phase rollover: if the
+latest SAK is installed but not transmitting while the old SAK is still
+transmitting, carrying its `transmit_when` across the principal change could
+enable that latest SAK after the CA that distributed it has been removed. The
+CP therefore cancels the inherited timer and enters `CP_ABANDON`.
 
 What moves is **bookkeeping** — every installed `data_key`, together with the
 current `new_key` and `to_use_sak` state, is re-homed from the outgoing
-participant to the incoming one. No SecY create, enable, disable, or delete
-operation is issued by the ownership change itself. The already-installed SAK
-is not redistributed under the new CAK; its reference moves so the incoming
-principal can manage its subsequent rollover and retirement.
+participant to the incoming one. Migration does not recreate or disable the
+active SAK. In the incomplete receive-phase case, the existing `CP_ABANDON`
+transition deletes only the incomplete latest SAK and leaves the old transmit
+SA active. The retained SAK is not redistributed under the new CAK; its
+reference moves so the incoming principal can manage its subsequent rollover
+and retirement.
 
 The SAK-Use reporting role swaps before the next MKPDU, as shown above; the
-installed SAs and shared key state do not change.
+active SAs and shared current SAK do not change.
 
 The SA that remains active depends on how far the CP had progressed when the
 outgoing CA was removed:
@@ -290,15 +296,15 @@ outgoing CA was removed:
 | CP phase | State preserved across promotion |
 | -------- | -------------------------------- |
 | Before `CP_RECEIVE` | Only the pre-existing/current SA carries traffic. |
-| `CP_RECEIVE` / `CP_RECEIVING` | The old transmit SA remains active; a receive SA and disabled transmit SA for the new SAK may already exist. |
+| `CP_RECEIVE` / `CP_RECEIVING` | If the old SAK is transmitting and the latest SAK is not, cancel the inherited `transmit_when` and enter `CP_ABANDON`. The incomplete latest SAK is deleted and the old transmit SA remains active. |
 | `CP_TRANSMIT` / `CP_TRANSMITTING` | The new transmit SA remains active; the old receive SA remains until retirement. |
 | `CP_ABANDON` | The incomplete latest SAK is deleted and the old SA remains. |
 | `CP_RETIRE` | The old SAK is deleted and the latest SAK becomes the retained old/current SAK. |
 
 Distribution under the deleted CA stops. If the incoming principal is the local
 key server, it distributes a fresh SAK under its own CKN after the settle window
-(§3.4). This is a new ordinary rollover from the state above, not an assumption
-that every interrupted rollover always abandons the latest SAK.
+(§3.4). This is a new ordinary rollover from the retained active SAK. Other CP
+phases continue from their preserved state above.
 
 ```mermaid
 sequenceDiagram
@@ -315,7 +321,12 @@ sequenceDiagram
   KAY->>KAY: select_principal() <br/>primary has no live peer, <br/>fallback is live → fallback wins
   KAY->>KAY: migrate_principal_sas() <br/>re-home installed-SAK bookkeeping
   KAY->>CAF: set principal, re-run key server election
-  Note over SEC: no SA delete / create — <br/>traffic keeps flowing on the inherited SAK
+  alt incomplete latest SAK in CP_RECEIVE / CP_RECEIVING
+    KAY->>CP: cancel transmit_when <br/>enter CP_ABANDON
+    CP->>SEC: delete incomplete latest SA <br/>keep old transmit SA active
+  else no incomplete receive-phase rollover
+    Note over CP,SEC: installed SAs remain unchanged
+  end
   KAY->>KAY: arm deferred rekey (≈3 × hello time)
 
   rect rgb(235,245,255)
@@ -340,6 +351,11 @@ The design preserves traffic when all of the following are true:
 4. The physical peer and elected key server use a stable SCI across the two CAs.
 5. A remote key server assigns an AN that permits make-before-break operation on
    the receiving hardware.
+
+On a local principal change during `CP_RECEIVE` or `CP_RECEIVING`, §3.3
+preserves the first condition by abandoning an incomplete latest SAK rather than
+allowing its inherited `transmit_when` to enable it after its distributing CA
+has been removed.
 
 When SONiC is key server, §3.5.1 retains the old receive SA until every live peer
 reports transmission on the latest SAK, subject to a bounded failsafe. When
@@ -503,13 +519,15 @@ two-bit AN field.
 
 ## 4 Configuration
 
-### 4.1 Network block parameters
+### 4.1 wpa_supplicant network block parameters
 
-Two optional parameters are added to the `network={}` block, alongside the
-existing `mka_cak` / `mka_ckn`:
+This change adds two optional `wpa_supplicant` `network={}` parameters,
+alongside the existing `mka_cak` / `mka_ckn`. These are not new `CONFIG_DB`
+fields. The corresponding `fallback_cak` / `fallback_ckn` fields already exist
+in the `MACSEC_PROFILE` table.
 
-| Parameter | Format | Description |
-| --------- | ------ | ----------- |
+| wpa_supplicant parameter | Format | Description |
+| ------------------------ | ------ | ----------- |
 | `mka_cak_fallback` | 32 or 64 hex digits | Fallback Connectivity Association Key |
 | `mka_ckn_fallback` | up to 64 hex digits | Fallback CAK Name |
 
@@ -536,8 +554,8 @@ validation there and is discarded, so a mismatched CA simply never gains a live
 peer. Removing a CAK with `macsec_del_mka` stops its MKPDUs, and a SAK is only
 ever distributed on a CA that has a live peer.
 
-These map one-to-one onto the `fallback_cak` / `fallback_ckn` fields already
-defined in the CONFIG\_DB `MACSEC_PROFILE` table, so no schema change is needed.
+MACsecMgr maps the existing `CONFIG_DB` fields one-to-one onto these
+`wpa_supplicant` parameters.
 
 ### 4.2 Control interface
 
@@ -634,9 +652,10 @@ sequenceDiagram
 
 ## 5 Interaction with MACsecMgr
 
-No MACsecMgr change is required for the static case: `fallback_cak` /
-`fallback_ckn` from the `MACSEC_PROFILE` table are pushed with the existing
-`set_network` flow, using the two new parameter names.
+No `CONFIG_DB` schema change is required. For static configuration, MACsecMgr
+maps the existing `fallback_cak` / `fallback_ckn` fields from the
+`MACSEC_PROFILE` table to the two new `wpa_supplicant` parameters through the
+existing `set_network` mechanism.
 
 ```bash
 wpa_cli -g${DOMAIN_SOCK} IFNAME=${PORT} set_network ${NETWORK_ID} \
@@ -682,7 +701,7 @@ flow; those changes are out of scope for this document.
 | 8 | Both CAKs invalid | Controlled port torn down; recovers when either becomes valid |
 | 9 | Long soak with periodic rekey | No SC/SA leak in the driver; refcounts return to zero on teardown |
 | 10 | `macsec_add_mka` for a second primary while one is present | Rejected with `FAIL`; the existing CA set and port ownership are unchanged |
-| 11 | Delete the principal during each CP rollover phase | The currently active transmit SA remains active; latest/old SAs are abandoned or retired according to CP state; no drops |
+| 11 | Delete the principal during each CP rollover phase, including a peer missing the Distributed SAK in `CP_RECEIVING` | The inherited `transmit_when` is cancelled and the incomplete latest SAK is abandoned while the old transmit SAK remains active; other phases preserve the active SAK; no drops |
 | 12 | Two-SA hardware with SONiC as key server | AN selection does not replace a locally active SA; rollover remains hitless |
 | 13 | Two-SA hardware with SONiC as non-key-server | Peer-selected AN permits make-before-break; document peer combinations for which this is verified |
 | 14 | Peer uses a different SCI on fallback | Separate receive SC is created, but `chgdServer` resets CP; scenario is not claimed as hitless |
