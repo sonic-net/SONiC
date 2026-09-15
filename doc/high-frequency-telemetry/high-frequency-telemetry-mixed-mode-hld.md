@@ -37,6 +37,7 @@
 | --- | ---------- | ---------- | --------------------------------------------- |
 | 0.1 | 2026-05-23 | David Zagury | Initial version - TAM tel_type MIXED mode  |
 | 0.2 | 2026-09-08 | David Zagury | §7.1 selection rule: prefer MIXED_TYPE over SINGLE_TYPE when both are advertised, to minimize SAI object count/memory footprint (per §11) |
+| 0.3 | 2026-09-15 | David Zagury | §7.1/§7.3/§12: validate each `SWITCH_ENABLE_*_STATS` attribute independently, in both SINGLE_TYPE and MIXED_TYPE, instead of assuming mode support implies all three; enable and stream only the supported categories, reject groups for unsupported ones instead of failing at counter-subscription creation; disable HFT if the vendor supports none of the three, regardless of which mode(s) are advertised |
 
 ## 2. Scope
 
@@ -58,7 +59,7 @@ The current SONiC HFT implementation hardcodes `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI
 
 Some vendor SAI implementations support only `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE`, in which a single tel_type carries counters across all categories. On those platforms HFT cannot be enabled today.
 
-This document describes an additive change to `HFTelOrch` and `HFTelProfile` in `sonic-swss/orchagent/high_frequency_telemetry/`. The mode is selected automatically at orchagent initialization by querying the SAI capability. SINGLE_TYPE remains the default whenever the vendor advertises it, preserving today's behavior for existing platforms; MIXED_TYPE is chosen only when SINGLE_TYPE is not advertised.
+This document describes an additive change to `HFTelOrch` and `HFTelProfile` in `sonic-swss/orchagent/high_frequency_telemetry/`. The mode is selected automatically at orchagent initialization by querying the SAI capability. MIXED_TYPE is preferred whenever the vendor advertises it, including on platforms that also advertise SINGLE_TYPE, since it uses fewer SAI objects and states (§7.1); SINGLE_TYPE is selected only when MIXED_TYPE is not advertised.
 
 ## 5. Requirements
 
@@ -67,6 +68,7 @@ Requirements specific to MIXED_TYPE support, in addition to those listed in the 
 - The vendor SAI advertises at least one of `SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE` or `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` through `sai_query_attribute_enum_values_capability` for `SAI_TAM_TEL_TYPE_ATTR_MODE`. If neither is advertised, HFT is disabled at orchagent init.
 - In MIXED_TYPE mode the vendor SAI returns the IPFIX template through `SAI_TAM_TEL_TYPE_ATTR_IPFIX_TEMPLATES` on the single tel_type object, covering every counter category enabled via `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS`. The buffer may contain a single IPFIX template set or - when the total exceeds the IPFIX 64KB message limit - multiple smaller template sets concatenated. CounterSyncd's template parser already handles both layouts.
 - The `SAI_TAM_TEL_TYPE_ATTR_STATE` state machine operates on the single tel_type per profile; `sai_tam_tel_type_config_change_notification_fn` fires once per profile per transition into `SAI_TAM_TEL_TYPE_STATE_CREATE_CONFIG`.
+- Support for `SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE` or `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` does not imply support for every `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` attribute; each is validated independently via `sai_query_attribute_capability` on `SAI_OBJECT_TYPE_TAM_TEL_TYPE`, in both modes (see §7.1, §7.3).
 
 Non-requirements:
 
@@ -95,6 +97,10 @@ Selection rules:
 
 MIXED_TYPE is preferred whenever it is advertised, including on platforms that also advertise SINGLE_TYPE. In MIXED mode the orchagent holds one `sai_tam_tel_type` and one `sai_tam_report` per profile instead of up to four of each (§11), so preferring MIXED whenever the vendor supports it minimizes SAI object count and memory footprint even on platforms where SINGLE_TYPE would also work. This departs from the SAI specification's default of `SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE` for `SAI_TAM_TEL_TYPE_ATTR_MODE`; the default only applies when a platform does not explicitly select a mode, and the orchagent always makes an explicit choice via `SAI_TAM_TEL_TYPE_ATTR_MODE` at create time.
 
+**Per-category capability.** Advertising a `SAI_TAM_TEL_TYPE_ATTR_MODE` value does not guarantee the vendor SAI implements every `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` attribute needed to bind all four object types to a tel_type - this is not specific to MIXED_TYPE: SINGLE_TYPE needs the same three attributes too, just one at a time, per object type. `HFTelOrch::querySupportedTelTypeModes` probes `..._PORT_STATS`, `..._MMU_STATS`, and `..._OUTPUT_QUEUE_STATS` independently via `sai_query_attribute_capability` on `SAI_OBJECT_TYPE_TAM_TEL_TYPE`, and records which object types each maps to (`SAI_OBJECT_TYPE_BUFFER_POOL` and `SAI_OBJECT_TYPE_INGRESS_PRIORITY_GROUP` both depend on `..._MMU_STATS`). This probe runs regardless of which mode ends up selected.
+
+If none of the three attributes are supported, neither mode can bind any object type, so both `single_supported` and `mixed_supported` are cleared: HFT is disabled the same as if neither `SAI_TAM_TEL_TYPE_ATTR_MODE` value were advertised. Otherwise each mode stays usable for whichever categories the vendor actually supports - MIXED_TYPE remains selected as long as at least one category is supported (per the selection rules above); SINGLE_TYPE remains usable for its supported categories and simply has no tel_type for the rest. See §7.3 for how the per-category result changes tel_type creation and group configuration in each mode.
+
 ### 7.2. HFTelProfile data structures
 
 `HFTelProfile` keeps its existing per-object-type maps:
@@ -117,17 +123,19 @@ This keeps callers in `deployCounterSubscription`, `notifyConfigReady`, the stat
 
 `getTAMTelTypeObjID(object_type)` becomes mode-aware:
 
-- **SINGLE mode** (unchanged): create one tel_type per object type, with exactly one of `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_PORT_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_MMU_STATS`, or `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_OUTPUT_QUEUE_STATS` set to `true` according to the object type. `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE`.
+- **SINGLE mode** (tel_type creation itself unchanged): create one tel_type per object type, with exactly one of `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_PORT_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_MMU_STATS`, or `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_OUTPUT_QUEUE_STATS` set to `true` according to the object type. `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE`. This code path is only reached for a category §7.1's capability probe found supported - `HFTelOrch::groupTableSet` rejects a group for an unsupported category before `getTAMTelTypeObjID` is ever called for it (see below).
 
 - **MIXED mode**: on the first call, create a single tel_type with:
   - `SAI_TAM_TEL_TYPE_ATTR_TAM_TELEMETRY_TYPE = SAI_TAM_TELEMETRY_TYPE_COUNTER_SUBSCRIPTION`
   - `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE`
-  - **All** applicable enable attributes set to `true`: `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_PORT_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_MMU_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_OUTPUT_QUEUE_STATS`.
+  - `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_PORT_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_MMU_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_OUTPUT_QUEUE_STATS` set to `true` **only for the categories §7.1's capability probe found supported** - an unsupported category's attribute is omitted, not set `false`.
   - `SAI_TAM_TEL_TYPE_ATTR_REPORT_ID` pointing to the single report object created in §7.4.
 
   Subsequent calls return the cached tel_type oid regardless of the `object_type` argument. The tel_type is added to `SAI_TAM_TELEMETRY_ATTR_TAM_TYPE_LIST` exactly once.
 
-Setting all enable attributes (rather than only those required by the current profile) is acceptable because the actual counters streamed are constrained by the `sai_tam_counter_subscription` objects bound to the tel_type. Enabling categories that no subscription references has no functional effect.
+Enabling every *supported* category up front in MIXED mode (rather than only those the current profile configures) is acceptable because the actual counters streamed are constrained by the `sai_tam_counter_subscription` objects bound to the tel_type; enabling a supported category that no subscription references has no functional effect.
+
+A category the vendor doesn't support is never enabled in either mode, and can never have a subscription bound to it: `HFTelOrch::groupTableSet` rejects a group's configuration outright (logged, `task_failed`) if its object type maps to an unsupported category, before any counter subscription is attempted or, in SINGLE mode, before that category's tel_type is even created. The profile's other, supported categories are unaffected - a SINGLE-mode profile with an unsupported QUEUE category still gets a working PORT tel_type; a MIXED-mode profile still enables every category it can on the shared tel_type.
 
 ### 7.4. Collapsing the tam_report object
 
@@ -140,6 +148,10 @@ The `SAI_TAM_TEL_TYPE_ATTR_STATE` state machine (`STOP_STREAM` ↔ `CREATE_CONFI
 - `setStreamState(state)` issues exactly one SAI set call per transition.
 - The transition `STOP_STREAM → CREATE_CONFIG` may only be issued when **every** object type currently configured on the profile reports `isMonitoringObjectReady(type) == true`. A helper `areAllMonitoringObjectsReady()` is added and used in place of the per-type check inside `setStreamState`.
 - The transition `STOP_STREAM → START_STREAM` continues to require that the IPFIX template is present (now under the singleton key) and that monitoring objects are ready.
+
+**Impact of configuration changes during streaming.** Adding or removing a monitored object, changing a group's object list, or changing a group's subscribed stat IDs each stop the affected object type's tel_type via `setStreamState(object_type, STOP_STREAM)` before applying the change — this call site is unchanged from the base HLD. In SINGLE mode `mapKey()` is the identity, so this only stops the tel_type of the object type being changed; other object types in the profile keep streaming. In MIXED mode `mapKey()` collapses every object type onto the single shared tel_type (§7.2), so the same call stops the **entire profile** — every configured group, not just the one being changed.
+
+Resuming requires the full `STOP_STREAM → CREATE_CONFIG → START_STREAM` cycle described above: `CREATE_CONFIG` is gated on every group being ready (`areAllMonitoringObjectsReady()`), and re-entering `CREATE_CONFIG` discards the previously cached template so a fresh combined `SAI_TAM_TEL_TYPE_ATTR_IPFIX_TEMPLATES` is re-queried once the vendor SAI reports config-ready again (§7.6). This is an accepted consequence of the shared-tel_type design: in MIXED mode, any add/remove/update to a single group briefly interrupts telemetry streaming for every group in the profile, whereas in SINGLE mode the interruption is isolated to the group being changed. See also §12.
 
 ### 7.6. Config-ready notification and templates
 
@@ -213,8 +225,8 @@ sequenceDiagram
             hft_orch ->> state_db: Update HIGH_FREQUENCY_TELEMETRY_SESSION (group=object_type)
         end
     else MIXED_TYPE mode (one tel_type for the profile)
-        Note over hft_orch,syncd: Config TAM objects - one tel_type and one report for the whole profile, all SWITCH_ENABLE_* on
-        hft_orch ->> syncd: create_tam_tel_type(MODE=MIXED_TYPE, all SWITCH_ENABLE_* = true)
+        Note over hft_orch,syncd: Config TAM objects - one tel_type and one report for the whole profile, SWITCH_ENABLE_* on for supported categories
+        hft_orch ->> syncd: create_tam_tel_type(MODE=MIXED_TYPE, SWITCH_ENABLE_* = true for supported categories)
         hft_orch ->> syncd: create_tam_report (single)
         hft_orch ->> syncd: set STATE=CREATE_CONFIG (when all object types ready)
         syncd ->> hft_orch: Config was applied in the ASIC (single tel_type)
@@ -261,7 +273,7 @@ sequenceDiagram
     config_db ->> hft_orch: HIGH_FREQUENCY_TELEMETRY_GROUP
     port_orch ->> hft_orch: Port/Queue/Buffer ... object
 
-    Note over hft_orch,syncd: [MIXED] One tam_tel_type and one tam_report for the whole profile. All SWITCH_ENABLE_*_STATS set on the single tel_type. STOP_STREAM to CREATE_CONFIG issued only when every configured object type is ready. In SINGLE mode this block runs once per object type as in the base HLD.
+    Note over hft_orch,syncd: [MIXED] One tam_tel_type and one tam_report for the whole profile. SWITCH_ENABLE_*_STATS set on the single tel_type for supported categories only. STOP_STREAM to CREATE_CONFIG issued only when every configured object type is ready. In SINGLE mode this block runs once per object type as in the base HLD.
     hft_orch ->> syncd: Config TAM objects
 
     syncd ->> dma_engine: Config stats
@@ -312,9 +324,10 @@ No new SAI APIs are introduced. The change uses existing attributes:
 
 - `sai_tam_tel_type_mode_t` (see `sai_tam_tel_type_mode_t` enum in `saitam.h`), with values `SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE` and `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE`.
 - `SAI_TAM_TEL_TYPE_ATTR_MODE` - `CREATE_ONLY`, default `SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE`.
-- `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_PORT_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_MMU_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_OUTPUT_QUEUE_STATS` - set together on the MIXED tel_type.
+- `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_PORT_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_MMU_STATS`, `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_OUTPUT_QUEUE_STATS` - set for the categories the vendor supports, on the MIXED tel_type or per-category in SINGLE mode (§7.1, §7.3).
 - `SAI_TAM_TEL_TYPE_ATTR_IPFIX_TEMPLATES` - returns the combined template in MIXED mode.
 - `sai_query_attribute_enum_values_capability` - already used elsewhere in `HFTelOrch::isSupportedHFTel`.
+- `sai_query_attribute_capability` - validates each `SWITCH_ENABLE_*_STATS` attribute independently on `SAI_OBJECT_TYPE_TAM_TEL_TYPE`; already used elsewhere in `isSupportedHFTel` for the TAM_COLLECTOR / SWITCH checks.
 
 See the SAI proposal ["Query telemetry type capability"](https://github.com/opencomputeproject/SAI/blob/master/doc/TAM/SAI-Proposal-TAM-stream-telemetry.md#query-telemetry-type-capability) for the canonical capability-query pattern.
 
@@ -345,7 +358,7 @@ In MIXED mode the orchagent holds one `sai_tam_tel_type` and one `sai_tam_report
 Limitations introduced by this design:
 
 - The TAM tel_type mode is chosen at orchagent init from SAI capability and cannot be changed at runtime.
-- In MIXED mode all three `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` flags (PORT, MMU, OUTPUT_QUEUE) are set on the single tel_type, even if the profile only uses a subset. Only counters with a matching `sai_tam_counter_subscription` are actually streamed.
+- Each `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` flag (PORT, MMU, OUTPUT_QUEUE) is validated per category, in both modes - support for `SAI_TAM_TEL_TYPE_MODE_SINGLE_TYPE` or `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` is not assumed to cover every category. In MIXED mode every flag the vendor SAI supports is set on the single tel_type, even if the profile only uses a subset. Only counters with a matching `sai_tam_counter_subscription` are actually streamed. If the vendor doesn't support a given category's enable attribute, groups for that category are rejected at configuration time (logged, `task_failed`) rather than failing later at counter-subscription creation (or, in SINGLE mode, at tel_type creation); both modes stay usable for the categories that are supported. If the vendor supports none of the three, neither mode can bind any object type and HFT is disabled entirely, per §7.1's selection rules.
 - If the vendor SAI advertises neither `SINGLE_TYPE` nor `MIXED_TYPE` for `SAI_TAM_TEL_TYPE_ATTR_MODE`, HFT is disabled at orchagent init and a notice is logged.
 - In MIXED mode the per-profile IPFIX label allocator (`HFTelProfile::m_next_label`) is monotonic and never reuses values. Because the label field is 16-bit (`sai_uint16_t`), at most 65 535 distinct objects may be subscribed to a single profile over its lifetime; profiles approaching this limit must be deleted and recreated to reset the counter. The limit is per profile and per orchagent lifetime, so warm-restart or orchagent restart implicitly resets it. This monotonic allocation is what guarantees label uniqueness across all per-group sessions of a profile, on which CounterSyncd's label-resolution path in §7.6.1 depends.
 
@@ -363,9 +376,11 @@ Vendor-specific limitations inherited from the underlying SAI implementation. Th
 Implemented in `sonic-swss/tests/mock_tests/`:
 
 - Mode selection: mock `sai_query_attribute_enum_values_capability` to return (a) SINGLE only, (b) MIXED only, (c) both, (d) neither. Assert that `HFTelOrch` selects SINGLE in (a), MIXED in (b) and (c), and disables HFT in (d).
-- MIXED mode SAI calls: assert exactly one `create_tam_tel_type` and one `create_tam_report` call per profile, with `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` and all three `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` set to `true`.
+- MIXED mode SAI calls: assert exactly one `create_tam_tel_type` and one `create_tam_report` call per profile, with `SAI_TAM_TEL_TYPE_ATTR_MODE = SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` and the `SAI_TAM_TEL_TYPE_ATTR_SWITCH_ENABLE_*_STATS` attributes set to `true` only for categories the capability probe found supported.
+- Per-category capability: mock `sai_query_attribute_capability` on `SAI_OBJECT_TYPE_TAM_TEL_TYPE` to report (a) all three `SWITCH_ENABLE_*_STATS` attributes supported, (b) one unsupported, (c) none supported, combined with `SAI_TAM_TEL_TYPE_ATTR_MODE` advertising SINGLE only, MIXED only, or both. Assert `HFTelOrch::querySupportedTelTypeModes` keeps the advertised mode(s) usable with the correct category subset in (a)/(b), and clears **both** `single_supported` and `mixed_supported` - disabling HFT regardless of which mode(s) were advertised - in (c). Assert `getTAMTelTypeObjID` only sets the enable attribute for supported categories in MIXED mode, and that `groupTableSet` rejects (`task_failed`) a group whose object type maps to an unsupported category in either mode.
 - MIXED mode state machine: assert that `STOP_STREAM → CREATE_CONFIG` is not issued until every configured object type is ready, and is issued exactly once when the last one becomes ready.
 - MIXED mode template propagation: with two groups configured (e.g. PORT and QUEUE), assert that the same combined IPFIX template buffer is written to both `HIGH_FREQUENCY_TELEMETRY_SESSION|profile|PORT` and `HIGH_FREQUENCY_TELEMETRY_SESSION|profile|QUEUE` entries.
+- Streaming-state impact of configuration changes (§7.5): with a profile actively streaming (`START_STREAM`), assert that updating a group's stats, adding a monitored object, or removing one stops streaming for the *entire* profile in MIXED mode (shared tel_type), but only the mutated group's own tel_type in SINGLE mode.
 - SINGLE mode regression: the existing tests continue to pass without modification.
 
 ### 13.2. System Test cases
@@ -376,7 +391,7 @@ Implemented in `sonic-swss/tests/` using DVS:
   - Counters reach CounterSyncd through the genetlink path.
   - STATE_DB session entries are populated for each configured group with non-empty `session_config`, `object_ids`, and `object_names`.
   - The inspect-stream CLI returns the expected counters per group without modification.
-- Run the same tests against a virtual switch advertising both modes. Verify that SINGLE_TYPE is selected and existing behavior is preserved.
+- Run the same tests against a virtual switch advertising both modes. Verify that MIXED_TYPE is selected per §7.1.
 
 ## 14. Open/Action items
 
