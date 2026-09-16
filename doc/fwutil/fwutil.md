@@ -223,20 +223,20 @@ fwutil
 |--- install
 |    |--- chassis
 |    |    |--- component <component_name>
-|    |         |--- fw -y|--yes <fw_path>
+|    |         |--- fw -y|--yes --force-update <fw_path>
 |    |
 |    |--- module <module_name>
 |         |--- component <component_name>
-|              |--- fw -y|--yes <fw_path>
+|              |--- fw -y|--yes --force-update <fw_path>
 |
 |--- update
      |--- chassis
      |    |--- component <component_name>
-     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>
+     |         |--- fw -y|--yes -f|--force --force-update -i|--image=<current|next>
      |
      |--- module <module_name>
      |    |--- component <component_name>
-     |         |--- fw -y|--yes -f|--force -i|--image=<current|next>
+     |         |--- fw -y|--yes -f|--force --force-update -i|--image=<current|next>
      |--- all
           |--- fw -i|--image=<current|next> --b|--boot=<none|fast|warm|cold>
           |--- fw -z|--fw-image=<fw_package.tar.gz> --b|--boot=<none|fast|warm|cold>
@@ -400,6 +400,7 @@ Aborted!
 
 **Supported options:**
 1. -y|--yes - automatic yes to prompts. Assume "yes" as answer to all prompts and run non-interactively
+2. --force-update - force reinstall/downgrade via the component's update backend (e.g. PLDM Force Update). Only supported by some backends; the command fails with an error if the target component doesn't support it. This is distinct from -f|--force below: --force-update asks the backend itself to bypass its own version/downgrade checks, while -f|--force only skips fwutil's own current-version check before calling the backend normally
 
 #### 2.2.2.3 Update commands
 
@@ -528,7 +529,8 @@ Aborted!
 **Supported options:**
 1. -y|--yes - automatic yes to prompts. Assume "yes" as answer to all prompts and run non-interactively
 2. -f|--force - install FW regardless the current version
-3. -i|--image - update FW using current/next SONiC image
+3. --force-update - force reinstall/downgrade via the component's update backend (e.g. PLDM Force Update). Only supported by some backends; the command fails with an error if the target component doesn't support it. This is distinct from -f|--force above: -f|--force only skips fwutil's own current-version check before calling the backend normally, while --force-update asks the backend itself to bypass its own version/downgrade checks
+4. -i|--image - update FW using current/next SONiC image
 
 **Note:** the default option is _--image=current_
 
