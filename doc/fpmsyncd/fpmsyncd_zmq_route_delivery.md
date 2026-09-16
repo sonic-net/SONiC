@@ -55,6 +55,7 @@
 |:---:|:-----------:|:---------------:|:---------------------------------------------------------------|
 | 0.1 | Jul 27 2026 | Deepak Singhal  | Initial HLD — producer-side route delivery, chunked drain, event-driven heap release, STATE_DB telemetry; component A/B results. |
 | 0.2 | Aug 31 2026 | Deepak Singhal  | Heap reclaim moved from an fpmsyncd-managed idle-edge release (tcmalloc) to allocator-managed background reclaim (jemalloc `background_thread`), per the A/B in Appendix A.2; heap telemetry dropped in favour of a startup check. Review feedback: ZMQ-path applicability and Redis-path invariant, coalescing stated as Redis parity with an explicit `(table, key)` key and cross-table drain fairness, FPM offload-reply placement, zebra's unconditional RIB re-drive as the recovery basis, and the consumer-side design noted as landed upstream. |
+| 0.3 | Sep 16 2026 | Deepak Singhal  | Byte cap dropped; the entry cap bounds a chunk and the send path enforces its own 16 MiB ceiling (§7.4, §7.5, §9.3). Warm and fast restart made mutually exclusive with the ZMQ route path, validated at startup (§7.1, §10, §12, §13.1). Liveness clock stated per table, measured from the later of the last success and the oldest pending arrival (§7.6). `warnFraction` added to the knob table; `routes_lost_total` restated as entries stranded by a deliberate exit, with R1 aligned to it (§5.1, §9.3). |
 
 ---
 
@@ -82,12 +83,10 @@ path absorbs the same burst through a shared pipeline with server-side dedup (§
 and map belong where the problem lives.
 
 **Out of scope:** the *consumer* side (orchagent route ingestion), designed separately in
-[sonic-net/SONiC #2328](https://github.com/sonic-net/SONiC/pull/2328) and implemented upstream in
-[sonic-swss-common #1187](https://github.com/sonic-net/sonic-swss-common/pull/1187) and
-[sonic-swss #4564](https://github.com/sonic-net/sonic-swss/pull/4564). The two designs are
-architecturally independent: this producer-side design composes with the consumer-side one (§7.9)
-but does not require it. No change to ZMQ HWM configuration or the single-message transport
-ceiling.
+[sonic-net/SONiC #2328](https://github.com/sonic-net/SONiC/pull/2328) and already implemented
+upstream; §7.9 places the two designs side by side. They are architecturally independent — this
+producer-side design composes with the consumer-side one and delivers its full benefit without it.
+No change to ZMQ HWM configuration or the single-message size ceiling.
 
 ---
 
@@ -193,10 +192,9 @@ choice (§7) guarded by a test (§13).
 
 ### 5.1 Functional
 
-- **R1.** fpmsyncd **shall not** silently drop a route update in any recoverable regime — the number
-  of route updates lost **shall** be zero in all regimes. A deliberate assert-and-restart (R6)
-  interrupts in-flight delivery, but zebra's full RIB re-drive on reconnect re-delivers those
-  routes.
+- **R1.** fpmsyncd **shall not** silently drop a route update: in a recoverable regime the number of
+  route updates lost **shall** be zero, and a deliberate assert-and-restart (R6) **shall** report the
+  count it strands (§9.3.1) before zebra's full RIB re-drive on reconnect re-delivers them.
 - **R2.** The producer **shall** retain un-sent route updates and retry them when the socket is
   not writable, rather than dropping them.
 - **R3.** Route ingest (the FPM netlink read path) **shall not** block on the ZMQ socket.
@@ -204,7 +202,7 @@ choice (§7) guarded by a test (§13).
   before crossing the wire.
 - **R5.** *(Design-induced, not a baseline problem: the pre-fix one-prefix-per-message path could
   never approach the ceiling.)* Because this design sends route updates in bulk messages, no
-  individual wire message **shall** exceed the transport's single-message ceiling, and delivery of
+  individual wire message **shall** exceed the send path's single-message ceiling, and delivery of
   the full backlog **shall** still complete.
 - **R6.** A prolonged unrecoverable stall **shall** produce an **observable** failure that survives
   the ensuing restart, never silent divergence.
@@ -233,15 +231,15 @@ choice (§7) guarded by a test (§13).
    [#2328](https://github.com/sonic-net/SONiC/pull/2328) (§7.9).
 3. **Changing the Redis/`ProducerStateTable` route path** is out of scope — the design engages
    only where the ZMQ path is enabled (§2), and the Redis path already coalesces server-side (§7.2).
-4. **Changing ZMQ HWM or the single-message transport ceiling** is out of scope — the design lives
-   within the existing transport limits (R5, §7.5).
+4. **Changing ZMQ HWM or the single-message size ceiling** is out of scope — the design lives
+   within the existing HWM and message-size limits (R5, §7.5).
 5. **A user-facing config surface** is a non-goal — the knobs (§9.3) are internal defaults tuned by
    benchmark, not CONFIG_DB. Adding a CLI/YANG surface is deferred to §14 if a need emerges.
 
 ### 5.4 Scale targets
 
 - **R13.** The design **shall** sustain the full BGP table (order **10⁶** routes) and absorb a burst
-  drain of **≥ 40,000** route updates without silent drop, staying within the transport's existing
+  drain of **≥ 40,000** route updates without silent drop, staying within the existing
   single-message ceiling (§7.5) and the map memory bound (§7.4).
 
 ---
@@ -258,8 +256,8 @@ plugs in and the end-to-end dataflow.
 <p align="center">
   <img alt="Figure 3. Producer→wire→consumer dataflow: coalescing map, dedicated send thread, chunked bulk drain under the generic swss-common guard, feeding the (separate) #2328 consumer." src="images/fpmsyncd_zmq_route_delivery/01_dataflow.png" width="880">
 </p>
-<p align="center"><b>Figure 3.</b> End-to-end dataflow. The FPM netlink thread only does a
-non-blocking hand-off (last-writer-wins) into the coalescing map; a
+<p align="center"><b>Figure 3.</b> End-to-end dataflow. The FPM netlink thread hands each update
+off in microseconds (last-writer-wins) into the coalescing map; a
 <b>dedicated send thread</b> drains it in bounded chunks through the generic
 <code>ZmqProducerStateTable</code> guard (swss-common slice). Green = coalescing points, yellow =
 the generic send-path guard. The orchagent consumer (right) is a separate design, covered in §7.9.</p>
@@ -268,10 +266,10 @@ the generic send-path guard. The orchagent consumer (right) is a separate design
 
 | # | Piece | Role | Regime it matters most |
 |---|---|---|---|
-| 1 | **Retention** (retain-and-retry from the map) | the *bound* — never drop | consumer unavailable / socket not draining |
+| 1 | **Retention** (retain-and-retry from the map) | the *bound* — hold every route | consumer unavailable / socket not draining |
 | 2 | **Assert + process exit + restart RIB replay** | bounded, observable failure | prolonged unrecoverable stall |
 | 3 | **Coalescing map** (LWW) | earliest-possible work reduction | same-key churn |
-| 4 | **Chunked bulk framing** | throughput + removes the 16 MiB cliff | every large drain |
+| 4 | **Chunked bulk framing** | throughput + keeps every message under the 16 MiB ceiling | every large drain |
 
 ---
 
@@ -280,24 +278,22 @@ the generic send-path guard. The orchagent consumer (right) is a separate design
 ### 7.1 Design overview
 
 The producer path is redesigned around a single principle: **decouple FPM ingest from ZMQ delivery,
-and never let the delivery side drop a route.** Concretely, the inline "serialize-and-send each
-prefix on the FPM thread" path is replaced by the following set of mechanisms, listed here in
-dataflow order; each is detailed in the subsection noted.
+and hold every route until it lands.** The inline "serialize-and-send each prefix on the FPM thread"
+path gives way to the following mechanisms, listed in dataflow order. Each is detailed in the
+subsection noted.
 
 1. **Asynchronous send thread** — the FPM thread hands each update off in microseconds and returns
-   to reading netlink; a dedicated thread owns all ZMQ I/O, so ingest never blocks on the socket
-   (§7.2).
-2. **Coalescing map as the retain buffer** — updates land in a keyed, last-writer-wins (LWW) map
-   (not a FIFO queue), so redundant same-key updates that are co-resident collapse to the latest
-   before they ever cross the wire (§7.2).
-3. **Retention by retain-and-retry** — when the socket is not writable the unsent work stays in
-   the map and is retried, rather than being dropped; the map is the buffer and the bound (§7.3).
-4. **Chunked bulk drain** — the send thread drains the map in bounded chunks (by entry count and by
-   bytes), each chunk becoming one multipart wire message that stays under the transport's
-   single-message ceiling (§7.4, §7.5).
-5. **Bounded, observable failure** — a prolonged unrecoverable stall (or a map that exceeds its
-   memory bound) produces a sticky STATE_DB assert record and a process exit for restart RIB-replay
-   recovery, never silent divergence (§7.6, §7.7).
+   to reading netlink. A dedicated thread owns all ZMQ I/O, so ingest runs at netlink speed (§7.2).
+2. **Coalescing map as the retain buffer** — updates land in a keyed, last-writer-wins (LWW) map, so
+   co-resident same-key updates collapse to the latest before reaching the wire (§7.2).
+3. **Retention by retain-and-retry** — while the socket is busy, pending work stays in the map and
+   is retried. The map is both the buffer and the bound (§7.3).
+4. **Chunked bulk drain** — the send thread drains the map in chunks bounded by entry count, each
+   chunk becoming one multipart wire message that stays under the send path's single-message
+   ceiling (§7.4, §7.5).
+5. **Bounded, observable failure** — a prolonged unrecoverable stall, or a map that exceeds its
+   memory bound, produces a sticky STATE_DB assert record and a process exit. Recovery then runs
+   through restart RIB replay (§7.6, §7.7).
 6. **Allocator-managed heap reclaim** — fpmsyncd links jemalloc with background reclaim enabled, so
    burst-inflated free heap is returned to the OS off the critical path, with no release code in
    fpmsyncd itself (§7.8).
@@ -308,103 +304,102 @@ Coalescing, retention, and chunking are all properties of one structure — the 
 plus the coalescing map. §7.9 places this producer design alongside the separate consumer-side
 design, and §7.11 maps each mechanism to the repository/component it lands in.
 
-**Invariant — the ZMQ path gates the whole change.** A **single predicate** enforces the
-applicability condition (§2): one "is there a ZMQ client?" test decides *both* whether the route
-tables are `ZmqProducerStateTable` or plain `ProducerStateTable` *and* whether the coalescer and its
-send thread are constructed. Because one test drives both, the coalescer is active exactly where the
-ZMQ tables are; with the path disabled fpmsyncd runs as it does today — no map, no send thread, no
-extra STATE_DB connector. Every route and label-route write site is reached through the same pair of
-funnels, whose non-ZMQ branch is the original producer call.
+**Invariant — the ZMQ path gates the whole change.** A single predicate enforces the applicability
+condition (§2). One "is there a ZMQ client?" test decides two things: whether the route tables are
+`ZmqProducerStateTable` or plain `ProducerStateTable`, and whether the coalescer and its send thread
+are constructed. One test drives both, so the coalescer is active exactly where the ZMQ tables are.
+With the path disabled, fpmsyncd runs as it does today — the original producer call, on the main
+thread alone. Every route and label-route write site reaches the wire through the same pair of
+funnels.
 
-Warm restart is a second, independent gate: reconciliation keeps its existing direct-write path and
-the map stays empty until it completes, so the send thread is the **sole ZMQ writer at any
-instant**. Tests cover both properties (§13.1).
+Warm restart is handled by exclusion. The ZMQ route path is mutually exclusive with warm and fast
+restart, and startup validation rejects the combination. A reconcile and the send thread therefore
+belong to separate process lifetimes. The send thread owns the ZMQ socket alone, for the whole
+process lifetime.
 
 ### 7.2 Coalescing from the async send thread
 
 > **In short:** coalescing restores **parity with the Redis path this design replaces**, and it
 > falls out of the async send thread itself. While one send is on the wire, same-key updates pile
-> into the live map and collapse to the latest; the effect grows with congestion.
+> into the live map and collapse to the latest. The effect grows with congestion.
 
-**The Redis path already coalesces; the ZMQ path lost it.** On the plain `ProducerStateTable` path,
-a write is applied server-side as a key added to the table's pending-key set plus a state hash
-overwritten with the new field values. A key written twice before the consumer drains is therefore
-delivered **once, with the latest value** — last-writer-wins, scoped per table. ZMQ carries messages
-without server-side dedup, so moving routes onto it left that property behind: *N* updates to one
-prefix became *N* wire messages. The coalescing map restores the semantics the route path
-already had.
+**The Redis path already coalesces; the ZMQ path lost it.** On the plain `ProducerStateTable` path a
+write lands server-side as two operations: the key joins the table's pending-key set, and a state
+hash takes the new field values. A key written twice before the consumer drains therefore arrives
+**once, carrying the latest value** — last-writer-wins, scoped per table. ZMQ forwards each message
+verbatim, so moving routes onto it left that property behind: *N* updates to one prefix became *N*
+wire messages. The coalescing map restores the semantics the route path already had.
 
-**The coalescing key is `(table, key)`.** The database is not part of the key — both route tables
-live in `APPL_DB` — which mirrors Redis, whose dedup namespace is likewise per table. One wire
-message never mixes tables, because the transport frames a single `(db, table)` per message, so
-chunks are table-pure by construction.
+**The coalescing key is `(table, key)`.** Both route tables live in `APPL_DB`, so the table name
+alone separates them. This mirrors Redis, whose dedup namespace is likewise per table. The transport
+frames a single `(db, table)` per message, so every chunk is table-pure by construction.
 
-**The drain is fair across tables.** The Redis path submits every table into one shared pipeline
-that is flushed wholesale, so no table can starve another. The coalescer preserves that: each drain
-cycle is a **single ordered pass covering both route tables**, rather than draining one to empty
-before looking at the other. Fairness comes from the drain order itself: the liveness bound (§7.6)
-observes only that *some* send is succeeding, a condition sustained churn on the larger table would
-keep satisfying on its own while the other table starved.
+**The drain is fair across tables.** The Redis path submits every table into one shared pipeline and
+flushes it wholesale, so every table advances together. The coalescer preserves that. Each drain
+cycle is a **single ordered pass covering both route tables**, so each table gets its turn within
+the cycle. The per-table liveness clock (§7.6) backs the property up: a table that falls behind
+accrues its own stuck age while the other table drains.
 
 Coalescing requires **dwell**: two updates for the same key must be resident in the map at the
 same instant for the second to overwrite the first.
 
-- **Inline (the bug):** the main thread serializes+sends route P, blocks on ZMQ, *then* reads the
-  next FPM message. A and B for the same prefix are never co-resident, so the structure permits
-  **no coalescing at all** (Figure 1, dashed edge).
-- **Async send thread:** the main thread hands the update off (microseconds, non-blocking) and
-  immediately returns to reading FPM. The send thread is off doing one send, which takes real
-  wall-clock time. **During that send, the map is live and every FPM update that arrives
-  coalesces.** The natural dwell window equals **one send's duration** and **self-scales with
-  congestion**: the slower the wire, the longer each send, the more arrives during that send, and
-  the more coalescing — so the mechanism strengthens precisely when the wire is under pressure.
+- **Inline (the bug):** the main thread serializes and sends route P, blocks on ZMQ, then reads the
+  next FPM message. A and B for one prefix occupy the map at different instants, so each crosses the
+  wire on its own (Figure 1, dashed edge).
+- **Async send thread:** the main thread hands the update off in microseconds and returns to
+  reading FPM. The send thread is meanwhile busy with one send, which takes real wall-clock time.
+  **During that send the map stays live, and every FPM update that arrives coalesces.** The dwell
+  window therefore equals **one send's duration**, and it **self-scales with congestion**: a slower
+  wire means a longer send, more arrivals during that send, and more coalescing. The mechanism
+  strengthens precisely when the wire is under pressure.
 
-**FPM offload reply.** The reply to zebra is sent **after** the update has been handed to the
-producer, so it corresponds to work fpmsyncd has taken custody of. (With `suppress-fib-pending`
-enabled the reply is instead driven by the programming response from orchagent, unchanged by this
-design.)
+**FPM offload reply.** The reply to zebra goes out **after** the update reaches the producer, so it
+corresponds to work fpmsyncd has taken custody of. (With `suppress-fib-pending` enabled the
+programming response from orchagent drives the reply instead, and that path stays as it is.)
 
-**Design choice — no explicit flush timer.** A Nagle-style "hold the map N ms" timer would add
-coalescing only in the light-load gap between sends, where wire load is already low, and it would
-spend **convergence latency** to do so. Under real congestion the send-duration window already
-dominates. Dwell therefore comes purely from send duration: a route waits only as long as the send
-thread was already busy — latency the system was paying anyway — so coalescing adds no delay of its
-own. The retain-and-retry buffer being a **map** (keyed, LWW) rather than a FIFO queue is what
-carries this: coalescing arrives as a property of the async send thread and chunked drain.
+**Design choice — dwell comes from send duration.** A Nagle-style "hold the map N ms" timer adds
+coalescing in the light-load gap between sends, where wire load is already low, and it spends
+**convergence latency** to do so. Under real congestion the send-duration window already dominates.
+Dwell therefore comes purely from send duration: a route waits as long as the send thread was
+already busy, which is latency the system was paying anyway. The retain-and-retry buffer is a keyed
+**LWW map**, and that choice is what carries this — coalescing arrives as a property of the async
+send thread and the chunked drain.
 
 ### 7.3 Retention — retain-and-retry from the map
 
-The coalescing map *is* the retain buffer. When a chunk's send fails past the inner absorber
-(§7.6), the whole chunk is **re-merged into the live map** (newer-wins) and the drain aborts into an
-outer backoff; the next drain picks it up again. Work is therefore **held, not dropped** (R1/R2).
-The map is bounded by `mMax`; exceeding it is a memory-safety assert (observable, §7.6), never a
-silent drop. (Named knobs throughout §7 are internal defaults; their values are tabulated in §9.3.)
+The coalescing map *is* the retain buffer. A chunk whose send fails past the inner absorber (§7.6)
+is re-merged into the live map, newer-wins. The drain then aborts into an outer backoff, and the
+next drain picks that work up again. Work therefore stays in the map until it lands on the wire
+(R1/R2).
+
+`mMax` bounds the map. Crossing it raises a memory-safety assert, which is observable and reported
+(§7.6).
+
+(Named knobs throughout §7 are internal defaults; §9.3 tabulates their values.)
 
 ### 7.4 Chunked drain from the live map
 
-The send thread drains the map in **bounded chunks** (≤ `maxBatchEntries` keys **and**
-≤ `maxBatchBytes`), each chunk becoming exactly one wire message. Each chunk is pulled **from the
-live map, which stays open** — between chunk pulls the main thread keeps upserting, so a large drain
-keeps coalescing and leaves ingest running. Figure 4 is the numbered sequence.
+The send thread drains the map in **bounded chunks** (≤ `maxBatchEntries` keys), each chunk becoming
+exactly one wire message. Each chunk is pulled **from the live map, which stays open**. Between
+chunk pulls the main thread keeps upserting, so a large drain keeps both coalescing and ingest
+running. Figure 4 is the numbered sequence.
 
 <p align="center">
   <img alt="Figure 4. Chunked drain sequence: pull bounded chunk under lock, send outside lock, on failure re-merge the whole chunk newer-wins and abort." src="images/fpmsyncd_zmq_route_delivery/02_chunked_drain.png" width="820">
 </p>
 <p align="center"><b>Figure 4.</b> Chunked drain from the live map. Each iteration pulls a bounded
-chunk under the map lock, releases the lock, and sends <b>outside</b> the lock, so ingest never waits
-on the wire and new same-key upserts arriving during a send coalesce into the remainder. The map is
-therefore drained without ever being frozen.</p>
+chunk under the map lock, releases the lock, and sends <b>outside</b> the lock. Ingest therefore runs
+throughout, and new same-key upserts arriving during a send coalesce into the remainder. The map
+stays open for the whole drain.</p>
 
-**Design choice — chunk from the live map rather than freezing it.** Snapshotting or locking the
-entire map for a drain would stall ingest for the duration of that drain, and would stop coalescing
-at the moment it pays most (a big backlog). Bounded chunks from the live map keep both ingest and
-coalescing running throughout.
+**Design choice — chunk from the live map.** Snapshotting or locking the entire map for a drain
+would stall ingest for that drain's duration, and would stop coalescing at the moment it pays most:
+a big backlog. Bounded chunks from the live map keep both ingest and coalescing running throughout.
 
 ### 7.5 Batch sizing — wire efficiency vs. coalescing yield
 
 > **In short:** chunk size trades wire efficiency against coalescing yield. The benchmarked knee is
-> 256 keys per chunk; an 8 MiB byte cap independently guards the wide-route case so no message
-> crosses the 16 MiB transport limit.
+> 256 keys per chunk, which also keeps a chunk far below the 16 MiB message ceiling.
 
 Given that the drain is chunked (§7.4), how large should each chunk be? The bound is a deliberate
 balance between two opposing pressures.
@@ -415,8 +410,8 @@ balance between two opposing pressures.
   syscall overhead per route and raising wire throughput. This is the whole point of batching over
   the original per-prefix send.
 - **Smaller chunks preserve coalescing (and latency).** Keys extracted into a chunk have left the
-  map; a late same-key update that arrives while that chunk is in flight can no longer collapse into
-  it — it becomes a fresh map entry that must be sent again. Draining in smaller chunks leaves more
+  map, so a late same-key update arriving while that chunk is in flight becomes a fresh map entry
+  and is sent again. Draining in smaller chunks leaves more
   of the working set resident in the map for longer (§7.2 dwell), so more same-key duplicates
   coalesce before extraction. Very large chunks also delay the first route's delivery and raise
   per-message memory.
@@ -428,34 +423,41 @@ amortization is effectively fully captured, while the map still retains enough r
 same-key churn. Larger chunks buy no further throughput but start trading away coalescing; smaller
 chunks lose throughput without a matching coalescing gain.
 
-Independently of that tuning, a hard correctness bound also applies (R5): a single multipart message
-must stay under the transport's **16 MiB** per-message limit. `maxBatchBytes` (**8 MiB**) enforces
-this and specifically guards the pathological wide-route case (few keys but very large field-value
-lists), where the entry-count bound alone would not. A chunk is thus capped by whichever of
-`maxBatchEntries` or `maxBatchBytes` it reaches first.
+The entry cap also satisfies the correctness bound (R5): a single multipart message must stay under
+the **16 MiB** ceiling that `swss-common` sets for a ZMQ message. A 256-key chunk measures roughly
+**7.5 MiB** at the widest route the route table carries, so the entry cap holds every chunk inside
+the ceiling with better than a 2× margin. The send path enforces the ceiling itself as the backstop:
+`ZmqClient::sendMsg` serializes into a fixed buffer sized at `MQ_RESPONSE_MAX_COUNT`, which matches
+the server's receive buffer, and throws once the serialized length reaches that bound. The send
+thread treats that throw like any other send failure — the chunk is re-merged into the live map and
+retried, under the same liveness bound that bounds any other persistent failure (§7.3, §7.6).
 
 ### 7.6 Failure, retry and liveness
 
-The retry design separates a **benign HWM blip** from **real congestion**, so a transient hiccup
-never escalates while a genuine stall is always bounded:
+The retry design separates a **benign HWM blip** from **real congestion**. A transient hiccup clears
+in place, and a genuine stall stays bounded.
 
 - **Inner blip absorber:** on a transient "would block", the send path retries a small number of
-  times with a short backoff (a few milliseconds total). A momentary HWM blip clears here and
-  **never escalates**; absorbed blips are counted separately from real congestion (§7.10).
-- **Outer retry:** if the blip absorber is exhausted, the whole chunk is **re-merged into the live
-  map** (§7.3) and the drain aborts to a backoff; the next drain retries. A congestion **episode**
-  opens under hysteresis, so isolated blips do not inflate the episode count.
-- **Liveness bound:** if the time since the last successful send exceeds `tFailMs`, or the map depth
-  exceeds `mMax`, the producer writes a **sticky STATE_DB assert record** (which survives the
-  process exit) and exits for recovery.
+  times with a short backoff (a few milliseconds total). A momentary HWM blip clears here. Absorbed
+  blips are counted separately from real congestion (§7.10).
+- **Outer retry:** once the blip absorber is exhausted, the whole chunk is **re-merged into the live
+  map** (§7.3) and the drain aborts to a backoff. The next drain retries it. A congestion
+  **episode** opens under hysteresis, so the episode count tracks real congestion alone.
+- **Liveness bound:** the producer tracks a **per-table stuck age** — the time elapsed since the
+  later of two marks: that table's last successful send, and the arrival that left it holding work.
+  Taking the later mark gives an idle table its full budget from its first failure, and gives a
+  table that owes work its own clock while another table drains. Once that age passes `tFailMs`, or
+  total map depth passes `mMax`, the producer writes a **sticky STATE_DB assert record** and exits
+  for recovery. The record survives the exit and counts the stranded entries into
+  `routes_lost_total`, so the loss is reported.
 
 **How the restart recovers routes that were only in the map.** Recovery rests on zebra's
 **unconditional full re-drive** on FPM reconnect: re-establishing the connection resets the
 per-destination "already sent to FPM" marker across the entire RIB and re-enqueues every destination
 as a fresh route-install. Its unconditional scope is what matters here. Routes parked in the map are
-ones zebra already considers delivered (they went down FPM and were replied to), so a selective
-resend would pass over them; a full re-drive carries them along with everything else, and the
-failure path converges without silent loss (R6).
+ones zebra already considers delivered, since they went down FPM and were replied to. A selective
+resend would pass over them. A full re-drive carries them along with everything else, so the failure
+path converges and the loss is reported (R6).
 
 ### 7.7 Send-thread state machine
 
@@ -468,18 +470,17 @@ Figure 5 is the send thread's lifecycle — the single place all of §7.3–7.6 
 A successful chunk advances to the next one, or returns to <code>Waiting</code> when the map empties;
 a failed chunk backs off and is retried from the map; and a stall beyond <code>tFailMs</code> or a
 depth over <code>mMax</code> leaves the loop for the assert path (sticky record → process exit →
-RIB re-drive). The wait is timed rather than signal-only, so telemetry and the liveness clock
-advance even when no routes are arriving. <b>Colour legend:</b> green = normal delivery, red =
+RIB re-drive). The wait is timed, so telemetry and the liveness clock advance through an idle
+period. <b>Colour legend:</b> green = normal delivery, red =
 congestion / failure path; cream = steady states.</p>
 
 ### 7.8 Heap reclaim — allocator-managed (#28245)
 
-The RSS ratchet (Figure 2) is a property of the **allocator**, so it is fixed by changing the
-allocator rather than by adding reclaim logic to fpmsyncd: fpmsyncd links **jemalloc** with
-`background_thread:true`, which returns free pages to the OS on a decay schedule, on jemalloc's own
-thread. Unlike glibc's top-only trim, decay reclaims interior free pages, so a pinned top allocation
-no longer holds a burst's worth of memory resident. fpmsyncd contains no release code, no release
-policy, and no reclaim thread of its own.
+The RSS ratchet (Figure 2) is a property of the **allocator**, so the allocator is what changes.
+fpmsyncd links **jemalloc** with `background_thread:true`, which returns free pages to the OS on a
+decay schedule, on jemalloc's own thread. Where glibc trims only the arena top, decay reclaims
+interior free pages, so a burst's free pages return to the OS even under a pinned top allocation.
+The release policy, the slicing, and the reclaim thread all live in the allocator.
 
 #### 7.8.1 Alternatives considered
 
@@ -516,8 +517,7 @@ this design targets and is left as optional future work (§14).
 
 **Startup check.** Background reclaim can silently fail to take effect, returning the daemon to the
 ratcheting behavior this design removes. fpmsyncd therefore verifies at startup that reclaim is
-active and logs an error if it is not, so the regression is reported rather than showing up only as
-slow RSS growth.
+active and logs an error otherwise, so the regression is reported at startup.
 
 **Coexistence.** Each process links exactly one allocator at build time and owns its own address
 space, so this selects *which* allocator fpmsyncd uses. Per-process allocator choice is already
@@ -534,7 +534,7 @@ fix and the separate **consumer-side** design
 compose without ordering constraints:
 
 - **This producer fix requires no consumer change.** It reduces the wire-message count at the source
-  and never silently drops, so it delivers its full benefit against either consumer.
+  and holds every route, so it delivers its full benefit against either consumer.
 - **The two reduce different things.** This design coalesces route *updates*, so fewer tuples and
   fewer messages cross the wire. The consumer-side change coalesces *wakeups* — it drains the socket
   until empty and signals its main loop once per burst instead of once per message, so the receive
@@ -548,13 +548,12 @@ consumer, at opposite ends of the same pipe.
 The producer publishes one STATE_DB table (read-only, debug-first) plus a sticky assert record.
 Full schema, ABNF, and examples are in §9 (Configuration and Management, DB section) so vendors and
 operators have one home for the contract. The **on-call one-liner**: read `health` first, then
-`routes_lost_total` (must be `0`) for the no-drop guarantee.
+`routes_lost_total` — `0` in steady state, and non-zero only alongside an `assert_total` bump that
+names the deliberate exit which stranded them.
 
-Heap behavior is covered by the startup check (§7.8) instead of a telemetry table. With reclaim
-owned by the allocator there is no fpmsyncd-side release activity to report, and the symptom the
+Heap behavior is covered by the startup check (§7.8). The allocator owns reclaim, so the symptom the
 design targets — steady-state RSS — is already visible to existing process and container monitoring.
-The one failure mode that would otherwise be silent, reclaim not being active, is what the startup
-check reports.
+The startup check reports the one failure mode that monitoring would miss: reclaim sitting inactive.
 
 ### 7.11 Repository / component change map
 
@@ -612,14 +611,14 @@ The behavior is governed by internal coalescer defaults, tuned by benchmark
 | Knob | Default | Purpose |
 |---|---|---|
 | `maxBatchEntries` | 256 (backup 128) | keys per chunk = one wire message; the coalescing/throughput knee (§7.4) |
-| `maxBatchBytes` | 8 MiB | safety cap under the 16 MiB ceiling (§7.5); guards pathological wide routes |
 | `idleTickMs` | 1000 | timed-wait period, so telemetry and the liveness clock advance even with no ingest |
-| `sendInnerMaxRetries` | 1–2 | inner **blip-absorber** attempts (§7.6) — not a retry ladder |
-| `sendInnerMaxBackoffMs` | ~5 | inner per-attempt backoff cap (~10 ms total) |
+| `sendInnerMaxRetries` | 2 | inner **blip-absorber** attempts (§7.6) — not a retry ladder |
+| `sendInnerMaxBackoffMs` | 5 | inner per-attempt backoff cap (~10 ms total) |
 | `outerBackoffMs` | 50 | pause after a failed flush before re-draining — the real retry cadence |
-| `tFailMs` | 60000 | assert if the time since the last successful send exceeds this |
+| `tFailMs` | 60000 | assert once a table's stuck age exceeds this |
 | `mMax` | 1000000 | assert if total map depth exceeds this (memory bound) |
 | `telemetryMinIntervalMs` | 10000 | throttle STATE_DB publish |
+| `warnFraction` | 0.5 | report `STALLED` once the stuck age passes this fraction of `tFailMs` |
 
 The allocator is configured out-of-band rather than through this table: fpmsyncd is built against
 jemalloc with `background_thread` enabled (§7.8).
@@ -634,12 +633,12 @@ key                        = FPMSYNCD_ROUTE_STAT_TABLE|global   ; single global 
 health                     = "OK" / "CONGESTED" / "STALLED" / "RECOVERED" ; health state machine (see below)
 map_depth                  = 1*DIGIT      ; current backlog (live gauge)
 map_depth_hwm              = 1*DIGIT      ; peak backlog ever (sizing signal for mMax)
-last_success_age_sec       = 1*DIGIT      ; seconds since last successful send (liveness leading indicator)
+last_success_age_sec       = 1*DIGIT      ; stuck age, worst table (liveness leading indicator)
 routes_sent_total          = 1*DIGIT      ; routes that crossed the wire (monotonic)
 routes_coalesced_total     = 1*DIGIT      ; inputs collapsed before the wire (efficiency win)
 chunks_sent_total          = 1*DIGIT      ; wire messages sent (feeds avg_chunk_fill)
 congestion_episodes_total  = 1*DIGIT      ; real episodes (hysteresis-gated; blips excluded)
-routes_lost_total          = 1*DIGIT      ; THE no-drop guarantee — 0 always
+routes_lost_total          = 1*DIGIT      ; entries stranded by a deliberate exit; 0 in steady state
 assert_total               = 1*DIGIT      ; lifetime asserts (restarts)
 ep_duration_ms             = 1*DIGIT      ; last episode duration
 ep_peak_depth              = 1*DIGIT      ; worst backlog during last episode
@@ -706,14 +705,19 @@ table or configuration change (§9.3), and consumers that ignore them are unaffe
 
 ## 10. Warmboot and Fastboot Design Impact
 
-Warmboot/fastboot behavior is **out of scope** for this design and unchanged from the baseline —
-this change touches only fpmsyncd's steady-state producer path, not the boot/reboot sequence, and
-adds nothing to the boot critical chain.
+Warmboot and fastboot are **mutually exclusive** with the ZMQ route path. The combination is
+validated at startup and rejected, so a warm or fast restart runs on the existing Redis producer
+path and behaves exactly as it does today. This change therefore touches only fpmsyncd's
+steady-state ZMQ producer path and adds nothing to the boot critical chain.
 
-The only restart-relevant property: the coalescing map is process memory and is intentionally *not*
-persisted. On restart the route state is relearned end-to-end across the bgp→swss→syncd pipeline
-(FRR re-drives the RIB), so any routes pending in the map at exit are re-delivered by that replay.
-The sticky assert record (§7.6) persists in STATE_DB; other telemetry gauges reset on restart.
+The exclusion matches the deployment target. This design serves topologies that carry redundancy: a
+device is drained before a reboot and its peers carry the traffic, so the requirement stops at cold
+restart. Warm and fast restart on the ZMQ route path is parked as a future enhancement (§14).
+
+One cold-restart property belongs here: the coalescing map is process memory and stays unpersisted
+by design. On restart zebra re-drives the full RIB, so routes pending in the map at exit are
+re-delivered by that replay (§7.6). The sticky assert record persists in STATE_DB; other telemetry
+gauges reset.
 
 ---
 
@@ -755,6 +759,10 @@ unbounded RSS ratchet.
   is free of the defect this design fixes.
 - **No user config surface.** Retuning the knobs (§9.3) requires a build; there is no runtime
   control. Deliberate — §5.3 non-goal 5.
+- **Warm and fast restart exclude the ZMQ route path.** A device that needs warm or fast restart
+  runs on the Redis producer path and keeps its existing behavior (§10). Enabling both is rejected
+  at startup, so the conflict surfaces at configuration time. Support on the ZMQ path is future
+  work (§14).
 
 ---
 
@@ -771,14 +779,16 @@ The code changes ship with unit tests that verify the following behaviors:
 | 3 | Sustained churn on one route table does not starve delivery of the other. | §7.2 |
 | 4 | A failed batch is re-merged into the map without overwriting a newer update that arrived for the same key. | R2, §7.3/§7.6 |
 | 5 | A transient send blip is absorbed and does **not** open a congestion episode. | §7.6 |
-| 6 | A field-less update (indistinguishable from a delete on the wire) is rejected rather than sent. | §7.6 |
+| 6 | A field-less update (indistinguishable from a delete on the wire) is dropped at ingest and logged, leaving the rest of the batch intact. | §7.6 |
 | 7 | With the ZMQ path disabled, no coalescer and no send thread are created and writes take the original producer path. | R12, §7.1 |
-| 8 | While warm-restart reconciliation is in progress the coalescer is bypassed, so the send thread is never a concurrent ZMQ writer. | §7.1 |
+| 8 | Enabling the ZMQ route path together with warm or fast restart is rejected at startup, so the send thread stays the sole ZMQ writer. | §7.1, §10 |
 | 9 | Routes accepted into the map but not yet dispatched are still resident, and undispatched, when the coalescer is destroyed. | R1, §7.6 |
 | 10 | The lifetime assert count survives a restart via the sticky STATE_DB record. | R6, §9.3.2 |
 | 11 | The published route-stat record contains exactly the documented fields. | R8, §9.3.1 |
 | 12 | Absolute timestamps are published as human-readable UTC strings, not epoch integers. | R8, §9.3.2 |
 | 13 | With STATE_DB unreachable at startup, fpmsyncd starts and delivers routes; telemetry publication resumes once STATE_DB is reachable. | R9, §9.3 |
+| 14 | A stalled table trips its own assert while the other table keeps draining, and an idle table gets its full stuck budget on a first failure. | §7.6 |
+| 15 | A zero chunk-size configuration is clamped to one entry at construction, so every drain makes progress. | §7.4 |
 
 R7 and R11 (heap) are proved by the allocator A/B in §13.2; R10 is carried by the `swss-common`
 change's own tests, since the guard it adds is route-agnostic by construction (§7.11).
@@ -827,7 +837,7 @@ legacy vs expected:
 | 1 | Burst past SNDHWM (tens of thousands of routes) | silent drop; ASIC route count < RIB, no signal | no drop; ASIC route count reconciles to RIB; `routes_lost_total == 0` |
 | 2 | Same-key churn (ECMP next-hop flap) | N per-prefix messages | coalesced; `routes_coalesced_total` > 0; convergence unchanged |
 | 3 | Sustained consumer stall (> `tFailMs`) | silent divergence | sticky assert record written; container bounce; zebra's re-drive repairs |
-| 4 | **Recovery of undispatched routes:** stall delivery so routes are parked in the map, confirm they are resident and not yet dispatched, then kill fpmsyncd | routes acknowledged to zebra but never sent are lost | after restart the routes are present in the ASIC; `routes_lost_total == 0` |
+| 4 | **Recovery of undispatched routes:** stall delivery so routes are parked in the map, confirm they are resident and not yet dispatched, then kill fpmsyncd | routes acknowledged to zebra but never sent are lost | after restart the routes are present in the ASIC and the RIB and FIB counts agree |
 | 5 | Sustained route churn concurrent with label-route updates | — | label-route delivery latency stays bounded (no cross-table starvation) |
 | 6 | Steady-state churn over hours (RSS watch) | RSS ratchets up → OOM-restart | RSS plateaus across bursts |
 | 7 | Image upgrade old→new, restart | N/A | no crash; routes relearned via zebra's re-drive; no route loss |
@@ -854,9 +864,9 @@ Future **design** increments (not a fix backlog):
 2. **Allocator decay tuning.** Shortening jemalloc's decay intervals lowers the transient RSS peak
    without changing resting RSS (Appendix A.2). If peak RSS becomes a constraint on a
    memory-tight platform, tune decay then — it needs no code change.
-3. **KVM/hardware data-plane A/B.** Corroborate the component results (Appendix A) end-to-end on a T2
-   testbed (burst-past-HWM no-drop + RSS behavior under real FRR flap). The component evidence is
-   load-bearing; this is confirming.
+3. **Warm and fast restart on the ZMQ route path.** The current requirement covers topologies that
+   carry redundancy, where a device is drained before a reboot (§10). A deployment that needs warm
+   reboot on the ZMQ path would extend this design with a reconcile hand-off to the send thread.
 
 ---
 
