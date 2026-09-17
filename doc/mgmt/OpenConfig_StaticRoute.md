@@ -76,7 +76,7 @@ OpenConfig to SONiC mapping tables: [Section 4](#4-openconfig-to-sonic-mapping-t
 | 0.1 | 12/02/2025 | Raja Kushwah, Anukul Verma | Initial version |
 
 # About this Manual
-This document provides general information about the OpenConfig configuration and management of static routes in SONiC corresponding to the openconfig-network-instance.yang module (static routes under protocols/protocol/static-routes). It describes how OpenConfig models are translated to SONiC CONFIG_DB entries and FRR staticd/mgmtd configuration, and how operational state is returned over REST and gNMI.
+This document provides general information about the OpenConfig configuration and management of static routes in SONiC corresponding to the openconfig-network-instance.yang module (static routes under protocols/protocol/static-routes). It describes how OpenConfig models are translated to SONiC CONFIG_DB entries and FRR staticd/mgmtd configuration. Current HLD and implementation scope is **configuration only**; corresponding OpenConfig `state` nodes are replicas of `config` (GET from CONFIG_DB). FRR, kernel, and ASIC installed-route state are out of scope.
 
 Static routes are configured under:
 /network-instances/network-instance/protocols/protocol[identifier=STATIC][name=DEFAULT]/static-routes
@@ -89,8 +89,8 @@ Static routes are configured under:
 | Openconfig_BGP.md | BGP route redistribution |
 
 # Scope
-- This document describes the high level design of OpenConfig **Static Route** configuration and operational retrieval in SONiC.
-- **In scope:** REST and gNMI — Get, Set (POST/PUT/PATCH), Delete, and Subscribe on supported Static Route YANG paths.
+- This document describes the high level design of OpenConfig **Static Route** configuration in SONiC.
+- **In scope:** REST and gNMI — Get, Set (POST/PUT/PATCH), Delete, and Subscribe on supported Static Route YANG paths. Scope is **configuration only**; OpenConfig `state` nodes are replicas of the corresponding `config` nodes (same CONFIG_DB mapping). FRR live state, kernel, and ASIC installed-route state are out of scope.
 - **Out of scope:** SONiC KLISH CLI and native SONiC CLI for static routes; `STATIC_ROUTE_TEMPLATE_LIST` (SONiC-only template table).
 - OpenConfig xpath root:
   `/network-instances/network-instance/protocols/protocol[identifier=STATIC][name=DEFAULT]/static-routes`
@@ -163,7 +163,7 @@ Extension leaves are documented in [Section 3.1.5 OpenConfig Extensions](#315-op
 ## 1.1 Requirements
 ### 1.1.1 Functional Requirements
 1. Expose SONiC static route configuration through standard OpenConfig YANG models under the network-instance protocol tree.
-2. Support configuration and operational retrieval of Static Route attributes under the OpenConfig static-routes YANG tree (see Scope and Section 4).
+2. Support configuration of Static Route attributes under the OpenConfig static-routes YANG tree (see Scope and Section 4). GET `state` returns the same configured values as `config`.
 3. Support IPv4 and IPv6 static routes with multiple ECMP next-hops per prefix.
 4. Allow BFD enable on IP next-hops only.
 5. Provide REST Get, Post, Put, Patch, and Delete, and gNMI Get, Set, and Subscribe on all mapped static-route paths.
@@ -323,8 +323,8 @@ No COUNTER DB tables are used for static route configuration.
 - Each subsection maps one OpenConfig container or list. Paths are shown as an indented tree; placeholders: `<vrf>`, `<prefix>`, `<index>`.
 - **Extension** — `Yes` on extension leaves; blank on base OpenConfig leaves. Extension definitions are in [§3.1.5](#315-openconfig-extensions).
 - **`nh-network-instance`** — YANG prefix `oc-loc-rt-netinst:` (from `openconfig-local-routing-network-instance` augment).
-- Where `config` and `state` share the same mapping, both are covered in one table; operational `state` is returned on GET from CONFIG_DB.
-- Next-hop list key `index` derivation: [Table 3](#table-3-next-hop-index-derivation).
+- Where `config` and `state` share the same mapping, both are covered in one table. Current scope is configuration only: GET `state` is a replica of `config` from CONFIG_DB (no FRR, kernel, or ASIC installed-route source).
+- Next-hop list key `index` derivation and uniqueness: [Table 3](#table-3-next-hop-index-derivation).
 
 ## 4.1 Network Instance (VRF Key)
 **OpenConfig path:**
@@ -439,6 +439,8 @@ No COUNTER DB tables are used for static route configuration.
 | LOCAL_LINK + subinterface | `LOCAL_LINK` | `LOCAL_LINK+{interface}.{subif}` |
 | IP + interface | `{ip}` | `{ip}+{interface}` |
 | IP + interface + subinterface | `{ip}` | `{ip}+{interface}.{subif}` |
+
+**Uniqueness and duplicate handling:** `index` is the OpenConfig list key and must match the derived value in this table. A mismatch is rejected (`Index format mismatch: expected '…', got '…'`). Two next-hops on the same prefix cannot share an index; the key is derived from next-hop identity (IP / `DROP` / interface), so the same identity maps to one index. SET of an index that already exists on the prefix merges/updates that next-hop (POST/PATCH); PUT REPLACE replaces the entire next-hop list. PATCH of a non-existent index returns `NotFoundError`. Duplicate `index` values in one payload are treated as a single list entry (YANG list-key uniqueness).
 
 # 5 User Interface
 ## 5.1 Data Models
