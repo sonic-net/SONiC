@@ -72,11 +72,10 @@ OpenConfig to SONiC mapping tables: [Section 4](#4-openconfig-to-sonic-mapping-t
 | 0.1 | 07/23/2026 | Raja Kushwah, Anukul Verma | Initial version |
 
 # About this Manual
-This document provides general information about the OpenConfig configuration and management of Route Map (routing policy) in SONiC corresponding to the openconfig-routing-policy.yang module (policy-definitions under routing-policy). It describes how OpenConfig models are translated to SONiC CONFIG_DB entries and FRR bgpd route-map configuration, and how operational state is returned over REST and gNMI.
+This document provides general information about the OpenConfig configuration and management of Route Map (routing policy) in SONiC corresponding to the openconfig-routing-policy.yang module (policy-definitions under routing-policy). It describes how OpenConfig models are translated to SONiC CONFIG_DB entries and FRR bgpd route-map configuration. Current HLD and implementation scope is **configuration only**; corresponding OpenConfig `state` nodes are replicas of `config` (GET from CONFIG_DB). FRR live state is out of scope.
 
-Route maps and related defined sets are configured under:
+Route maps and AS-path-sets are configured under:
 /routing-policy/policy-definitions
-/routing-policy/defined-sets/tag-sets
 /routing-policy/defined-sets/bgp-defined-sets/as-path-sets
 
 # Related Documents
@@ -88,12 +87,11 @@ Route maps and related defined sets are configured under:
 | Openconfig_BGP.md | BGP neighbors and redistribution that attach route maps |
 
 # Scope
-- This document describes the high level design of OpenConfig **Route Map** configuration and operational retrieval in SONiC.
-- **In scope:** REST and gNMI — Get, Set (POST/PUT/PATCH), Delete, and Subscribe on supported route-map (`policy-definition` / `statement`) YANG paths; `defined-sets/tag-sets` and `defined-sets/bgp-defined-sets/as-path-sets`; match conditions and set-actions documented in the Scope tree; flow control (`on-match-next`, `on-match-goto-statement`, `next-statement`).
-- **Out of scope:** SONiC KLISH CLI and native SONiC CLI for route maps; `prefix-sets`, `community-sets`, and `ext-community-sets` — covered in separate HLDs; route-map match conditions reference those sets by name (leafref) only; `bgp-conditions/ext-community-count` (not implemented in UMF).
+- This document describes the high level design of OpenConfig **Route Map** configuration in SONiC.
+- **In scope:** REST and gNMI — Get, Set (POST/PUT/PATCH), Delete, and Subscribe on supported route-map (`policy-definition` / `statement`) YANG paths; `defined-sets/bgp-defined-sets/as-path-sets`; match conditions (including `match-tag-set`) and set-actions documented in the Scope tree; flow control (`on-match-next`, `on-match-goto-statement`, `next-statement`). Scope is **configuration only**; OpenConfig `state` nodes are replicas of the corresponding `config` nodes (same CONFIG_DB mapping). FRR live state is out of scope.
+- **Out of scope:** SONiC KLISH CLI and native SONiC CLI for route maps; `prefix-sets`, `community-sets`, and `ext-community-sets` — covered in separate HLDs; route-map match conditions reference those sets by name (leafref) only; REST/gNMI CRUD on `/routing-policy/defined-sets/tag-sets` (not bound in UMF annotations — `TAG_SET` may be provisioned in CONFIG_DB and referenced by `match-tag-set`); `bgp-conditions/ext-community-count` (not implemented in UMF).
 - OpenConfig xpath roots:
   `/routing-policy/policy-definitions`
-  `/routing-policy/defined-sets/tag-sets`
   `/routing-policy/defined-sets/bgp-defined-sets/as-path-sets`
 - Supported attributes in OpenConfig YANG tree (reflecting current UMF implementation):
 
@@ -103,15 +101,6 @@ module: openconfig-routing-policy
            openconfig-routing-policy-ext)
 +--rw routing-policy
    +--rw defined-sets
-   |  +--rw tag-sets
-   |  |  +--rw tag-set* [name]
-   |  |     +--rw name                     -> ../config/name
-   |  |     +--rw config
-   |  |     |  +--rw name?                 string
-   |  |     |  +--rw tag-value*            tag-type
-   |  |     +--ro state
-   |  |        +--ro name?                 string
-   |  |        +--ro tag-value*             tag-type
    |  +--rw oc-bgp-pol:bgp-defined-sets
    |     +--rw oc-bgp-pol:as-path-sets
    |        +--rw oc-bgp-pol:as-path-set* [as-path-set-name]
@@ -312,7 +301,7 @@ Extension leaves are documented in [Section 3.1.5 OpenConfig Extensions](#315-op
 1. Expose SONiC route-map configuration through standard OpenConfig YANG models under `routing-policy/policy-definitions`.
 2. Expose SONiC AS-path-set configuration through OpenConfig YANG models under `routing-policy/defined-sets/bgp-defined-sets/as-path-sets`.
 3. Support tag-set match on route-map statements via `match-tag-set`; tag-set definitions are stored in CONFIG_DB `TAG_SET` and programmed by frrcfgd.
-4. Support configuration and operational retrieval of route-map attributes under the OpenConfig policy-definition and statement YANG tree (see Scope and Section 4).
+4. Support configuration of route-map attributes under the OpenConfig policy-definition and statement YANG tree (see Scope and Section 4). GET `state` returns the same configured values as `config`.
 5. Support match conditions: prefix-set, community-set, ext-community-set, as-path-set, tag-set, local-pref, MED, origin, install-protocol, interface, call-policy, and SONiC-ext conditions (next-hop-set, source network-instance, neighbor).
 6. Support BGP set-actions: next-hop (IPv4/IPv6/PREFER_GLOBAL), set-community (INLINE/REFERENCE), set-ext-community (INLINE/REFERENCE), set-large-community (INLINE), AS-path prepend (asn / repeat-n / asn-sequence), local-pref, MED (SET/ADD/SUBTRACT), route-origin, set-source-address; and protocol-agnostic `set-tag`.
 7. Support flow control: `on-match-next`, `on-match-goto-statement`, and `next-statement`.
@@ -357,7 +346,7 @@ SONiC defines the southbound schema in `sonic-route-map.yang` and `sonic-routing
 | `ROUTE_MAP` leaves | `route_operation`, `description`, match leaves (`match_prefix_set`, `match_ipv6_prefix_set`, `match_community`, `match_ext_community`, `match_as_path`, `match_interface`, `match_protocol`, `match_next_hop_set`, `match_src_vrf`, `match_neighbor@`, `match_tag`, `match_local_pref`, `match_med`, `match_origin`, `call_route_map`), set leaves (`set_next_hop`, `set_ipv6_next_hop_global`, `set_ipv6_next_hop_prefer_global`, `set_community_inline`, `set_community_ref`, `set_ext_community_inline`, `set_ext_community_ref`, `set_large_community_inline`, `set_local_pref`, `set_med`, `set_metric`, `set_metric_action`, `set_origin`, `set_asn`, `set_repeat_asn`, `set_asn_list`, `set_tag`, `set_src`), flow-control leaves (`next_statement`, `on_match_next`, `on_match_goto_statement`) |
 | Out of scope | `PROTOCOL_ROUTE_MAP` (protocol-level route-map attachment; see Openconfig_BGP.md) |
 
-OpenConfig clients never write CONFIG_DB directly; UMF transformers populate `ROUTE_MAP_SET`, `ROUTE_MAP`, `TAG_SET`, and `AS_PATH_SET` from OpenConfig payloads. CONFIG_DB examples are in [§3.2.1](#321-config-db).
+OpenConfig clients never write CONFIG_DB directly; UMF transformers populate `ROUTE_MAP_SET`, `ROUTE_MAP`, and `AS_PATH_SET` from OpenConfig payloads. `TAG_SET` is not written via OpenConfig REST/gNMI. CONFIG_DB examples are in [§3.2.1](#321-config-db).
 
 ### 3.1.2 OpenConfig Modules
 | Module | Source | Role for route maps |
@@ -409,7 +398,7 @@ CONFIG_DB `ROUTE_MAP` changes are consumed by **frrcfgd**, which programs FRR bg
 
 *Figure: Unified FRR management framework ([SONiC Unified FRR Mgmt Interface HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md)) — route maps follow the same CONFIG_DB → frrcfgd → FRR path as other routing-policy objects.*
 
-Leaf `set-source-address` (CONFIG_DB `set_src`) is programmed through FRR **mgmtd**, not bgpd CLI.
+Leaf `set-source-address` (CONFIG_DB `set_src`) is programmed through FRR **mgmtd**, not the bgpd route-map CLI. FRR applies `set src` via mgmtd; frrcfgd still consumes `ROUTE_MAP:set_src` and emits it on the mgmtd path. Other route-map set actions remain on bgpd. Sequence delete also targets mgmtd when `set_src` is present.
 
 ### 3.1.5 OpenConfig Extensions
 SONiC augments base OpenConfig route-map statement `config`/`state` and BGP action containers using `openconfig-routing-policy-ext.yang`.
@@ -517,7 +506,7 @@ No COUNTER DB tables are used for route-map configuration.
 **Conventions:**
 - Each subsection maps one OpenConfig container or list. Paths are shown as an indented tree; placeholders: `<policy-name>`, `<stmt>`.
 - **Extension** — `Yes` on extension leaves; blank on base OpenConfig leaves. Extension definitions are in [§3.1.5](#315-openconfig-extensions).
-- Where `config` and `state` share the same mapping, both are covered in one table; operational `state` is returned on GET from CONFIG_DB.
+- Where `config` and `state` share the same mapping, both are covered in one table. Current scope is configuration only: GET `state` is a replica of `config` from CONFIG_DB (no FRR live-state source).
 
 ## 4.1 Policy Definition
 **OpenConfig path:**
@@ -614,7 +603,7 @@ No COUNTER DB tables are used for route-map configuration.
 | name | | CONFIG_DB | TAG_SET:key `{name}` | Same as list key |
 | tag-value | | CONFIG_DB | TAG_SET:tag_value@ | Leaf-list of tag values; comma-separated in CONFIG_DB |
 
-`TAG_SET` is programmed by frrcfgd into FRR bgpd. Northbound REST/gNMI CRUD on `/defined-sets/tag-sets` is not bound in the current UMF annotation set; tag sets may be provisioned in CONFIG_DB and referenced by route-map `match-tag-set` by name. `match-tag-set/config/tag-set` also accepts a numeric tag value stored directly in `ROUTE_MAP:match_tag` without a `TAG_SET` row.
+`TAG_SET` is programmed by frrcfgd into FRR bgpd. **OpenConfig CRUD for `/defined-sets/tag-sets` is not supported** (no UMF annotation for that xpath). Tag-set objects may be provisioned in CONFIG_DB (or another interface) and referenced by route-map `match-tag-set` by name. `match-tag-set/config/tag-set` also accepts a numeric tag value stored directly in `ROUTE_MAP:match_tag` without a `TAG_SET` row. AS-path-set is different: `/defined-sets/bgp-defined-sets/as-path-sets` **is** annotated and has OpenConfig CRUD ([§4.6](#46-as-path-set)).
 
 ## 4.6 AS Path Set
 **OpenConfig path:**
@@ -906,9 +895,9 @@ Section 7 summarizes generic functional and negative scenarios for REST and gNMI
 6. Prefix-set match (IPv4 and IPv6 field selection by referenced set mode); community-set, ext-community-set, and as-path-set match; tag-set match (named set or inline numeric value); local-pref, MED, origin, install-protocol, interface, call-policy; extended match next-hop-set, source network-instance, and neighbor.
 7. `match-set-options` on `match-as-path-set` and `match-ext-community-set`: `ANY` accepted; `ALL`/`INVERT` rejected.
 
-**Defined sets (tag-set and AS path set)**
+**Defined sets (AS path set; tag-set match)**
 8. POST/GET/PATCH/DELETE on `defined-sets/bgp-defined-sets/as-path-sets` including `as-path-set-member` and `action` leaves.
-9. Route-map `match-tag-set` create/get/patch/delete with inline tag value or named tag-set reference.
+9. Route-map `match-tag-set` create/get/patch/delete with inline tag value or named tag-set reference. OpenConfig CRUD on `/defined-sets/tag-sets` is not supported.
 
 **BGP set-actions**
 10. `set-community` INLINE (with `options=ADD` additive) and REFERENCE; `set-ext-community` INLINE/REFERENCE; `set-large-community` INLINE.
