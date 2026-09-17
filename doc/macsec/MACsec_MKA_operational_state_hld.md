@@ -162,6 +162,10 @@ compatibility mode, test, API, or code change in `sonic-wpa-supplicant`.
     two-second deadline per port and without overlapping timer executions.
 18. A failed query for one port must not stop collection for later ports in the
     same namespace.
+19. Safe rotation must require the healthy protected Controlled Port state:
+    `kay_status=active`, `authenticated=false`, `secured=true`, and
+    `failed=false`. Authenticated-only unprotected mode and inconsistent state
+    combinations must be rejected.
 
 ## 2 Background
 
@@ -335,9 +339,9 @@ MACSEC_MKA_SESSION_TABLE|{{interface}}
 | -------------- | --------------- | ----------------------- |
 | `profile` | CONFIG_DB port attachment | Effective profile name |
 | `kay_status` | `PAE KaY status` | `active` or `not-active` |
-| `authenticated` | `Authenticated` | WPA `Yes`/`No` to lowercase boolean |
-| `secured` | `Secured` | WPA `Yes`/`No` to lowercase boolean |
-| `failed` | `Failed` | WPA `Yes`/`No` to lowercase boolean |
+| `authenticated` | `Authenticated` | Controlled Port authenticated-only/unprotected mode; WPA `Yes`/`No` to lowercase boolean |
+| `secured` | `Secured` | Controlled Port is MACsec protected; WPA `Yes`/`No` to lowercase boolean |
+| `failed` | `Failed` | Controlled Port failure state; WPA `Yes`/`No` to lowercase boolean |
 | `actor_sci` | `actor_sci` | Normalize `MAC@port` to 16 lowercase hex digits |
 | `key_server_sci` | `key_server_sci` | Same SCI normalization; all-zero is valid before election |
 | `actor_priority` | `Actor Priority` | Unsigned integer |
@@ -356,6 +360,13 @@ desired-vs-runtime agreement. They are intentionally independent.
 `last_updated` is independent from both and records only the last successful
 validated query. No derived `freshness` field is stored; config and show
 consumers calculate age from `last_updated`.
+
+The WPA/IEEE Controlled Port fields are not cumulative success flags. Healthy
+protected operation is `authenticated=false,secured=true,failed=false`.
+`authenticated=true,secured=false` means authenticated-only Controlled Port
+operation without MACsec protection; it is not the healthy protected state.
+The `authenticated` field therefore must not be presented as “MKA
+authentication succeeded.”
 
 `macsecmgrd` is the sole writer of this table in each namespace.
 
@@ -407,7 +418,7 @@ Healthy primary and fallback:
 MACSEC_MKA_SESSION_TABLE|Ethernet0
     profile="mka-rotation"
     kay_status="active"
-    authenticated="true"
+    authenticated="false"
     secured="true"
     failed="false"
     actor_sci="0011223344550001"
@@ -676,9 +687,15 @@ Common session predicates:
 - `config_status=in-sync`;
 - `last_updated` exists and is no more than 60 seconds old;
 - `kay_status=active`;
-- `authenticated=true`;
+- `authenticated=false`;
 - `secured=true`; and
 - `failed=false`.
+
+This exact tuple is required. `authenticated=true,secured=false` is
+authenticated-only, unprotected Controlled Port operation and is unsafe for
+rotation. `authenticated=true,secured=true` and other contradictory
+combinations are rejected as inconsistent. A non-active, non-secured, or
+failed session is also rejected.
 
 For primary rotation, the configured fallback row must:
 
@@ -703,8 +720,9 @@ Requiring a live alternate CA is the safety proof: it is the CA that carries
 the Controlled Port while the selected participant is absent.
 
 Freshness alone is never sufficient. Rotation also requires healthy query and
-configuration status, the expected configured roles, an active alternate
-participant, and at least one live peer.
+configuration status, the protected Controlled Port tuple
+`active/authenticated=false/secured=true/failed=false`, the expected configured
+roles, an active alternate participant, and at least one live peer.
 
 `is_principal` is observed and displayed separately because it is dynamic. It
 is useful for consistency diagnostics, but it is not the configured-role safety
@@ -905,13 +923,19 @@ namespace as the secondary ordering key.
 
 `Age` is derived only from `last_updated`; it is an elapsed duration or
 `never` when no successful update exists. `Status` is `ok` only when
-`query_status=ok`, `config_status=in-sync`, and age is at most 60 seconds.
-Otherwise it combines concise independent flags:
+`query_status=ok`, `config_status=in-sync`, age is at most 60 seconds, and the
+session has the healthy protected tuple
+`kay_status=active,authenticated=false,secured=true,failed=false`. Otherwise it
+combines concise independent flags:
 
 - `query-error` or conservative `query-unknown`;
 - `config-degraded` or conservative `config-unknown`;
 - `stale` when age exceeds 60 seconds; and
-- `never-updated` when age is `never`.
+- `never-updated` when age is `never`;
+- `auth-only` for `authenticated=true,secured=false`;
+- `unprotected` when the session is not secured;
+- `failed` when the Controlled Port failure flag is set; and
+- `state-inconsistent` for contradictory Controlled Port combinations.
 
 For example, a retained snapshot can show
 `query-error,config-degraded,stale` while `Age` continues to report the time
@@ -940,7 +964,7 @@ $ show macsec --mka Ethernet0
 Interface:            Ethernet0
 Profile:              mka-rotation
 PAE KaY status:       active
-Authenticated:        true
+Authenticated-only CP mode: false
 Secured:              true
 Failed:               false
 Actor SCI:            0011223344550001
@@ -960,8 +984,10 @@ CKN                                                               Role      Prin
 ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100  fallback  true      true      1         0 true       true    c0b0a0908070605040302010 324
 ```
 
-When degraded, the detail view prints `config_error` prominently but never
-prints key material.
+The detail label deliberately says `Authenticated-only CP mode`, not
+`Authenticated`, so the healthy value `false` is not misread as failed MKA
+authentication. When degraded, the detail view prints `config_error`
+prominently but never prints key material.
 
 ## 8 Process and Container Restart
 
@@ -1052,26 +1078,29 @@ WPA HLD and are consumed as-is.
 | 15 | Config | Same-CKN CAK replacement | Rejected |
 | 16 | Config | Unknown old CKN or new CKN equals other CA | Rejected |
 | 17 | Config | Invalid CAK/CKN encoding or cipher length | Rejected |
-| 18 | Preflight | Attached primary rotation with selected old `is_primary=true` and live alternate `is_primary=false` | CONFIG_DB update allowed when session is fresh and healthy |
-| 19 | Preflight | Attached fallback rotation with selected old `is_primary=false` and live alternate `is_primary=true` | CONFIG_DB update allowed when session is fresh and healthy |
-| 20 | Preflight | Missing, older than 60 seconds, query-failed, or degraded session | Entire command rejected with affected ports |
-| 21 | Preflight | Alternate absent, wrong role, inactive, or zero live peers | Entire command rejected |
-| 22 | Preflight | Multiple attached ports, one unsafe | No CONFIG_DB update for any port |
-| 23 | Preflight | Unattached profile | Update allowed without live-state validation |
-| 24 | Race | State changes after CLI validation | macsecmgrd revalidation aborts before remove |
-| 25 | Primary rollover | Remove old primary, then add replacement | Fallback carries traffic; replacement converges; primary ownership returns |
-| 26 | Fallback rollover | Remove old fallback, then add replacement | Primary carries traffic throughout |
-| 27 | Remove failure | Existing participant remains | No add; degraded state reported; safe retry |
-| 28 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
-| 29 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
-| 30 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
-| 31 | Show | Compact and detailed healthy output | Compact view is naturally sorted and shows combined Status plus derived Age; detail retains separate diagnostics |
-| 32 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
-| 33 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
-| 34 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
-| 35 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
-| 36 | Security | Poison CONFIG/status/log paths with key sentinels | No configured or decoded key material published or rendered |
-| 37 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
+| 18 | Preflight | Attached primary rotation with selected old `is_primary=true`, live alternate `is_primary=false`, and `active/authenticated=false/secured=true/failed=false` | CONFIG_DB update allowed when query/config state is healthy and age is at most 60 seconds |
+| 19 | Preflight | Attached fallback rotation with selected old `is_primary=false`, live alternate `is_primary=true`, and `active/authenticated=false/secured=true/failed=false` | CONFIG_DB update allowed when query/config state is healthy and age is at most 60 seconds |
+| 20 | Preflight | `authenticated=true,secured=false` authenticated-only mode | Entire command rejected as unprotected |
+| 21 | Preflight | Contradictory CP fields such as `authenticated=true,secured=true` | Entire command rejected as state-inconsistent |
+| 22 | Preflight | Missing, older than 60 seconds, query-failed, or degraded session | Entire command rejected with affected ports |
+| 23 | Preflight | Alternate absent, wrong role, inactive, or zero live peers | Entire command rejected |
+| 24 | Preflight | Multiple attached ports, one unsafe | No CONFIG_DB update for any port |
+| 25 | Preflight | Unattached profile | Update allowed without live-state validation |
+| 26 | Race | State changes after CLI validation | macsecmgrd revalidation aborts before remove |
+| 27 | Primary rollover | Remove old primary, then add replacement | Fallback carries traffic; replacement converges; primary ownership returns |
+| 28 | Fallback rollover | Remove old fallback, then add replacement | Primary carries traffic throughout |
+| 29 | Remove failure | Existing participant remains | No add; degraded state reported; safe retry |
+| 30 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
+| 31 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
+| 32 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
+| 33 | Show | Healthy protected state | Compact Status is `ok`; detail shows `Authenticated-only CP mode: false` and `Secured: true` |
+| 34 | Show | Authenticated-only or contradictory CP state | Compact Status shows `auth-only` or `state-inconsistent`; detail preserves the raw normalized fields |
+| 35 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
+| 36 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
+| 37 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
+| 38 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
+| 39 | Security | Poison CONFIG/status/log paths with key sentinels | No configured or decoded key material published or rendered |
+| 40 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
 
 ## 13 Rollout and Dependency Ordering
 
