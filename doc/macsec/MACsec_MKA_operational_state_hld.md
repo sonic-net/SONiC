@@ -923,23 +923,24 @@ namespace as the secondary ordering key.
 
 `Age` is derived only from `last_updated`; it is an elapsed duration or
 `never` when no successful update exists. `Status` is `ok` only when
-`query_status=ok`, `config_status=in-sync`, age is at most 60 seconds, and the
-session has the healthy protected tuple
-`kay_status=active,authenticated=false,secured=true,failed=false`. Otherwise it
-combines concise independent flags:
+`query_status=ok`, `config_status=in-sync`, and age is at most 60 seconds.
+Otherwise it combines concise independent flags:
 
 - `query-error` or conservative `query-unknown`;
 - `config-degraded` or conservative `config-unknown`;
 - `stale` when age exceeds 60 seconds; and
-- `never-updated` when age is `never`;
-- `auth-only` for `authenticated=true,secured=false`;
-- `unprotected` when the session is not secured;
-- `failed` when the Controlled Port failure flag is set; and
-- `state-inconsistent` for contradictory Controlled Port combinations.
+- `never-updated` when age is `never`.
 
 For example, a retained snapshot can show
 `query-error,config-degraded,stale` while `Age` continues to report the time
 since its last successful update.
+
+Compact `Status` deliberately describes observation freshness and
+configuration consistency only. It does not duplicate Controlled Port state.
+The separate `Secured` column is the compact protected/unprotected indication;
+the detailed view exposes `Authenticated-only CP mode`, `Secured`, and `Failed`
+independently. Consequently, compact `Status=ok` is not by itself proof that a
+rotation is safe.
 
 ### 7.3 Interface-specific output
 
@@ -1093,8 +1094,8 @@ WPA HLD and are consumed as-is.
 | 30 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
 | 31 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
 | 32 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
-| 33 | Show | Healthy protected state | Compact Status is `ok`; detail shows `Authenticated-only CP mode: false` and `Secured: true` |
-| 34 | Show | Authenticated-only or contradictory CP state | Compact Status shows `auth-only` or `state-inconsistent`; detail preserves the raw normalized fields |
+| 33 | Show | Healthy protected state | Compact `Secured` is true; detail shows `Authenticated-only CP mode: false` and `Secured: true`; Status independently reflects query/config/age health |
+| 34 | Show | Authenticated-only or contradictory CP state | Compact `Secured` remains a separate CP indication; detail preserves `Authenticated-only CP mode`, `Secured`, and `Failed`; Status is not overloaded with CP flags |
 | 35 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
 | 36 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
 | 37 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
