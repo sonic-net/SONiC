@@ -389,14 +389,11 @@ assumes a stable peer/key-server SCI across the primary and fallback CAs.
 
 ### 3.4 Deferred post-promotion rekey
 
-Rekeying *immediately* on promotion is what breaks the datapath: while the two
-ends are still converging on the new principal, the rotation races traffic and
-frames are lost. The rekey is therefore deferred by **≈3 hello times** and the
-inherited SAK carries traffic until then.
-
-The **settle window** is that deferral — the grace period between a change of
-principal and the rekey that follows it, long enough (≈3 hello times, ≈6 s at
-the default 2 s hello) for MKA hellos to converge on both ends.
+An immediate rekey does not inherently break the datapath: the inherited SAK
+remains active and ordinary rollover is make-before-break. As a robustness
+measure, automatic rekey is deferred by **≈3 hello times** so both endpoints
+can observe the new principal before another rollover begins. This **settle
+window** is approximately 6 seconds with the default 2-second hello interval.
 
 The window only delays the start of rekey. Once rekey begins, the ordinary CP
 rollover applies, including the peer-confirmation gate in §3.5.1.
