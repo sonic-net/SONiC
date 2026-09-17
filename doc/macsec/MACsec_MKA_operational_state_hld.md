@@ -65,6 +65,17 @@ It is a companion to:
 - [MACsec SONiC High Level Design](MACsec_hld.md), which owns the existing
   CONFIG_DB, APP_DB, SecY programming, MACsecOrch, and SAI design.
 
+Companion implementation pull requests:
+
+- [sonic-swss-common#1251](https://github.com/sonic-net/sonic-swss-common/pull/1251)
+  — shared STATE_DB table-name constants;
+- [sonic-swss#4827](https://github.com/sonic-net/sonic-swss/pull/4827)
+  — macsecmgrd publication, safety validation, and rollover actioning;
+- [sonic-buildimage#29102](https://github.com/sonic-net/sonic-buildimage/pull/29102)
+  — docker-macsec config and show commands; and
+- [sonic-wpa-supplicant#138](https://github.com/sonic-net/sonic-wpa-supplicant/pull/138)
+  — frozen fallback-key control/status dependency.
+
 **WPA supplicant is unchanged by this design.** This document consumes only the
 existing `wpa_cli` control and status interfaces provided by the fallback-CA
 feature. It does not propose a new command, field, alias, output format, parser
@@ -144,6 +155,13 @@ compatibility mode, test, API, or code change in `sonic-wpa-supplicant`.
     desired-vs-runtime inconsistency conspicuous.
 15. Multi-ASIC systems must keep publication and safety decisions namespace
     local while allowing the show/config commands to aggregate correctly.
+16. Each namespace-local `macsecmgrd` instance must be the sole writer of its
+    MKA session and participant STATE_DB tables.
+17. Periodic collection must sweep all configured MACsec ports in the local
+    namespace every 20 seconds, querying them sequentially with a hard
+    two-second deadline per port and without overlapping timer executions.
+18. A failed query for one port must not stop collection for later ports in the
+    same namespace.
 
 ## 2 Background
 
@@ -335,6 +353,11 @@ MACSEC_MKA_SESSION_TABLE|{{interface}}
 
 `query_status` describes observation health; `config_status` describes
 desired-vs-runtime agreement. They are intentionally independent.
+`last_updated` is independent from both and records only the last successful
+validated query. No derived `freshness` field is stored; config and show
+consumers calculate age from `last_updated`.
+
+`macsecmgrd` is the sole writer of this table in each namespace.
 
 ### 3.3 MKA participant STATE_DB table
 
@@ -372,6 +395,9 @@ MACSEC_MKA_PARTICIPANT_TABLE|{{interface}}|{{normalized_ckn}}
 The normalized CKN in the key is the stable participant identity. CKN is an
 identifier and is safe to expose. `participant_index` can change after process
 restart or participant recreation.
+
+The namespace-local `macsecmgrd` instance is also the sole writer of this
+table.
 
 ### 3.4 Example records
 
@@ -528,23 +554,26 @@ how add/remove failures remain observable.
 
 ### 4.4 Refresh and freshness
 
-Status is refreshed:
+Periodic collection is a full sweep of every configured MACsec port in the
+local namespace every 20 seconds. `macsecmgrd` executes the sweep sequentially
+in its single-threaded event loop. Each `macsec_mka_list` query has a hard
+two-second deadline. Timer executions never overlap; a later timer execution
+does not begin while the preceding sweep is still running.
 
-- immediately after MACsec enable;
-- immediately after each successful participant remove or add;
-- after WPA control reconnection;
-- when an attached profile changes; and
-- periodically for active MACsec ports.
+If one port query times out or fails, only that interface follows the
+query-error behavior in §4.5. The sweep continues with every later port in the
+namespace.
 
-The proposed periodic interval is approximately five seconds and is tunable.
-Polling is staggered and bounded so one slow control query cannot create an
-unbounded queue or block configuration processing for all ports.
+Immediate queries at daemon startup, MACsec enable, rollover safety
+revalidation, after successful participant remove/add, and after WPA control
+reconnection use the same bounded query path and two-second per-query deadline.
 
 `last_updated` is an ISO 8601 UTC timestamp of the last successful validated
 query, not the last state change.
 
-The default stale threshold is 15 seconds, three times the proposed refresh
-interval. The config and show commands use the same effective threshold.
+The config and show commands consider a snapshot stale once its age exceeds
+60 seconds. Freshness is derived from `last_updated`; it is not stored in
+STATE_DB.
 
 ### 4.5 Failure and deletion behavior
 
@@ -557,6 +586,10 @@ set:
 - do not advance `last_updated`;
 - do not delete participant rows; and
 - log the interface and reason without key material.
+
+During a periodic namespace sweep, this error handling is per interface. A
+failure does not stop or invalidate successful observations for other ports,
+and collection proceeds to the next port.
 
 Before any successful query, a minimal row may contain:
 
@@ -641,7 +674,7 @@ Common session predicates:
 - `profile` matches the profile being updated;
 - `query_status=ok`;
 - `config_status=in-sync`;
-- `last_updated` exists and is not stale;
+- `last_updated` exists and is no more than 60 seconds old;
 - `kay_status=active`;
 - `authenticated=true`;
 - `secured=true`; and
@@ -668,6 +701,10 @@ extra participant may make the state ambiguous.
 
 Requiring a live alternate CA is the safety proof: it is the CA that carries
 the Controlled Port while the selected participant is absent.
+
+Freshness alone is never sufficient. Rotation also requires healthy query and
+configuration status, the expected configured roles, an active alternate
+participant, and at least one live peer.
 
 `is_principal` is observed and displayed separately because it is dynamic. It
 is useful for consistency diagnostics, but it is not the configured-role safety
@@ -837,12 +874,12 @@ mutually exclusive with modes that replace the normal status view.
 ### 7.2 Compact output
 
 ```text
-Interface  KaY     Secured Principal CKN   Role     Live Key-server SCI   Local-KS Query Config   Freshness
----------  ------  ------- --------------- -------- ---- ---------------- --------- ----- --------  ----------------
-Ethernet0  active  true    001122...ddeeff primary     1 0011223344550001 true      ok    in-sync  2s
-Ethernet4  active  true    ffeedd...221100 fallback    1 0011223344550005 false     ok    in-sync  4s
-Ethernet8  active  true    89abcd...456789 primary     1 aabbccddeeff0001 false     error degraded 18s (stale, retained)
-Ethernet16 -       -       -               -           - -                -         error degraded never
+Interface  KaY     Secured Principal CKN   Role     Live Key-server SCI   Local-KS Status                       Age
+---------  ------  ------- --------------- -------- ---- ---------------- --------- ---------------------------- -----
+Ethernet0  active  true    001122...ddeeff primary     1 0011223344550001 true      ok                           2s
+Ethernet8  active  true    89abcd...456789 primary     1 aabbccddeeff0001 false     query-error,config-degraded 18s
+Ethernet16 active  true    ffeedd...221100 fallback    1 0011223344550011 false     stale                        75s
+Ethernet32 -       -       -               -           - -                -         query-unknown,config-unknown never
 ```
 
 The compact view shows:
@@ -852,8 +889,8 @@ The compact view shows:
 - principal CKN and configured role;
 - principal live-peer count;
 - key-server SCI and local key-server state;
-- query and configuration status; and
-- freshness.
+- combined status; and
+- age since the last successful validated update.
 
 The displayed role is derived from `is_primary`: `primary` when true and
 `fallback` (best-effort) when false. Principal ownership is resolved separately
@@ -862,13 +899,23 @@ from `is_principal`.
 An all-zero key-server SCI renders as `-`. A missing field renders as `-`, not
 a fabricated value.
 
-Freshness labels:
+Rows are sorted by natural interface order (`Ethernet0`, `Ethernet8`,
+`Ethernet16`, not lexical `Ethernet0`, `Ethernet16`, `Ethernet8`), with
+namespace as the secondary ordering key.
 
-- age only for fresh successful data;
-- `retained` when `query_status=error` and a prior successful snapshot exists;
-- `stale` when age exceeds the threshold;
-- `stale, retained` when both apply; and
-- `never` when no successful snapshot exists.
+`Age` is derived only from `last_updated`; it is an elapsed duration or
+`never` when no successful update exists. `Status` is `ok` only when
+`query_status=ok`, `config_status=in-sync`, and age is at most 60 seconds.
+Otherwise it combines concise independent flags:
+
+- `query-error` or conservative `query-unknown`;
+- `config-degraded` or conservative `config-unknown`;
+- `stale` when age exceeds 60 seconds; and
+- `never-updated` when age is `never`.
+
+For example, a retained snapshot can show
+`query-error,config-degraded,stale` while `Age` continues to report the time
+since its last successful update.
 
 ### 7.3 Interface-specific output
 
@@ -973,9 +1020,9 @@ forms.
 | Repository / component | Change |
 | ---------------------- | ------ |
 | `sonic-swss-common` | Add the two STATE_DB table-name constants if they are not already present. |
-| `sonic-swss` / `macsecmgrd` | Collect existing MKA status, publish/reconcile both tables, derive query/config metadata, implement fresh alternate-CA revalidation, execute remove-then-add rollover, and preserve per-interface applied state for retry. |
+| `sonic-swss` / `macsecmgrd` | Solely own and populate the namespace-local tables; run sequential 20-second full sweeps with a two-second per-query deadline; derive query/config metadata; implement fresh alternate-CA revalidation; execute remove-then-add rollover; and preserve per-interface applied state for retry. |
 | `sonic-buildimage` / docker-macsec config CLI | Add paired fallback options where required and replacement-by-old-CKN update with all-port STATE_DB safety preflight before CONFIG_DB mutation. |
-| `sonic-buildimage` / docker-macsec show CLI | Add `show macsec --mka [interface]`, namespace aggregation, freshness/error/config-state rendering, and secret-safe field allowlisting. |
+| `sonic-buildimage` / docker-macsec show CLI | Add `show macsec --mka [interface]`, natural interface sorting with namespace secondary ordering, compact Status/Age rendering, detailed query/config diagnostics, and secret-safe field allowlisting. |
 | `sonic-mgmt` | Add CONFIG_DB/STATE_DB/CLI, rotation safety, failure/retry, process-restart, namespace, and traffic-continuity tests. |
 | MACsecOrch / SAI / vendor SDK | No change. Existing dataplane tables and programming remain separate. |
 
@@ -998,30 +1045,33 @@ WPA HLD and are consumed as-is.
 | 8 | Refresh | First query fails | Minimal metadata only; no fabricated fields |
 | 9 | Refresh | Failure after success | Data retained, timestamp unchanged, query error visible |
 | 10 | Refresh | Recovery | Valid snapshot replaces retained state and advances timestamp |
-| 11 | Config | Half-configured fallback or duplicate CKN | Rejected before CONFIG_DB change |
-| 12 | Config | Same-CKN CAK replacement | Rejected |
-| 13 | Config | Unknown old CKN or new CKN equals other CA | Rejected |
-| 14 | Config | Invalid CAK/CKN encoding or cipher length | Rejected |
-| 15 | Preflight | Attached primary rotation with selected old `is_primary=true` and live alternate `is_primary=false` | CONFIG_DB update allowed when session is fresh and healthy |
-| 16 | Preflight | Attached fallback rotation with selected old `is_primary=false` and live alternate `is_primary=true` | CONFIG_DB update allowed when session is fresh and healthy |
-| 17 | Preflight | Missing, stale, query-failed, or degraded session | Entire command rejected with affected ports |
-| 18 | Preflight | Alternate absent, wrong role, inactive, or zero live peers | Entire command rejected |
-| 19 | Preflight | Multiple attached ports, one unsafe | No CONFIG_DB update for any port |
-| 20 | Preflight | Unattached profile | Update allowed without live-state validation |
-| 21 | Race | State changes after CLI validation | macsecmgrd revalidation aborts before remove |
-| 22 | Primary rollover | Remove old primary, then add replacement | Fallback carries traffic; replacement converges; primary ownership returns |
-| 23 | Fallback rollover | Remove old fallback, then add replacement | Primary carries traffic throughout |
-| 24 | Remove failure | Existing participant remains | No add; degraded state reported; safe retry |
-| 25 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
-| 26 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
-| 27 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
-| 28 | Show | Compact and detailed healthy output | Role is derived from `is_primary`; principal ownership is shown separately; detail uses full CKN |
-| 29 | Show | Query failure, stale data, never-successful query | Cannot look healthy |
-| 30 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
-| 31 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
-| 32 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
-| 33 | Security | Poison CONFIG/status/log paths with key sentinels | No configured or decoded key material published or rendered |
-| 34 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
+| 11 | Scheduler | Periodic namespace sweep | Every configured port is queried sequentially every 20 seconds; timer executions do not overlap |
+| 12 | Scheduler | One port exceeds the two-second query deadline | Only that row becomes query-error; its prior data/timestamp remain; later ports are still queried |
+| 13 | Scheduler | Startup, enable, or rollover safety query | Uses the same bounded two-second query path |
+| 14 | Config | Half-configured fallback or duplicate CKN | Rejected before CONFIG_DB change |
+| 15 | Config | Same-CKN CAK replacement | Rejected |
+| 16 | Config | Unknown old CKN or new CKN equals other CA | Rejected |
+| 17 | Config | Invalid CAK/CKN encoding or cipher length | Rejected |
+| 18 | Preflight | Attached primary rotation with selected old `is_primary=true` and live alternate `is_primary=false` | CONFIG_DB update allowed when session is fresh and healthy |
+| 19 | Preflight | Attached fallback rotation with selected old `is_primary=false` and live alternate `is_primary=true` | CONFIG_DB update allowed when session is fresh and healthy |
+| 20 | Preflight | Missing, older than 60 seconds, query-failed, or degraded session | Entire command rejected with affected ports |
+| 21 | Preflight | Alternate absent, wrong role, inactive, or zero live peers | Entire command rejected |
+| 22 | Preflight | Multiple attached ports, one unsafe | No CONFIG_DB update for any port |
+| 23 | Preflight | Unattached profile | Update allowed without live-state validation |
+| 24 | Race | State changes after CLI validation | macsecmgrd revalidation aborts before remove |
+| 25 | Primary rollover | Remove old primary, then add replacement | Fallback carries traffic; replacement converges; primary ownership returns |
+| 26 | Fallback rollover | Remove old fallback, then add replacement | Primary carries traffic throughout |
+| 27 | Remove failure | Existing participant remains | No add; degraded state reported; safe retry |
+| 28 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
+| 29 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
+| 30 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
+| 31 | Show | Compact and detailed healthy output | Compact view is naturally sorted and shows combined Status plus derived Age; detail retains separate diagnostics |
+| 32 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
+| 33 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
+| 34 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
+| 35 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
+| 36 | Security | Poison CONFIG/status/log paths with key sentinels | No configured or decoded key material published or rendered |
+| 37 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
 
 ## 13 Rollout and Dependency Ordering
 
