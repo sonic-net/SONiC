@@ -236,8 +236,10 @@ re-secures on a freshly distributed SAK.
 Three safety rules complete the picture:
 
 - A `Distributed SAK` is validated **entirely within the receiving CA** before it
-  is allowed to touch the CP, so a SAK arriving on the fallback CA cannot
-  install key material for the port it does not own.
+  is allowed to touch the CP. A valid `Distributed SAK` is authoritative and
+  can make a fallback participant the principal; only after validation and
+  principal selection can its key material be applied to the shared CP and
+  SecY.
 - Only the **principal** key server distributes SAKs. An explicit
   `macsec_rekey` request is rejected when the principal is not key server,
   rather than returning success for a request that cannot be acted on locally.
@@ -264,9 +266,17 @@ sequenceDiagram
   FB->>PEER: full SAK-Use<br/>KI, AN, RX/TX, LPN, DP = shared state<br/>PTx/PRx = shared status
 ```
 
-SONiC accepts valid SAK-Use on either CKN and uses it for that actor's
-convergence state. Key installation remains limited to a `Distributed SAK`
-validated within its CA.
+On receive, only the **principal participant** decodes and acts on SAK-Use key
+state. A non-principal participant treats the presence of SAK-Use as liveness
+only; its KI, AN, RX/TX, LPN, and delay-protect fields cannot advance or retire
+the shared CP state. Within the principal, normal MKA validation still applies:
+a local key server correlates peer SAK-Use with the SAK it distributed, while a
+principal non-key-server processes SAK-Use from its elected key server.
+
+This receive-side principal gate is independent of `Distributed SAK`
+processing. A valid `Distributed SAK` received and validated within a fallback
+CA can promote that participant to principal, after which it can install the
+distributed key and process SAK-Use for convergence.
 
 ### 3.3 Hitless failover
 
@@ -706,8 +716,9 @@ flow; those changes are out of scope for this document.
 | 13 | Two-SA hardware with SONiC as non-key-server | Peer-selected AN permits make-before-break; document peer combinations for which this is verified |
 | 14 | Peer uses a different SCI on fallback | Separate receive SC is created, but `chgdServer` resets CP; scenario is not claimed as hitless |
 | 15 | Deliberately inconsistent per-CA key-server election | Split-key-server operation is unsupported; no zero-loss convergence is claimed |
-| 16 | SAK-Use with both CAs live and during migration | Both CKNs send full bodies; only the principal has nonzero key state; standby reports PTx/PRx; roles swap atomically |
+| 16 | SAK-Use with both CAs live and during migration | Both CKNs send full bodies; only the principal sends nonzero key state and acts on received key state; standby reports PTx/PRx and treats received SAK-Use as liveness only; roles swap atomically |
 | 17 | Counters across principal migration and deferred rekey | No counter reset at principal migration; later counter behavior matches an ordinary SAK rekey |
+| 18 | Valid Distributed SAK arrives on a live fallback CA while the local participant is non-key-server | The Distributed SAK is validated within that CA, the fallback can become principal, and only then is the key applied to the shared CP/SecY |
 
 Loss measurement should be a continuous bidirectional stream across the link for
 scenarios 3–7 and 11–13; the pass criterion is zero dropped frames for the peer
