@@ -483,12 +483,19 @@ Once the neighbor solicitation or ARP is send, the arp_update script shall perio
 
 Directed broadcast packets are flooded directly in the hardware and depending on the ToR where the packet lands, the packet may not get flooded on all the ports (which are standby). This is a behavioral difference from the existing single ToR and require a different approach (TBD).
 
-##### 6.3.5.4. Standby ToR Failed IPv6 Neighbor Entry
-For a valid IPv6 neighbor entry that is ‘REACHABLE’ on the active ToR, it’s possible for the same neighbor on the standby to be in the ‘FAILED’ state because the kernel does not automatically learn neighbor information from unsolicited neighbor advertisement (NA) messages. In this case, if a switchover occurs for the link on which the neighbor is located, traffic will be disrupted because the new active ToR (previously standby) has a ‘FAILED’ neighbor entry. The change in 6.3.5.2 (zero mac) prevents the normal neighbor learning process from occurring – the tunnel route means that packets destined for the neighbor will be sent to the peer. The following changes have been made to prevent this from occurring:
-1. Enable kernel parameter `accept_untracked_na` (see 6.3.3) to prevent asymmetric neighbor learning
-1. Edit the `arp_update` script to change any ‘FAILED’ neighbor entries to ‘INCOMPLETE’. 
-    1. In the ‘FAILED’ state, neighbor entries will not be updated/learned when the kernel receives an NA message. Setting it to ‘INCOMPLETE’ allows these entries to be learned.
-    1. Once `arp_update` runs on the standby ToR and changes any ‘FAILED’ entries to ‘INCOMPLETE’, the next run of `arp_update` on the active ToR will trigger NA messages from connected neighbors. When these messages are received by the standby ToR, the ‘INCOMPLETE’ neighbor entries will be fully resolved.
+##### 6.3.5.4. Failed IPv6 Neighbor Entry Preventing Traffic Forwarding
+Because of the change in 6.3.5.2 (zero MAC neighbor entry), a 'FAILED' neighbor entry will block the kernel's normal neighbor resolution process since traffic destined to the neighbor is tunneled to the peer TOR instead of trapped to the CPU. Furthermore, a 'FAILED' neighbor cannot be resolved upon receipt of a neighbor advertisement. Two scenarios have been identified where a 'FAILED' IPv6 neighbor entry can prevent normal traffic forwarding from occurring:
+
+1. For a valid IPv6 neighbor entry that is ‘REACHABLE’ on the active ToR, it’s possible for the same neighbor on the standby to be in the ‘FAILED’ state because the kernel does not automatically learn neighbor information from unsolicited neighbor advertisement (NA) messages. In this case, if a switchover occurs for the link on which the neighbor is located, traffic will be disrupted because the new active ToR (previously standby) has a ‘FAILED’ neighbor entry. 
+2. If traffic destined to a particular neighbor IP lands on the TOR before that neighbor IP is reachable (e.g. the TOR receives traffic for a VM that is not ready yet), the TOR will create a 'FAILED' neighbor entry. If the TOR where traffic originally landed is active for the neighbor IP, the peer will be standby and thus unable to resolve the neighbor when it receives tunneled traffic from the original TOR.
+
+The following changes have been made to address these issues:
+1. Enable kernel parameter `accept_untracked_na` (see 6.3.3) to allow neighbor learning from unsolicited NAs.
+2. 'FAILED' neighbor entries will be immediately changed to 'INCOMPLETE' upon creation. `neighsyncd` will write any 'FAILED' IPv6 neighbor entries to APPL_DB `NEIGH_FAILED_TABLE`. `nbrmgrd` subscribes to this table and will change the neighbor entries to 'INCOMPLETE'.
+    - Unlike 'FAILED' neighbors, 'INCOMPLETE' neighbors can be resolved upon receipt of a NA. For the purposes of traffic forwarding and neighbor reachability, 'FAILED' and 'INCOMPLETE' are considered equivalent.
+3. Edit the `arp_update` script to change any remaining ‘FAILED’ neighbor entries to ‘INCOMPLETE’. 
+    
+Once 'FAILED' neighbors are changed to 'INCOMPLETE', the next run of `arp_update` on the active ToR will trigger NA messages from connected neighbors. When these messages are received by the standby ToR, the 'INCOMPLETE' neighbor entries will be fully resolved. The neighbors can also now be resolved upon receipt of an unsolicited NA.
 
 ### 6.4. MUX Driver
 
