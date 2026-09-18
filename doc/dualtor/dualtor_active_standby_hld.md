@@ -3,6 +3,7 @@
 |  Rev  |   Date   |    Author     | Change Description                 |
 | :---: | :------: | :-----------: | ---------------------------------- |
 |  0.1  | 02/14/25 |  Jing Zhang   | Publish active-standby dualtor doc |
+|  0.2  | 09/17/26 |  Lawrence Lee | Update FAILED IPv6 neighbor handling |
 
 
 <!-- TOC orderedlist:true -->
