@@ -262,7 +262,6 @@ ckn
 mi
 mn
 active
-participant
 retain
 is_principal
 is_primary
@@ -378,7 +377,6 @@ MACSEC_MKA_PARTICIPANT_TABLE|{{interface}}|{{normalized_ckn}}
     "mi":{{mi}}
     "mn":{{mn}}
     "active":{{true|false}}
-    "participant":{{true|false}}
     "retain":{{true|false}}
     "is_principal":{{true|false}}
     "is_primary":{{true|false}}
@@ -394,7 +392,6 @@ MACSEC_MKA_PARTICIPANT_TABLE|{{interface}}|{{normalized_ckn}}
 | `mi` | `mi` | Lowercase hexadecimal MI |
 | `mn` | `mn` | Unsigned integer |
 | `active` | `active` | WPA `Yes`/`No` to lowercase boolean |
-| `participant` | `participant` | WPA `Yes`/`No` to lowercase boolean |
 | `retain` | `retain` | WPA `Yes`/`No` to lowercase boolean |
 | `is_principal` | `is_principal` | Current Controlled Port owner |
 | `is_primary` | `is_primary` | Privileged/revertive configured role |
@@ -406,6 +403,12 @@ MACSEC_MKA_PARTICIPANT_TABLE|{{interface}}|{{normalized_ckn}}
 The normalized CKN in the key is the stable participant identity. CKN is an
 identifier and is safe to expose. `participant_index` can change after process
 restart or participant recreation.
+
+The remaining fields carry distinct operational meaning: `active` reports
+participant activity, `is_principal` reports current Controlled Port
+ownership, `is_primary` reports the configured privileged/revertive role,
+`live_peers` and `potential_peers` report peer state, and the key-server fields
+report election state.
 
 The namespace-local `macsecmgrd` instance is also the sole writer of this
 table.
@@ -438,7 +441,6 @@ MACSEC_MKA_PARTICIPANT_TABLE|Ethernet0|00112233445566778899aabbccddeeff001122334
     mi="102030405060708090a0b0c0"
     mn="482"
     active="true"
-    participant="true"
     retain="false"
     is_principal="true"
     is_primary="true"
@@ -452,7 +454,6 @@ MACSEC_MKA_PARTICIPANT_TABLE|Ethernet0|ffeeddccbbaa99887766554433221100ffeeddccb
     mi="c0b0a0908070605040302010"
     mn="319"
     active="true"
-    participant="true"
     retain="false"
     is_principal="false"
     is_primary="false"
@@ -470,7 +471,6 @@ MACSEC_MKA_PARTICIPANT_TABLE|Ethernet0|ffeeddccbbaa99887766554433221100ffeeddccb
     mi="c0b0a0908070605040302010"
     mn="324"
     active="true"
-    participant="true"
     retain="false"
     is_principal="true"
     is_primary="false"
@@ -491,6 +491,9 @@ Port.
 `macsecmgrd` invokes only existing WPA commands and parses only the fields
 listed in §2.3. It does not request an output extension or infer a field that
 WPA does not report.
+
+In particular, macsecmgrd does not require, synthesize, or publish the removed
+WPA `participant` management field.
 
 Metadata not supplied by WPA is narrowly defined:
 
@@ -955,8 +958,8 @@ The detailed view shows every session field, including `config_status` and
 - MI; and
 - MN.
 
-`participant_index`, `participant`, and `retain` remain in STATE_DB for
-diagnostics/forward compatibility but are not operator-facing columns.
+`participant_index` and `retain` remain in STATE_DB for diagnostics/forward
+compatibility but are not operator-facing columns.
 
 The raw session fields `kay_status`, `authenticated`, `secured`, and `failed`
 remain in STATE_DB. The detailed CLI presents them as one derived
@@ -1076,7 +1079,7 @@ WPA HLD and are consumed as-is.
 | - | ---- | -------- | --------------- |
 | 1 | Schema | Primary-only status | One session and one primary participant row; no secret fields |
 | 2 | Schema | Primary plus fallback | Exactly one row has `is_primary=true`; the configured fallback has `is_primary=false` |
-| 3 | Parser | Existing WPA `Yes`/`No`, SCI, MI, counters | Values normalize to schema types |
+| 3 | Parser/schema | Current WPA participant fields, `Yes`/`No`, SCI, MI, and counters | Values normalize to schema types; removed `participant` field is neither required nor published |
 | 4 | Parser | Missing/duplicate/malformed field or partial block | Query rejected; previous rows retained; `query_status=error` |
 | 5 | Reconciliation | Response missing an expected runtime CKN | State marked error/degraded; no stale deletion |
 | 6 | Reconciliation | Successful managed participant remove | Expected set advances after command success; only removed row is deleted |
