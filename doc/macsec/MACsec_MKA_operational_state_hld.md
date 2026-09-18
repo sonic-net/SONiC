@@ -938,9 +938,9 @@ since its last successful update.
 Compact `Status` deliberately describes observation freshness and
 configuration consistency only. It does not duplicate Controlled Port state.
 The separate `Secured` column is the compact protected/unprotected indication;
-the detailed view exposes `Authenticated-only CP mode`, `Secured`, and `Failed`
-independently. Consequently, compact `Status=ok` is not by itself proof that a
-rotation is safe.
+the detailed view derives one `Controlled port mode` value from the raw
+`kay_status`, `authenticated`, `secured`, and `failed` fields. Consequently,
+compact `Status=ok` is not by itself proof that a rotation is safe.
 
 ### 7.3 Interface-specific output
 
@@ -958,16 +958,30 @@ The detailed view shows every session field, including `config_status` and
 `participant_index`, `participant`, and `retain` remain in STATE_DB for
 diagnostics/forward compatibility but are not operator-facing columns.
 
+The raw session fields `kay_status`, `authenticated`, `secured`, and `failed`
+remain in STATE_DB. The detailed CLI presents them as one derived
+`Controlled port mode` field using this ordered mapping:
+
+| Controlled port mode | Raw STATE_DB tuple |
+| -------------------- | ------------------ |
+| `unknown` | Any required field is missing or malformed |
+| `failed` | `failed=true`, regardless of the other valid fields |
+| `secured` | `kay_status=active,authenticated=false,secured=true,failed=false` |
+| `authenticated-only` | `kay_status=active,authenticated=true,secured=false,failed=false` |
+| `inactive` | `kay_status=not-active,authenticated=false,secured=false,failed=false` |
+| `inconsistent` | Any other fully present, syntactically valid combination |
+
+This derived field is presentation only. It does not replace the raw STATE_DB
+fields or the exact protected-state tuple required by rotation safety
+validation.
+
 Example during primary rollover:
 
 ```text
 $ show macsec --mka Ethernet0
 Interface:            Ethernet0
 Profile:              mka-rotation
-PAE KaY status:       active
-Authenticated-only CP mode: false
-Secured:              true
-Failed:               false
+Controlled port mode: secured
 Actor SCI:            0011223344550001
 Key server SCI:       0011223344550001
 Actor priority:       16
@@ -985,10 +999,8 @@ CKN                                                               Role      Prin
 ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100  fallback  true      true      1         0 true       true    c0b0a0908070605040302010 324
 ```
 
-The detail label deliberately says `Authenticated-only CP mode`, not
-`Authenticated`, so the healthy value `false` is not misread as failed MKA
-authentication. When degraded, the detail view prints `config_error`
-prominently but never prints key material.
+When degraded, the detail view prints `config_error` prominently but never
+prints key material.
 
 ## 8 Process and Container Restart
 
@@ -1094,14 +1106,15 @@ WPA HLD and are consumed as-is.
 | 30 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
 | 31 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
 | 32 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
-| 33 | Show | Healthy protected state | Compact `Secured` is true; detail shows `Authenticated-only CP mode: false` and `Secured: true`; Status independently reflects query/config/age health |
-| 34 | Show | Authenticated-only or contradictory CP state | Compact `Secured` remains a separate CP indication; detail preserves `Authenticated-only CP mode`, `Secured`, and `Failed`; Status is not overloaded with CP flags |
-| 35 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
-| 36 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
-| 37 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
-| 38 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
-| 39 | Security | Poison CONFIG/status/log paths with key sentinels | No configured or decoded key material published or rendered |
-| 40 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
+| 33 | Show | Healthy protected state | Compact `Secured` is true; detail shows `Controlled port mode: secured`; Status independently reflects query/config/age health |
+| 34 | Show | Authenticated-only CP state | Compact `Secured` is false; detail shows `Controlled port mode: authenticated-only`; Status is not overloaded with CP flags |
+| 35 | Show | Failed, inactive, contradictory, or incomplete CP state | Detail derives `failed`, `inactive`, `inconsistent`, or `unknown` according to the ordered mapping |
+| 36 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
+| 37 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
+| 38 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
+| 39 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
+| 40 | Security | Poison CONFIG/status/log paths with key sentinels | No configured or decoded key material published or rendered |
+| 41 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
 
 ## 13 Rollout and Dependency Ordering
 
