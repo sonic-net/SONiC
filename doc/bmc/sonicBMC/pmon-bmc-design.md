@@ -247,7 +247,7 @@ BMC controls the State of the Switch-Host based on various factors/events. Defin
 | Event | Source | Description |
 |-------|--------|-------------|
 | `SYSTEM_LEAK_CRITICAL_EVENT` | thermalctld | A critical leak severity has been determined locally by thermalctld based on leak sensor data. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
-| `SYSTEM_LEAK_MAJOR_EVENT` | thermalctld | MIN-N or more minor leak sensors have been detected locally, OR a single minor leak sensor has persisted beyond the escalation timer `max_minor_duration_sec` (MAX-T secs) (aggregate system severity), which needs a quick action but not necessarily a power off. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
+| `SYSTEM_LEAK_MAJOR_EVENT` | thermalctld | MIN-N or more minor leak sensors have been detected locally, OR a single minor leak sensor has persisted beyond the escalation timer `max_minor_duration_sec` (MAX-T secs) (aggregate system severity), which needs a quick action (could be taken externally via a higher severity alert which is monitored) but not necessarily a power off. See severity algorithm in [2.2.2 thermalctld](#222-thermalctld) and `SYSTEM_LEAK_STATUS` table. |
 | `SYSTEM_LEAK_MINOR_EVENT` | thermalctld | A single minor leak sensor has been detected locally and has not yet exceeded the escalation timer `max_minor_duration_sec`. See [2.2.2 thermalctld](#222-thermalctld) and `LEAK_PROFILE` table. |
 | `RACK_MGR_CRITICAL_EVENT` |  Rack Manager | A CRITICAL severity alert posted by the Rack Manager via Redfish (e.g. inlet temperature, flow rate, pressure, or rack-level leak). See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
 | `RACK_MGR_MAJOR_EVENT` |  Rack Manager | A MAJOR severity alert posted by the Rack Manager via Redfish. See [2.1.2 BMC Rack Manager Interaction](#212-bmc-rack-manager-interaction) and `RACK_MANAGER_ALERT` table. |
@@ -728,7 +728,7 @@ config liquid-cool leak-control [system|rack_mgr] [enabled|disabled]
 
 * **config liquid-cool leak-action**
 
-CLI to configure the action taken when a critical/minor event is detected. Actions are applied only when the corresponding leak-control policy is enabled with "config liquidcool leak-control".
+CLI to configure the action taken when a critical/major/minor event is detected. Actions are applied only when the corresponding leak-control policy is enabled with "config liquidcool leak-control".
 Applicable to (LC)
 
 ```
