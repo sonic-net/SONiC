@@ -20,7 +20,7 @@ CoPP on real ASICs classifies control-plane protocols, traps them to the CPU, gr
 SONiC's default CoPP config (`copp_cfg.j2`) traps the following protocols on this platform (`show copp config`):
 
 | Protocol / trap | Trap group | CIR/CBS (pps) |
-|---|---|---|---|
+|---|---|---|
 | ARP request / response (`arp_req`, `arp_resp`) | `queue4_group2` | 600 |
 | LACP (`lacp`) | `queue4_group1` | 600 |
 | LLDP (`lldp`) | `queue4_group3` | 100 |
