@@ -1,0 +1,44 @@
+flowchart TB
+  subgraph rp ["RP Supervisor"]
+    direction TB
+    CP["BGP / Zebra"]
+    FPM["fpmsyncd"]
+    NS["neighsyncd"]
+    NM["nbrmgrd"]
+    IM["intfmgrd"]
+    PST["ProducerStateTable"]
+    APPL["Redis APPL_DB"]
+    ZMQ["ZMQ Server"]
+    CP --> FPM
+    FPM --> PST
+    NS --> PST
+    NM --> PST
+    IM --> PST
+    PST -->|"write Redis"| APPL
+    PST -->|"notify ZMQ"| ZMQ
+  end
+
+  subgraph lc ["Line Card"]
+    direction TB
+
+    subgraph npu0 ["NPU 0"]
+      direction TB
+      Z0["zmqClient"]
+      O0["orchagent"]
+      R0["RouteOrch / NeighOrch"]
+      A0["ASIC"]
+      Z0 --> O0 --> R0 --> A0
+    end
+
+    subgraph npu1 ["NPU 1"]
+      direction TB
+      Z1["zmqClient"]
+      O1["orchagent"]
+      R1["RouteOrch / NeighOrch"]
+      A1["ASIC"]
+      Z1 --> O1 --> R1 --> A1
+    end
+  end
+
+  ZMQ --> Z0
+  ZMQ --> Z1
