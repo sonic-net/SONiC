@@ -36,6 +36,9 @@ For example:
 ## Expectations for pull requests
 Pull requests should be free of any known bugs and be accompanied by tests and appropriate documentation.  Test coverage may include unit tests, integration tests such as [PTF tests](https://github.com/sonic-net/SONiC/wiki/HOWTO-write-a-PTF-Test) defined in the [sonic-mgmt repo](https://github.com/sonic-net/sonic-mgmt/tree/master/ansible/roles/test/tasks).
 
+See [SONiC Release Branch Labels and Pull Request Lifecycle](doc/guidelines/release-branch-labels-and-pr-lifecycle.md)
+for release label conventions and the release branch backport lifecycle.
+
 ## Commiting new test
 When committing a new feature with a new test, please complete a [test plan from the template](doc/SONiC%20Test%20Plan%20Template.md)
 
