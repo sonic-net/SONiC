@@ -4,8 +4,9 @@
 
 | Rev | Date | Author(s) | Changes |
 |-----|------|-----------|---------|
-| 1.0 | 2026-09-02 | Vesper | Initial HLD for the completed `copp_punt_policer` device-input plugin design. |
-| 1.1 | 2026-09-18 | Vesper | • Switched from ingress policing at device-input to egress policing at interface_output<br>• Migrated from standalone plugins to sonic_ext|
+| 1.0 | 2026-09-02 | nhegde-microsoft | Initial HLD for the completed `copp_punt_policer` device-input plugin design. |
+| 1.1 | 2026-09-18 | nhegde-microsoft | • Switched from ingress policing at device-input to egress policing at interface_output<br>• Migrated from standalone plugins to sonic_ext |
+| 1.2 | 2026-09-20 | nhegde-microsoft | • Added a node-graph summary for the three classify+police entry points<br>• Documented t0 validation results and follow-on scope for the DHCP failures found there |
 
 ---
 
@@ -64,6 +65,20 @@ All three plugins live in the existing `sonic_ext` VPP plugin (not standalone pl
 2. **`sonic-ext-copp-ifout`** (Ethernet) — a feature node on `interface-output` of each linux-cp-paired TAP, matching by EtherType (ARP, LACP, LLDP, TTL_ERROR via ethertype 0x0800 + IPv4 TTL≤1). By the time linux-cp's punt path (`linux-cp-punt`/`linux-cp-punt-xc`/`lcp_arp_phy_node`) reaches `interface-output`, it has already rewound the buffer to an intact Ethernet frame and set the TX interface to the correct TAP — so this node only ever sees traffic VPP already decided is CPU-bound.
 3. **`sonic-ext-copp-udld`** (LLC) — UDLD's wire encoding is sub-0x600, so VPP's `ethernet-input` treats its 14th/15th bytes as an 802.3 length field, not an EtherType, and always routes it to `llc-input`, which drops it before it can ever reach `sonic-ext-copp-ifout`'s EtherType classify. This node registers as the LLC/SNAP handler for UDLD's real (Cisco OUI) and PTF-test (LLC-null-adjacent) wire encodings, resolves the ingress phy's paired TAP, tags the frame in opaque metadata, and hands the packet directly to `sonic-ext-copp-ifout` for policing.
 
+### Node-graph summary
+
+```
+ip4-input (host-bound)  ->  ip4-punt  ->  sonic-ext-copp-ip2me  ->  {police -> punt-socket | drop}
+                                                (IP2ME/SNMP/SSH by dst-IP, BGP/BGPv6 by TCP dport)
+
+linux-cp-punt / linux-cp-punt-xc  ->  interface-output (TAP)  ->  sonic-ext-copp-ifout  ->  {police -> TAP | drop}
+                                                (ARP/LACP/LLDP/TTL_ERROR by EtherType; TTL_ERROR needs 0x0800 + IPv4 TTL<=1)
+
+ethernet-input (sub-0x600 length field)  ->  llc-input  ->  sonic-ext-copp-udld  ->  sonic-ext-copp-ifout  ->  {police -> TAP | drop}
+                                                (UDLD via Cisco-OUI / PTF LLC-null-adjacent SNAP match)
+```
+
+All three paths converge on the same policer object (`vnet_police_packet()` against the SAI-created VPP policer), so metering happens at three points but policing logic is single-sourced.
 
 ## Alternate Designs Considered
 
@@ -98,6 +113,10 @@ All CoPP `test_copp.py` sub-tests pass on `vlab-vpp-01` (testbed `vms-kvm-vpp-t1
 | Test | Reason |
 |---|---|
 | `test_trap_neighbor_miss` | Gated to T0-family topologies (`tests_mark_conditions.yaml`'s topo_name condition, independent of `asic_type`). Needs to be done during T0 testing. |
+
+### t0 validation
+
+The design above was also run, not just expected to work, against a `t0-vpp` KVM testbed to confirm it is not `t1-lag`-specific. Most of `test_copp.py` passes unchanged on t0 (same `sonic-ext-copp-ip2me`/`sonic-ext-copp-ifout`/`sonic-ext-copp-udld` nodes, same policer wiring — no topology-specific code paths). A few DHCP/DHCPv6-related subtests fail on t0, likely tied to how DHCP is classified/punted on VLAN-tagged access ports versus the LAG member ports used on t1-lag, rather than a gap in the classify/policer design itself. These t0 DHCP failures will be root-caused and fixed in a follow-on PR rather than blocking this HLD/design, since the core CoPP dataplane-enforcement design (REQ-1..REQ-7) is confirmed topology-agnostic.
 
 ### `test_remove_trap` fix (2026-09-18)
 
