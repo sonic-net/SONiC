@@ -34,6 +34,7 @@ The schema is designed to be:
 | 0.3 | 2026-08-18 | Gregory Boudreau | Clarified action sequencing, direct-I2C expansion, and artifact-capacity behavior. |
 | 0.4 | 2026-08-25 | Gregory Boudreau | Focused schema tests on representative wire behavior and security boundaries rather than exhaustive low-risk permutations or coverage targets. |
 | 0.5 | 2026-09-03 | Gregory Boudreau | Made activation validation atomic, made missing installed hooks file-fatal, moved discovery cadence into common DLDD, separated action completion from recovery success, and reduced artifact ownership to trigger plus reference publication. |
+| 0.6 | 2026-09-20 | Gregory Boudreau | Clarified candidate-wide validation failures and documented deterministic normalization of configured static-log patterns before artifact collection. |
 
 ## Document Authority
 
@@ -85,7 +86,7 @@ Semantic versioning describes how schema authors classify changes; it does not a
 
 An uploaded rules source selects a contract only through its scalar `schema_version`. It cannot supply a schema path, module name, URI, validator, or materializer. The exact-version Pydantic contract and its explicit DTO-to-domain converter define extraction and interpretation.
 
-Unknown-field behavior is defined independently by each registered schema contract. Core DLDD objects reject unknown fields. Explicit vendor extension envelopes may accept and preserve bounded JSON-compatible vendor fields after the installed platform advertises the extension type. Unknown types, enum values, required fields, or behavior-bearing fields outside those extension points fail validation for the scope in which they occur.
+Unknown-field behavior is defined independently by each registered schema contract. Core DLDD objects reject unknown fields. Explicit vendor extension envelopes may accept and preserve bounded JSON-compatible vendor fields after the installed platform advertises the extension type. Unknown types, enum values, required fields, or behavior-bearing fields outside those extension points reject the complete candidate; diagnostics identify the signature and field in which they occur.
 
 Schema `0.0.1` is a pre-release contract and already incorporates the authoritative Pydantic model, optional per-event `sampling_interval`, and optional bounded `async` collection behavior described below. Those changes do not require compatibility shims before the first release. After release, behavior for an exact version is immutable; a behavioral change requires a new explicit schema version and registry entry.
 
@@ -366,8 +367,9 @@ The object requires `hook`; other members are bounded JSON-compatible vendor opt
 When an event declares `instances`, any list-valued path field other than an
 `argv` command list is positional and must have exactly one element per
 instance. This applies to built-in I2C lists and to list-valued fields in a
-`platform_api` vendor hook envelope; mismatches are rule-level validation
-errors rather than runtime indexing failures.
+`platform_api` vendor hook envelope; a mismatch rejects the candidate during
+validation rather than becoming a runtime indexing failure. The diagnostic is
+still attached to the affected signature and field path.
 
 Direct platform API access is expected to be vendor-defined. DSE is the preferred abstraction for platform APIs because it lets vendors bind symbolic rule references to platform object methods and hardware-specific implementation details.
 
@@ -568,9 +570,9 @@ action:
 
 For `type: i2c` local actions, `path.bus`, `path.chip_addr`, `path.command`, and `path.size` identify the target using the same shape as the direct I2C event path. `path.bus` may be one non-empty logical bus name or a non-empty list; a list expands in declared order and every bus operation shares the action's single overall timeout budget. `path.i2c_type: "get"` performs a read action and records the result in action/audit metadata. `path.i2c_type: "set"` writes `path.value` to the target; that field must be present and non-null. More complex I2C side effects, such as read-modify-write sequences, should be modeled through vendor DSE actions unless a later schema version defines a direct structure for them.
 
-Vendors may add implementation-specific action/query types only when the platform validator advertises support for those types. Unknown action/query types fail validation for the affected rule.
+Vendors may add implementation-specific action/query types only when the platform validator advertises support for those types. An unknown action/query type rejects the complete candidate, with the diagnostic attached to the affected rule.
 
-For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, validation fails for that rule. For log queries, `timeout` is optional and is not defaulted by the schema; if omitted, DLDD does not impose a schema-level query timeout, while the DLDD artifact client's retention and storage policies still bound stored output.
+For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, the complete candidate is rejected, with the diagnostic attached to that action. For log queries, `timeout` is optional and is not defaulted by the schema; if omitted, DLDD does not impose a schema-level query timeout, while the DLDD artifact client's retention and storage policies still bound stored output.
 
 **Remote Actions (Required):**
 The action list uses OpenConfig Healthz fault remediation identities. OpenConfig identity values are extensible, so DLDD requires each entry to be a non-empty string but does not restrict it to a locally maintained enum. Standard or vendor-defined identities are preserved unchanged for the controller. Vendor identities use `<yang-module>:<identity>` and must be present in the platform's compiled YANG model for UMF export. `time_window` defines how long, in seconds, the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the controller may progress to the next action in `action_list` according to controller policy.
@@ -653,13 +655,13 @@ queries:
 | `queries` | List | Conditional | Ordered sequence of diagnostic data collection commands triggered after local recovery actions complete, or after signature confirmation when no local actions are configured. Each query wrapper contains a `query` object with a type field specifying the execution method and type-specific fields for the operation. Queries are executed sequentially in the artifact worker context. DLDD can publish the Healthz artifact identifier before the query output is complete; outputs/content are added to the artifact when generation completes. Required only when `log_collection` omits `logs`; if `logs` is also omitted, at least one `query` is required. | List of `query` wrapper objects. Supported wrapped query types are defined by the Local Action and Query Validation Model. CLI queries use `argv`. DSE queries use `command`. | See example above |
 | `logs` | List | Conditional | Static files or glob patterns collected by the artifact worker after local recovery actions complete, or after signature confirmation when no local actions are configured. Required only when `log_collection` omits `queries`; if `queries` is also omitted, at least one `log` is required. | List of log objects | See example above |
 
-DLDD triggers artifact generation and publishes a stable identifier, request time, and location once. The default client asynchronously writes one final archive under `/var/lib/sonic/dldd/artifacts` with bounded size/retention; it does not publish lifecycle states, sidecar manifests, or completion updates. Static log collection expands globs but accepts only regular non-symlink files and does not recurse. The authenticated gNOI Healthz `Artifact` RPC waits for the referenced final file within a bounded/cancelable window and streams it. Artifact completion remains independent of action result, post-action recheck, and `FAULT_INFO` publication.
+DLDD triggers artifact generation and publishes a stable identifier, request time, and location once. The default client asynchronously writes one final archive under `/var/lib/sonic/dldd/artifacts` with bounded size/retention; it does not publish lifecycle states, sidecar manifests, or completion updates. Before collection, static log patterns are expanded in declaration order, matches within each pattern are sorted, paths are normalized to absolute paths, and duplicate paths are removed while preserving first occurrence. Collection then operates only on that normalized list, accepts regular non-symlink files, and does not recurse. The authenticated gNOI Healthz `Artifact` RPC waits for the referenced final file within a bounded/cancelable window and streams it. Artifact completion remains independent of action result, post-action recheck, and `FAULT_INFO` publication.
 
 ## Abstract Rule Data Source Extensions - Vendor Extensible
 
 ### What are Data Source Extensions
 
-Abstract data source extensions (DSE) provide a way for vendors to extend the schema with granularity at the NOS level. This allows vendors to define their own detailed hardware abstractions that can be used to match against specific events and conditions, while keeping the actual rules source file standardized and uniform. Vendors are not required to implement or use DSE, but they provide a way to better simplify the rules source file and make it more maintainable. Complexity and potential variations in hardware implementations can be abstracted away from the rules source file. Actual integration and usage of the DSE will be done through a vendor implemented hook which the on-device service will operate on. If a rule references a DSE function that is not defined for the target platform, validation fails for that rule.
+Abstract data source extensions (DSE) provide a way for vendors to extend the schema with granularity at the NOS level. This allows vendors to define their own detailed hardware abstractions that can be used to match against specific events and conditions, while keeping the actual rules source file standardized and uniform. Vendors are not required to implement or use DSE, but they provide a way to better simplify the rules source file and make it more maintainable. Complexity and potential variations in hardware implementations can be abstracted away from the rules source file. Actual integration and usage of the DSE is through a vendor-implemented hook which the on-device service operates. If any rule references a DSE function that is not defined for the target platform, activation rejects the complete candidate and reports the affected rule and reference.
 
 Data source extensions also allow for the ability to hook into NOS specific APIs and methods. A good example of this would be defining a DSE that resolves to a method to call on the SONiC platform chassis object to retrieve the PSU object, and then using that object to retrieve the PSU output voltage fault register. This allows for the reuse of existing infrastructure the NOS provides wherever possible.
 
@@ -750,7 +752,7 @@ The monitor invokes runtime handles only; typed direct results have already join
 | `get_value` | Monitor or async collection worker, every event sample/recheck | Raw source value | Read only the selected binding |
 | `get_comparator` | Same collection job, every event sample/recheck | `ResolvedEvaluation` | Refresh expected value/operator or construct a trusted comparator |
 | `resolve_action` / `resolve_query` | Activation thread | `ResolvedCommand` | Bind an executor without invoking it |
-| `ResolvedCommand.executor` | Action or artifact worker at the rule-defined runtime point | Operation-specific result | Execute the immutable materialized operation |
+| `ResolvedCommand.executor` | Action or artifact worker at the rule-defined runtime point | Operation-specific result; actions may return bounded-capture `ActionOutput` | Execute the immutable materialized operation |
 
 This split allows a vendor DSE source to discover instances periodically while reading fast-changing values and thresholds every event sample. For example, a platform's abstract `current*` selector may use a private STATE_DB expansion handler every five minutes once stable, while `get_value()` rereads `current` and `get_high_threshold()` rereads `high_threshold` every five-second sample. Direct Redis paths likewise query the configured source on every sample; a direct value is never cached merely because its rule was materialized.
 
@@ -796,7 +798,7 @@ A direct event with explicit `instances` is also an instanced source and may use
 
 #### Runtime Expansion and Stabilization
 
-Source inventory may change while SONiC producers and hardware settle. Common DLDD invokes expansion immediately and every five seconds while inventory is new, changing, or recovering from an error. After three consecutive identical successful results—including an empty inventory—it backs off to 300 seconds. A later change or exception returns to five-second refresh. Child `get_value()` and `get_comparator()` continue at the event sampling cadence throughout.
+Source inventory may change while SONiC producers and hardware settle. Common DLDD invokes expansion immediately and every five seconds while inventory is new, changing, or recovering from an error. After three consecutive identical successful results—including an empty inventory—it backs off to 300 seconds. A later change or exception returns to five-second refresh. A collection failure from a dynamic child makes its owning templates immediately due for expansion so removal can be confirmed without waiting for the stable interval. If removal is temporarily deferred because the child is in-flight or held, that scan does not count toward stable backoff. Child `get_value()` and `get_comparator()` continue at the event sampling cadence throughout.
 
 A successful result is the current inventory; an exception is not an empty result. An absent child is retired only when it is not in-flight or held and no other template owns it. The primary discards removed event history and rechecks any independently owned expression. Otherwise retained fault state becomes `INACTIVE` under the normal TTL. Expansion failure retains the last successful children and faults and reports a localized runtime exception.
 
