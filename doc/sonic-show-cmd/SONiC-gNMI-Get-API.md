@@ -15,7 +15,7 @@ SONiC on-demand show command execution via gNMI
 - [Other approaches](#other-approaches-considered)
 
 # Goals
-1. Provide a gNMI based API as a read only interface for retrieving SONiC device metadata, which can allow remote invocation without interactive user login.
+1. Provide a gNMI based API as a read only interface for retrieving SONiC device metadata (equivalent to show cli commands), which can allow remote invocation without interactive user login.
 2. Provide a way to implement show CLI commands using gNMI APIs.
 3. Provide a structured response that can be consumed by application.
 4. Support Rate limiting using configurable parameters. For instance:
@@ -95,6 +95,37 @@ On device, Telemetry container runs the gNMI server using server certificate and
 
 Once certificates are configured, the CLI(with gNMI client) communicates with the gNMI server in Telemetry container.
 
+```mermaid
+flowchart LR
+    U([SONiC User])
+
+    subgraph DEVICE["SONiC Device"]
+        W["Show CLI Wrapper"]
+        IC["Show CLI<br/>Input Converter"]
+        G["gNMI"]
+        OC["Show CLI<br/>Output Converter"]
+
+        W -->|"CLI request"| IC
+        IC -->|"gNMI Get request<br/>target: SHOW<br/>path: reboot-cause"| G
+
+        G -->|"Structured response<br/>reboot_cause history"| OC
+        OC -->|"CLI-formatted response"| W
+    end
+
+    U -->|"show reboot-cause"| W
+    W -->|"User issued reboot command<br/>User: admin<br/>Time: Mon Jun 30 05:18 AM UTC 2025"| U
+
+    classDef user fill:#eaf2f8,stroke:#1f618d,color:#17202a,stroke-width:2px;
+    classDef wrapper fill:#e8f6f3,stroke:#148f77,color:#17202a,stroke-width:2px;
+    classDef converter fill:#fef5e7,stroke:#b9770e,color:#3d2b0b,stroke-width:2px;
+    classDef gnmi fill:#f5eef8,stroke:#7d3c98,color:#2e1538,stroke-width:2px;
+
+    class U user;
+    class W wrapper;
+    class IC,OC converter;
+    class G gnmi;
+```
+
 ## CLI Command to gNMI Path Conversion
 The gNMI path structure cab be directly drived from the existing SONiC CLI commands to preserve consistency and simplify adoption. Instead of introducing a new schema, a deterministic transformation model can be used to convert CLI commands into hierarchical gNMI paths.
 The mapping is 1:1 with CLI behavior to ensure predictable conversion, easy debugging, and CLI to gNMI parity.
@@ -130,8 +161,8 @@ show interfaces status --verbose
   -ca <path_to_CA_crt> \
   -client_crt <path_to_client_crt> \
   -client_key <path_to_client_key> \
-  -t OTHERS -logtostderr \
-  -qt p -pi 10s -q show/switch-trimming/global
+  -t SHOW -logtostderr \
+  -qt p -pi 10s -q switch-trimming/global
 ```
 
 ```json
@@ -150,8 +181,8 @@ show interfaces status --verbose
   -ca <path_to_CA_crt> \
   -client_crt <path_to_client_crt> \
   -client_key <path_to_client_key> \
-  -t OTHERS -logtostderr \
-  -qt p -pi 10s -q show/interface[interface=Ethernet0]/status
+  -t SHOW -logtostderr \
+  -qt p -pi 10s -q interface[interface=Ethernet0]/status
 ```
 
 ```json
