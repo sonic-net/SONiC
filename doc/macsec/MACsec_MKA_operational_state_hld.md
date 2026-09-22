@@ -682,6 +682,12 @@ CONFIG_DB**.
 Every port must pass. The command performs no CONFIG_DB write if any port
 fails.
 
+The command captures one UTC `now` value before evaluating any attached port
+and uses that same value for every `last_updated` age calculation. This gives
+every port the same freshness boundary, makes the all-port decision independent
+of iteration order, and prevents a long validation pass from aging later ports
+differently.
+
 Common session predicates:
 
 - session row exists;
@@ -947,8 +953,10 @@ compact `Status=ok` is not by itself proof that a rotation is safe.
 
 ### 7.3 Interface-specific output
 
-The detailed view shows every session field, including `config_status` and
-`config_error`, followed by a participant table containing:
+The detailed view retains `PAE KaY status` and `Failed` as separate diagnostics.
+It replaces only the raw `Authenticated` and `Secured` lines with one derived
+`Controlled port mode`. The view also shows `config_status` and `config_error`,
+followed by a participant table containing:
 
 - full CKN;
 - configured role;
@@ -984,7 +992,9 @@ Example during primary rollover:
 $ show macsec --mka Ethernet0
 Interface:            Ethernet0
 Profile:              mka-rotation
+PAE KaY status:       active
 Controlled port mode: secured
+Failed:               false
 Actor SCI:            0011223344550001
 Key server SCI:       0011223344550001
 Actor priority:       16
@@ -1044,6 +1054,14 @@ The config CLI and macsecmgrd must:
 - keep `config_error` free of key material; and
 - preserve existing CONFIG_DB access controls.
 
+Before displaying free-form `config_error`, docker-macsec applies
+defense-in-depth redaction. It removes the currently configured encoded CAKs
+and their decoded forms. It also removes stale CAK-shaped material: 66-, 128-,
+and 130-hex-character secret shapes generally, and 64-hex-character values when
+CAK/key-material context identifies them as secrets. CKN identifiers and
+non-secret context such as interface names and explanatory error text remain
+visible.
+
 Tests poison input/configuration with sentinel secret values and assert that
 neither STATE_DB nor `show macsec --mka` contains configured or decoded key
 forms.
@@ -1100,7 +1118,7 @@ WPA HLD and are consumed as-is.
 | 21 | Preflight | Contradictory CP fields such as `authenticated=true,secured=true` | Entire command rejected as state-inconsistent |
 | 22 | Preflight | Missing, older than 60 seconds, query-failed, or degraded session | Entire command rejected with affected ports |
 | 23 | Preflight | Alternate absent, wrong role, inactive, or zero live peers | Entire command rejected |
-| 24 | Preflight | Multiple attached ports, one unsafe | No CONFIG_DB update for any port |
+| 24 | Preflight | Multiple attached ports, one unsafe or at the 60-second freshness boundary | One captured UTC `now` is used for every port; no CONFIG_DB update occurs if any port fails |
 | 25 | Preflight | Unattached profile | Update allowed without live-state validation |
 | 26 | Race | State changes after CLI validation | macsecmgrd revalidation aborts before remove |
 | 27 | Primary rollover | Remove old primary, then add replacement | Fallback carries traffic; replacement converges; primary ownership returns |
@@ -1109,14 +1127,14 @@ WPA HLD and are consumed as-is.
 | 30 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
 | 31 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
 | 32 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
-| 33 | Show | Healthy protected state | Compact `Secured` is true; detail shows `Controlled port mode: secured`; Status independently reflects query/config/age health |
+| 33 | Show | Healthy protected state | Compact `Secured` is true; detail shows `PAE KaY status: active`, `Controlled port mode: secured`, and `Failed: false`; Status independently reflects query/config/age health |
 | 34 | Show | Authenticated-only CP state | Compact `Secured` is false; detail shows `Controlled port mode: authenticated-only`; Status is not overloaded with CP flags |
 | 35 | Show | Failed, inactive, contradictory, or incomplete CP state | Detail derives `failed`, `inactive`, `inconsistent`, or `unknown` according to the ordered mapping |
 | 36 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
 | 37 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
 | 38 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
 | 39 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
-| 40 | Security | Poison CONFIG/status/log paths with key sentinels | No configured or decoded key material published or rendered |
+| 40 | Security | Poison config/status/error paths with current and stale encoded/decoded CAKs plus CKN/interface/error context | Every CAK form is redacted from STATE_DB/show/log output; CKN and non-secret context remain visible |
 | 41 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
 
 ## 13 Rollout and Dependency Ordering
