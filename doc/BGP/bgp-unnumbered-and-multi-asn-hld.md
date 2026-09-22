@@ -193,6 +193,7 @@ dockers/docker-fpm-frr/frr/bgpd/templates/general/
 └── unnumbered/{instance,peer-group,policies}.conf.j2   (unnumbered branch)
 ```
 
+{% raw %}
 ```jinja
 {# router.j2 #}
 {% macro general_routing(template_name) %}
@@ -205,6 +206,7 @@ dockers/docker-fpm-frr/frr/bgpd/templates/general/
 {%- endif -%}
 {% endmacro %}
 ```
+{% endraw %}
 
 **Pros:** file-level separation; the `numbered/` files are byte-identical to upstream master; easy to add a third branch depending on various metadata, possibility of splitting v4 and v6 in the future and simplify the reading and maintenance of BGP templates.
 
@@ -212,7 +214,7 @@ dockers/docker-fpm-frr/frr/bgpd/templates/general/
 
 ### Approach 2 — Inlined templates
 Draft PR: https://github.com/sonic-net/sonic-buildimage/pull/27370
-Keeps the existing three template files in place and adds an `{% if is_unnumbered %} … {% else %} … {% endif %}` guard inside each. No new files, no subdirs, no dispatcher.
+Keeps the existing three template files in place and adds an {% raw %}`{% if is_unnumbered %} … {% else %} … {% endif %}`{% endraw %} guard inside each. No new files, no subdirs, no dispatcher.
 
 ```
 dockers/docker-fpm-frr/frr/bgpd/templates/general/
