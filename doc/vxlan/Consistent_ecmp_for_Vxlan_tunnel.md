@@ -61,6 +61,7 @@ We modify Config DB's **VNET_ROUTE_TUNNEL** and correspondingly APP_DB's **VNET_
 The following new fields have been added the **VNET_ROUTE_TUNNEL_TABLE**
  - consistent_hashing_buckets
 
+{% raw %}
 ```
 
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}  
@@ -79,6 +80,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     “check_directly_connected”: {{true|false}} (OPTIONAL)
     “consistent_hashing_buckets”: {{bucket_size}} (OPTIONAL)       -> newly introduced
 ```
+{% endraw %}
 
 
 ```
@@ -89,6 +91,7 @@ consistent_hashing_buckets                  = DIGITS      ; if specified, consis
 
 The existing Fine grained ecmp state DB table will be modified to store a VRF/VNET name, so that IP space collisions across VRFs/VNETs can be supported
 
+{% raw %}
 ```
 FG_ROUTE_TABLE|{{VRF/VNET-name}}|{{IPv4 OR IPv6 prefix}}:
     "0": {{next-hop-key}}
@@ -96,6 +99,7 @@ FG_ROUTE_TABLE|{{VRF/VNET-name}}|{{IPv4 OR IPv6 prefix}}:
     ...
     "{{hash_bucket_size -1}}": {{next-hop-key}}
 ```
+{% endraw %}
 
 ## 2.3 CLI
 *CLI command enhancement to be able to see consistent hashing buckets for a partricular VRF/VNET and prefix:*
