@@ -197,6 +197,46 @@ show interfaces status --verbose
 }
 ```
 
+## gNMI Response to CLI Output Formatter
+
+The output formatter converts the structured response returned by a `SHOW` gNMI API into the human-readable output expected from an existing SONiC `show` command.
+
+The formatter is a presentation layer. It does not retrieve device data and does not parse the output of the existing CLI command. Data retrieval and business logic are implemented by the server-side gNMI handler, while the formatter converts the resulting structured data into tables, lists, or text.
+
+## Processing Flow
+
+```mermaid
+flowchart LR
+    A["SONiC CLI command<br/>show interfaces status"]
+    B["CLI input parser"]
+    C["gNMI Get request<br/>target: SHOW"]
+    D["Server-side handler"]
+    E["Structured JSON response"]
+    F["JSON decoder"]
+    G["Command registry"]
+    H["Selected formatter"]
+    I["SONiC CLI output"]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+```
+
+The formatter performs the following operations:
+
+1. Receives the original CLI command and gNMI response.
+2. Extracts the JSON payload from the gNMI `TypedValue`.
+3. Decodes the payload into a dictionary or list.
+4. Parses the CLI command into its command, subcommand, arguments, and options.
+5. Looks up the command's registered formatter configuration.
+6. Applies a generic or command-specific formatter.
+7. Returns output compatible with the existing SONiC CLI presentation.
+
 # New design (HLD)
 ![HLD](HLD-Image.jpg)
 
