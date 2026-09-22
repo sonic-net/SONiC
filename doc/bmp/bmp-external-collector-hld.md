@@ -23,6 +23,8 @@
     * [2.5 Backward Compatibility](#25-backward-compatibility)
     * [2.6 Config DB and YANG Schema](#26-config-db-and-yang-schema)
     * [2.7 Information Flow](#27-information-flow)
+    * [2.8 Security Considerations](#28-security-considerations)
+    * [2.9 Multi-ASIC Support](#29-multi-asic-support)
   * [3 CLI](#3-cli)
   * [4 Resource usage and Test plan](#4-resource-usage-and-test-plan)
 
@@ -35,7 +37,7 @@
 
 # About this Manual
 
-SONiC already supports BMP (BGP Monitoring Protocol, RFC 7854) for monitoring on-box BGP state. That feature — described in the existing design document [BMP for monitoring SONiC BGP info](https://github.com/sonic-net/SONiC/blob/master/doc/bmp/bmp.md) — brings up a `bmp` container running two daemons: `bmpcfgd`, which watches the `BMP` table in CONFIG_DB and controls which tables are populated, and `openbmpd`, an **oon-box** BMP collector that accepts the BMP stream from `bgpd`, parses it, and writes BGP state into `BMP_STATE_DB` for consumption over GNMI / streaming telemetry. To feed `openbmpd`, `bgpd` is started with the BMP module (`-M bmp`) and its configuration template emits a single, hard-coded BMP target connecting to `127.0.0.1:5000`. The only operator-facing knobs (`BMP|table` — `bgp_neighbor_table`, `bgp_rib_in_table`, `bgp_rib_out_table`) control *which tables `openbmpd` populates*; there is no way to point `bgpd` at any collector other than the local one, and no way to tune what each target monitors.
+SONiC already supports BMP (BGP Monitoring Protocol, RFC 7854) for monitoring on-box BGP state. That feature — described in the existing design document [BMP for monitoring SONiC BGP info](https://github.com/sonic-net/SONiC/blob/master/doc/bmp/bmp.md) — brings up a `bmp` container running two daemons: `bmpcfgd`, which watches the `BMP` table in CONFIG_DB and controls which tables are populated, and `openbmpd`, an **on-box** BMP collector that accepts the BMP stream from `bgpd`, parses it, and writes BGP state into `BMP_STATE_DB` for consumption over GNMI / streaming telemetry. To feed `openbmpd`, `bgpd` is started with the BMP module (`-M bmp`) and its configuration template emits a single, hard-coded BMP target connecting to `127.0.0.1:5000`. The only operator-facing knobs (`BMP|table` — `bgp_neighbor_table`, `bgp_rib_in_table`, `bgp_rib_out_table`) control *which tables `openbmpd` populates*; there is no way to point `bgpd` at any collector other than the local one, and no way to tune what each target monitors.
 
 However, some customers want to stream BMP to one or more **external** collectors of their own choosing, rather than depending on the locally-running OpenBMP instance in the `bmp` container. Running that collector on the switch also carries a heavy memory cost in high route-scale environments. Shipping BMP directly to purpose-built external collectors alleviates this memory concern.
 
@@ -338,6 +340,17 @@ For the CONFIG_DB example above, `bgpd.conf` renders as:
    |                 |                  |                   |=================>|
 ```
 
+## 2.8 Security Considerations
+
+- **Transport Security**: BMP updates are exported as a plaintext TCP stream; FRR provides no native BMP TLS. If on-wire data security is the requirement, then the operator can create an IPsec tunnel to connect to external BMP collector, and set it as the source interface using for that collector via `source-interface` knob.
+- **Restricting Traffic**: There is no provision to restrict inbound/outbound traffic using ACL or allowlist configuration. `bgpd` is a BMP client only — it initiates outbound sessions and opens no listening port. The reachable collectors are exactly the configured `BMP_TARGET_COLLECTOR` rows, so that inherently provides some outbound traffic restriction. And since bgpd doesn't accept any incoming connections from external BMP collectors, the inbound exposure concerns are minimal.
+- **Source/steering**: Each session's source can be configured via `source-interface`, which can either be a data-plane interface, or the management interface.
+- **Packet marking**: BMP export inherits the platform's default control-plane marking (best-effort); no dedicated DSCP is set by this feature.
+
+## 2.9 Multi-ASIC Support
+
+On multi-ASIC platforms the BMP tables and both rendering paths operate per-ASIC namespace; each ASIC's `bgpd` establishes its own BMP sessions from that namespace. No global cross-ASIC handling is introduced.
+
 
 # 3 CLI
 
@@ -370,7 +383,7 @@ Operational visibility of the collected data continues to use the existing comma
 4. Command: `show bmp tables`
 ```
 
-Dedicated `config bmp collector …` / `show bmp collectors` click commands for ergonomic editing and display of the new tables are a possible follow-up but are not required by this design.
+BMP target and collector session state (targets, connections, state, and counters) is available today via FRR directly: `vtysh -c "show bmp"`. Dedicated `config bmp collector …` / `show bmp collectors` click wrappers for ergonomic editing and display of the new tables are a possible follow-up but are not required by this design.
 
 
 # 4 Resource usage and Test plan
