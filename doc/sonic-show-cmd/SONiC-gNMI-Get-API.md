@@ -224,6 +224,50 @@ To ensure safe command execution through vtysh, the implementation incorporates 
 
 To prevent further divergence between CLI and gNMI implementations, all `show` command development will follow a **gNMI-first approach**. Direct additions to CLI (`sonic-utilities`) without corresponding gNMI APIs will be restricted.
 
+## Overview
+
+```mermaid
+flowchart LR
+    subgraph P1["Phase 1: Support and Readiness"]
+        A["Publish Go reference implementations<br/>for supported data-access flows"]
+        B["Provide development utilities,<br/>frameworks, and test tooling"]
+        C["Create an SME support group<br/>for design and migration assistance"]
+        D["Validate developer readiness<br/>and implementation guidance"]
+
+        A --> B --> C --> D
+    end
+
+    G{{"Governance Enforcement Gate<br/><br/>Enable repository policy:<br/>No new Python-only show commands"}}
+
+    subgraph P2["Phase 2: Migration and Adoption"]
+        E["Implement gNMI APIs<br/>for existing show commands"]
+        F["Validate API and CLI<br/>functional parity"]
+        H["Modify existing CLI commands<br/>to call the new gNMI APIs"]
+        I["Complete staged migration<br/>and retire duplicated Python logic"]
+
+        E --> F --> H --> I
+    end
+
+    D --> G --> E
+
+    classDef readiness fill:#e8f4fd,stroke:#2878b5,color:#17202a,stroke-width:2px;
+    classDef governance fill:#fff2cc,stroke:#b8860b,color:#3d2b00,stroke-width:3px;
+    classDef migration fill:#e8f6ef,stroke:#238b57,color:#17202a,stroke-width:2px;
+
+    class A,B,C,D readiness;
+    class G governance;
+    class E,F,H,I migration;
+```
+
+## Phase Details
+
+| Stage | Objective | Deliverables | Exit Criteria |
+|---|---|---|---|
+| **Phase 1: Support and Readiness** | Make gNMI-first development practical before enforcing it. | Go reference implementations covering supported data sources and execution flows; CLI-to-gNMI path and output-conversion utilities; development and test guidance; SME support group for design reviews, implementation assistance, and migration support. | Developers have documented examples, usable tooling, test coverage, and an identified support channel. |
+| **Governance Enforcement Gate** | Stop further growth of Python-only `show` command implementations. | Enable the repository governance policy and mandatory review gate. New or materially modified `show` commands must include a corresponding gNMI API and CLI-to-gNMI path mapping. | Python-only implementations are blocked unless an explicitly approved temporary exception is granted. |
+| **Phase 2A: Existing API Migration** | Provide gNMI API coverage for the existing `show` command inventory. | Implement the server-side Go handlers and structured response contracts for existing commands. Validate behavior, error handling, security, scale, and output compatibility. | Each migrated command has a supported gNMI path, a defined response contract, and passing functional-parity tests. |
+| **Phase 2B: CLI Adoption** | Make the SONiC CLI consume the new gNMI APIs instead of executing duplicated Python business logic. | Convert the CLI into a thin client that performs input parsing, gNMI path generation, local gNMI invocation, and output formatting. Remove obsolete Python implementations after successful rollout. | The gNMI path is the default execution path, operational parity is confirmed, and duplicated Python logic can be retired safely. |
+
 ## Governance: Mandatory Review Gate
 
 - Introduce a **reviewer group for `sonic-utilities` repository**
