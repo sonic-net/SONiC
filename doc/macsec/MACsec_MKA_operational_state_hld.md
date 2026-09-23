@@ -166,6 +166,10 @@ compatibility mode, test, API, or code change in `sonic-wpa-supplicant`.
     `kay_status=active`, `authenticated=false`, `secured=true`, and
     `failed=false`. Authenticated-only unprotected mode and inconsistent state
     combinations must be rejected.
+20. Compact MKA output must report primary and fallback live-peer counts from
+    the configured `is_primary` roles independently of current principal
+    ownership. Missing, duplicate, malformed, or unclassifiable role state must
+    render as unknown rather than being inferred from `is_principal`.
 
 ## 2 Background
 
@@ -901,12 +905,12 @@ mutually exclusive with modes that replace the normal status view.
 ### 7.2 Compact output
 
 ```text
-Interface  KaY     Secured Principal CKN   Role     Live Key-server SCI   Local-KS Status                       Age
----------  ------  ------- --------------- -------- ---- ---------------- --------- ---------------------------- -----
-Ethernet0  active  true    001122...ddeeff primary     1 0011223344550001 true      ok                           2s
-Ethernet8  active  true    89abcd...456789 primary     1 aabbccddeeff0001 false     query-error,config-degraded 18s
-Ethernet16 active  true    ffeedd...221100 fallback    1 0011223344550011 false     stale                        75s
-Ethernet32 -       -       -               -           - -                -         query-unknown,config-unknown never
+Interface  KaY     Secured Principal CKN   Role     Primary live peers Fallback live peers Local-KS Status                       Age
+---------  ------  ------- --------------- -------- ------------------ ------------------- --------- ---------------------------- -----
+Ethernet0  active  true    001122...ddeeff primary                    2                   1 true      ok                           2s
+Ethernet8  active  true    89abcd...456789 fallback                   3                   4 false     query-error,config-degraded 18s
+Ethernet16 active  true    ffeedd...221100 fallback                   0                   5 false     stale                        75s
+Ethernet32 -       -       -               -                          -                   - -         query-unknown,config-unknown never
 ```
 
 The compact view shows:
@@ -914,8 +918,9 @@ The compact view shows:
 - interface;
 - KaY and secured state;
 - principal CKN and configured role;
-- principal live-peer count;
-- key-server SCI and local key-server state;
+- primary participant live-peer count;
+- fallback/best-effort participant live-peer count;
+- local key-server state;
 - combined status; and
 - age since the last successful validated update.
 
@@ -923,8 +928,21 @@ The displayed role is derived from `is_primary`: `primary` when true and
 `fallback` (best-effort) when false. Principal ownership is resolved separately
 from `is_principal`.
 
-An all-zero key-server SCI renders as `-`. A missing field renders as `-`, not
-a fabricated value.
+Primary and fallback live-peer counts are also derived from `is_primary`, not
+from `is_principal`. The primary count comes from the single participant with
+`is_primary=true`; the fallback count comes from the single participant with
+`is_primary=false`. Thus a fallback can be principal while the two count
+columns continue to describe both configured roles.
+
+A role-derived count is displayed only when exactly one participant has that
+role and its `live_peers` value is a valid unsigned integer. A missing role,
+multiple participants claiming that role, or malformed `live_peers` renders
+`-` for that role. If any participant has missing or malformed `is_primary`,
+both role-derived columns render `-` because the participant set cannot be
+partitioned safely. A primary-only profile therefore shows `-` for Fallback
+live peers, not `0`.
+
+A missing field renders as `-`, not a fabricated value.
 
 Rows are sorted by natural interface order (`Ethernet0`, `Ethernet8`,
 `Ethernet16`, not lexical `Ethernet0`, `Ethernet16`, `Ethernet8`), with
@@ -950,6 +968,9 @@ The separate `Secured` column is the compact protected/unprotected indication;
 the detailed view derives one `Controlled port mode` value from the raw
 `kay_status`, `authenticated`, `secured`, and `failed` fields. Consequently,
 compact `Status=ok` is not by itself proof that a rotation is safe.
+
+Removing Key-server SCI from the compact view does not change the detailed
+session diagnostics; §7.3 continues to display Key server SCI.
 
 ### 7.3 Interface-specific output
 
@@ -1082,7 +1103,7 @@ forms.
 | `sonic-swss-common` | Add the two STATE_DB table-name constants if they are not already present. |
 | `sonic-swss` / `macsecmgrd` | Solely own and populate the namespace-local tables; run sequential 20-second full sweeps with a two-second per-query deadline; derive query/config metadata; implement fresh alternate-CA revalidation; execute remove-then-add rollover; and preserve per-interface applied state for retry. |
 | `sonic-buildimage` / docker-macsec config CLI | Add paired fallback options where required and replacement-by-old-CKN update with all-port STATE_DB safety preflight before CONFIG_DB mutation. |
-| `sonic-buildimage` / docker-macsec show CLI | Add `show macsec --mka [interface]`, natural interface sorting with namespace secondary ordering, compact Status/Age rendering, detailed query/config diagnostics, and secret-safe field allowlisting. |
+| `sonic-buildimage` / docker-macsec show CLI | Add `show macsec --mka [interface]`, natural interface sorting with namespace secondary ordering, compact Status/Age plus role-derived primary/fallback live-peer counts, detailed query/config/key-server diagnostics, and secret-safe field allowlisting. |
 | `sonic-mgmt` | Add CONFIG_DB/STATE_DB/CLI, rotation safety, failure/retry, process-restart, namespace, and traffic-continuity tests. |
 | MACsecOrch / SAI / vendor SDK | No change. Existing dataplane tables and programming remain separate. |
 
@@ -1127,15 +1148,22 @@ WPA HLD and are consumed as-is.
 | 30 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
 | 31 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
 | 32 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
-| 33 | Show | Healthy protected state | Compact `Secured` is true; detail shows `PAE KaY status: active`, `Controlled port mode: secured`, and `Failed: false`; Status independently reflects query/config/age health |
-| 34 | Show | Authenticated-only CP state | Compact `Secured` is false; detail shows `Controlled port mode: authenticated-only`; Status is not overloaded with CP flags |
-| 35 | Show | Failed, inactive, contradictory, or incomplete CP state | Detail derives `failed`, `inactive`, `inconsistent`, or `unknown` according to the ordered mapping |
-| 36 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
-| 37 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
-| 38 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
-| 39 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
-| 40 | Security | Poison config/status/error paths with current and stale encoded/decoded CAKs plus CKN/interface/error context | Every CAK form is redacted from STATE_DB/show/log output; CKN and non-secret context remain visible |
-| 41 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
+| 33 | Show | Healthy primary/fallback state | Compact output shows primary and fallback live-peer counts from the unique `is_primary=true/false` rows, independent of principal ownership |
+| 34 | Show | Fallback is principal | Principal CKN/Role shows fallback while Primary/Fallback live-peer columns still follow configured roles |
+| 35 | Show | Primary-only profile | Primary live peers is shown; Fallback live peers is `-` |
+| 36 | Show | Missing or duplicate configured role | The affected role-derived live-peer count is `-` |
+| 37 | Show | Any participant has missing/malformed `is_primary` | Both role-derived live-peer counts are `-` |
+| 38 | Show | Malformed `live_peers` | The affected role-derived live-peer count is `-` |
+| 39 | Show | Compact versus detailed diagnostics | Compact header omits Key-server SCI; detailed output retains Key server SCI and participant Live/Potential columns |
+| 40 | Show | Healthy protected state | Compact `Secured` is true; detail shows `PAE KaY status: active`, `Controlled port mode: secured`, and `Failed: false`; Status independently reflects query/config/age health |
+| 41 | Show | Authenticated-only CP state | Compact `Secured` is false; detail shows `Controlled port mode: authenticated-only`; Status is not overloaded with CP flags |
+| 42 | Show | Failed, inactive, contradictory, or incomplete CP state | Detail derives `failed`, `inactive`, `inconsistent`, or `unknown` according to the ordered mapping |
+| 43 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
+| 44 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
+| 45 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
+| 46 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
+| 47 | Security | Poison config/status/error paths with current and stale encoded/decoded CAKs plus CKN/interface/error context | Every CAK form is redacted from STATE_DB/show/log output; CKN and non-secret context remain visible |
+| 48 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
 
 ## 13 Rollout and Dependency Ordering
 
