@@ -14,7 +14,7 @@
     - [6.3. New design overview](#63-new-design-overview)
   - [7. High-Level Design](#7-high-level-design)
     - [7.1. Change `m_toSync` data structure](#71-change-m_tosync-data-structure)
-    - [7.2. Update `m_toSync` from `mqPollThread` directly](#72-update-m_tosync-from-mqpollthread-directly)
+    - [7.2. Coalesce ZMQ ingress into a staging map; merge into `m_toSync` in `execute()`](#72-coalesce-zmq-ingress-into-a-staging-map-merge-into-m_tosync-in-execute)
     - [7.3. Split `drain()` into 3 independent operations](#73-split-drain-into-3-independent-operations)
     - [7.4. Enable the 3 tasks to be capable of yield/resume](#74-enable-the-3-tasks-to-be-capable-of-yieldresume)
     - [7.5. Task processing adheres to time quanta](#75-task-processing-adheres-to-time-quanta)
@@ -46,6 +46,7 @@
 |-----|------------|-------------------------|--------------------|
 | 0.1 | 2026-05-12 | Venkit Kasiviswanathan  | Initial version    |
 | 0.2 | 2026-07-19 | Venkit Kasiviswanathan  | Revise §7.2 ingress model: stage ZMQ tuples in a coalescing map (`m_ingress`) and merge into `m_toSync` in `execute()`; `drain()` runs lock-free. |
+| 0.3 | 2026-09-23 | Venkit Kasiviswanathan  | Align §7.1–§7.11/§13 with the merged implementation: `m_ingressMutex` guards `m_ingress` only and `execute()` calls `addToSync()` after releasing it; `responseHandlerTask` (renamed) and the `RouteDrainBatch` `kIdle/kStaging/kFlushing/kResponding` phase machine with per-phase resume points; configurable `-Q` quantum (default 20 ms) and warm-restore drain-to-completion (NOS-16421); `RouteSyncMap`/`OverwriteMerge` template; `-A`-gated async publish; auto-scaled CLI units; narrow the ingress-deferral bound to #1234's drain-to-empty condition; add the O(distinct in-flight route keys) `m_ingress` memory bound. |
 
 ## 2. Scope
 
@@ -71,6 +72,7 @@ Tracked under upstream issue
 | ZMQ             | ZeroMQ messaging library used between `fpmsyncd` and `orchagent`. |
 | `m_toSync`      | Coalescing data structure inside an orch agent holding pending updates keyed by entity. |
 | `mqPollThread`  | Thread inside the orch ZMQ consumer that reads from the ZMQ socket. |
+| `m_ingress`     | Per-key coalescing staging map (`RouteSyncMap`) the poll thread writes to under `m_ingressMutex`; the main thread merges it into `m_toSync` in `execute()`. |
 | `drain()`       | Routine that processes pending entries from `m_toSync` and programs them. |
 | `toBulk`        | Local accumulator inside `drain()` used to batch updates to the bulker. |
 | `EntityBulker` / `gRouteBulker` | SAI bulk-API helpers in SWSS. |
@@ -178,7 +180,7 @@ unchanged. What changes is the threading model and data flow inside
 - Wake the main loop at most once per "real" burst. Use a 2-tier poll timeout
   to coalesce notifications.
 - Split `drain()` into three independent tasks (`toBulkTask`, `flushTask`,
-  `responseHandlingTask`) that each adhere to a time quantum and support
+  `responseHandlerTask`) that each adhere to a time quantum and support
   yield/resume.
 
 ## 7. High-Level Design
@@ -195,6 +197,12 @@ unchanged. What changes is the threading model and data flow inside
 - With the above PR, this is no longer a requirement.
 - `m_toSync` can be converted to a simple `unordered_map`. Any update simply
   overwrites the existing entry's value.
+- In the implementation this is a template choice, not a wholesale change:
+  `ConsumerBase` is templated on the map type and merge policy, so the ZMQ
+  route consumer instantiates `ConsumerBaseTemplate<RouteSyncMap,
+  OverwriteMerge>` (`RouteSyncMap` = `std::unordered_map`, last-writer-wins)
+  while every other consumer keeps `ConsumerBaseTemplate<SyncMap,
+  MultimapMerge>` (`SyncMap` = `std::multimap`) unchanged.
 
 ### 7.2. Coalesce ZMQ ingress into a staging map; merge into `m_toSync` in `execute()`
 
@@ -205,43 +213,56 @@ PRs implementing this:
 
 - Eliminate the intermediate non-coalescing queues described above. Rather than
   merging into `m_toSync` from `mqPollThread`, the poll thread's ingress
-  callback stages each tuple into a separate, key-coalescing
-  `std::unordered_map` (`m_ingress`) under `m_toSyncMutex`. Because `m_ingress`
+  callback stages each tuple into a separate, key-coalescing map
+  (`m_ingress`, a `RouteSyncMap`) under `m_ingressMutex`. Because `m_ingress`
   is keyed by the route key, repeated updates to the same key overwrite in
   place, so it coalesces (unlike the old queue). The poll thread never calls
   `addToSync()` and never touches `m_toSync`.
 - This ensures ZMQ socket buffers are drained on time. More coalescing happens
   in `m_ingress` when `drain()` is slower.
 - `ZmqRouteConsumer::execute()` (the orch main thread) then merges the staged
-  tuples into `m_toSync`: under `m_toSyncMutex` it moves everything out of
-  `m_ingress`, clears it, and calls `addToSync(entries)` — mirroring
-  `ZmqConsumer::execute()`'s `pops()` + `addToSync()`. The lock is held only
-  for this brief hand-off.
+  tuples into `m_toSync`: it moves everything out of `m_ingress` into a local
+  batch and clears `m_ingress` **under `m_ingressMutex`** (the lock is held only
+  for that move), then — **after releasing the lock** — calls
+  `addToSync(batch)`, mirroring `ZmqConsumer::execute()`'s `pops()` +
+  `addToSync()`. `m_ingressMutex` guards `m_ingress` only; `m_toSync` is never
+  accessed under it.
 - `drain()` then runs **without** the lock. Because `m_toSync` is mutated only
   by the main thread, `drain()` and all base `ConsumerBase` paths need no
   locking; there is no phase where the lock is held for the duration of
-  `drain()`.
+  `addToSync()` or `drain()`.
 - Wake-up is coalesced: the ingress callback fires `notifyPending()` only once
   the staged batch reaches `gMaxBulkSize` (so the main loop wakes to a real
   batch), and the `ZmqRouteServer` poll loop otherwise wakes the main loop at
   most once per burst (the 2-tier poll timeout described in §6.3).
-- Deferral is bounded: a stream that never pauses for the burst-quiesce
-  window and never reaches `gMaxBulkSize` distinct keys would otherwise defer
-  notification indefinitely, so the poll loop also flushes any handler that
-  has been dirty for more than `BURST_MAX_HOLDOFF_MS` (50 ms)
-  ([sonic-swss-common#1234](https://github.com/sonic-net/sonic-swss-common/pull/1234)).
+- Deferral is bounded
+  ([sonic-swss-common#1234](https://github.com/sonic-net/sonic-swss-common/pull/1234)):
+  a stream that never pauses for the burst-quiesce window and never reaches
+  `gMaxBulkSize` distinct keys would otherwise defer notification indefinitely.
+  The bound is evaluated once per **drain-to-empty pass** — each time the poll
+  loop's `recv` momentarily returns `EAGAIN` — at which point it flushes any
+  handler that has been dirty longer than `BURST_MAX_HOLDOFF_MS` (50 ms). So a
+  producer that lets the socket empty even momentarily gets the latest staged
+  state notified within about 50 ms; a producer that keeps the socket
+  continuously non-empty while staying under `gMaxBulkSize` defers only for the
+  length of a single drain pass, not indefinitely. 50 ms is the dirty-age
+  cutoff applied at the drain-to-empty check, not a hard upper bound on
+  notification latency.
 
 ### 7.3. Split `drain()` into 3 independent operations
 
 - Split `drain()` into the following independent operations / functions:
-  1. `toBulkTask`: update `toBulk`.
-  2. `flushTask`: `gRouteBulker.flush()`.
-  3. `responseHandlingTask`: response handling.
-- `doTask()` has 3 states depending on what part of the processing is being
-  handled:
-  1. `toBulkTask` state
-  2. `flushTask` state
-  3. `responseHandlingTask` state
+  1. `toBulkTask`: scan `m_toSync` and stage entries into `toBulk` /
+     `gRouteBulker`.
+  2. `flushTask`: `gRouteBulker.flush()` (resumable `flush_until`).
+  3. `responseHandlerTask`: consume per-entry SAI statuses
+     (`addRoutePost`/`removeRoutePost`), retry/drop failures, run the batch
+     epilogue.
+- One batch is a `RouteDrainBatch` carrying a `Phase` state machine —
+  `kIdle → kStaging → kFlushing → kResponding → kIdle` — where `kStaging`
+  drives `toBulkTask`, `kFlushing` drives `flushTask`, and `kResponding`
+  drives `responseHandlerTask`; `kIdle` means no batch is in flight. `doTask()`
+  advances the batch through these phases.
 - For incremental implementation, initial PRs can focus on splitting the
   `doTask()` code into independent functions and calling them serially.
 - All 3 tasks run on the orch main thread. Per the threading model in §7.2,
@@ -252,17 +273,21 @@ PRs implementing this:
 
 - Once the 3 tasks are separated as described above, each function is
   refactored to yield after a specified duration of operation.
-- The code stores the state it was in (`toBulkTask`, `flushTask`, or
-  `responseHandlingTask`).
-- It also stores any additional checkpoint information so the task can resume
-  where it left off.
+- The `RouteDrainBatch` stores the `Phase` it was in (`kStaging`, `kFlushing`,
+  or `kResponding`).
+- Each phase also carries its own resume point so it can continue where it left
+  off: `kStaging` progress is implicit — staged entries are erased from
+  `m_toSync` as they are consumed, so the next pass simply resumes the scan;
+  `kFlushing` resumes via `gRouteBulker.flush_until`; and `kResponding` resumes
+  from `respondCursor` (the index of the next batch entry whose SAI status is
+  still unconsumed).
 - It gets rescheduled by posting a notification event to self.
 - When the Selectable is scheduled again, `execute()` runs first and performs
   the §7.2 hand-off: it moves whatever `mqPollThread` staged into `m_ingress`
-  while the task was yielded into `m_toSync` (under the staging lock, held
-  only for the move). `doTask()` then looks at the previous state and calls
-  the appropriate function; the checkpoint information helps it start from
-  where it left off.
+  while the task was yielded out under `m_ingressMutex` (held only for that
+  move), then merges it into `m_toSync` without the lock. `doTask()` then looks
+  at the previous state and calls the appropriate function; the checkpoint
+  information helps it start from where it left off.
 - `m_ingress` persists across yield/resume increments. The poll thread keeps
   staging into it throughout; because both maps coalesce by key, an update
   arriving mid-increment simply supersedes the staged entry for that key and
@@ -276,17 +301,36 @@ PRs implementing this:
   `mqPollThread` never touches it, so `toBulkTask` walks it with no locking.
   Coalescing of in-flight updates happens upstream in `m_ingress`.
 - `toBulkTask` does not walk through the entire `m_toSync` collection like it
-  does today. It walks some bounded number of entries (until a fixed time
-  quantum is over).
+  does today. It walks entries until a time quantum expires, checked at each
+  logical point (after an entry is staged, after a bulker chunk is flushed,
+  after a batch entry's status is consumed). Every call makes at least one
+  unit of progress before checking the predicate, so even a zero-length
+  quantum still terminates.
 - While walking, it removes those items from `m_toSync` and updates the
   `toBulk` data structure.
+- The quantum is configurable through the orchagent `-Q route_drain_quantum`
+  argument (`gRouteDrainQuantumMsec`, default **20 ms**). `-Q 0` yields at
+  every logical point and exists for debug/test only (it adds roughly one
+  syscall per staged route). A time quantum is preferred over a fixed entry
+  count because it is portable across processor speeds — a fixed count would
+  yield sooner on a fast CPU and hog the loop on a slow one.
+- **Warm restore is the one exception**: while
+  `OrchDaemon::warmRestoreAndSyncUp()` is reconciling the pre-reboot route
+  table, `RouteOrch` drains to completion instead of one quantum
+  (`setWarmStartDrainToCompletion(true)`, using the never-expiring predicate).
+  Restore runs before the select loop exists and calls `doTask()` a fixed
+  number of times before requiring an empty backlog, so a quantum-yielded
+  drain would never be re-armed and would leave the backlog pending and fail
+  restore. The quantum only exists to keep steady-state bursts from starving
+  the select loop's co-runners, which are not running yet during restore, so
+  bypassing it there is safe (NOS-16421).
 - The `m_ingress` → `m_toSync` hand-off in `execute()` stays uncapped by
   design: it is one map-entry move per staged key with no SAI or Redis work,
   and coalescing bounds the staged size by the number of distinct in-flight
   route keys. The time quanta apply to the three tasks above, which do the
   real work.
 - `flushTask` does not need access to `m_toSync` at all.
-- `responseHandlingTask` normally does not need access to `m_toSync` if there
+- `responseHandlerTask` normally does not need access to `m_toSync` if there
   are no failures. If there is a failure, it does the following:
   - Write the entry back to `m_toSync`, if the key does not exist there.
   - If the key exists in `m_toSync`, drop the failed entry because there is a
@@ -295,8 +339,13 @@ PRs implementing this:
 ### 7.6. Asynchronous route state publish
 
 - [sonic-swss#4437](https://github.com/sonic-net/sonic-swss/pull/4437) turns
-  this on. Existing code can publish into REDIS from a separate thread.
-- This makes `responseHandlingTask` much faster and lets it handle more work
+  this on. `responseHandlerTask` calls `ResponsePublisher::publishAsync()`,
+  which queues the state update and lets a separate thread
+  (`publishAsyncBatch()`) do the REDIS write off the hot path.
+- It is gated by the orchagent `-A` argument (which sets
+  `gRouteStateAsyncPublish` and also enables the async swss recorder). When
+  `-A` is not set, publishing stays synchronous.
+- This makes `responseHandlerTask` much faster and lets it handle more work
   in a given time quantum.
 
 ### 7.7. Per task instrumentation in Orchdaemon
@@ -327,6 +376,11 @@ P4_EXT_COUNTERS_STATS_POLL_TIMER  0.00/0.00/0.00/0.00                  3        
 ACL_TABLE                         -                                    0           0  -                                   -/-
 ASIC_SENSORS                      -                                    0           0  -                                   -/-
 ```
+
+Each duration is rendered with an auto-scaled unit suffix (`ns`/`us`/`ms`/`s`,
+up to days for long-running totals) so the magnitude is legible without a
+fixed-unit column; the values above are shown in milliseconds purely for
+illustration.
 
 A companion `sonic-clear orchagent tasks` command resets the counters.
 
@@ -373,11 +427,13 @@ asynchronously from a separate thread.
 ### 7.11. Scalability and performance
 
 - ZMQ socket buffers no longer back up under bursty churn because
-  `mqPollThread` drains them directly into the coalescing `m_toSync`.
+  `mqPollThread` drains them directly into the coalescing staging map
+  (`m_ingress`); the main thread merges that map into `m_toSync` in
+  `execute()`.
 - Higher churn rates increase the amount of coalescing, reducing the number
   of SAI operations that ultimately reach syncd.
 - Bounded time quanta on `toBulkTask`, `flushTask`, and
-  `responseHandlingTask` ensure that other orch agents get scheduled in a
+  `responseHandlerTask` ensure that other orch agents get scheduled in a
   timely manner. This bounds the worst-case scheduling latency of other
   agents (visible through the `show orchagent tasks` output).
 
@@ -431,6 +487,12 @@ continues to use the same APP_DB / ASIC_DB / STATE_DB interactions and the
 same SAI bulk-flush ordering. Existing warmboot/fastboot guarantees
 (including data-plane disruption budgets) are preserved.
 
+To keep that contract intact, the per-quantum yielding is disabled during warm
+restore: while `warmRestoreAndSyncUp()` reconciles the pre-reboot route table,
+`RouteOrch` drains its backlog to completion rather than yielding after a
+quantum (see §7.5). This ensures the reconciliation backlog is fully programmed
+before restore validation checks for an empty backlog (NOS-16421).
+
 ### Warmboot and Fastboot Performance Impact
 
 - No additional stalls, sleeps, or I/O operations are introduced into the
@@ -449,6 +511,11 @@ same SAI bulk-flush ordering. Existing warmboot/fastboot guarantees
 - Eliminating the intermediate non-coalescing queues reduces steady-state
   memory consumption under churn; in the existing design, those queues can
   grow unbounded when the main thread is slower than the producer.
+- The staging map (`m_ingress`) that replaces those queues is itself
+  key-coalescing, so its footprint is bounded by **O(distinct in-flight route
+  keys)** — the number of unique route keys staged but not yet handed off to
+  `m_toSync` — rather than by churn volume. Repeated updates to the same key
+  overwrite in place, so a same-key flap adds no memory regardless of rate.
 - The new `m_toSync` is a single `unordered_map` instead of a `multimap`,
   which slightly reduces per-entry overhead.
 - The per-Executor statistics structure adds a small fixed amount of memory
@@ -469,11 +536,12 @@ same SAI bulk-flush ordering. Existing warmboot/fastboot guarantees
 - `m_toSync` as `unordered_map`: SET-then-SET coalesces, DEL-then-SET
   overwrites, SET-then-DEL overwrites.
 - The `mqPollThread` ingress callback stages tuples into `m_ingress`
-  (coalescing by key) under `m_toSyncMutex`, and `execute()` merges `m_ingress`
-  into `m_toSync` and then runs `drain()` without the lock.
-- `toBulkTask`, `flushTask`, `responseHandlingTask` each respect the
+  (coalescing by key) under `m_ingressMutex`; `execute()` moves `m_ingress` out
+  under that lock, then merges the batch into `m_toSync` and runs `drain()`
+  without the lock (`m_ingressMutex` guards `m_ingress` only).
+- `toBulkTask`, `flushTask`, `responseHandlerTask` each respect the
   configured time quantum and correctly checkpoint/resume.
-- `responseHandlingTask` failure handling: write back to `m_toSync` only when
+- `responseHandlerTask` failure handling: write back to `m_toSync` only when
   the key is absent; drop when a newer update is present.
 - `TaskTimer` records run time and scheduling latency correctly, and
   outliers are classified using the 1.5 × IQR rule.
