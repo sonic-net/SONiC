@@ -71,7 +71,7 @@ Note : The HLD PR's have been updated in ""HLD PR / PR tracking"" coloumn. The c
 
 # SAI APIs
 
-Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.16.1 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.16.1_ReleaseNotes.md)
+Please find the list of API's classified along the newly added SAI features. For further details on SAI API please refer [SAI_1.17.4 Release Notes](https://github.com/opencomputeproject/SAI/blob/master/doc/SAI_1.17.4_ReleaseNotes.md)
 
 
 # Contributors 
