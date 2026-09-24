@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="210" viewBox="0 0 700 210">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect width="700" height="210" fill="#ffffff"/>
+<text x="350.0" y="18.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#555">RSTP State Machine Flow (IEEE 802.1w)</text>
+<text x="170.0" y="42.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="#555">Receive / migration</text>
+<text x="330.0" y="42.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="#555">Topology computation</text>
+<text x="520.0" y="42.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="#555">Transition / propagation</text>
+<rect x="24.0" y="72.0" width="72.0" height="32.0" rx="4" fill="#e8f0fe" stroke="#666"/><text x="60.0" y="93.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">BPDU in</text>
+<rect x="118.0" y="58.0" width="52.0" height="28.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="144.0" y="77.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">PRX</text>
+<rect x="118.0" y="92.0" width="52.0" height="28.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="144.0" y="111.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">PPM</text>
+<rect x="196.0" y="72.0" width="52.0" height="32.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="222.0" y="93.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">PIM</text>
+<rect x="268.0" y="72.0" width="52.0" height="32.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="294.0" y="93.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">PRS</text>
+<rect x="340.0" y="72.0" width="52.0" height="32.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="366.0" y="93.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">PRT</text>
+<rect x="412.0" y="72.0" width="52.0" height="32.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="438.0" y="93.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">PST</text>
+<rect x="496.0" y="72.0" width="88.0" height="32.0" rx="4" fill="#e8f0fe" stroke="#666"/><text x="540.0" y="93.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">Port state</text>
+<rect x="340.0" y="132.0" width="52.0" height="28.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="366.0" y="151.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">TCM</text>
+<rect x="412.0" y="132.0" width="52.0" height="28.0" rx="4" fill="#f5f5f5" stroke="#666"/><text x="438.0" y="151.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">PTX</text>
+<rect x="496.0" y="132.0" width="88.0" height="28.0" rx="4" fill="#e8f0fe" stroke="#666"/><text x="540.0" y="151.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold">BPDU out</text>
+<line x1="96.0" y1="88.0" x2="118.0" y2="72.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="96.0" y1="88.0" x2="118.0" y2="106.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="170.0" y1="72.0" x2="196.0" y2="88.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="170.0" y1="106.0" x2="196.0" y2="88.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="248.0" y1="88.0" x2="268.0" y2="88.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="320.0" y1="88.0" x2="340.0" y2="88.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="392.0" y1="88.0" x2="412.0" y2="88.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="464.0" y1="88.0" x2="496.0" y2="88.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="366.0" y1="104.0" x2="366.0" y2="132.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="392.0" y1="146.0" x2="412.0" y2="146.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<line x1="464.0" y1="146.0" x2="496.0" y2="146.0" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+<text x="350.0" y="198.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10" fill="#555">See table below for machine descriptions</text>
+</svg>
