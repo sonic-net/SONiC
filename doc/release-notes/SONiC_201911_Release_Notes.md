@@ -116,7 +116,7 @@ The CLI is enhanced to provide configuring and display of sFlow parameters inclu
 
 #### SSD diagnostic tolling 
 Add to SONiC an ability to check storage health state. Basic functionality will be implemented as a CLI command. Optionally pmon daemon could be added for constant disk state monitoring. 
-<br> Refer  [HLD Document](https://github.com/sonic-net/SONiC/blob/master/doc/ssdhealth_design.md) for more details.
+<br> Refer  [HLD Document](https://github.com/sonic-net/SONiC/blob/master/doc/ssdhealth/ssdhealth_design.md) for more details.
 <br> **Pull Requests** :  [587](https://github.com/sonic-net/sonic-utilities/pull/587)  , [47](https://github.com/sonic-net/sonic-buildimage/pull/47) ,  [3218](https://github.com/sonic-net/sonic-buildimage/pull/3218) 
 
 #### Sub-port support 

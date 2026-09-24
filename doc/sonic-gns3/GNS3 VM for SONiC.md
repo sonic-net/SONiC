@@ -104,4 +104,4 @@ Configure the Management IP address on each Community SONiC switch. Start each C
 
 In the console window of each Enterprise SONiC switch, log in by entering the default username admin and the default password YourPaSsWoRd.
 
-Access Configuration mode in the Community SONiC command-line interface to configure each switch. See the Community [SONiC User Guide](https://github.com/sonic-net/SONiC/blob/master/doc/SONiC-User-Manual.md) for configuration information and procedures.
+Access Configuration mode in the Community SONiC command-line interface to configure each switch. See the Community [SONiC User Guide](https://github.com/sonic-net/SONiC/blob/master/doc/user-manual/SONiC-User-Manual.md) for configuration information and procedures.

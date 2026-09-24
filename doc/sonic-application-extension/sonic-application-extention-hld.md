@@ -1146,7 +1146,7 @@ SONiC controls optional feature (aka services) via FEATURE table in CONFIG DB. O
 it must be treated in the same way as any optional SONiC feature.
 The SONiC package installation process will register new feature in CONFIG DB.
 
-[Optional Feature HLD Reference](https://github.com/sonic-net/SONiC/blob/master/doc/Optional-Feature-Control.md)
+[Optional Feature HLD Reference](https://github.com/sonic-net/SONiC/blob/master/doc/optional-feature-control/Optional-Feature-Control.md)
 
 Features are configured in *FEATURE* table in *CONFIG DB* and backend - *hostcfgd* daemon - enables, disables features according
 to the configuration. Default desired state for a SONiC Application Extension is "disabled". After installation, user can enable the feature:
