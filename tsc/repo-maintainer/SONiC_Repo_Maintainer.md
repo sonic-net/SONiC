@@ -67,6 +67,8 @@
 |  | sonic-buildimage-maintainer | Yilan Ji (Google) | baxia-lan | enabled |
 |  | sonic-buildimage-maintainer | Praveen Elagala (BRCM) | Praveen-Brcm | Approved on 5/3/2023 and enabled |
 |  | sonic-buildimage-maintainer | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
+|  | sonic-nexthop-maintainer | Gordon Martinez-Piedra (Nexthop) | gordon-nexthop | Requested on 8/24/2026 |
+|  | sonic-nexthop-maintainer | Lotus Fenn (Nexthop) | lotus-nexthop | Requested on 8/24/2026 |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
