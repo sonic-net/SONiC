@@ -89,7 +89,7 @@ an sFlow datagram over UDP instead of in a GRE/ERSPAN header.
 |   ASIC                   | Application-Specific Integrated Circuit |
 |   MirrorOrch             | Orchagent module that manages mirror sessions |
 |   CoPP                   | Control Plane Policing |
-|   sFlow                  | Sampled Flow ([sFlow v5](https://sflow.org/sflow_version_5.txt)) |
+|   sFlow                  | Sampled Flow |
 
 
 # 1 Requirement Overview
@@ -221,7 +221,7 @@ Encapsulation overhead: 60 bytes. The overhead includes the outer Ethernet heade
 
 #### SFLOW Session Format
 
-An SFLOW session uses sFlow encapsulation instead of GRE. The ASIC puts the truncated packet into an sFlow v5 flow sample and sends it in a UDP datagram to the collector:
+An SFLOW session uses sFlow encapsulation instead of GRE. The ASIC puts the truncated packet into an sFlow flow sample and sends it in a UDP datagram to the collector:
 
 ```mermaid
 ---
