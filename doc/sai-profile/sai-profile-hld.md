@@ -127,31 +127,24 @@ module sonic-sai-profile {
         prefix stypes;
     }
 
-    description "SAI_PROFILE table YANG Module for SONiC. Provides a
-                 generic, vendor-agnostic mechanism to inject arbitrary
-                 SAI init-config key/value pairs (rendered into
-                 /etc/sai.d/sai.profile) without requiring per-key
-                 schema changes as new SAI knobs are added.";
+    description "SAI_PROFILE table YANG Module for SONiC. Provides a generic, vendor-agnostic mechanism to inject arbitrary SAI init-config key/value pairs, rendered into /etc/sai.d/sai.profile, without requiring per-key schema changes as new SAI knobs are introduced.";
 
     revision 2025-09-29 {
         description "Initial revision.";
     }
 
     container sonic-sai-profile {
+
         container SAI_PROFILE {
-            description "SAI_PROFILE table in config_db.json. Each entry
-                         maps directly to one KEY=VALUE line written
-                         into /etc/sai.d/sai.profile at syncd startup.";
+
+            description "SAI_PROFILE table in config_db.json. Each entry maps directly to one KEY=VALUE line written into /etc/sai.d/sai.profile at syncd startup.";
 
             list SAI_PROFILE_LIST {
                 key "name";
+                description "A SAI profile key/value entry keyed by name.";
 
                 leaf name {
-                    description "SAI profile key name - must exactly
-                                 match the SAI environment variable name
-                                 expected by the vendor's SAI/SDK
-                                 implementation (e.g.
-                                 SAI_NUM_ECMP_MEMBERS).";
+                    description "SAI profile key name. Must exactly match the SAI environment variable name expected by the vendor's SAI/SDK implementation, e.g. SAI_NUM_ECMP_MEMBERS.";
                     type string {
                         length 1..255;
                         pattern "[A-Z][A-Z0-9_]*";
@@ -159,11 +152,7 @@ module sonic-sai-profile {
                 }
 
                 leaf value {
-                    description "Value for this SAI profile key,
-                                 rendered verbatim as a string.
-                                 Interpretation/validation of the value
-                                 is the vendor SAI implementation's
-                                 responsibility, not this schema's.";
+                    description "Value for this SAI profile key, rendered verbatim as a string. Interpretation/validation of the value is the vendor SAI/SDK implementation's responsibility, not this schema's.";
                     type string {
                         length 1..255;
                     }
@@ -180,7 +169,7 @@ A shared, reusable Jinja2 include renders every row in `SAI_PROFILE`
 generically:
 
 ```jinja2
-{# common/sai_profile_dynamic.j2 #}
+{# files/build_templates/sai_profile_dynamic.j2 #}
 {%- if SAI_PROFILE is defined %}
 {%- for key, entry in SAI_PROFILE.items() %}
 {{ key }}={{ entry.value }}
@@ -193,8 +182,12 @@ Each hwsku's `sai.profile.j2` keeps its existing structural logic (e.g.
 adds:
 
 ```jinja2
-{% include 'common/sai_profile_dynamic.j2' %}
+{% include 'sai_profile_dynamic.j2' %}
 ```
+
+`files/build_templates` is already on `sonic-cfggen`'s default Jinja
+template search path, so the include resolves without any extra
+`-t`/path configuration.
 
 ### 4.4 Vendor Integration
 | Vendor | Integration |
