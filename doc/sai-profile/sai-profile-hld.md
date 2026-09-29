@@ -210,6 +210,18 @@ installs this package, so the include resolves without any extra
   semantics; a malformed value is passed through and will surface as a
   SAI/SDK initialization failure, exactly as a manually-edited static
   `sai.profile` would today.
+* **Duplicate/conflicting keys**: `syncd` parses `sai.profile` in
+  `Syncd::loadProfileMap()` (`sonic-sairedis`) by reading it line by
+  line, splitting on the first `=`, and assigning into a `std::map` —
+  a plain overwrite with no duplicate-key detection or warning. Since
+  the shared include is placed at the end of each opted-in
+  `sai.profile.j2`, a `SAI_PROFILE` entry whose key matches an
+  existing hardcoded static key is rendered on a later line and
+  therefore silently wins, overriding that static default. This is
+  intentional and is exactly how tuning a key without an image
+  rebuild is meant to work. A key can never collide with another
+  `SAI_PROFILE` entry, since CONFIG_DB stores the table as a hash
+  keyed uniquely by `name`.
 
 ## 5. CLI
 No new CLI commands are introduced by this HLD; existing generic
