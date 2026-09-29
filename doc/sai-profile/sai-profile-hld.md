@@ -164,8 +164,8 @@ module sonic-sai-profile {
 }
 ```
 
-### 4.3 Template Rendering
-A shared, reusable Jinja2 include renders every row in `SAI_PROFILE`
+### 4.3 Rendering Mechanism
+A shared, reusable Jinja2 partial renders every row in `SAI_PROFILE`
 generically:
 
 ```jinja2
@@ -177,51 +177,69 @@ generically:
 {%- endif %}
 ```
 
-Each hwsku's `sai.profile.j2` keeps its existing structural logic (e.g.
-`SAI_INIT_CONFIG_FILE` selection based on `DEVICE_METADATA`) and simply
-adds:
-
-```jinja2
-{% include 'sai_profile_dynamic.j2' %}
-```
-
 The template lives under `sonic-config-engine`'s `data/` directory,
 which its `setup.py` installs to `/usr/share/sonic/templates` as
 package data. Every container built `FROM docker-config-engine-trixie`
-(including `syncd`, where `sai.profile.j2` is actually rendered)
-installs this package, so the include resolves without any extra
-`-t`/path configuration or per-container mount.
+(including `syncd`) installs this package, so the template resolves
+without any extra `-t`/path configuration or per-container mount.
+
+Rather than requiring every hwsku's `sai.profile`/`sai.profile.j2` to
+individually opt in with a Jinja `{% include %}`, a generic,
+vendor-agnostic shell helper, `apply_sai_profile_configdb()`, was added
+to `syncd/scripts/syncd_init_common.sh` in `sonic-sairedis`:
+
+```bash
+apply_sai_profile_configdb()
+{
+    local profile_file="$1"
+    local dynamic_template="$TEMPLATES_DIR/sai_profile_dynamic.j2"
+
+    if [[ -f "$dynamic_template" ]] && [[ -f "$profile_file" ]]; then
+        sonic-cfggen -d -t "$dynamic_template" >> "$profile_file"
+    fi
+}
+```
+
+Each vendor's `config_syncd_*()` function calls this helper as the very
+last step before handing its final profile file to `syncd` (`-p
+<file>`). It is a no-op when `SAI_PROFILE` is empty/absent, so **no
+per-hwsku template change is required at all** to support this table —
+it works uniformly for both static `sai.profile` files and rendered
+`sai.profile.j2` files.
 
 ### 4.4 Vendor Integration
 | Vendor | Integration |
 |---|---|
-| Broadcom | No runtime plumbing change needed — `docker-syncd-brcm/start.sh` already runs `sonic-cfggen -d -t sai.profile.j2 > /etc/sai.d/sai.profile` for any hwsku that has a `.j2` file. Only the hwsku template needs the new `{% include %}` line. |
-| Mellanox/NVIDIA | Per-hwsku `sai.profile` files are currently static; these need to be converted to `.j2` and the syncd startup path updated to render them via `sonic-cfggen -d`, consistent with the Broadcom pattern. Container-level, build-time-baked profile fragments (`sai-common.profile`, `sai-spc*.profile`) are out of scope — those are compile-time constants tied to the SAI/SDK build, not CONFIG_DB state. |
-| Other vendors | Same integration pattern as above: convert static `sai.profile` to `.j2`, add the shared include, ensure the vendor's syncd startup renders it via `sonic-cfggen -d`. |
+| Broadcom | `config_syncd_bcm()` calls `apply_sai_profile_configdb()` on whichever profile file it ultimately selects (`/tmp/sai.profile`, `/etc/sai.d/sai.profile`, or a writable copy of `$HWSKU_DIR/sai.profile`), right before setting `-p`. No hwsku template change needed. |
+| Mellanox/NVIDIA | `config_syncd_mlnx()` calls `apply_sai_profile_configdb()` on `/tmp/sai.profile` as the last step, after its existing `awk -F= '!seen[$1]++'` (first-occurrence-wins) de-duplication and all other derived settings (MAC address, warm-boot paths, DSCP remapping, extra profile) — guaranteeing `SAI_PROFILE` entries still win despite that vendor's own first-wins convention. No hwsku template change needed. |
+| Other vendors | Not yet wired up; any `config_syncd_*` function can adopt `SAI_PROFILE` support with a single `apply_sai_profile_configdb <final_profile_file>` call as a follow-up. |
 
 ### 4.5 Precedence and Safety
 * `SAI_PROFILE` entries are strictly additive — they never replace or
   override `SAI_INIT_CONFIG_FILE` or other structural lines, which
-  remain explicit template code.
-* If the `SAI_PROFILE` table is absent or empty, the rendered
-  `sai.profile` is byte-for-byte identical to today's output — fully
-  backward compatible.
+  remain explicit template/script code.
+* If the `SAI_PROFILE` table is absent or empty,
+  `apply_sai_profile_configdb()` appends nothing, so the final profile
+  file is byte-for-byte identical to today's output — fully backward
+  compatible.
 * This table intentionally does not gate/validate individual SAI
   semantics; a malformed value is passed through and will surface as a
   SAI/SDK initialization failure, exactly as a manually-edited static
   `sai.profile` would today.
-* **Duplicate/conflicting keys**: `syncd` parses `sai.profile` in
-  `Syncd::loadProfileMap()` (`sonic-sairedis`) by reading it line by
+* **Duplicate/conflicting keys**: `syncd` parses the final profile file
+  in `Syncd::loadProfileMap()` (`sonic-sairedis`) by reading it line by
   line, splitting on the first `=`, and assigning into a `std::map` —
-  a plain overwrite with no duplicate-key detection or warning. Since
-  the shared include is placed at the end of each opted-in
-  `sai.profile.j2`, a `SAI_PROFILE` entry whose key matches an
-  existing hardcoded static key is rendered on a later line and
-  therefore silently wins, overriding that static default. This is
-  intentional and is exactly how tuning a key without an image
-  rebuild is meant to work. A key can never collide with another
-  `SAI_PROFILE` entry, since CONFIG_DB stores the table as a hash
-  keyed uniquely by `name`.
+  a plain overwrite with no duplicate-key detection or warning, and
+  later lines always win. Because `apply_sai_profile_configdb()` is
+  called as the very last step in each vendor's `config_syncd_*()`
+  function, a `SAI_PROFILE` entry whose key matches an existing
+  hardcoded static key is always rendered last and therefore silently
+  wins, overriding that static default, regardless of any
+  vendor-specific de-duplication earlier in the script. This is
+  intentional and is exactly how tuning a key without an image rebuild
+  is meant to work. A key can never collide with another `SAI_PROFILE`
+  entry, since CONFIG_DB stores the table as a hash keyed uniquely by
+  `name`.
 
 ## 5. CLI
 No new CLI commands are introduced by this HLD; existing generic
