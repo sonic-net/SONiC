@@ -169,7 +169,7 @@ A shared, reusable Jinja2 include renders every row in `SAI_PROFILE`
 generically:
 
 ```jinja2
-{# files/build_templates/sai_profile_dynamic.j2 #}
+{# src/sonic-config-engine/data/sai_profile_dynamic.j2 #}
 {%- if SAI_PROFILE is defined %}
 {%- for key, entry in SAI_PROFILE.items() %}
 {{ key }}={{ entry.value }}
@@ -185,9 +185,12 @@ adds:
 {% include 'sai_profile_dynamic.j2' %}
 ```
 
-`files/build_templates` is already on `sonic-cfggen`'s default Jinja
-template search path, so the include resolves without any extra
-`-t`/path configuration.
+The template lives under `sonic-config-engine`'s `data/` directory,
+which its `setup.py` installs to `/usr/share/sonic/templates` as
+package data. Every container built `FROM docker-config-engine-trixie`
+(including `syncd`, where `sai.profile.j2` is actually rendered)
+installs this package, so the include resolves without any extra
+`-t`/path configuration or per-container mount.
 
 ### 4.4 Vendor Integration
 | Vendor | Integration |
