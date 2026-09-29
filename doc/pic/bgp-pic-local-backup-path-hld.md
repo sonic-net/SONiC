@@ -6,6 +6,7 @@
 2. [Scope](#2-scope)
 3. [Definitions / Abbreviations](#3-definitionsabbreviations)
 4. [Overview](#4-overview)
+   - 4.1 [Topology details on when this feature would be useful](#41-topology-details-on-when-this-feature-would-be-useful)
 5. [Requirements](#5-requirements)
 6. [Architecture Design](#6-architecture-design)
 7. [High-Level Design](#7-high-level-design)
@@ -34,6 +35,7 @@
 | 0.1 | 2026-04-10 | Venkit Kasiviswanathan                         | Initial version  |
 | 0.2 | 2026-05-12 | Venkit Kasiviswanathan                         | Replace the "stash `backup_idx[]` on the first primary" convention with an explicit, self-describing wire flag: `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` on the ZAPI side, mirrored by a parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` and a `dplane_route_info::backup_all_primaries_down` boolean (with accessor) on the zebra/dplane side. Updates §7.2, §8.1 JSON examples, §12, §13, §14 accordingly. |
 | 0.3 | 2026-06-04 | Venkit Kasiviswanathan                         | Sync §7.1 with the final upstream FRR PR ([FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814)): fix the per-path flag bit assignments (`BGP_PATH_BACKUP = 1 << 21`, `BGP_PATH_BACKUP_CHG = 1 << 22`); rework §7.1.4 so the backup-change check is folded into `bgp_zebra_has_route_changed()` (instead of a separate call-site `||`), document the same-best-path `BGP_PATH_BACKUP_CHG` clear in `bgp_process_main_one()` and the update-group UPDATE suppression; update the §9.2 flow diagram accordingly. Also clarify in §7.4.1 that the APP_DB nexthop ordering is contractual — primaries first, then backups, split at `primary_nh_count` (review feedback). |
+| 0.4 | 2026-09-29 | Venkit Kasiviswanathan                         | Correct §7.1.4 and the §9.2 flow diagram to match the code in [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814): the backup-change check is **not** folded into `bgp_zebra_has_route_changed()`. It is a separate `\|\| CHECK_FLAG(..., BGP_PATH_BACKUP_CHG)` at the call site in `bgp_process_main_one()`, so the helper's peer-facing "has this route changed?" semantics are left untouched. Add §4.1 (DCI leaf-spine use-case topology and diagram), carried over from the FRR PR description. |
 
 ---
 
@@ -121,6 +123,23 @@ The orchagent/SAI parts are marked TBD. It will be covered in another HLD. It gi
 2. The configuration/YANG model and how backup information flows through APP_DB 
 
 **NOTE**: Until the orchagent design/changes to consume the primary+backup info from APP_DB and map it into ASIC nexthop groups and use concrete SAI API for primary/backup groups, this feature does **not** deliver hardware failover for data-plane traffic yet. It only prepares the control-plane and data-model side.
+
+### 4.1 Topology details on when this feature would be useful
+
+As mentioned earlier, this feature is not a replacement for true ECMP. This helps in cases where the backup paths are not best paths. The idea is for the dataplane to quickly cut over to these secondary paths while the control plane takes more time to re-converge and program the best paths.
+
+It helps a lot in the following topology
+
+![PIC Local use-case](images/pic_local_use_case.png)
+
+Consider a Datacenter interconnect leaf-spine fabric network. It helps interconnect DCs with each other.
+
+- Normal traffic flow is IPv4/IPv6.
+- Between DCs, traffic would normally hair pin on the ingress leaf and would be sent to the destination DC.
+- Similarly, from the backbone, traffic would be ECMP's through the leafs (with a single flow taking a particular leaf).
+- When the direct link fails, DC1 would have to learn about that failure and would have to switchover to using a different leaf. But in the meantime, traffic would get dropped.
+
+In such cases programming a backup (which tunnels the traffic by encapsulating, towards other leafs) would reduce traffic drops, while the source is reconverging.
 
 ---
 
@@ -306,22 +325,29 @@ void bgp_best_selection(...) {
 
 #### 7.1.4 Triggering Zebra Updates
 
-When the primary best path is unchanged but the backup set is, the route still needs re-announcing to Zebra so the FIB picks up the new backup pool. Rather than adding a separate `|| CHECK_FLAG(...)` test at each call site, the backup-change check is folded directly into `bgp_zebra_has_route_changed()` so all of its existing callers see backup-set changes uniformly:
+When the primary best path is unchanged but the backup set is, the route still needs re-announcing to Zebra so the FIB picks up the new backup pool. `bgp_zebra_has_route_changed()` itself is left **unchanged**. The backup-change check is added as a separate test at the call site in the same-best-path branch of `bgp_process_main_one()`:
 
 ```c
-/* bgpd/bgp_route.c — bgp_zebra_has_route_changed() */
-if (CHECK_FLAG(selected->flags, BGP_PATH_IGP_CHANGED) ||
-    CHECK_FLAG(selected->flags, BGP_PATH_MULTIPATH_CHG) ||
-    CHECK_FLAG(selected->flags, BGP_PATH_LINK_BW_CHG) ||
-    CHECK_FLAG(selected->flags, BGP_PATH_BACKUP_CHG))
-    return true;
+/* bgpd/bgp_route.c — bgp_process_main_one(), old_select == new_select branch */
+/*
+ * Check if the route has changed from a Zebra RIB perspective OR
+ * if there is a change in backup path.
+ * NOTE: Dont want to include the backup path check inside
+ *       bgp_zebra_has_route_changed because it is used for checking if
+ *       there is a change of interest to peers as well. Backup paths
+ *       are only meant for the FIB and not for peers.
+ */
+if (bgp_zebra_has_route_changed(old_select) ||
+    CHECK_FLAG(old_select->flags, BGP_PATH_BACKUP_CHG)) {
+    /* ... bgp_zebra_route_install() / bgp_zebra_announce_actual() ... */
+}
 ```
 
 This ensures Zebra (and ultimately fpmsyncd) is notified whenever the backup path set changes, even if the primary route is otherwise unchanged.
 
-The same-best-path branch in `bgp_process_main_one()` clears `BGP_PATH_BACKUP_CHG` alongside `BGP_PATH_MULTIPATH_CHG` and `BGP_PATH_LINK_BW_CHG` after the FIB update, so a subsequent process cycle does not re-fire on stale state.
+The check is deliberately **not** folded into `bgp_zebra_has_route_changed()`. That helper is also consulted, a few lines later in the same branch, to decide whether to re-announce the route to peers via `group_announce_route()`, and it gates the equivalent FIB-vs-peer decision in the EVPN processing paths (`bgpd/bgp_evpn.c`, `bgpd/bgp_evpn_mh.c`). Backup paths are a FIB-only concept: a backup-only change alters nothing a peer can see, so it must trigger a Zebra re-install and nothing else. Keeping `BGP_PATH_BACKUP_CHG` out of the helper guarantees that a backup-set change never causes a peer re-announce, and leaves the EVPN paths (where backup paths are not supported) untouched.
 
-A spurious peer announce from this path is harmless: the BGP route attributes do not change for a backup-only update, so the per-peer "is this an actual change?" filter in the update-group code (`bgpd/bgp_updgrp_adv.c`) suppresses the wire-side UPDATE.
+The same-best-path branch in `bgp_process_main_one()` clears `BGP_PATH_BACKUP_CHG` alongside `BGP_PATH_MULTIPATH_CHG` and `BGP_PATH_LINK_BW_CHG` after the FIB update, so a subsequent process cycle does not re-fire on stale state. The new-best-path branch clears it the same way after the route is announced.
 
 #### 7.1.5 Flush Behavior on Disable
 
@@ -1143,7 +1169,8 @@ bgp_best_selection()
        │  Set BGP_PATH_BACKUP_CHG on new_best if set changed
        ▼
 bgp_process_main_one()
-   │  Check bgp_zebra_has_route_changed()  (now also returns true on BGP_PATH_BACKUP_CHG)
+   │  bgp_zebra_has_route_changed() || BGP_PATH_BACKUP_CHG set on old_select
+   │  (backup-only change re-installs to zebra; helper itself unchanged)
    ▼
 bgp_zebra_announce()
    │  Build zapi_route:
