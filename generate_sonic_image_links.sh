@@ -20,7 +20,6 @@ DEFID_CTC="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definition
 DEFID_CTC64="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.centec-arm64' | jq -r '.value[0].id')"
 DEFID_GRC="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.generic' | jq -r '.value[0].id')"
 DEFID_MRV="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.marvell-armhf' | jq -r '.value[0].id')"
-DEFID_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.nephos' | jq -r '.value[0].id')"
 
 echo '{' > sonic_image_links.json
 first=1
@@ -50,8 +49,11 @@ do
 	BUILD_GRC_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_GRC}"'?api-version=6.0' | jq -r '.queueTime')"
 	BUILD_MRV="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_MRV}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
 	BUILD_MRV_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MRV}"'?api-version=6.0' | jq -r '.queueTime')"
-	BUILD_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_NPH}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
-	BUILD_NPH_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_NPH}"'?api-version=6.0' | jq -r '.queueTime')"
+	if [ "${BRANCH}" != master ]; then
+		DEFID_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.nephos' | jq -r '.value[0].id')"
+		BUILD_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_NPH}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
+		BUILD_NPH_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_NPH}"'?api-version=6.0' | jq -r '.queueTime')"
+	fi
 
 	#echo " [*] Last successful builds for \"${BRANCH}\":"
 	#echo "     Broadcom: ${BUILD_BRCM}"
@@ -68,7 +70,9 @@ do
 	ARTF_CTC64="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_CTC64}"'/artifacts?artifactName=sonic-buildimage.centec-arm64&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_GRC="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_GRC}"'/artifacts?artifactName=sonic-buildimage.generic&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_MRV="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MRV}"'/artifacts?artifactName=sonic-buildimage.marvell-armhf&api-version=5.1' | jq -r '.resource.downloadUrl')"
-	ARTF_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_NPH}"'/artifacts?artifactName=sonic-buildimage.nephos&api-version=5.1' | jq -r '.resource.downloadUrl')"
+	if [ "${BRANCH}" != master ]; then
+		ARTF_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_NPH}"'/artifacts?artifactName=sonic-buildimage.nephos&api-version=5.1' | jq -r '.resource.downloadUrl')"
+	fi
 
 	COMMIT_BRCM_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_BRCM}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
 	COMMIT_BRCM_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_BRCM}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
@@ -90,8 +94,10 @@ do
 	COMMIT_GRC_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_GRC}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
 	COMMIT_MRV_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_MRV}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
 	COMMIT_MRV_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_MRV}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
-	COMMIT_NPH_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_NPH}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
-	COMMIT_NPH_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_NPH}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
+	if [ "${BRANCH}" != master ]; then
+		COMMIT_NPH_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_NPH}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
+		COMMIT_NPH_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_NPH}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
+	fi
 
 	echo "\"${BRANCH}\": {" >> sonic_image_links.json
 	echo "\"sonic-broadcom.bin\": {" >> sonic_image_links.json
@@ -198,14 +204,18 @@ do
 	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_MRV_2}"..."${COMMIT_MRV_1}"\"," >> sonic_image_links.json
 	echo "  \"build\": \"${BUILD_MRV}\"," >> sonic_image_links.json
 	echo "  \"date\": \"${BUILD_MRV_TS}\"" >> sonic_image_links.json
-	echo " }," >> sonic_image_links.json
-	echo "\"sonic-nephos.bin\": {" >> sonic_image_links.json
-	echo "  \"url\": \"$(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')\"," >> sonic_image_links.json
-	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_NPH}&view=results\"," >> sonic_image_links.json
-	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_NPH_2}"..."${COMMIT_NPH_1}"\"," >> sonic_image_links.json
-	echo "  \"build\": \"${BUILD_NPH}\"," >> sonic_image_links.json
-	echo "  \"date\": \"${BUILD_NPH_TS}\"" >> sonic_image_links.json
-	echo " }" >> sonic_image_links.json
+	if [ "${BRANCH}" = master ]; then
+		echo " }" >> sonic_image_links.json
+	else
+		echo " }," >> sonic_image_links.json
+		echo "\"sonic-nephos.bin\": {" >> sonic_image_links.json
+		echo "  \"url\": \"$(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')\"," >> sonic_image_links.json
+		echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_NPH}&view=results\"," >> sonic_image_links.json
+		echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_NPH_2}"..."${COMMIT_NPH_1}"\"," >> sonic_image_links.json
+		echo "  \"build\": \"${BUILD_NPH}\"," >> sonic_image_links.json
+		echo "  \"date\": \"${BUILD_NPH_TS}\"" >> sonic_image_links.json
+		echo " }" >> sonic_image_links.json
+	fi
 	echo -n "}" >> sonic_image_links.json
 done
 echo "\n}" >> sonic_image_links.json
@@ -213,4 +223,3 @@ echo "\n}" >> sonic_image_links.json
 git add sonic_image_links.json
 git commit -m "latest links for sonic images in dedicated branch sonic_latest_images_links"
 git push -f --set-upstream origin sonic_latest_images_links
-
