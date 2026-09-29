@@ -193,9 +193,16 @@ apply_sai_profile_configdb()
 {
     local profile_file="$1"
     local dynamic_template="$TEMPLATES_DIR/sai_profile_dynamic.j2"
+    local rendered
 
-    if [[ -f "$dynamic_template" ]] && [[ -f "$profile_file" ]]; then
-        sonic-cfggen -d -t "$dynamic_template" >> "$profile_file"
+    if [[ -f "$dynamic_template" ]]; then
+        rendered="$(sonic-cfggen -d -t "$dynamic_template")"
+        if [[ -n "$rendered" ]]; then
+            # ">>" creates profile_file if it does not already exist, so
+            # entries are applied even with no pre-existing sai.profile.
+            echo "$rendered" >> "$profile_file"
+            logger -t syncd_init_common "SAI_PROFILE CONFIG_DB entries applied to $profile_file: ..."
+        fi
     fi
 }
 ```
@@ -205,12 +212,19 @@ last step before handing its final profile file to `syncd` (`-p
 <file>`). It is a no-op when `SAI_PROFILE` is empty/absent, so **no
 per-hwsku template change is required at all** to support this table —
 it works uniformly for both static `sai.profile` files and rendered
-`sai.profile.j2` files.
+`sai.profile.j2` files, and even when a vendor has **no pre-existing
+sai.profile at all** (`>>` creates `profile_file` if it doesn't already
+exist). Whenever entries are actually applied, a `logger` call emits a
+syslog line naming the target file and every `KEY=VALUE` pair appended
+— visible in syslog without needing to enable syncd's own verbose/debug
+logging (`Syncd::loadProfileMap()` already logs every parsed key via
+`SWSS_LOG_INFO`, but that's suppressed at syncd's default `NOTICE` log
+level).
 
 ### 4.4 Vendor Integration
 | Vendor | Integration |
 |---|---|
-| Broadcom | `config_syncd_bcm()` calls `apply_sai_profile_configdb()` on whichever profile file it ultimately selects (`/tmp/sai.profile`, `/etc/sai.d/sai.profile`, or a writable copy of `$HWSKU_DIR/sai.profile`), right before setting `-p`. No hwsku template change needed. |
+| Broadcom | `config_syncd_bcm()` calls `apply_sai_profile_configdb()` on whichever profile file it ultimately selects (`/tmp/sai.profile`, `/etc/sai.d/sai.profile`, or a writable copy of `$HWSKU_DIR/sai.profile`), right before setting `-p`. The copy step tolerates a missing source file, so `SAI_PROFILE` entries are applied even if a hwsku has no static `sai.profile` at all. No hwsku template change needed. |
 | Mellanox/NVIDIA | `config_syncd_mlnx()` calls `apply_sai_profile_configdb()` on `/tmp/sai.profile` as the last step, after its existing `awk -F= '!seen[$1]++'` (first-occurrence-wins) de-duplication and all other derived settings (MAC address, warm-boot paths, DSCP remapping, extra profile) — guaranteeing `SAI_PROFILE` entries still win despite that vendor's own first-wins convention. No hwsku template change needed. |
 | Other vendors | Not yet wired up; any `config_syncd_*` function can adopt `SAI_PROFILE` support with a single `apply_sai_profile_configdb <final_profile_file>` call as a follow-up. |
 
@@ -222,6 +236,16 @@ it works uniformly for both static `sai.profile` files and rendered
   `apply_sai_profile_configdb()` appends nothing, so the final profile
   file is byte-for-byte identical to today's output — fully backward
   compatible.
+* If a vendor has no pre-existing static `sai.profile` at all,
+  `apply_sai_profile_configdb()` still creates the file from
+  `SAI_PROFILE` CONFIG_DB entries alone — an earlier revision of the
+  Broadcom integration required a pre-existing file (a `cp` failure on
+  a missing source silently left `/tmp/sai.profile` absent, so entries
+  were dropped with no error/log); this has been fixed so entries are
+  always applied regardless of whether a static baseline exists. Note
+  `SAI_INIT_CONFIG_FILE` is still reserved and cannot be supplied via
+  `SAI_PROFILE`, so a fully CONFIG_DB-only profile is still unlikely to
+  be sufficient for a real ASIC/SDK to initialize.
 * This table intentionally does not gate/validate individual SAI
   semantics; a malformed value is passed through and will surface as a
   SAI/SDK initialization failure, exactly as a manually-edited static
