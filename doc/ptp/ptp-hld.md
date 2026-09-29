@@ -5,12 +5,12 @@
 ### Table of Contents
 
 - [PTP Feature](#ptp-feature)
-    - [High Level Design document](#high-level-design-document)
-    - [Table of Contents](#table-of-contents)
-    - [Revision](#revision)
-    - [About this manual](#about-this-manual)
-    - [Scope](#scope)
-    - [Abbreviations](#abbreviations)
+  - [High Level Design document](#high-level-design-document)
+  - [Table of Contents](#table-of-contents)
+  - [Revision](#revision)
+  - [About this manual](#about-this-manual)
+  - [Scope](#scope)
+  - [Abbreviations](#abbreviations)
 - [1 Introduction](#1-introduction)
 - [2 Feature Design](#2-feature-design)
   - [2.1 Operational Flow](#21-operational-flow)
@@ -43,28 +43,33 @@
   - [5.7 PHC Device](#57-phc-device)
 - [6 Data Model](#6-data-model)
   - [6.1 SONiC DBs](#61-sonic-dbs)
-    - [6.1.1 Config\_DB](#611-config_db)
+    - [6.1.1 CONFIG_DB](#611-config_db)
       - [6.1.1.1 Feature Config](#6111-feature-config)
       - [6.1.1.2 Port Config](#6112-port-config)
       - [6.1.1.3 PTP Config](#6113-ptp-config)
-    - [6.1.2 APPL\_DB](#612-appl_db)
+    - [6.1.2 APPL_DB](#612-appl_db)
       - [6.1.2.1 Switch ptp port mode](#6121-switch-ptp-port-mode)
       - [6.1.2.2 ptp configuration](#6122-ptp-configuration)
-    - [6.1.3 ASIC\_DB](#613-asic_db)
+    - [6.1.3 ASIC_DB](#613-asic_db)
       - [6.1.3.1 Switch Port PTP Mode Configuration](#6131-switch-port-ptp-mode-configuration)
-    - [6.1.4 STATE\_DB](#614-state_db)
-      - [6.1.4.1 PTP Status](#6141-ptp-status)
-    - [6.1.5 COUNTERS\_DB](#615-counters_db)
-      - [6.1.4.1 PTP Port Statistics](#6141-ptp-port-statistics)
+    - [6.1.4 STATE_DB](#614-state_db)
+      - [6.1.4.1 PTP Config](#6141-ptp-config)
+      - [6.1.4.2 PTP Time Status](#6142-ptp-time-status)
+    - [6.1.5 COUNTERS_DB](#615-counters_db)
+      - [6.1.5.1 PTP Port Statistics](#6151-ptp-port-statistics)
 - [7 Testing](#7-testing)
+
+
 
 ### Revision
 
 
-| Rev | Date | Author     | Change Description |
-| --- | ---- | ---------- | ------------------ |
-| 0.1 | 2026-04-29 | Maike Geng | Initial edition    |
-| 0.2 | 2026-05-05 | Maike Geng | Review and merge in data models   |
+| Rev | Date       | Author     | Change Description              |
+| --- | ---------- | ---------- | ------------------------------- |
+| 0.1 | 2026-04-29 | Maike Geng | Initial edition                 |
+| 0.2 | 2026-05-05 | Maike Geng | Review and merge in data models |
+
+
 
 
 ### About this manual
@@ -78,25 +83,27 @@ This document is the high level design document for running a SONiC switch as a 
 ### Abbreviations
 
 
-| Term  | Meanings                                                             |
-| ----- | -------------------------------------------------------------------- |
-| ASIC  | Application-Specific Integrated Circuit                              |
-| BC    | Boundary Clock                                                       |
-| BMCA  | Best Master Clock Algorithm                                          |
-| DB    | Database                                                             |
-| CLI   | Command-line Interface                                               |
-| NTP   | Network Time Protocol                                                |
-| OC    | Ordinary Clock                                                       |
-| pmc   | PTP Management Client; a linux-ptp executable                        |
-| PHC   | PTP Hardware Clock; Linux timing synchronization infrastructure |
-| PTP   | Precision Time Protocol                                              |
-| PTPv2 | PTP Version 2; IEEE-1588 2008 specification with 2019 enhancements   |
-| ptp4l | PTP daemon for Linux; a linux-ptp executable                         |
-| SAI   | Switch Abstraction Interface                                         |
-| SONiC | Software for Open Networking in the Cloud                            |
-| TC    | Transparent Clock                                                    |
-| UDS   | Unix Domain Socket                                                   |
-| YANG  | Yet Another Next Generation                                          |
+| Term  | Meanings                                                           |
+| ----- | ------------------------------------------------------------------ |
+| ASIC  | Application-Specific Integrated Circuit                            |
+| BC    | Boundary Clock                                                     |
+| BMCA  | Best Master Clock Algorithm                                        |
+| DB    | Database                                                           |
+| CLI   | Command-line Interface                                             |
+| NTP   | Network Time Protocol                                              |
+| OC    | Ordinary Clock                                                     |
+| pmc   | PTP Management Client; a linux-ptp executable                      |
+| PHC   | PTP Hardware Clock; Linux timing synchronization infrastructure    |
+| PTP   | Precision Time Protocol                                            |
+| PTPv2 | PTP Version 2; IEEE-1588 2008 specification with 2019 enhancements |
+| ptp4l | PTP daemon for Linux; a linux-ptp executable                       |
+| SAI   | Switch Abstraction Interface                                       |
+| SONiC | Software for Open Networking in the Cloud                          |
+| TC    | Transparent Clock                                                  |
+| UDS   | Unix Domain Socket                                                 |
+| YANG  | Yet Another Next Generation                                        |
+
+
 
 
 # 1 Introduction
@@ -181,6 +188,9 @@ title: PTP operational flow
     ptp4l<==>|PTP packets|eth_dev
     ptp4l<-->|programs and queries|phc_dev
 ```
+
+
+
 
 
 ## 2.2 PTP Container
@@ -278,49 +288,109 @@ Testing will validate the PTP feature on multi-device multi-ASIC SONiC network d
 The following new commands will be introduced in SONiC
 
 Enable/Disable PTP feature on a particular device:
+
 ```bash
 config feature state ptp enabled/disabled
 ```
+
 The following commands will have an entry for ptp:
+
 ```bash
 show feature config 
 show feature status
 ```
+
 PTP Configuration Commands
 Create a unicast-master-table and add IP host addresses of potential masters
+
 ```bash
 config ptp unicast-master-table add/remove <table-name>
 config ptp unicast-master-table ip add/remove <table-name> <ipv4/ipv6 address>
 ```
+
 Enable PTP on a port and associate a unicast host table if required
+
 ```bash
 config ptp interface add <interface-name> [<table-name>][--unicast-listen]
 config ptp interface remove <interface-name>
 ```
+
 Global PTP configuration:
+
 ```bash
 config ptp domain-number <domain number>
 config ptp sync-interval <interval>
 config ptp announce-interval <interval>
 ```
+
 Show which ports have PTP enabled/disabled:
+
 ```bash
 show ptp port status
 ```
+
 Shows ptp status:
+
 ```bash
-show ptp status
+$ show ptp status
+Local Clock
+Parameter          Value
+-----------------  ------------------
+clock type         boundary clock
+clock id           3000fc.fffe.7448c7
+domain             44
+clock class        248
+clock accuracy     0xfe
+clock priority1    128
+clock priority2    128
+offset from master 3432
+steps removed      3
+mean path delay    323
+ 
+Parent Clock
+Parameter          Value
+-----------------  --------------------
+parent port id     185b00.fffe.0eb000-3
+gm clock id        dcb082.fffe.4370ed
+gm clock accuracy  not set
+gm clock variance  not set
+gm clock priority1 128
+gm clock priority2 128
+ 
+Time Properties
+Parameter            Value
+-------------------  -------
+time traceable       true
+frequency traceable  true
+time source          0x20
+utc offset           37
+
+Recovery Status
+Parameter                       Value
+------------------------------  ------------
+last ingress time               not set
+cumulative rate offset(ppm)     -0.545
+last packet offset from master  -109.0
+last adjustment                 +0.000000000
 ```
+
 Shows ptp interface counters:
+
 ```bash
 show ptp counters <interface-name>
 ```
+
 Clears ptp counters on all ports:
+
 ```bash
 sonic-clear ptp counters
 ```
 
+
+
 # 5 Module Design
+
+
 
 ## 5.1 PTP Container
 
@@ -358,9 +428,15 @@ The PHC device is a new standard Linux infrastructure object representing PTP cl
 
 # 6 Data Model
 
+
+
 ## 6.1 SONiC DBs
 
+
+
 ### 6.1.1 Config_DB
+
+
 
 #### 6.1.1.1 Feature Config
 
@@ -389,7 +465,11 @@ SWITCH|switch
 +     "ptp-mode": ("none"|"one-step|two-step"),
 }
 ```
+
+
+
 #### 6.1.1.3 PTP Config
+
 ```
 PTP_UNICAST_MASTER_TABLE|{table-name}|<ip-addar>
   family = ipv4
@@ -398,11 +478,15 @@ PTP_Interface|{if-name}
   unicast_master_table=<table-name>
   unicast_listen=1
 ```
+
+
+
 ### 6.1.2 APPL_DB
 
 Application DB of PTP is per ASIC namespace.  There changes to keys for PTP feature in the asic namespace.
 
 #### 6.1.2.1 Switch ptp port mode
+
 PTP feature adds a field into switch object.  Default is "none".
 
 ```
@@ -412,10 +496,10 @@ SWITCH_TABLE:switch
 }
 ```
 
-#### 6.1.2.2 ptp configuration
-This is TBD.
+
 
 ### 6.1.3 ASIC_DB
+
 There are existing SAI definition for PTP timestamping mode and these existing SAI definitions are used.
 
 #### 6.1.3.1 Switch Port PTP Mode Configuration
@@ -427,12 +511,21 @@ ASIC_STATE:SAI_OBJECT_TYPE_SWITCH:oid:{{oid value}}
 }
 
 ```
+
+
+
 ### 6.1.4 STATE_DB
 
-### 6.1.4.1 PTP Status
-There is a new state object adopted from [IETF RFC 8575](https://datatracker.ietf.org/doc/rfc8575/).
+
+
+### 6.1.4.1 PTP Config
+
+There is a new state object adopted from [IETF RFC 8575](https://datatracker.ietf.org/doc/rfc8575/).  This reflects the configuration within running ptp4l processes.
+
+For reference this is the original state object.
+
 ```
-PTP_GROUP|ptp
+PTP_GROUP|ptp_config
 {
   "instance-list": [
     {
@@ -503,11 +596,71 @@ PTP_GROUP|ptp
 }
 ```
 
+For each ASIC, there is a separate instance in the table, PTP_GROUP|ptp_config, with keys "PTP|{asic-instance}".  Separator in the table and key will conform with the database separator.
+
+### 6.1.4.2 PTP Time Status
+
+There is a new object that represents the status of the local clock.
+
+```
+PTP_GROUP|ptp_time_status
+{
+  "instance-list": [
+    {TB
+      "master_offset": int64,
+      "ingress_time": int64,
+      "cumulative_scaled_rate_offset": int32,
+      "nanoseconds": uint128,
+      "fractional_nanoseconds": uint16,
+      "gm-present": ("True"|"False"),
+      "gm_time_base_indicator": uint16,
+      "grandmaster-identity": string,
+      "scaled_last_gm_phase_change": uint64,
+    },
+  ]
+}
+```
+
+For each ASIC, there is a separate instance in the table, PTP_GROUP|ptp_time_status, with keys of "PTP|{asic-instance}". Separator in the table and key will conform with the database separator.
+
 ### 6.1.5 COUNTERS_DB
 
-### 6.1.4.1 PTP Port Statistics
 
-There is a new statistic object for ptp port statistics.  The key and the contents are currently TBD.
+
+### 6.1.5.1 PTP Port Statistics
+
+There is a new statistic object for ptp port statistics.  These counters represent number of packets seen by a running ptp4l process since the beginning of operation.  Each time the ptp4l instance restarts, these counters are reset.
+
+```
+PTP_GROUP|ptp_port
+{
+  [
+    {
+      "port-identity": string,
+      "rx-sync": uint64,
+      "rx-delay-req": uint64,
+      "rx-pdelay-req": uint64,
+      "rx-follow-up": uint64,
+      "rx-delay-resp": uint64,
+      "rx-delay-resp-follow-up": uint64,
+      "rx-announce": uint64,
+      "rx-signaling": uint64,
+      "rx-management": uint64,
+      "tx-sync": uint64,
+      "tx-delay-req": uint64,
+      "tx-pdelay-req": uint64,
+      "tx-pdelay-resp": uint64,
+      "tx-follow-up": uint64,
+      "tx-delay-resp": uint64,
+      "tx-announce": uint64,
+      "tx-signaling": uint64,
+      "tx-management": uint64,
+    },
+  ]
+}
+```
+
+For each active ptp port there is a separate instance in the table, PTP_GROUP|ptp_port with keys of "{if-name}".  Separator in the table and key will conform with the database separator.   
 
 # 7 Testing
 
