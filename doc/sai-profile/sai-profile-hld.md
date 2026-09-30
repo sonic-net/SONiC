@@ -144,17 +144,21 @@ module sonic-sai-profile {
                 description "A SAI profile key/value entry keyed by name.";
 
                 leaf name {
-                    description "SAI profile key name. Must exactly match the SAI environment variable name expected by the vendor's SAI/SDK implementation, e.g. SAI_NUM_ECMP_MEMBERS.";
+                    description "SAI profile key name. Must exactly match the SAI environment variable name expected by the vendor's SAI/SDK implementation, e.g. SAI_NUM_ECMP_MEMBERS. SAI_INIT_CONFIG_FILE is reserved: it is a structural key selected by each platform's sai.profile.j2 template and must not be set via this table.";
                     type string {
                         length 1..255;
                         pattern "[A-Z][A-Z0-9_]*";
                     }
+                    must "current() != 'SAI_INIT_CONFIG_FILE'" {
+                        error-message "SAI_INIT_CONFIG_FILE is a reserved, structural SAI profile key and cannot be set via SAI_PROFILE.";
+                    }
                 }
 
                 leaf value {
-                    description "Value for this SAI profile key, rendered verbatim as a string. Interpretation/validation of the value is the vendor SAI/SDK implementation's responsibility, not this schema's.";
+                    description "Value for this SAI profile key, rendered verbatim as a string. Interpretation/validation of the value is the vendor SAI/SDK implementation's responsibility, not this schema's. Carriage return and line feed characters are disallowed, since each entry is rendered as exactly one KEY=VALUE line.";
                     type string {
                         length 1..255;
+                        pattern '[^\r\n]*';
                     }
                     mandatory true;
                 }
@@ -172,10 +176,25 @@ generically:
 {# src/sonic-config-engine/data/sai_profile_dynamic.j2 #}
 {%- if SAI_PROFILE is defined %}
 {%- for key, entry in SAI_PROFILE.items() %}
-{{ key }}={{ entry.value }}
+{%- if key != 'SAI_INIT_CONFIG_FILE'
+      and (key | replace('=', '') | replace('\r', '') | replace('\n', '')) == key %}
+{{ key }}={{ entry.value | replace('\r', '') | replace('\n', ' ') }}
+{% endif %}
 {% endfor %}
 {%- endif %}
 ```
+
+YANG validation (the key-name pattern, the reserved-key `must`
+constraint, and the value's CR/LF-excluding pattern) only applies to
+config changes made through the YANG-validated path. A direct
+`sonic-db-cli` write to CONFIG_DB bypasses YANG, so the template
+re-applies the same guards as defense-in-depth: a key that is exactly
+the reserved `SAI_INIT_CONFIG_FILE`, or that contains `=`/CR/LF (which
+could otherwise smuggle the reserved key past a first-`=`-split parser,
+e.g. a row named `SAI_INIT_CONFIG_FILE=/tmp/evil` with value `x` would
+render as `SAI_INIT_CONFIG_FILE=/tmp/evil=x`), is dropped entirely; CR/LF
+in a value is stripped/collapsed so one entry can never expand into more
+than one `KEY=VALUE` line.
 
 The template lives under `sonic-config-engine`'s `data/` directory,
 which its `setup.py` installs to `/usr/share/sonic/templates` as
@@ -278,14 +297,24 @@ enhancement, not a blocking requirement for the initial implementation.
 
 ## 6. Test Plan
 * YANG model unit tests: valid entry, invalid key name pattern, missing
-  `value` leaf.
-* Jinja2 template unit test (`sonic-config-engine` `test_j2files.py`
-  style): render `sai.profile.j2` with a populated `SAI_PROFILE` table
-  and assert the exact expected output; render with the table absent and
-  assert output is unchanged from the pre-existing baseline.
-* End-to-end: on a lab device, populate `SAI_PROFILE`, restart `syncd`,
-  confirm `/etc/sai.d/sai.profile` contains the expected lines and
-  `syncd` initializes successfully.
+  `value` leaf, the reserved `SAI_INIT_CONFIG_FILE` name, and a
+  newline-containing value.
+* Jinja2 template unit tests (`sonic-config-engine` `test_j2files.py`):
+  render with a populated `SAI_PROFILE` table and assert the exact
+  expected output; render with the table absent and assert output is
+  unchanged from the pre-existing baseline; render a malicious-input
+  table (a key that is exactly the reserved name, a key embedding `=`,
+  a key containing CR/LF, and a value containing CR/LF) and assert the
+  unsafe entries are dropped while the value of an otherwise-valid entry
+  is normalized to one line.
+* End-to-end: verified live on a physical Broadcom testbed — populated
+  `SAI_PROFILE` (via `golden_config_db.json` + `config load_minigraph
+  -o`, and directly via `sonic-db-cli`), confirmed the entries are
+  correctly appended to `/etc/sai.d/sai.profile` and picked up by
+  `syncd`, that a CONFIG_DB entry overrides a static hwsku default with
+  the same key ("last line wins"), and that the "no `SAI_PROFILE` in
+  CONFIG_DB" path is a true no-op — `sai.profile` and `syncd` behavior
+  unchanged from today's baseline.
 
 ## 7. Upgrade/Downgrade Considerations
 * New table, no existing data to migrate.
