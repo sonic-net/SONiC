@@ -36,6 +36,7 @@
 | 0.2 | 2026-05-12 | Venkit Kasiviswanathan                         | Replace the "stash `backup_idx[]` on the first primary" convention with an explicit, self-describing wire flag: `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` on the ZAPI side, mirrored by a parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` and a `dplane_route_info::backup_all_primaries_down` boolean (with accessor) on the zebra/dplane side. Updates §7.2, §8.1 JSON examples, §12, §13, §14 accordingly. |
 | 0.3 | 2026-06-04 | Venkit Kasiviswanathan                         | Sync §7.1 with the final upstream FRR PR ([FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814)): fix the per-path flag bit assignments (`BGP_PATH_BACKUP = 1 << 21`, `BGP_PATH_BACKUP_CHG = 1 << 22`); rework §7.1.4 so the backup-change check is folded into `bgp_zebra_has_route_changed()` (instead of a separate call-site `||`), document the same-best-path `BGP_PATH_BACKUP_CHG` clear in `bgp_process_main_one()` and the update-group UPDATE suppression; update the §9.2 flow diagram accordingly. Also clarify in §7.4.1 that the APP_DB nexthop ordering is contractual — primaries first, then backups, split at `primary_nh_count` (review feedback). |
 | 0.4 | 2026-09-29 | Venkit Kasiviswanathan                         | Correct §7.1.4 and the §9.2 flow diagram to match the code in [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814): the backup-change check is **not** folded into `bgp_zebra_has_route_changed()`. It is a separate `\|\| CHECK_FLAG(..., BGP_PATH_BACKUP_CHG)` at the call site in `bgp_process_main_one()`, so the helper's peer-facing "has this route changed?" semantics are left untouched. Add §4.1 (DCI leaf-spine use-case topology and diagram), carried over from the FRR PR description. |
+| 0.5 | 2026-09-30 | Venkit Kasiviswanathan                         | §7.1.1: update flag definitions to the values in FRRouting/frr#21814 after its rebase onto upstream master: `af_flags` widened to `uint32_t`; `BGP_CONFIG_BACKUP_PATH` / `_ECMP` / `_FLUSH` moved to bits 16–18; `BGP_PATH_BACKUP` / `BGP_PATH_BACKUP_CHG` moved to bits 24–25 (bits 22–23 are now `BGP_PATH_UPA` / `BGP_PATH_UPA_DROP`). §7.2.2: `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` moved from `1 << 11` to `1 << 12` (bit 11 is now `NEXTHOP_GROUP_STALE_FDB`). |
 
 ---
 
@@ -236,21 +237,22 @@ Configuration flow:
 
 #### 7.1.1 Configuration Flags
 
-Two new per-AFI/SAFI flags are added to `struct bgp` (`bgpd/bgpd.h`):
+Three new per-AFI/SAFI flags are added to `struct bgp` (`bgpd/bgpd.h`). The existing 16-bit `af_flags` field is already fully allocated (bits 0–15 are taken by dampening and the L2VPN EVPN advertisement flags), so it is widened to 32 bits and the new flags take the next free bits:
 
 ```c
 /* BGP Per AF flags */
-uint16_t af_flags[AFI_MAX][SAFI_MAX];
-#define BGP_CONFIG_BACKUP_PATH          (1 << 12)   // install backup-path
-#define BGP_CONFIG_BACKUP_PATH_ECMP     (1 << 13)   // install backup-path ecmp
-#define BGP_CONFIG_BACKUP_PATH_FLUSH    (1 << 14)   // flush backup paths (transient)
+uint32_t af_flags[AFI_MAX][SAFI_MAX];   /* was uint16_t */
+/* per-AF backup-path flags (ipv4/ipv6 unicast) */
+#define BGP_CONFIG_BACKUP_PATH          (1 << 16)   // install backup-path
+#define BGP_CONFIG_BACKUP_PATH_ECMP     (1 << 17)   // install backup-path ecmp
+#define BGP_CONFIG_BACKUP_PATH_FLUSH    (1 << 18)   // flush backup paths (transient)
 ```
 
-And two new per-path flags (`BGP_PATH_BACKUP`, `BGP_PATH_BACKUP_CHG`) are added to `bgp_path_info` (`bgpd/bgp_route.h`):
+And two new per-path flags (`BGP_PATH_BACKUP`, `BGP_PATH_BACKUP_CHG`) are added to `bgp_path_info` (`bgpd/bgp_route.h`), after the existing `BGP_PATH_UPA` / `BGP_PATH_UPA_DROP` bits:
 
 ```c
-#define BGP_PATH_BACKUP       (1 << 21)  // path is selected as backup
-#define BGP_PATH_BACKUP_CHG   (1 << 22)  // backup selection has changed (notify Zebra)
+#define BGP_PATH_BACKUP       (1 << 24)  // path is selected as backup
+#define BGP_PATH_BACKUP_CHG   (1 << 25)  // backup selection has changed (notify Zebra)
 ```
 
 #### 7.1.2 Backup Path Selection Algorithm
@@ -450,8 +452,8 @@ The cost is a single new bit; the benefit is a self-describing wire format that 
 **How the route-level semantic is stored in zebra.** A new flag tracks the same semantic on the parent `nhg_hash_entry`:
 
 ```c
-/* zebra/zebra_nhg.h */
-#define NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN (1 << 11)
+/* zebra/zebra_nhg.h — next free bit after NEXTHOP_GROUP_STALE_FDB (1 << 11) */
+#define NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN (1 << 12)
 ```
 
 Set on the **parent** NHE (the one whose `backup_info` is non-NULL) at ZAPI decode time when the wire bit was present. The inner pool NHE keeps `NEXTHOP_GROUP_BACKUP` as before — its meaning ("this NHE is a backup pool") is unchanged.
