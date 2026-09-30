@@ -6,7 +6,7 @@ What this design delivers, in one list. Each item has a full section below.
 
 - **Automatic certificate consumption.** A staging helper (`stage-credentials.sh`) inside the redfish container reshapes the delivered files, whose paths come from CONFIG_DB (`REDFISH|certs`), into what bmcweb expects: a combined `server.pem`, a CA truststore with its `<hash>.0` symlink. bmcweb's code is untouched.
 - **Automatic rotation.** A watcher picks up installs and rotations (inotify, plus a 60 second reconcile as a safety net) and restarts bmcweb, since bmcweb reads certificates only at startup. A cert/key pair guard ensures a mid-rotation mismatch is never staged. Requests in flight at the restart fail at the connection level; see "Applying a change" for the exact semantics.
-- **mTLS enforcement, without local users.** With `client_auth` set to `cert`, `TLSStrict` requires clients to present a certificate signed by the staged CA and valid for client authentication. The certificate's common name is then checked against the trusted names configured in CONFIG_DB (`REDFISH|certs` field `client_crt_cname`), which accepts exact entries and wildcards such as `*.example.com`. There are no local users or passwords in the container: an accepted client is authorized as an administrator, and the common name is also what appears in sessions and logs.
+- **mTLS enforcement, without local users.** Once the CA is staged, every resource except the unauthenticated ones DSP0266 exempts (the service root, `/redfish`, `$metadata` and `odata`) requires a client certificate signed by it and valid for client authentication. bmcweb's authentication settings are left at their defaults, `TLS` on and `TLSStrict` off, which request a client certificate without requiring one at the handshake, so the service root stays reachable unauthenticated. The certificate's common name is then checked against the trusted names configured in CONFIG_DB (`REDFISH|certs` field `client_crt_cname`), which accepts exact entries and wildcards such as `*.example.com`. There are no local users or passwords in the container: an accepted client is authorized as an administrator, and the common name is also what appears in sessions and logs.
 - **Fail closed after first provisioning (secure mode).** A dedicated marker file, `/var/lib/bmcweb/provisioned`, is written on the first successful staging. Once it exists, every bmcweb start is gated: with no valid staged certificate, bmcweb does not start at all, instead of falling back to a self-signed cert. No CONFIG_DB attribute is involved, and the marker survives reboot and container recreation. Recovery is automatic when valid certs reappear.
 - **Deletion behavior.** Deleting the source certificates does not tear down the running service (bmcweb keeps serving the last staged certificate), and it is not a way to revoke access: the running bmcweb keeps serving the already-loaded certificate and keeps trusting the same CA. To actually revoke, rotate the CA (clients whose certs were issued by the old CA then fail the mTLS handshake).
 - **Observability.** The watcher publishes sync status to STATE_DB (`REDFISH_CERT_STATUS|global`: `in_sync`, `last_error`, fingerprints, served serial, plus `mtls_enforced` for the enforcement state) every cycle, and every decision is logged to syslog. A rotation that fails to land is visible, not silent; monitoring must watch `in_sync`.
@@ -67,7 +67,6 @@ The Redfish service is configured through CONFIG_DB, in the same shape as the ot
 ```json
 "REDFISH": {
     "config": {
-        "client_auth": "cert",
         "port": "443"
     },
     "certs": {
@@ -81,7 +80,6 @@ The Redfish service is configured through CONFIG_DB, in the same shape as the ot
 
 | Field | Meaning | Default |
 |---|---|---|
-| `config:client_auth` | `cert` requires a verified client certificate (mTLS), `none` does not | `cert` |
 | `config:port` | host port the Redfish API is published on | `443` |
 | `certs:server_crt` | delivered server certificate | `/etc/sonic/redfish/redfishserver.cer` |
 | `certs:server_key` | delivered server private key | `/etc/sonic/redfish/redfishserver.key` |
@@ -94,7 +92,7 @@ Every field has a default, and an unreadable or invalid value falls back to it, 
 
 **Reusing the restapi certificates.** A SONiC device already has the restapi server certificate, key and CA delivered to it. Redfish, as another management REST API, can use the same files: the example above points `server_crt` and `server_key` at the restapi pair. Nothing is copied or converted; staging reads the files where they are delivered. The only requirement on any configured path is that it is under `/etc/sonic`, the host directory mounted into the redfish container.
 
-**When a change takes effect.** The watcher re-reads `client_auth` and the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names; adding or removing a trusted name takes effect when `sonic-dbus-bridge` restarts. `port` is different, because docker applies port mappings only when a container is created: the generated container start script resolves it immediately before `docker create`, and a change takes effect on the next redfish service restart, which recreates the container. On start the script compares the running container's published port against CONFIG_DB and recreates on mismatch, the same pattern the start script already uses for HWSKU changes. bmcweb's internal port (18080) is compile-time and does not change; only the published host side is configurable.
+**When a change takes effect.** The watcher re-reads the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names; adding or removing a trusted name takes effect when `sonic-dbus-bridge` restarts. `port` is different, because docker applies port mappings only when a container is created: the generated container start script resolves it immediately before `docker create`, and a change takes effect on the next redfish service restart, which recreates the container. On start the script compares the running container's published port against CONFIG_DB and recreates on mismatch, the same pattern the start script already uses for HWSKU changes. bmcweb's internal port (18080) is compile-time and does not change; only the published host side is configurable.
 
 The recreate wipes the container's writable layer, which the certificate flow already tolerates: the oneshot re-stages before bmcweb's first start and the provisioned marker on the host mount is unaffected, so a port change on a provisioned unit comes back serving the CA-signed certificate with mTLS enforced and no self-signed window. One operational note: clients, monitoring, and tests assume 443 by default, so a non-default port must be communicated to every consumer of the API.
 
@@ -110,7 +108,7 @@ Three behaviours to remember:
 
 - **Self-signed fallback**: if no real certificate is present, bmcweb generates its own. The BMC always boots with working HTTPS. The integration must preserve this behaviour for the bootstrap phase, and deliberately override it in secure mode (covered later).
 - **Read-once at startup**: certificates are loaded into bmcweb's in-memory SSL context only during startup. bmcweb does not watch the files for changes, so picking up a new certificate always requires restarting bmcweb.
-- **mTLS is off by default**: even with a CA staged, bmcweb does not require client certificates unless `TLSStrict` is enabled in its persistent state file `/bmcweb_persistent_data.json` (covered in its own section).
+- **Client certificates are requested, not required**: with `TLSStrict` at its default, `false`, bmcweb asks every client for a certificate but completes the handshake without one. A client certificate therefore authenticates only once a CA is staged to verify it (covered in its own section).
 
 ### The exact shape bmcweb expects
 
@@ -121,9 +119,8 @@ Putting the above together, provisioning bmcweb with a real certificate means pr
 | Server certificate + private key | `/etc/ssl/certs/https/server.pem` | One combined PEM file, cert and key concatenated |
 | CA certificate | `/etc/ssl/certs/authority/CA-cert.pem` | PEM file |
 | CA hash symlink | `/etc/ssl/certs/authority/<hash>.0` | Symlink to the CA file, name derived from its content |
-| mTLS enforcement | `/bmcweb_persistent_data.json` | `TLSStrict: true` (write only while bmcweb is stopped) |
 
-This table is the contract the staging logic has to fulfil. Everything the solution does is reshaping the provisioned files into exactly these four items.
+This table is the contract the staging logic has to fulfil. Everything the solution does is reshaping the provisioned files into exactly these three items.
 
 ## The problem, stated precisely
 
@@ -230,19 +227,23 @@ bmcweb reads certificates and its persistent config only at startup, so applying
 
 **Impact on in-flight requests.** bmcweb does not drain connections on shutdown, so a request in flight at the instant of the stop has its connection closed without a response; the client observes a transport error (connection reset), never an HTTP error status such as 500, because no bmcweb exists to produce one. Whether the operation took effect depends on how far processing got: a request whose response was already delivered completed normally, and one that never reached bmcweb did nothing, but a mutating request (for example a POST) caught mid-processing may have been applied without its response being delivered. This ambiguity is inherent to any dropped connection (a network failure mid-request has exactly the same property, and this design does not add a new failure mode) and the standard REST discipline applies: the client may simply reissue idempotent requests, while for non-idempotent actions it should confirm the outcome by reading the resource state before reissuing. Nothing retries on the client's behalf. During the window between stop and start, new connections are refused; the window is a few file operations plus bmcweb's startup, typically a couple of seconds, occurring once per rotation and identical to any bmcweb restart. Established token sessions survive the restart, because a rotation does not rewrite the persistent auth config; mTLS clients carry no session state at all (their identity is re-derived from the client certificate on each connection), so for them the restart costs only the TCP reconnect.
 
-## Turning mTLS on (TLSStrict)
+## How mTLS is enforced
 
-Staging the certificates makes mTLS possible but does not by itself make bmcweb request or require a client certificate. Enforcement is controlled by bmcweb's persistent state file `/bmcweb_persistent_data.json`, and enabling it (`enable_mtls`) is a required part of first-time provisioning.
+Staging the CA is what turns client certificate authentication on. bmcweb's own authentication settings are left at their defaults, which already give the behaviour DSP0266 requires, and nothing writes bmcweb's persistent state file `/bmcweb_persistent_data.json`.
 
-The keys that matter in its `auth_config` block:
+The defaults that matter, in its `auth_config` block:
 
-| Key | Value | Effect |
+| Key | Default | Effect |
 |---|---|---|
-| `TLS` | `true` | allow client-certificate authentication |
-| `TLSStrict` | `true` | require a verified client certificate (verify_peer + fail_if_no_peer_cert) |
+| `TLS` | `true` | allow client certificate authentication |
+| `TLSStrict` | `false` | request a client certificate (verify_peer), but do not require one at the handshake |
 | `MTLSCommonNameParseMode` | `2` | take the client cert's CommonName as the session identity |
 
-With these set, a client must present a certificate signed by the staged CA and valid for client authentication (clientAuth EKU). The CN is extracted as the session identity: it is what appears in sessions and logs, and it is what common name validation checks. `TLSStrict` is written only when `client_auth` is `cert`; with `none` it is left disabled and client certificates are not required.
+bmcweb asks every client for a certificate and completes the handshake whether or not one is sent. A client that presents a certificate signed by the staged CA and valid for client authentication (clientAuth EKU) gets a session whose identity is the certificate's CN: it is what appears in sessions and logs, and it is what common name validation checks. A client that presents no certificate, or one the staged CA did not issue, completes the handshake with no session: the resources DSP0266 13.3.2 exempts from authentication (the service root `/redfish/v1`, `/redfish`, `$metadata` and `odata`) answer 200, and every other resource answers 401.
+
+`TLSStrict` set to `true` is deliberately not used. It rejects a client without a certificate at the handshake, so the service root would not be reachable unauthenticated, which DSP0266 requires.
+
+One bmcweb condition must hold: bmcweb requests a client certificate only when no web UI is served at `/`. With a web UI present it stops requesting client certificates (verify_none) and certificate login no longer works. The redfish container ships no web UI.
 
 **Common name validation.** A certificate that the CA issued proves authenticity, but not that this particular client is meant to manage this BMC. The trusted common names are configured in CONFIG_DB, `REDFISH|certs` field `client_crt_cname`, as a comma separated list:
 
@@ -256,9 +257,7 @@ A client whose common name matches nothing is refused even though its certificat
 
 **No local users.** The redfish container ships with no local user accounts and no passwords. bmcweb resolves an authenticated identity's privileges through the `xyz.openbmc_project.User.Manager` D-Bus interface, and on SONiC that service performs the common name validation above and answers with administrator privileges (`priv-admin`) for an accepted identity, instead of consulting a local user database. Access is therefore decided by two independent checks, both outside bmcweb: the CA signature on the client certificate, and the configured common name. Before first provisioning only the unauthenticated service root (`/redfish/v1`) responds, since no credential of any kind exists on the unit; password-based authentication is not possible in any phase. Revoking access is done by rotating the CA, or by removing a name from the trusted list; disabling the service entirely is done through the redfish feature state, not through user management.
 
-Why enforcement is coupled to the CA being present: bmcweb deliberately defaults `TLSStrict` to false because "root certificates will not be provisioned at startup" (comment in the source). That is exactly our lifecycle: at boot there is no CA, and requiring a client certificate then would lock everyone out. So `enable_mtls` runs right after the CA is staged.
-
-Written once; it persists. `TLSStrict` survives restarts in the persistent data file, so the file is rewritten only when the configured policy differs from what is already there. On a rotation the policy is unchanged, so the file is left alone and saved sessions are not reset. Changing `client_auth` does rewrite it, and takes effect on the next bmcweb start, which the watcher performs. The file is only ever written while bmcweb is stopped, per the stop/write/start rule above.
+Enforcement follows the CA. Before a CA is staged no client certificate can verify, so no client has a session and only the unauthenticated resources answer; once it is staged, a client certificate it issued is the only credential that reaches a protected resource. Because the persistent state file is never written, a rotation leaves bmcweb's settings and saved sessions untouched.
 
 ## Secure mode (fail closed)
 
@@ -271,7 +270,7 @@ The features so far preserve bmcweb's self-signed fallback: useful during bootst
 1. If the staged certificate is missing or invalid but valid source certs exist, re-stage them (self-heal), so an otherwise healthy unit never fails the gate spuriously.
 2. If the provisioned marker exists and there is still no valid staged certificate, log the refusal and exit without starting bmcweb. supervisord will retry and eventually mark bmcweb FATAL; the endpoint stays down.
 
-A "valid staged certificate" (`staged_ok`) means: `server.pem` exists, parses, and is not self-signed (issuer differs from subject), the CA truststore with its hash symlink is in place, and, when `client_auth` is `cert`, `TLSStrict` is enabled. Checked on the destination only, so the gate holds even if the source directory is momentarily unavailable.
+A "valid staged certificate" (`staged_ok`) means: `server.pem` exists, parses, and is not self-signed (issuer differs from subject), and the CA truststore with its hash symlink is in place. Checked on the destination only, so the gate holds even if the source directory is momentarily unavailable.
 
 **One-way by construction.** The marker is written only on successful staging and is never removed by anything in the container, so enforcement engages automatically at first provisioning, with no manual step and no window where a provisioned unit still allows fallback, and nothing in the container ever turns it off. The marker must outlive the certificates it guards, which is why it lives on the host mount: a container recreate wipes the staged files and the persistent data, but not the marker, and without it bmcweb could not distinguish "never provisioned" (self-signed is correct) from "provisioned, then wiped" (must fail closed): the two states look identical on inspection.
 
@@ -326,7 +325,7 @@ A rotation that silently fails to land is a security flaw: the endpoint keeps an
 | `applied_fingerprint` | the stamp: last successfully applied trio |
 | `served_serial` | serial number of the certificate currently in `server.pem` |
 | `in_sync` | `true` when the source is ready, matches what was applied, and the staged output is valid |
-| `mtls_enforced` | `true` when `TLSStrict` is enabled and a valid CA-signed certificate is staged, i.e. every connection requires a client certificate |
+| `mtls_enforced` | `true` when a valid CA-signed certificate and its CA are staged, i.e. every resource except the unauthenticated ones requires a client certificate |
 | `last_update` | timestamp of the last publish (also proves the watcher is alive) |
 | `last_error` | precise reason when out of sync |
 
@@ -344,9 +343,9 @@ sonic-db-cli STATE_DB hgetall 'REDFISH_CERT_STATUS|global'
 
 **Boot, before certificates are provisioned.** `/etc/sonic/credentials` is empty. The oneshot finds nothing and exits. The guard finds no staged cert and no source; the provisioned marker does not exist (never provisioned), so bmcweb starts and self-signs. The unauthenticated service root (`/redfish/v1`) answers over HTTPS with the self-signed cert; authenticated endpoints return 401, since the container has no local accounts and no CA is staged, so no authentication method can succeed. STATE_DB shows `in_sync false`, "credentials not ready".
 
-**Certificates are provisioned.** The watcher wakes (event, or within one interval), sees a ready trio with no stamp, and applies: stop bmcweb, stage the four contract items, enable TLSStrict, write the stamp and the provisioned marker, start bmcweb. bmcweb comes up serving the CA-signed certificate and requires client certificates; any client presenting a certificate issued by the staged CA is authorized as an administrator. From this moment the unit is production-secured and fail-closed. STATE_DB flips to `in_sync true`.
+**Certificates are provisioned.** The watcher wakes (event, or within one interval), sees a ready trio with no stamp, and applies: stop bmcweb, stage the three contract items, write the stamp and the provisioned marker, start bmcweb. bmcweb comes up serving the CA-signed certificate and requires a client certificate for every resource except the unauthenticated ones; a client presenting a certificate issued by the staged CA, with a trusted common name, is authorized as an administrator. From this moment the unit is production-secured and fail-closed. STATE_DB flips to `in_sync true`.
 
-**Certificate rotation.** New versioned files are written and the stable symlinks repointed. If the watcher looks mid-rotation, the pair guard skips the pass. On the consistent pair, the fingerprint differs from the stamp, so it re-stages and bounces bmcweb. TLSStrict is already on, so the persistent config is untouched and sessions survive. The served serial changes; STATE_DB returns to `in_sync true` with the new fingerprints.
+**Certificate rotation.** New versioned files are written and the stable symlinks repointed. If the watcher looks mid-rotation, the pair guard skips the pass. On the consistent pair, the fingerprint differs from the stamp, so it re-stages and bounces bmcweb. The persistent config is never written, so sessions survive. The served serial changes; STATE_DB returns to `in_sync true` with the new fingerprints.
 
 **Container restarts (certificates already provisioned).** The oneshot stages before bmcweb's first start (or finds everything already matching and does nothing), so bmcweb comes up directly with the real certificate. No self-signed phase.
 
@@ -379,20 +378,20 @@ What persists where:
 | State | Location | Survives bmcweb restart | Survives container recreate | Survives reboot |
 |---|---|---|---|---|
 | provisioned source certs | host `/etc/sonic/credentials` | yes | yes | yes |
-| Staged certs, TLSStrict | container writable layer | yes | no | yes (container is restarted, not recreated) |
+| Staged certs | container writable layer | yes | no | yes (container is restarted, not recreated) |
 | Fingerprint stamp | host `/var/lib/bmcweb` | yes | yes | yes |
 | Provisioned marker | host `/var/lib/bmcweb` | yes | yes | yes |
 
 **Reboot.** The provisioned marker and the stamp live on the host filesystem, so they survive reboot as-is. The staged certificates in the container's writable layer also survive a reboot (the container is restarted, not recreated), so a provisioned unit returns to the same secured state: with source certs present the oneshot re-stages before bmcweb starts, with the source lost the guard still passes on the surviving staged copies, and if the staged copies are also gone the unit fails closed rather than self-signing.
 
-**Container recreate (writable layer wiped).** Staged certs and TLSStrict are gone, but the source and the stamp survive. The oneshot re-stages everything from source before bmcweb starts. Back to secured state with no self-signed phase.
+**Container recreate (writable layer wiped).** Staged certs are gone, but the source and the stamp survive. The oneshot re-stages everything from source before bmcweb starts. Back to secured state with no self-signed phase.
 
 **Re-image.** A fresh image starts from the bootstrap state: no certs, no marker, bmcweb self-signs, and the cycle begins again when certificates are provisioned. On an image upgrade the marker and stamp are per-image state and start absent; whether `/etc/sonic/credentials` content carries across depends on how the provisioning agent manages its files during upgrades. If it does carry over, the first boot of the new image stages it immediately and re-creates the stamp and marker before bmcweb starts (same as "container restarts, already provisioned"), so there is no self-signed window.
 
 
 ## Conclusion
 
-The provisioned certificates are already visible inside the redfish container, but in the wrong shape, in a different location, and they arrive after boot; bmcweb reads a single combined PEM and a hashed CA folder, only at startup, and enforces mTLS only when TLSStrict is set. The solution is one script in three supervisord roles: stage on start, guard every bmcweb start, and watch for change. It reshapes the delivered files, whose paths and client authentication policy come from CONFIG_DB, into exactly what bmcweb expects, applies mTLS enforcement with common name validation, fails closed after first provisioning (recorded by a dedicated marker file on the host mount) so a production unit never falls back to self-signed, detects installs and rotations through inotify with a periodic reconcile as a hard upper bound, refuses mismatched cert/key pairs, and publishes its sync state to STATE_DB and syslog so a rotation that fails to land is visible instead of silent. bmcweb's code is untouched, and boot without certificates still works.
+The provisioned certificates are already visible inside the redfish container, but in the wrong shape, in a different location, and they arrive after boot; bmcweb reads a single combined PEM and a hashed CA folder, only at startup, and authenticates a client certificate only once a CA is staged. The solution is one script in three supervisord roles: stage on start, guard every bmcweb start, and watch for change. It reshapes the delivered files, whose paths come from CONFIG_DB, into exactly what bmcweb expects, enforces mTLS through the staged CA with common name validation while keeping the service root reachable as DSP0266 requires, fails closed after first provisioning (recorded by a dedicated marker file on the host mount) so a production unit never falls back to self-signed, detects installs and rotations through inotify with a periodic reconcile as a hard upper bound, refuses mismatched cert/key pairs, and publishes its sync state to STATE_DB and syslog so a rotation that fails to land is visible instead of silent. bmcweb's code is untouched, and boot without certificates still works.
 
 ## Test coverage (sonic-mgmt)
 
@@ -466,19 +465,19 @@ No provisioning agent is involved in these tests. All certificates are generated
 2. `/etc/ssl/certs/https/server.pem` inside the container is well formed and contains exactly the installed server cert and key (the certificate's public key matches the key).
 3. `CA-cert.pem` is present in `/etc/ssl/certs/authority` and a valid `<hash>.0` symlink points to it.
 4. The fingerprint stamp `/var/lib/bmcweb/.staged-credentials.stamp` is written and equals the fingerprint of the installed trio.
-5. `TLSStrict: true` is set in `/bmcweb_persistent_data.json`.
+5. Staging does not write `/bmcweb_persistent_data.json`; `TLSStrict` stays at bmcweb's default, `false`.
 6. No CONFIG_DB entry is created; the marker `/var/lib/bmcweb/provisioned` now exists, marking the unit as provisioned (fail closed from now on), automatically and with no manual step, and its content records the provisioning timestamp and the do-not-delete warning.
 7. STATE_DB `REDFISH_CERT_STATUS|global`: `in_sync true`, `last_error` empty, `source_fingerprint` equals `applied_fingerprint`, `served_serial` equals the installed server cert's serial, and `mtls_enforced` is `true`.
 
 ### Section 3: mTLS enforcement
 
-Preconditions for this section: a valid trio is staged and `in_sync true` (the end state of Section 2). Each case uses a client cert signed by the same CA, with CN `bmcweb`, accepted either because no trusted list is configured or because `client_crt_cname` includes it, unless stated otherwise.
+Preconditions for this section: a valid trio is staged and `in_sync true` (the end state of Section 2). Each case uses a client cert signed by the same CA, with CN `bmcweb`, and `client_crt_cname` set to `bmcweb`, unless stated otherwise.
 
 **Test Case #1: Valid client certificate is accepted and server identity verifies**
 
 **Steps:**
 
-1. With certs staged, send GET `/redfish/v1` presenting the CA, the client cert (CN `bmcweb`), and the client key, with server verification enabled (no `-k`) and no username/password.
+1. With certs staged, send GET `/redfish/v1/Managers` presenting the CA, the client cert (CN `bmcweb`), and the client key, with server verification enabled (no `-k`) and no username/password.
 2. Address the endpoint by the name/IP present in the server cert SAN.
 
 **Verification:**
@@ -491,16 +490,17 @@ Preconditions for this section: a valid trio is staged and `in_sync true` (the e
 
 **Steps:**
 
-1. Send a request presenting the CA but no client certificate.
-2. Send a request presenting a client cert signed by a different, untrusted CA (with the correct CN `bmcweb`).
-3. Send a request presenting an expired client cert (signed by the trusted CA, CN `bmcweb`, validity window in the past).
+1. Send GET `/redfish/v1/Managers` presenting the CA but no client certificate.
+2. Send the same request presenting a client cert signed by a different, untrusted CA (with the correct CN `bmcweb`).
+3. Send the same request presenting an expired client cert (signed by the trusted CA, CN `bmcweb`, validity window in the past).
+4. Repeat all three against the service root `/redfish/v1`.
 
 **Verification:**
 
-1. Case 1 is rejected at the TLS layer with a certificate-required failure (no HTTP response body).
-2. Case 2 is rejected: chain verification fails because the client cert does not chain to the staged CA.
-3. Case 3 is rejected: the expired certificate fails validation.
-4. In all three cases no Redfish resource is returned, confirming TLSStrict is enforced rather than falling back to unauthenticated or basic access.
+1. Case 1 completes the TLS handshake with no session and is answered with 401.
+2. Case 2 is answered with 401: chain verification fails because the client cert does not chain to the staged CA, so no session is created.
+3. Case 3 is answered with 401: the expired certificate fails validation.
+4. In step 4 all three are answered with 200, since the service root requires no authentication.
 
 ### Section 4: Client certificate common name validation
 
@@ -565,12 +565,12 @@ Preconditions for this section: a valid trio is staged and `in_sync true`. This 
 **Steps:**
 
 1. Generate a client cert signed by the same trusted CA, with a valid chain, but with an empty subject CN.
-2. Send GET `/redfish/v1` presenting the CA and this client cert, with server verification enabled.
+2. Send GET `/redfish/v1/Managers` presenting the CA and this client cert, with server verification enabled.
 
 **Verification:**
 
 1. The request is not authorized: bmcweb cannot form a session identity without a CN (`MTLSCommonNameParseMode 2` extracts the CN as the session identity), so the request falls through to the other authentication methods and fails with 401.
-2. Password-based access remains impossible: no combination of username and password without a client certificate reaches any endpoint, since TLSStrict rejects the handshake first.
+2. Password-based access remains impossible: the container has no local accounts, so Basic authentication with any username and password is answered with 401.
 
 ### Section 5: Certificate rotation
 
@@ -589,7 +589,7 @@ Preconditions for this section: a valid trio (call it v1) is staged and `in_sync
 
 1. The served certificate is now v2 (new serial) and still chains to the same CA.
 2. An mTLS request with the original client cert (unchanged, same CA) still succeeds with HTTP 200.
-3. `TLSStrict` is still `true`.
+3. `/bmcweb_persistent_data.json` is unchanged by the rotation.
 4. The fingerprint stamp advanced to the v2 trio, and `source_fingerprint` equals `applied_fingerprint`.
 5. The provisioned marker still exists and the stamp advanced to the new trio (the unit remains provisioned; rotation never clears the marker).
 
@@ -946,19 +946,18 @@ Preconditions for this section: a valid trio is staged and `in_sync true` (so th
 1. The certificates are staged and served from the configured paths, confirming the delivery location is configuration driven and that two different directories are watched.
 2. Delivering to the previous (now unconfigured) location has no effect.
 
-**Test Case #5: client_auth none disables client certificate enforcement**
+**Test Case #5: The unauthenticated resources stay reachable while mTLS is enforced**
 
 **Steps:**
 
-1. Set `REDFISH|config` `client_auth` to `none` and wait for the watcher to apply it.
-2. Send GET `/redfish/v1` with the CA but no client certificate.
-3. Set `client_auth` back to `cert` and wait for the watcher to apply it.
+1. With certificates staged and `mtls_enforced true`, send GET `/redfish/v1`, `/redfish`, `/redfish/v1/$metadata` and `/redfish/v1/odata` with the CA but no client certificate.
+2. Send GET `/redfish/v1/Managers` the same way.
 
 **Verification:**
 
-1. With `none`, `TLSStrict` is false in `/bmcweb_persistent_data.json`, the request without a client certificate completes the TLS handshake, and STATE_DB reports `mtls_enforced false`.
-2. bmcweb still serves the provisioned CA-signed certificate; the server side is unaffected by the client authentication policy.
-3. With `cert` restored, `TLSStrict` is true again, a request without a client certificate is rejected at the handshake, and `mtls_enforced` returns to `true`.
+1. Each request in step 1 is answered with 200, as DSP0266 13.3.2 requires.
+2. The request in step 2 is answered with 401.
+3. bmcweb serves the provisioned CA-signed certificate in both cases.
 
 **Test Case #6: Defaults apply when the tables are absent**
 
@@ -970,3 +969,4 @@ Preconditions for this section: a valid trio is staged and `in_sync true` (so th
 
 1. The container is created and bmcweb starts: a device with no Redfish configuration is still functional.
 2. The default paths are used for staging and the default port 443 is published, confirming no configuration is required for a working device.
+3. With no `client_crt_cname`, no common name is trusted: a client certificate the staged CA issued is answered with 403 on protected resources, while the service root still answers 200.
