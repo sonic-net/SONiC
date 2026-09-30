@@ -14,7 +14,7 @@
    - 7.2 [ZAPI Message: BGP → Zebra](#72-zapi-message-bgp--zebra)
    - 7.3 [Netlink Message: Zebra → fpmsyncd](#73-netlink-message-zebra--fpmsyncd)
    - 7.4 [APP_DB Schema: Primary and Backup Paths](#74-app_db-schema-primary-and-backup-paths)
-   - 7.5 [Orchagent (TBD)](#75-orchagent-tbd)
+   - 7.5 [Orchagent](#75-orchagent)
 8. [Configuration and Management](#8-configuration-and-management)
    - 8.1 [FRR Configuration](#81-frr-configuration)
    - 8.2 [YANG Model](#82-yang-model)
@@ -37,6 +37,7 @@
 | 0.3 | 2026-06-04 | Venkit Kasiviswanathan                         | Sync §7.1 with the final upstream FRR PR ([FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814)): fix the per-path flag bit assignments (`BGP_PATH_BACKUP = 1 << 21`, `BGP_PATH_BACKUP_CHG = 1 << 22`); rework §7.1.4 so the backup-change check is folded into `bgp_zebra_has_route_changed()` (instead of a separate call-site `||`), document the same-best-path `BGP_PATH_BACKUP_CHG` clear in `bgp_process_main_one()` and the update-group UPDATE suppression; update the §9.2 flow diagram accordingly. Also clarify in §7.4.1 that the APP_DB nexthop ordering is contractual — primaries first, then backups, split at `primary_nh_count` (review feedback). |
 | 0.4 | 2026-09-29 | Venkit Kasiviswanathan                         | Correct §7.1.4 and the §9.2 flow diagram to match the code in [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814): the backup-change check is **not** folded into `bgp_zebra_has_route_changed()`. It is a separate `\|\| CHECK_FLAG(..., BGP_PATH_BACKUP_CHG)` at the call site in `bgp_process_main_one()`, so the helper's peer-facing "has this route changed?" semantics are left untouched. Add §4.1 (DCI leaf-spine use-case topology and diagram), carried over from the FRR PR description. |
 | 0.5 | 2026-09-30 | Venkit Kasiviswanathan                         | §7.1.1: update flag definitions to the values in FRRouting/frr#21814 after its rebase onto upstream master: `af_flags` widened to `uint32_t`; `BGP_CONFIG_BACKUP_PATH` / `_ECMP` / `_FLUSH` moved to bits 16–18; `BGP_PATH_BACKUP` / `BGP_PATH_BACKUP_CHG` moved to bits 24–25 (bits 22–23 are now `BGP_PATH_UPA` / `BGP_PATH_UPA_DROP`). §7.2.2: `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` moved from `1 << 11` to `1 << 12` (bit 11 is now `NEXTHOP_GROUP_STALE_FDB`). |
+| 0.6 | 2026-09-30 | Venkit Kasiviswanathan                         | Cross-reference the companion work: the bgpd/zebra design (§2, §6, §7.1) now points to [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814); the orchagent sections (§2, §4, §5, §6, §7.5, §9, §12) now point to the Protection NHG orchagent HLD [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327) instead of "TBD". Drop the two orchagent/SAI items from §14, since they are owned by that HLD; renumber the rest. |
 
 ---
 
@@ -60,11 +61,11 @@ Additionally,
 
 This document describes the design and implementation across the following layers:
 
-- **BGP (FRR bgpd)**: Backup path selection algorithm and ZAPI messaging
+- **BGP (FRR bgpd)**: Backup path selection algorithm and ZAPI messaging — implemented upstream in [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814)
 - **Zebra**: Backup nexthop encoding in FPM netlink messages
 - **fpmsyncd**: Parsing and programming backup nexthops to APP_DB
 - **YANG / Config**: Configuration models for enabling the feature
-- **Orchagent**: *(TBD — Not part of this HLD)*
+- **Orchagent**: *Not part of this HLD* — covered by the Protection NHG orchagent HLD, [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327) (`doc/pic/hld_pic_with_pnhg_orcagent.md`)
 - **Nexthop-Group**: (TBD — Not part of this HLD)
 
 ---
@@ -110,7 +111,7 @@ The implementation extends the FRR stack:
 1. **bgpd** computes a backup path (or ECMP set) after bestpath selection and sends it to Zebra via ZAPI. The wire format is self-describing: a new ZAPI message bit `ZAPI_MESSAGE_BACKUP_ALL_PRIMARIES_DOWN` names the PIC-Local semantic (engage backups only when *all* primaries are down) — primary nexthops on the wire carry **no** `HAS_BACKUP` flag or `backup_idx[]`.
 2. **Zebra** mirrors the wire bit onto a parent-NHE flag `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` (so the flag participates in NHE hash key/equality) and onto a `backup_all_primaries_down` boolean inside the dplane context (with accessor `dplane_ctx_get_backup_all_primaries_down()`). zebra also encodes backup nexthops in FPM netlink messages to fpmsyncd as a SONiC-private attribute (`FPM_RTA_BACKUP_NH = 200`).
 3. **fpmsyncd** stores primary and backup nexthops together in APP_DB, using `primary_nh_count` to distinguish them.
-4. **Orchagent** currently programs only primary nexthops; backup nexthop hardware programming is TBD.
+4. **Orchagent** currently programs only primary nexthops; backup nexthop hardware programming via Protection Next Hop Groups is designed in [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327).
 
 The current HLD intentionally focuses on the end-to-end control-plane paths and data model:
 
@@ -118,12 +119,12 @@ The current HLD intentionally focuses on the end-to-end control-plane paths and 
 - zebra: encoding backup nexthops in FPM (`FPM_RTA_BACKUP_NH` SONiC-private attribute)
 - fpmsyncd / APP_DB: modelling primary and backup nexthops
 
-The orchagent/SAI parts are marked TBD. It will be covered in another HLD. It gives us an opportunity to get agreement on 
+The orchagent/SAI parts are covered in a separate HLD, [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327) (PIC support with Protection NHG). Splitting them out gives us an opportunity to get agreement on 
 
 1. The semantics and selection rules for primary vs backup paths
 2. The configuration/YANG model and how backup information flows through APP_DB 
 
-**NOTE**: Until the orchagent design/changes to consume the primary+backup info from APP_DB and map it into ASIC nexthop groups and use concrete SAI API for primary/backup groups, this feature does **not** deliver hardware failover for data-plane traffic yet. It only prepares the control-plane and data-model side.
+**NOTE**: Until the orchagent changes from [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327) land to consume the primary+backup info from APP_DB and map it into ASIC Protection Next Hop Groups, this feature does **not** deliver hardware failover for data-plane traffic yet. It only prepares the control-plane and data-model side.
 
 ### 4.1 Topology details on when this feature would be useful
 
@@ -156,7 +157,7 @@ In such cases programming a backup (which tunnels the traffic by encapsulating, 
 8. The feature SHALL be configurable per AFI/SAFI (IPv4 unicast, IPv6 unicast only).
 9. The feature SHALL be configurable device-wide (via `BGP_DEVICE_GLOBAL_AF`) or per-VRF (via `BGP_GLOBALS_AF`).
 11. When the feature is disabled, backup paths SHALL be flushed and Zebra SHALL be notified to remove them from the FIB.
-12. Orchestrator support for hardware programming of backup paths is **TBD** (out of scope for current implementation).
+12. Orchestrator support for hardware programming of backup paths is out of scope for this HLD; it is specified in [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327).
 13. The Zebra nexthop-group support is also **TBD** (out of scope for this HLD)
 
 ---
@@ -192,7 +193,7 @@ The overall architecture follows the existing SONiC routing stack. PIC Local add
     │                                                                 │
     │  - Reads ROUTE_TABLE from APP_DB                                │
     │  - Currently programs only primary nexthops to ASIC_DB          │
-    │  - Backup nexthop programming: TBD                              │
+    │  - Backup nexthop programming: see SONiC#2327                   │
     └──────────────────────────────────────────┬─────────────────────┘
                                                │ ASIC_DB (Redis)
     ┌──────────────────────────────────────────▼──────────────-───────┐
@@ -223,17 +224,21 @@ Configuration flow:
 | `dplane_fpm_sonic/dplane_fpm_sonic.c` | sonic-frr (SONiC FPM plugin) | `FPM_RTA_BACKUP_NH` (=200) top-level attribute appender |
 | `fpmsyncd/routesync.cpp` | sonic-swss          | Parse backup nexthops, write primary_nh_count |
 | `fpmsyncd/routesync.h`   | sonic-swss          | primary_nh_count in RouteTableFieldValueTupleWrapper |
-| `orchagent/routeorch.cpp`| sonic-swss          | Read and limit to primary_nh_count nexthops |
+| `orchagent/routeorch.cpp`| sonic-swss          | Read and limit to primary_nh_count nexthops. Full backup programming via Protection NHG: see [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327) |
 | `sonic-bgp-global.yang`  | sonic-yang-models   | install_backup_path enum in BGP_GLOBALS_AF |
 | `sonic-bgp-device-global.yang` | sonic-yang-models | install_backup_path in BGP_DEVICE_GLOBAL_AF |
 | `bgpcfgd/managers_device_global_af.py` | sonic-bgpcfgd | DeviceGlobalAfMgr |
 | `templates/bgpd/bgpd.conf.db.addr_family.j2` | sonic-frr-mgmt-framework | FRR config template |
+
+The `sonic-frr (FRR patch)` rows above (bgpd, lib/zclient, zebra) are implemented upstream in [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814) and carried into SONiC as a sonic-frr patch.
 
 ---
 
 ## 7. High-Level Design
 
 ### 7.1 BGP Bestpath Computation and Backup Path Selection
+
+The bgpd changes described in this section, and the ZAPI/zebra changes in §7.2, are implemented upstream in [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814) ("bgpd: compute BGP backup paths for fast failover").
 
 #### 7.1.1 Configuration Flags
 
@@ -794,16 +799,16 @@ int RouteSync::getNextHopList(struct rtnl_route *route_obj, string& gw_list,
 
 ---
 
-### 7.5 Orchagent (TBD)
+### 7.5 Orchagent
 
 The orchagent reads `primary_nh_count` from APP_DB and restricts nexthop vector processing to the first `primary_nh_count` entries. This ensures that backup nexthops are **not** programmed as additional primary nexthops into the ASIC.
 
 The full backup nexthop handling in orchagent — including:
 - Creating separate SAI nexthop objects for backup nexthops
-- Programming SAI with primary/backup nexthop groups
+- Programming SAI with primary/backup nexthop groups (Protection Next Hop Groups)
 - Enabling hardware-based failover on link down
 
-— is **TBD** and will be addressed in a subsequent design document.
+— is specified in a separate design document: [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327), "HLD for PIC support with Protection NHG" (`doc/pic/hld_pic_with_pnhg_orcagent.md`). It builds on the Protection NHG infrastructure in sonic-swss and consumes the `primary_nh_count` split defined in §7.4.
 
 ---
 
@@ -1219,7 +1224,7 @@ APP_DB:ROUTE_TABLE:<prefix>
 orchagent (routeorch.cpp)
    │  Parse primary_nh_count → limit nexthop vector to first N
    │  Create SAI route with primary nexthops only         ← current behavior
-   │  Backup nexthop programming: TBD
+   │  Backup nexthop programming: see SONiC#2327 (Protection NHG)
    ▼
 ASIC_DB → syncd → SAI → Hardware
 ```
@@ -1231,7 +1236,7 @@ PIC convergence i.e., primary-to-backup switchover can be achieved via two metho
     a. Entirely in hardware
     b. In software layer (orchagent)
 
-The following describes a high level flow for (b). Both (a) and (b) will be covered in a different HLD.
+The following describes a high level flow for (b). Both (a) and (b) are covered in the Protection NHG orchagent HLD, [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327).
 
 ```
 Hardware detects link failure
@@ -1247,7 +1252,7 @@ orchagent
    │  Lookup routes using failed interface
    │  For each affected route:
    │    Look up backup nexthops from APP_DB (primary_nh_count field)
-   │    Program backup nexthops as new primary           ← TBD
+   │    Program backup nexthops as new primary           ← see SONiC#2327
    ▼
 ASIC_DB → syncd → SAI → Hardware
   (traffic rerouted to backup path, no BGP reconvergence needed)
@@ -1297,7 +1302,7 @@ PIC Local does not affect the critical fastboot path. BGP backup path computatio
 3. **`FPM_RTA_BACKUP_NH = 200` is a SONiC-private wire-format attribute**: it lives in a number space well above the kernel's `RTA_MAX` (which is currently around 30) so it can't collide with future kernel additions, and it is only meaningful between zebra's `dplane_fpm_sonic` plugin and fpmsyncd. The same number MUST be kept in sync on both ends — the encoder (`sonic-frr/dplane_fpm_sonic/dplane_fpm_sonic.c`) and decoder (`sonic-swss/fpmsyncd/fpm/fpm_backup_nh.h`) hold mirror copies of the `#define`. The attribute is never passed to the Linux kernel route netlink socket.
 4. **VRF support**: `BGP_DEVICE_GLOBAL_AF` targets the default VRF only. Per-VRF configuration uses `BGP_GLOBALS_AF`.
 5. **Backup paths are FPM-only**: zebra populates the dplane context with the backup pool plus the `backup_all_primaries_down` flag, but the in-tree netlink and FPM-netlink providers do not encode backups for the kernel. Backup engagement is the FPM consumer's job (hardware agent, fpmsyncd extension, etc.).
-6. **Orchagent backup programming**: Currently orchagent only programs primary nexthops. Hardware-based failover (without orchagent intervention) requires future SAI work — TBD.
+6. **Orchagent backup programming**: Currently orchagent only programs primary nexthops. Backup programming and hardware-based failover via Protection NHG are specified in [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327).
 7. **Route-level backup does not propagate through recursive resolution**: If route A is PIC-Local with backup pool `{B0, B1, ...}` and route X resolves recursively through A, X does **not** inherit A's pool. Each route's backup is whatever its own producer (bgpd) computed. The recursive resolver only ever inherits per-NH (TI-LFA-style) backup info, never route-level pools. This is acceptable for the in-tree use case — bgpd computes a pool per route and PIC-Local resolvers are typically static / IGP routes without backups — but it leaves a semantic gap if a future deployment stacks two PIC-Local routes (see §14).
 8. **Soft failures**: This feature protects against local link failures detected at the hardware level. BGP/BFD session failures (soft failures) do not benefit from data-plane fast failover with the current implementation.
 
@@ -1351,8 +1356,6 @@ Cases exercised:
 
 | # | Item | Owner | Status |
 |---|------|-------|--------|
-| 1 | **Orchagent backup programming**: Design and implement SAI-level programming of backup nexthop groups; enable hardware-based failover on link down | TBD | Open |
-| 2 | **SAI API requirements**: Determine SAI API support needed for primary/backup nexthop group programming and hardware failover notification | TBD | Open |
-| 3 | **Zebra nexthop-group support**: Backup nexthops are currently expressed as a separate group on each route entry rather than as kernel-style NHGs; integration with zebra's NHG model is left for follow-up. | TBD | Open |
-| 4 | **Route-level backup through recursive resolution**: Route-level pools (`NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN`) do **not** propagate through `resolve_backup_nexthops()` — only per-NH (TI-LFA-style) backup info does. Acceptable for the in-tree use case (bgpd computes a pool per route, PIC-Local resolvers are typically static / IGP without backups), but leaves a semantic gap if a future deployment stacks two PIC-Local routes (e.g. a more-specific BGP route resolving through a less-specific PIC-Local route) and expects "all primaries down" to cascade. Closing this would require extending `resolve_backup_nexthops()` (or adding a parallel route-level path) to copy a resolver's pool plus the flag into a resolved NHE that has no pool of its own, with conflict resolution against any existing per-route pool. | TBD | Open |
-| 5 | **Warmboot validation**: Validate that backup nexthops are correctly reconciled after warm restart without creating ASIC inconsistencies | TBD | Open |
+| 1 | **Zebra nexthop-group support**: Backup nexthops are currently expressed as a separate group on each route entry rather than as kernel-style NHGs; integration with zebra's NHG model is left for follow-up. | TBD | Open |
+| 2 | **Route-level backup through recursive resolution**: Route-level pools (`NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN`) do **not** propagate through `resolve_backup_nexthops()` — only per-NH (TI-LFA-style) backup info does. Acceptable for the in-tree use case (bgpd computes a pool per route, PIC-Local resolvers are typically static / IGP without backups), but leaves a semantic gap if a future deployment stacks two PIC-Local routes (e.g. a more-specific BGP route resolving through a less-specific PIC-Local route) and expects "all primaries down" to cascade. Closing this would require extending `resolve_backup_nexthops()` (or adding a parallel route-level path) to copy a resolver's pool plus the flag into a resolved NHE that has no pool of its own, with conflict resolution against any existing per-route pool. | TBD | Open |
+| 3 | **Warmboot validation**: Validate that backup nexthops are correctly reconciled after warm restart without creating ASIC inconsistencies | TBD | Open |
