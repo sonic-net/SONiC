@@ -71,8 +71,8 @@ The Redfish service is configured through CONFIG_DB, in the same shape as the ot
         "port": "443"
     },
     "certs": {
-        "server_crt": "/etc/sonic/redfish/redfishserver.cer",
-        "server_key": "/etc/sonic/redfish/redfishserver.key",
+        "server_crt": "/etc/sonic/redfish/restapiserver.cer",
+        "server_key": "/etc/sonic/redfish/restapiserver.key",
         "ca_crt": "/etc/sonic/credentials/ROOT_CERTIFICATE.pem",
         "client_crt_cname": "bmcweb,*.example.com"
     }
@@ -86,13 +86,15 @@ The Redfish service is configured through CONFIG_DB, in the same shape as the ot
 | `certs:server_crt` | delivered server certificate | `/etc/sonic/redfish/redfishserver.cer` |
 | `certs:server_key` | delivered server private key | `/etc/sonic/redfish/redfishserver.key` |
 | `certs:ca_crt` | delivered CA certificate, used to verify client certificates | `/etc/sonic/credentials/ROOT_CERTIFICATE.pem` |
-| `certs:client_crt_cname` | trusted client certificate common names, comma separated | unset, meaning any common name is accepted |
+| `certs:client_crt_cname` | trusted client certificate common names, comma separated | unset, meaning every common name is refused |
 
 Every field has a default, and an unreadable or invalid value falls back to it, so a device with no Redfish configuration still boots, still serves, and can still be provisioned, and a configuration problem never blocks container creation.
 
 **What the `certs` paths mean here.** restapi and telemetry pass their certificate paths to the daemon as arguments, so configuration tells the daemon where to read. bmcweb's paths are compile-time and it accepts no certificate arguments, which is the reason this design exists at all: for Redfish the configured paths name where the provisioning agent *delivers* the files, and staging reshapes them into the locations bmcweb reads. The configuration surface matches the sibling services; the extra hop is internal. The server pair and the CA may be delivered into different directories, as in the example above, so the watcher derives the directories it watches from the configured paths.
 
-**When a change takes effect.** The watcher re-reads `client_auth` and the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is consulted on every request, so adding or removing a trusted name takes effect immediately. `port` is different, because docker applies port mappings only when a container is created: the generated container start script resolves it immediately before `docker create`, and a change takes effect on the next redfish service restart, which recreates the container. On start the script compares the running container's published port against CONFIG_DB and recreates on mismatch, the same pattern the start script already uses for HWSKU changes. bmcweb's internal port (18080) is compile-time and does not change; only the published host side is configurable.
+**Reusing the restapi certificates.** A SONiC device already has the restapi server certificate, key and CA delivered to it. Redfish, as another management REST API, can use the same files: the example above points `server_crt` and `server_key` at the restapi pair. Nothing is copied or converted; staging reads the files where they are delivered. The only requirement on any configured path is that it is under `/etc/sonic`, the host directory mounted into the redfish container.
+
+**When a change takes effect.** The watcher re-reads `client_auth` and the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names; adding or removing a trusted name takes effect when `sonic-dbus-bridge` restarts. `port` is different, because docker applies port mappings only when a container is created: the generated container start script resolves it immediately before `docker create`, and a change takes effect on the next redfish service restart, which recreates the container. On start the script compares the running container's published port against CONFIG_DB and recreates on mismatch, the same pattern the start script already uses for HWSKU changes. bmcweb's internal port (18080) is compile-time and does not change; only the published host side is configurable.
 
 The recreate wipes the container's writable layer, which the certificate flow already tolerates: the oneshot re-stages before bmcweb's first start and the provisioned marker on the host mount is unaffected, so a port change on a provisioned unit comes back serving the CA-signed certificate with mTLS enforced and no self-signed window. One operational note: clients, monitoring, and tests assume 443 by default, so a non-default port must be communicated to every consumer of the API.
 
@@ -246,9 +248,11 @@ With these set, a client must present a certificate signed by the staged CA and 
 
 - An entry without a wildcard matches exactly: `bmcweb` accepts only the common name `bmcweb`.
 - An entry of the form `*.example.com` matches any name ending in the remaining suffix, so it accepts `one.example.com` and `two.one.example.com`, but not `example.com` itself and not `example.com.edu`. A wildcard may only appear at the start of an entry. This is the same matching the SONiC REST API server performs for its client certificates.
-- When the list is unset or empty, any common name from a certificate the staged CA issued is accepted. Configuring the list is what turns common name enforcement on, so a device is usable before the list has been pushed and no deployment ordering problem is created.
+- When the list is unset or empty, every common name is refused, as the SONiC REST API server does: being issued by the staged CA is not enough on its own.
 
-The list is consulted on every request, so adding or removing a trusted name takes effect immediately, with no restart and no bmcweb bounce. A client whose common name matches nothing is rejected even though its certificate is trusted.
+The list is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names. Adding or removing a trusted name therefore takes effect when `sonic-dbus-bridge` restarts; bmcweb does not need a bounce. A failed read of the list is not held: it refuses, and is retried on the next request.
+
+A client whose common name matches nothing is refused even though its certificate is trusted. It has been authenticated, so it is answered with 403 on any resource that needs a privilege, while the unauthenticated service root still answers 200. A client with no certificate, or with one the staged CA did not issue, has no session at all and is answered with 401.
 
 **No local users.** The redfish container ships with no local user accounts and no passwords. bmcweb resolves an authenticated identity's privileges through the `xyz.openbmc_project.User.Manager` D-Bus interface, and on SONiC that service performs the common name validation above and answers with administrator privileges (`priv-admin`) for an accepted identity, instead of consulting a local user database. Access is therefore decided by two independent checks, both outside bmcweb: the CA signature on the client certificate, and the configured common name. Before first provisioning only the unauthenticated service root (`/redfish/v1`) responds, since no credential of any kind exists on the unit; password-based authentication is not possible in any phase. Revoking access is done by rotating the CA, or by removing a name from the trusted list; disabling the service entirely is done through the redfish feature state, not through user management.
 
@@ -529,30 +533,32 @@ Preconditions for this section: a valid trio is staged and `in_sync true`. This 
 2. `example.com` and `example.com.edu` are rejected: a wildcard matches names ending in the suffix, not the bare domain and not a longer unrelated domain.
 3. The same matching rules as the SONiC REST API server are observed.
 
-**Test Case #3: An unset list accepts any common name**
+**Test Case #3: An unset list refuses every common name**
 
 **Steps:**
 
-1. Remove `client_crt_cname` from CONFIG_DB.
-2. Send a request with a client cert from the trusted CA with an arbitrary CN.
+1. Remove `client_crt_cname` from CONFIG_DB and restart `sonic-dbus-bridge`.
+2. Send a request to a privileged resource with a client cert from the trusted CA with an arbitrary CN.
 
 **Verification:**
 
-1. The request succeeds: with no list configured, any common name from a certificate the staged CA issued is accepted, so a device is usable before the list is pushed.
-2. A client cert from a different CA is still rejected, confirming CA trust is always required.
+1. The request is refused with 403: with no list configured, no common name is trusted, even from a certificate the staged CA issued.
+2. The service root still answers 200 for the same client, since it needs no privilege.
+3. A client cert from a different CA is refused with 401, confirming CA trust is checked first.
 
-**Test Case #4: A common name change takes effect without a restart**
+**Test Case #4: A common name change takes effect when sonic-dbus-bridge restarts**
 
 **Steps:**
 
-1. Set `client_crt_cname` to `bmcweb` and confirm a `ghost` cert is rejected.
-2. Change `client_crt_cname` to `bmcweb,ghost` without restarting anything.
-3. Immediately repeat the `ghost` request.
+1. Set `client_crt_cname` to `bmcweb`, restart `sonic-dbus-bridge`, and confirm a `ghost` cert is refused with 403.
+2. Change `client_crt_cname` to `bmcweb,ghost` and repeat the `ghost` request.
+3. Restart `sonic-dbus-bridge` and repeat the `ghost` request.
 
 **Verification:**
 
-1. The `ghost` request now succeeds, with no bmcweb restart and no container restart, confirming the list is consulted per request.
-2. Removing `ghost` again makes the request fail immediately.
+1. After step 2 the `ghost` request is still refused, confirming the list is held from startup.
+2. After step 3 the `ghost` request succeeds, with no bmcweb restart and no container restart.
+3. Removing `ghost` and restarting `sonic-dbus-bridge` makes the request fail again.
 
 **Test Case #5: A trusted client cert without a common name is rejected**
 
