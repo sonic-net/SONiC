@@ -67,6 +67,7 @@
 |  | sonic-buildimage-maintainer | Yilan Ji (Google) | baxia-lan | enabled |
 |  | sonic-buildimage-maintainer | Praveen Elagala (BRCM) | Praveen-Brcm | Approved on 5/3/2023 and enabled |
 |  | sonic-buildimage-maintainer | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
+|  | sonic-buildimage-maintainer | Volodymyr Samotiy (Nvidia) | volodymyrsamotiy | Request on 08/25/2026 |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
