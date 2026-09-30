@@ -38,6 +38,7 @@
 | 0.4 | 2026-09-29 | Venkit Kasiviswanathan                         | Correct §7.1.4 and the §9.2 flow diagram to match the code in [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814): the backup-change check is **not** folded into `bgp_zebra_has_route_changed()`. It is a separate `\|\| CHECK_FLAG(..., BGP_PATH_BACKUP_CHG)` at the call site in `bgp_process_main_one()`, so the helper's peer-facing "has this route changed?" semantics are left untouched. Add §4.1 (DCI leaf-spine use-case topology and diagram), carried over from the FRR PR description. |
 | 0.5 | 2026-09-30 | Venkit Kasiviswanathan                         | §7.1.1: update flag definitions to the values in FRRouting/frr#21814 after its rebase onto upstream master: `af_flags` widened to `uint32_t`; `BGP_CONFIG_BACKUP_PATH` / `_ECMP` / `_FLUSH` moved to bits 16–18; `BGP_PATH_BACKUP` / `BGP_PATH_BACKUP_CHG` moved to bits 24–25 (bits 22–23 are now `BGP_PATH_UPA` / `BGP_PATH_UPA_DROP`). §7.2.2: `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` moved from `1 << 11` to `1 << 12` (bit 11 is now `NEXTHOP_GROUP_STALE_FDB`). |
 | 0.6 | 2026-09-30 | Venkit Kasiviswanathan                         | Cross-reference the companion work: the bgpd/zebra design (§2, §6, §7.1) now points to [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814); the orchagent sections (§2, §4, §5, §6, §7.5, §9, §12) now point to the Protection NHG orchagent HLD [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327) instead of "TBD". Drop the two orchagent/SAI items from §14, since they are owned by that HLD; renumber the rest. |
+| 0.7 | 2026-09-30 | Venkit Kasiviswanathan                         | §7.3.2: show the full `struct rtnexthop` header (`rtnh_len`, `rtnh_flags`, `rtnh_hops`, `rtnh_ifindex`) on every entry of the example, including the second primary and the backup, and state that backups carry `rtnh_hops` (weight) like primaries. |
 
 ---
 
@@ -619,22 +620,24 @@ RTM_NEWROUTE
         Attrs:
           RTA_GATEWAY = 192.168.1.1
       rtnexthop[1]:                  (primary nexthop 2)
-        rtnh_len     = ...
+        rtnh_len     = sizeof(rtnexthop) + sizeof(RTA_GATEWAY)
         rtnh_flags   = 0
+        rtnh_hops    = 0             (weight-1)
         rtnh_ifindex = <iface_index>
         Attrs:
           RTA_GATEWAY = 192.168.2.1
 
     FPM_RTA_BACKUP_NH (=200):        (backups — SONiC-private RTA)
       rtnexthop[0]:                  (backup nexthop 1)
-        rtnh_len     = ...
+        rtnh_len     = sizeof(rtnexthop) + sizeof(RTA_GATEWAY)
         rtnh_flags   = 0
+        rtnh_hops    = 0             (weight-1)
         rtnh_ifindex = <iface_index>
         Attrs:
           RTA_GATEWAY = 10.0.2.1
 ```
 
-`FPM_RTA_BACKUP_NH`'s payload is a sequence of `struct rtnexthop` entries — exactly the same wire shape `RTA_MULTIPATH` uses for primaries — so the only new thing for the decoder to learn is the top-level attribute number.
+`FPM_RTA_BACKUP_NH`'s payload is a sequence of `struct rtnexthop` entries — exactly the same wire shape `RTA_MULTIPATH` uses for primaries — so the only new thing for the decoder to learn is the top-level attribute number. Every entry, primary or backup, carries the full fixed `struct rtnexthop` header (`rtnh_len`, `rtnh_flags`, `rtnh_hops`, `rtnh_ifindex`) followed by its nested attributes. In particular `rtnh_hops` (weight minus one) is present on backups too: bgpd fills `backup_api_nh->weight` with the same weighted-ECMP logic it uses for primaries, so with link-bandwidth weighting the backup entries may carry non-unit weights, and fpmsyncd merges them into the same `weight` string as the primaries (§7.4.3).
 
 The encoder helpers live in `dplane_fpm_sonic/dplane_fpm_sonic.c`:
 
