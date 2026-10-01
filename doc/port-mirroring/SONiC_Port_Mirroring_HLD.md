@@ -1013,7 +1013,7 @@ Sampled port mirroring and sFlow share the port's per-direction SamplePacket res
 # 7 Warm Boot Support
 The mirroring configurations be retained across warmboot so that source traffic gets mirrored properly to destination port.
 
-Warmboot/fastboot support is not required in Sampled Port Mirroring. This includes SFLOW sessions.
+Warmboot/fastboot support is not required in Sampled Port Mirroring.
 
 # 8 Scalability
 
