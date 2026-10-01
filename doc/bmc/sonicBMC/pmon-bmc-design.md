@@ -80,11 +80,12 @@ Hybrid cooled sku requirements
 * Sku with Liquid cooling and Air cooling for certain components(eg: CPU, ASIC etc) - will follow Liquid cooling sku requirements
 * The thermalctld daemon in Switch-Host will run the thermal algorithm to control fan speed as applicable.
     
-Switch-Host initiated BMC management requirements
+Switch-Host initiated BMC management requirements *(optional — applicable only to platforms where the BMC can be individually reset without affecting Switch-Host operation)*
 * Switch-Host shall expose the BMC through `ChassisBase.get_bmc()`.
-* Switch-Host shall provide a platform API to assert and deassert the BMC hardware reset signal.
+* Switch-Host shall provide a platform API to reset the BMC (assert reset and then deassert reset).
 * BMC hardware reset control shall not depend on Redfish, the Host-BMC-Link, or BMC software availability.
-* The vendor platform implementation shall use a hardware reset path directly accessible from the Switch-Host while the BMC is held in reset or its software is unresponsive.
+* The vendor platform implementation shall use a hardware reset path directly accessible from the Switch-Host while the BMC is unresponsive.
+* Not all vendors may have hardware support for individual BMC reset. This feature must only be implemented on platforms where the BMC can be individually reset without impacting the Switch-Host or chassis-level power rails.
 
 ### 1.2. BMC Platform Stack
 The SONiC in BMC interoperates with the SONiC in Switch-Host as in below diagram.
@@ -639,7 +640,7 @@ This base class is already defined in sonic-platform-common and models the BMC f
 
 | Method | Present | Action |
 |--------|---------|--------|
-| reset(asserted) | New | Idempotently asserts or deasserts the BMC hardware reset signal. This API controls the reset signal only and does not control BMC power. <br/>This is implemented by the vendor platform driver and must not depend on Redfish.<br/>Returns `True` when the requested reset state is successfully issued, otherwise `False`. <br/>`reset(True)` asserts the reset signal and holds the BMC in reset. <br/>`reset(False)` deasserts the reset signal and allows the BMC to boot; a successful return does not indicate that BMC boot has completed. The caller owns any required assert-delay-deassert sequence. |
+| reset() | New | Resets the BMC by asserting the hardware reset signal followed by deasserting it. The BMC is not held in reset. This API controls the reset signal only and does not control BMC power rails. <br/>This is implemented by the vendor platform driver and must not depend on Redfish.<br/>Returns `True` when the reset is successfully performed, otherwise `False`. <br/>A successful return does not indicate that BMC boot has completed. <br/>This API is optional — platforms without dedicated BMC reset hardware should not implement it. |
 
 ### 2.3 BMC CLI Commands
 
@@ -912,39 +913,48 @@ Name                 Cause                                             Time     
 
 ##### 2.4.3 Switch-Host initiated BMC hardware reset control
 
-The Switch-Host controls the BMC hardware reset signal through the platform API.
+**Note:** This feature is optional and must only be implemented on platforms
+where the BMC can be individually reset without affecting
+Switch-Host operation or chassis-level power rails. Platforms without dedicated
+BMC reset hardware should not implement this feature.
+
+The Switch-Host controls the BMC hardware reset through the platform API.
 A Switch-Host-accessible hardware reset path is required to recover the BMC when
 its firmware, operating system, or Redfish service is unresponsive. The existing
 `request_bmc_reset()` API uses Redfish and therefore cannot recover failures that
 prevent the BMC from servicing Redfish requests.
 
-Direct hardware reset control allows the BMC to be recovered without rebooting
-or power-cycling the Switch-Host, avoiding unnecessary disruption to packet
-forwarding. It also allows the BMC to be held in reset during low-level fault
-investigation, maintenance, or hardware initialization and subsequently released
-without depending on BMC software or the Host-BMC-Link.
+There have been cases where the BMC becomes stuck or unresponsive — for example, firmware hangs, kernel panics, or watchdog failures
+on evaluation and production boards. In such situations, operators need the
+ability to reset the BMC directly from the Switch-Host without disrupting live
+network traffic. A full chassis power-cycle is unacceptable because it causes
+packet-forwarding interruption. This feature enables targeted BMC recovery
+while the Switch-Host continues forwarding traffic, significantly reducing the
+operational impact of BMC failures.
 
-This interface controls the BMC reset signal only; it does not control the BMC
-power rails. Asserting reset stops BMC software and BMC-owned monitoring and
+The BMC reset is performed by asserting the hardware reset signal followed by
+deasserting it. The BMC is not held in reset. This ensures the BMC always
+reboots into a known-good state after the reset, rather than remaining in an
+indeterminate held-in-reset condition.
+
+Resetting the BMC stops BMC software and BMC-owned monitoring and
 safety functions, including leak-policy enforcement. It is intended for
-deliberate recovery and maintenance operations when the required safeguards are
-in place.
+deliberate recovery operations when the required safeguards are in place.
 
 The operation is immediate and is not stored in CONFIG_DB. No platform daemon or BMC service is involved.
 
+* **CLI Command - config bmc reset**
 
-* **CLI Command - config bmc reset [assert|deassert]**
-
-These commands are supported only on Switch-Host platforms exposing a BMC through `ChassisBase.get_bmc()`.
+This command is supported only on Switch-Host platforms exposing a BMC through `ChassisBase.get_bmc()`.
+The command requires admin privileges (root/sudo) and is subject to SONiC's
+AAA (Authentication, Authorization, and Accounting) audit framework.
 
 ```
-config bmc reset assert
-   - Calls bmc.reset(True).
-   - Asserts the hardware reset signal and holds the BMC in reset.
-
-config bmc reset deassert
-   - Calls bmc.reset(False).
-   - Deasserts the hardware reset signal and allows the BMC to boot.
+config bmc reset
+   - Calls bmc.reset().
+   - Resets the BMC: asserts the hardware reset signal followed by
+     deasserting it.
+   - The BMC reboots after reset is deasserted.
 ```
 
 * **Platform API Sample usage**
@@ -958,11 +968,8 @@ bmc = chassis.get_bmc()
 if bmc is None:
     raise RuntimeError("BMC hardware reset control is not supported")
 
-# Assert reset and hold the BMC in reset
-result = bmc.reset(True)
-
-# Deassert reset and allow the BMC to boot
-result = bmc.reset(False)
+# Reset the BMC (assert reset followed by deassert)
+result = bmc.reset()
 ```
 
 #### 2.5 Firmware upgrade
