@@ -33,8 +33,8 @@
 - [5 Configuration Commands](#5-configuration-commands)
   - [5.1 Profile creation](#51-profile-creation)
   - [5.2 Replacement-by-old-CKN update](#52-replacement-by-old-ckn-update)
-  - [5.3 STATE_DB safety preflight](#53-statedb-safety-preflight)
-  - [5.4 Validation-to-application race](#54-validation-to-application-race)
+  - [5.3 Desired configuration acceptance](#53-desired-configuration-acceptance)
+  - [5.4 Desired state and runtime convergence](#54-desired-state-and-runtime-convergence)
 - [6 macsecmgrd Hot-Rollover Actioning](#6-macsecmgrd-hot-rollover-actioning)
   - [6.1 Common reconciliation model](#61-common-reconciliation-model)
   - [6.2 Primary rollover](#62-primary-rollover)
@@ -48,15 +48,14 @@
 - [8 Process and Container Restart](#8-process-and-container-restart)
 - [9 Security Considerations](#9-security-considerations)
 - [10 Backward Compatibility](#10-backward-compatibility)
-- [11 Component and Repository Impact](#11-component-and-repository-impact)
-- [12 Test Plan](#12-test-plan)
-- [13 Rollout and Dependency Ordering](#13-rollout-and-dependency-ordering)
+- [11 Test Plan](#11-test-plan)
+- [12 Rollout and Dependency Ordering](#12-rollout-and-dependency-ordering)
 
 ## About this Manual
 
 This document describes the **SONiC-side integration** for MACsec Key Agreement
-(MKA) operational state, safe key-rotation preflight, hot rollover, and
-operator-facing show commands.
+(MKA) operational state, desired key configuration, safe per-port runtime
+reconciliation, and operator-facing show commands.
 
 It is a companion to:
 
@@ -90,7 +89,8 @@ compatibility mode, test, API, or code change in `sonic-wpa-supplicant`.
   state;
 - collection and normalization of fields already available through existing
   WPA control/status commands;
-- use of that STATE_DB state as the safety input to key-rotation configuration;
+- use of STATE_DB and immediate WPA status as safety inputs to runtime
+  key-rotation actioning;
 - replacement-by-old-CKN profile update commands;
 - exact macsecmgrd remove-then-add rollover actioning;
 - failure, retry, reconciliation, freshness, restart, namespace, and security
@@ -139,34 +139,52 @@ compatibility mode, test, API, or code change in `sonic-wpa-supplicant`.
    position.
 7. No key material may be published or rendered. CKN is an identifier and may
    be exposed.
-8. `config macsec profile update` must replace exactly one configured primary
-   or fallback CA selected by old CKN.
-9. Before updating an attached profile, the config command must prove from
-   fresh, healthy STATE_DB data that every attached port has a live alternate
-   CA able to carry traffic.
-10. The config preflight must be all-or-nothing across all attached ports.
-11. `macsecmgrd` remains the final authority and must revalidate the live
-    alternate CA immediately before removing the old participant.
-12. Rollover must remove the old participant before adding its replacement.
+8. `config macsec profile update` must be a replacement-by-old-CKN command for
+   an existing profile that already contains complete primary and fallback
+   CAK/CKN pairs.
+9. The CLI must reject primary-only profile updates before CONFIG_DB mutation,
+   whether the profile is attached or unattached. The supported replacement
+   workflow for a primary-only profile is to create a new profile and rebind
+   the affected port or ports. All supplied CAK/CKN arguments must form complete
+   required pairs and pass normal parameter validation.
+10. After structural CLI validation, CONFIG_DB is authoritative desired state.
+    Runtime MKA health, freshness, port status, and participant state must not
+    gate the desired profile write.
+11. `macsecmgrd` must cache valid desired CONFIG_DB profiles, including direct
+    primary-only changes from management paths other than this CLI, and
+    reconcile each owned port independently against its exact applied runtime
+    profile.
+12. Immediately before destructive mutation, `macsecmgrd` must obtain a fresh
+    authoritative WPA snapshot and classify the applied runtime as peerless,
+    peer-bearing, or unknown.
+13. An authoritatively peerless runtime may apply a replacement without a live
+    alternate. A peer-bearing runtime must retain the strict protected-state
+    and live-alternate proof. Unknown or unqueryable runtime must fail closed.
+14. Safe sibling ports must not be blocked by an unsafe port using the same
+    profile. Completed ports remain complete; deferred ports retain their exact
+    applied and pending state for idempotent retry.
+15. Rollover must remove the old participant before adding its replacement.
     No third participant is staged.
-13. Remove failure must abort before add. Add failure after successful remove
-    must preserve service on the verified surviving CA and expose the mismatch.
-14. `show macsec --mka` must make query failure, data age, and
+16. Remove failure must abort the current port before add. Add failure after
+    successful remove must preserve truthful per-port applied/pending state and
+    must not roll desired CONFIG_DB back.
+17. `show macsec --mka` must make query failure, data age, and
     desired-vs-runtime inconsistency conspicuous.
-15. Multi-ASIC systems must keep publication and safety decisions namespace
+18. Multi-ASIC systems must keep publication and safety decisions namespace
     local while allowing the show/config commands to aggregate correctly.
-16. Each namespace-local `macsecmgrd` instance must be the sole writer of its
+19. Each namespace-local `macsecmgrd` instance must be the sole writer of its
     MKA session and participant STATE_DB tables.
-17. Periodic collection must sweep all configured MACsec ports in the local
+20. Periodic collection must sweep all configured MACsec ports in the local
     namespace every 20 seconds, querying them sequentially with a hard
     two-second deadline per port and without overlapping timer executions.
-18. A failed query for one port must not stop collection for later ports in the
+21. A failed query for one port must not stop collection for later ports in the
     same namespace.
-19. Safe rotation must require the healthy protected Controlled Port state:
+22. The peer-bearing hitless path must require the healthy protected Controlled
+    Port state:
     `kay_status=active`, `authenticated=false`, `secured=true`, and
     `failed=false`. Authenticated-only unprotected mode and inconsistent state
     combinations must be rejected.
-20. Compact MKA output must report primary and fallback live-peer counts from
+23. Compact MKA output must report primary and fallback live-peer counts from
     the configured `is_primary` roles independently of current principal
     ownership. Missing, duplicate, malformed, or unclassifiable role state must
     render as unknown rather than being inferred from `is_principal`.
@@ -306,6 +324,19 @@ Semantics:
 - CAK values remain CONFIG_DB secrets and never enter the new operational
   tables.
 
+Primary-only and paired primary/fallback profiles are both valid CONFIG_DB
+states. The dual-CA requirement applies specifically to
+`config macsec profile update`, whose purpose is hitless in-place replacement.
+It does not restrict the CONFIG_DB schema or macsecmgrd's ingestion of desired
+state written by another management path.
+
+A direct desired profile change can request a transition that is not currently
+safe to apply—for example, a primary-only runtime with peers and no alternate
+CA. macsecmgrd still caches that desired state. It retains the old applied
+runtime, publishes a degraded desired-vs-applied mismatch, and performs no
+destructive action until the runtime can be reconciled safely or a later
+desired profile supersedes the request.
+
 ### 3.2 MKA session STATE_DB table
 
 `sonic-swss-common/common/schema.h` adds:
@@ -363,6 +394,12 @@ desired-vs-runtime agreement. They are intentionally independent.
 `last_updated` is independent from both and records only the last successful
 validated query. No derived `freshness` field is stored; config and show
 consumers calculate age from `last_updated`.
+
+`config_status` is per port. After one desired profile write, one port can be
+`in-sync` while another remains `degraded` with its old applied profile. A
+healthy snapshot of the old applied runtime can therefore have
+`query_status=ok,config_status=degraded`; the observation is trustworthy even
+though runtime has not converged to CONFIG_DB.
 
 The WPA/IEEE Controlled Port fields are not cumulative success flags. Healthy
 protected operation is `authenticated=false,secured=true,failed=false`.
@@ -533,18 +570,17 @@ translate between WPA variants.
 
 ### 4.3 Snapshot reconciliation
 
-The configured primary/fallback CKNs and macsecmgrd's applied runtime state
-define the expected participant set. This lets SONiC validate completeness
-using only the existing WPA response.
+macsecmgrd's per-port `applied_profile` defines the expected participant set.
+This lets SONiC validate completeness using only the existing WPA response,
+including while desired CONFIG_DB and applied runtime differ.
 
 On a successful normal-state query:
 
 1. every expected runtime CKN must be present exactly once;
 2. no unexpected CKN may be present;
-3. exactly one participant must have `is_primary=true` for the normal SONiC
-   primary/fallback configuration;
-4. the configured primary CKN must have `is_primary=true`, and the configured
-   fallback CKN must have `is_primary=false`;
+3. the applied primary CKN must have `is_primary=true`;
+4. if the applied profile has a fallback CKN, it must have
+   `is_primary=false`;
 5. configured roles must agree with macsecmgrd's applied state; and
 6. the session and every participant block must validate.
 
@@ -569,6 +605,22 @@ the query-error behavior in §4.5 and does not use that response as safety
 evidence. A response that matches applied state but differs from desired
 CONFIG_DB is publishable with `query_status=ok,config_status=degraded`; this is
 how add/remove failures remain observable.
+
+The same validated snapshot supports runtime peer classification:
+
+- **peerless** — the actual participant CKN set exactly equals the CKN set in
+  `applied_profile`; each participant is role-correct; no duplicate or
+  unexpected participant exists; and every expected participant reports
+  `live_peers=0` and `potential_peers=0`;
+- **peer-bearing** — the participant set and roles are complete and valid, and
+  any expected participant has a nonzero live or potential peer count; or
+- **unknown** — query failure, stale data, a missing/duplicate/unexpected
+  participant, a role mismatch, or a missing/malformed peer count.
+
+Completeness is applied-profile aware. An applied primary-only runtime expects
+exactly one primary participant. An applied paired runtime expects one primary
+and one fallback participant. Missing evidence is never treated as zero peers,
+and retained status from an earlier query cannot authorize mutation.
 
 ### 4.4 Refresh and freshness
 
@@ -648,12 +700,21 @@ sudo config macsec profile add <profile> \
 
 Validation:
 
-- fallback CAK and CKN must be supplied together;
+- primary CAK and CKN are required arguments;
+- fallback CAK and CKN are optional as a pair; if either fallback argument is
+  supplied, both are required;
 - fallback CKN must differ from primary CKN;
 - CKNs must be valid hexadecimal of the supported length;
 - encoded CAKs must be valid hexadecimal in the existing encoded-key format;
 - decoded CAK length must match the cipher suite; and
 - primary/fallback encoded CAK lengths must satisfy the existing schema.
+
+Profile creation supports primary-only and paired primary/fallback profiles.
+A primary-only profile can be attached and used normally, but it is not
+eligible for `config macsec profile update`. To replace its key through the
+supported CLI, the operator creates a new profile and rebinds the affected port
+or ports. This restriction belongs to the update command; it does not redefine
+the CONFIG_DB schema or macsecmgrd's ingestion of direct desired-state changes.
 
 ### 5.2 Replacement-by-old-CKN update
 
@@ -666,6 +727,9 @@ sudo config macsec profile update <profile> \
 
 Semantics:
 
+- before mutation, the existing profile must contain the required primary
+  CAK/CKN pair and the required fallback CAK/CKN pair;
+- `new_cak` and `new_ckn` are required replacement arguments;
 - `old_ckn` must match exactly the configured primary or fallback CKN;
 - `new_ckn` must differ from `old_ckn` and from the other configured CKN;
 - same-CKN CAK replacement is rejected because the existing participant is
@@ -675,106 +739,98 @@ Semantics:
 - all unrelated profile fields remain unchanged;
 - new CAK/CKN encoding and cipher-suite validation matches profile creation;
   and
-- unattached profiles can be updated without live MKA validation.
+- each command invocation replaces exactly the one CA selected by `old_ckn`.
+  Replacing both roles requires two CLI invocations or a desired profile written
+  through another management path; the command never adds the first fallback
+  or removes the configured fallback.
 
-### 5.3 STATE_DB safety preflight
+A primary-only profile is rejected before CONFIG_DB mutation, whether attached
+or unattached:
 
-For an attached profile, the config command resolves every port using that
-profile and reads its namespace-local MKA STATE_DB rows **before changing
-CONFIG_DB**.
+```text
+Profile update requires configured primary and fallback CAK/CKN pairs;
+create a new profile and rebind ports to replace a primary-only profile.
+```
 
-Every port must pass. The command performs no CONFIG_DB write if any port
-fails.
+The error never includes CAK material. A structurally valid paired profile can
+be updated whether attached or unattached. Attachment affects runtime
+reconciliation, not desired-state acceptance.
 
-The command captures one UTC `now` value before evaluating any attached port
-and uses that same value for every `last_updated` age calculation. This gives
-every port the same freshness boundary, makes the all-port decision independent
-of iteration order, and prevents a long validation pass from aging later ports
-differently.
+Missing one member of any CAK/CKN pair is ordinary invalid-parameter handling,
+not a separate update workflow. The command reports the missing required
+argument and performs no CONFIG_DB mutation.
 
-Common session predicates:
+This is CLI validation only. A profile written by another management path
+remains authoritative CONFIG_DB desired state, including a direct primary-only
+change. macsecmgrd caches it and applies the runtime safety model in §6 rather
+than rejecting desired-state ingestion.
 
-- session row exists;
-- `profile` matches the profile being updated;
-- `query_status=ok`;
-- `config_status=in-sync`;
-- `last_updated` exists and is no more than 60 seconds old;
-- `kay_status=active`;
-- `authenticated=false`;
-- `secured=true`; and
-- `failed=false`.
+### 5.3 Desired configuration acceptance
 
-This exact tuple is required. `authenticated=true,secured=false` is
-authenticated-only, unprotected Controlled Port operation and is unsafe for
-rotation. `authenticated=true,secured=true` and other contradictory
-combinations are rejected as inconsistent. A non-active, non-secured, or
-failed session is also rejected.
+The config command validates profile structure and replacement semantics only:
 
-For primary rotation, the configured fallback row must:
+- every supplied key definition contains its required CAK and CKN;
+- the existing profile has the required primary and fallback CAK/CKN pairs;
+- `old_ckn` selects one configured CA;
+- replacement CKN and CAK pass uniqueness, encoding, length, and cipher-suite
+  checks; and
+- unrelated fields and the paired profile shape remain unchanged.
 
-- exist under the exact configured fallback CKN;
-- have `is_primary=false`;
-- have `active=true`; and
-- have `live_peers >= 1`.
+Once those checks pass, the command performs one CONFIG_DB profile write.
+Runtime MKA state is not a desired-config write gate. In particular,
+`query_status`, `config_status`, `last_updated`, Controlled Port state,
+participant roles, live/potential peer counts, administrative state, and
+operational state are not read to decide whether desired configuration may
+advance.
 
-For fallback rotation, the configured primary row must:
+Ports without an owned runtime session do not block the write. Their next
+normal enable/session-creation path uses the latest desired profile directly
+when the existing port-ready gate allows creation.
 
-- exist under the exact configured primary CKN;
-- have `is_primary=true`;
-- have `active=true`; and
-- have `live_peers >= 1`.
+### 5.4 Desired state and runtime convergence
 
-For primary rotation, the selected old CKN must have `is_primary=true`. For
-fallback rotation, it must have `is_primary=false`.
-Participant CKNs/roles must be consistent with CONFIG_DB, and no duplicate or
-extra participant may make the state ambiguous.
+After any CONFIG_DB profile change, macsecmgrd caches the desired profile and
+evaluates every tracked port independently.
 
-Requiring a live alternate CA is the safety proof: it is the CA that carries
-the Controlled Port while the selected participant is absent.
+For each owned runtime session whose `applied_profile` differs from desired
+state, macsecmgrd obtains a fresh bounded WPA snapshot immediately before
+action and classifies the applied runtime as peerless, peer-bearing, or
+unknown using §4.3:
 
-Freshness alone is never sufficient. Rotation also requires healthy query and
-configuration status, the protected Controlled Port tuple
-`active/authenticated=false/secured=true/failed=false`, the expected configured
-roles, an active alternate participant, and at least one live peer.
+- a **peerless** port can apply the desired replacement immediately without a
+  live alternate;
+- a **peer-bearing** port uses the strict hitless protected-state and
+  live-alternate preflight; and
+- an **unknown** port is not modified.
 
-`is_principal` is observed and displayed separately because it is dynamic. It
-is useful for consistency diagnostics, but it is not the configured-role safety
-predicate: the proof uses the alternate participant's `is_primary`, `active`,
-and `live_peers` values.
+Before runtime safety is authorized, macsecmgrd performs no destructive
+mutation. A port for which neither peerless nor hitless authorization can be
+proved—because status is unknown, query-failed, incomplete, malformed, or
+peer-bearing without a live alternate—retains its current applied runtime,
+publishes `config_status=degraded` with a redacted pending reason, and retries
+later. Administrative or operational down state alone is neither authorization
+nor a blocker: an owned down runtime with fresh authoritative zero-peer proof
+uses the peerless path, while a down runtime without that proof remains
+pending.
 
-If validation fails, the command reports:
+After a destructive step has succeeded, macsecmgrd records the observed
+partial progress rather than claiming the original runtime is intact. Applied
+and pending state truthfully identify which role was removed or replaced and
+which work remains.
 
-- the affected interface(s);
-- missing/stale/query-failed/inconsistent state;
-- the expected alternate CKN/role; and
-- whether the alternate was absent, inactive, or had no live peer.
+Ports are independent. A safe or authoritatively peerless port can complete
+even when another port using the same profile remains degraded. Completed
+ports are skipped on retry. Desired CONFIG_DB is never rolled back because one
+runtime port cannot converge.
 
-No CAK value appears in the error.
-
-### 5.4 Validation-to-application race
-
-The CLI safety check is a preflight, not the final authority. Peer liveness can
-change after STATE_DB is read but before macsecmgrd processes the CONFIG_DB
-update.
-
-Therefore:
-
-1. the CLI validates all attached ports atomically from the operator's
-   perspective;
-2. the CLI writes CONFIG_DB only after all ports pass;
-3. macsecmgrd receives the desired profile;
-4. macsecmgrd immediately obtains fresh existing WPA status for all attached
-   ports and preflights them again; and
-5. each port is revalidated immediately before its destructive remove.
-
-If any daemon preflight fails before action begins, no participant is removed.
-The desired CONFIG_DB value remains pending, `config_status=degraded` explains
-the mismatch, and reconciliation can retry when safe.
-
-If conditions change after some ports complete, completed ports remain on the
-replacement while untouched ports retain their old participant. Per-port
-applied state preserves the exact retry diff and exposes the partial
-desired-vs-runtime mismatch.
+Runtime convergence may make partial progress within a port when desired state
+already differs from the applied profile in both CA roles—for example, after a
+direct CONFIG_DB update or after two CLI writes are coalesced before daemon
+reconciliation. Roles are processed sequentially in a fixed order: primary
+first, then fallback. Each role receives a new fresh classification immediately
+before removal, and the successful add must be observed in a fresh status
+snapshot before the next role is attempted. A first-role failure stops further
+role changes for that port in the current pass, but does not stop other ports.
 
 ## 6 macsecmgrd Hot-Rollover Actioning
 
@@ -782,14 +838,26 @@ desired-vs-runtime mismatch.
 
 `macsecmgrd` caches, per attached interface:
 
-- effective profile;
+- latest desired profile;
 - WPA network ID;
-- applied primary CKN;
-- applied fallback CKN, if configured; and
+- exact per-port `applied_profile`;
+- pending old CKN and role, when a replacement is interrupted; and
 - the expected runtime participant set.
 
-On a CONFIG_DB profile update it diffs desired state against per-interface
-applied state. Exactly one primary or fallback CKN/CAK pair may change.
+CONFIG_DB is authoritative desired state. On a profile update macsecmgrd caches
+the desired profile and diffs it against each per-port `applied_profile`.
+Profile processing continues across all tracked ports even if one cannot
+reconcile. Ports already matching desired state are skipped on retry.
+
+A missing owned runtime session is not failure. The desired profile remains
+cached and the next normal enable creates the session directly from desired
+state.
+
+Hot reconciliation supports replacement of existing CKN identities. A direct
+desired-state change that adds or removes the fallback role, changes non-key
+profile fields, or replaces a CAK without changing its CKN can remain
+`config_status=degraded`; this design does not promise runtime convergence for
+unsupported transition shapes.
 
 The daemon uses only existing WPA control commands from the fallback feature.
 It does not create a temporary third participant.
@@ -800,44 +868,84 @@ primary while another primary exists and requires the current primary to be
 removed first. The existing delete path reruns election when the removed
 participant was principal.
 
+For an owned runtime that differs from desired state, macsecmgrd performs the
+fresh classification defined in §4.3 immediately before mutation:
+
+- **peerless applied runtime** — replacement is allowed without a live
+  alternate. This includes a primary-only applied runtime when its sole primary
+  participant is present, role-correct, and has zero live and potential peers;
+- **peer-bearing applied runtime** — any live or potential peer on any applied
+  CA requires the strict hitless path and a role-correct active alternate with
+  at least one live peer; or
+- **unknown applied runtime** — no participant mutation is allowed.
+
+The complete expected participant set comes from `applied_profile`, not desired
+state. A primary-only applied profile expects exactly one primary participant;
+a paired applied profile expects one primary and one fallback participant.
+
+If the already-accepted desired profile differs from applied state in both
+roles, macsecmgrd processes at most two role replacements in one
+profile-processing call, in fixed order: primary then fallback. This does not
+mean one `config macsec profile update` invocation replaces two roles; the CLI
+selects exactly one role with `old_ckn`. Each runtime role receives a fresh
+preflight and immediate pre-remove query. The successful add must be observed
+before the next role begins. Applied state advances after each observed
+success.
+
 ### 6.2 Primary rollover
 
-For each attached port:
+For each owned port whose applied primary differs from desired state:
 
 1. query existing WPA status immediately before action;
-2. verify the configured fallback participant is present, role-correct,
-   active, and has `live_peers >= 1`;
-3. remove the current primary participant by old CKN using the existing
+2. classify the complete applied participant set;
+3. if peerless, continue without alternate liveness; if peer-bearing, verify
+   the configured fallback participant is present, role-correct, active, and
+   has `live_peers >= 1`; if unknown, stop this port;
+4. remove the current primary participant by old CKN using the existing
    `macsec_del_mka ckn=<old-primary-ckn>` command;
-4. if removal succeeds, update the existing primary network configuration to
+5. if removal succeeds, update the existing primary network configuration to
    the replacement CKN/CAK so reassociation cannot restore the old primary;
-5. add the replacement with
+6. add the replacement with
    `macsec_add_mka ckn=<new-primary-ckn> cak=<new-cak>`; omitting
    `fallback=1` creates the primary;
-6. query and publish operational state immediately; and
-7. continue periodic reconciliation until the replacement is live and normal
+7. query status immediately and require the replacement primary to be observed
+   with the expected role before recording the role as applied; and
+8. continue periodic reconciliation until the replacement is live and normal
    primary preference/principal ownership returns according to the existing
    WPA fallback design.
 
-Between steps 3 and 5, the established fallback carries the Controlled Port.
+On the peer-bearing path, the established fallback carries the Controlled Port
+between removal and add. On the peerless path, no live or potential peer exists,
+so no peer traffic can be interrupted.
+
+For a direct desired change from an applied primary-only runtime, the peerless
+path can replace the sole primary without an alternate. If that primary has any
+live or potential peer, the port remains degraded/pending because the hitless
+path has no alternate.
 
 ### 6.3 Fallback rollover
 
-For each attached port:
+For each owned port whose applied fallback differs from desired state:
 
 1. query existing WPA status immediately before action;
-2. verify the configured primary participant is present, role-correct, active,
-   and has `live_peers >= 1`;
-3. remove the old fallback participant by old CKN;
-4. if removal succeeds, update the existing fallback network configuration to
+2. classify the complete applied participant set;
+3. if peerless, continue without primary liveness; if peer-bearing, verify the
+   configured primary participant is present, role-correct, active, and has
+   `live_peers >= 1`; if unknown, stop this port;
+4. remove the old fallback participant by old CKN;
+5. if removal succeeds, update the existing fallback network configuration to
    the replacement CKN/CAK;
-5. add the replacement with
+6. add the replacement with
    `macsec_add_mka ckn=<new-fallback-ckn> cak=<new-cak> fallback=1`, which
    creates a best-effort participant with `is_primary=false`;
-6. query and publish operational state immediately; and
-7. continue reconciliation until the replacement fallback is established.
+7. query status immediately and require the replacement fallback to be
+   observed with the expected role before recording the role as applied; and
+8. continue reconciliation until the replacement fallback is established.
 
-The primary remains configured and carries traffic throughout.
+On the peer-bearing path, the primary remains configured and carries traffic
+throughout. If primary replacement completed earlier in the same pass, this
+fallback preflight uses the new applied primary plus the old fallback and a new
+fresh query; it is never authorized by the primary role's earlier snapshot.
 
 ### 6.4 Failure, idempotency, and retry
 
@@ -857,7 +965,7 @@ query failed.
 
 - never remove or reset the verified surviving CA;
 - publish the successful one-participant status;
-- keep desired CONFIG_DB unchanged;
+- keep desired CONFIG_DB as the authoritative requested profile;
 - retain per-interface applied state showing the selected CA is absent;
 - set `config_status=degraded` with a redacted reason; and
 - retry the network update/add idempotently after fresh validation.
@@ -869,6 +977,16 @@ does not add a second participant; it marks the state degraded and
 reconciles safely.
 
 The surviving CA is never torn down as error recovery.
+
+Runtime failure never rolls desired CONFIG_DB back. A failed port retains its
+exact `applied_profile`, pending old CKN/role, and redacted configuration error.
+If the first changed role fails, no later role is attempted for that port in
+the current pass. If the first role succeeds and the second fails, the first
+remains applied and only the incomplete role is retried. Other ports continue
+independently.
+
+The operation is bounded to the configured roles. No role already observed as
+matching desired state is removed or added again on retry.
 
 ### 6.5 Operational observability
 
@@ -886,6 +1004,16 @@ fallback row changes.
 
 If application fails, `query_status` continues to report collection health
 while `config_status=degraded` reports CONFIG_DB-vs-runtime disagreement.
+
+After one desired profile write, ports using that profile can temporarily show
+different applied CKNs. A port can also temporarily contain a new primary and
+old fallback when the first peerless role replacement succeeded and the second
+remains pending. The operational tables remain truthful to each port's applied
+runtime.
+
+For a pending primary-only direct desired change, healthy query data for the
+old applied primary can coexist with `config_status=degraded`. This means the
+runtime is accurately observed but cannot yet be reconciled safely.
 
 ## 7 Show Command
 
@@ -961,6 +1089,11 @@ Otherwise it combines concise independent flags:
 For example, a retained snapshot can show
 `query-error,config-degraded,stale` while `Age` continues to report the time
 since its last successful update.
+
+`config-degraded` can also represent intentional pending convergence after a
+desired profile write. In that case `query_status=ok` and a fresh Age can
+truthfully describe the old or partially updated applied runtime while
+CONFIG_DB already contains newer desired keys.
 
 Compact `Status` deliberately describes observation freshness and
 configuration consistency only. It does not duplicate Controlled Port state.
@@ -1045,13 +1178,17 @@ On `macsecmgrd` restart:
 1. enumerate configured local-namespace MACsec interfaces;
 2. delete orphan rows for interfaces no longer configured;
 3. mark retained configured rows `query_status=error` until revalidated;
-4. rebuild network IDs and per-interface applied primary/fallback CKN state
+4. restore latest desired profiles plus per-interface applied and pending
+   reconciliation state;
+5. rebuild network IDs and per-interface applied primary/fallback CKN state
    from CONFIG_DB plus existing runtime status;
-5. immediately query each configured interface; and
-6. replace retained rows after successful validation.
+6. immediately query each configured interface; and
+7. replace retained rows after successful validation.
 
 If CONFIG_DB and runtime participants disagree, publish
 `config_status=degraded` and reconcile without deleting the known surviving CA.
+Fresh post-restart status is required before classifying a pending runtime as
+peerless; retained zero-peer data cannot authorize mutation after restart.
 
 ## 9 Security Considerations
 
@@ -1095,24 +1232,15 @@ forms.
   unchanged.
 - Existing APP_DB and ASIC-facing STATE_DB tables are unchanged.
 - WPA supplicant behavior and interfaces are unchanged by this design.
+- Existing primary-only profiles remain valid for normal runtime operation.
+  `config macsec profile update` intentionally rejects primary-only
+  replacement, but direct CONFIG_DB changes remain authoritative desired state;
+  macsecmgrd applies them only when its runtime safety rules permit.
+- Structurally valid paired CLI updates write CONFIG_DB once and reconcile
+  attached runtime sessions independently. Temporary per-port differences in
+  applied CKNs are expected and exposed through `config_status`.
 
-## 11 Component and Repository Impact
-
-| Repository / component | Change |
-| ---------------------- | ------ |
-| `sonic-swss-common` | Add the two STATE_DB table-name constants if they are not already present. |
-| `sonic-swss` / `macsecmgrd` | Solely own and populate the namespace-local tables; run sequential 20-second full sweeps with a two-second per-query deadline; derive query/config metadata; implement fresh alternate-CA revalidation; execute remove-then-add rollover; and preserve per-interface applied state for retry. |
-| `sonic-buildimage` / docker-macsec config CLI | Add paired fallback options where required and replacement-by-old-CKN update with all-port STATE_DB safety preflight before CONFIG_DB mutation. |
-| `sonic-buildimage` / docker-macsec show CLI | Add `show macsec --mka [interface]`, natural interface sorting with namespace secondary ordering, compact Status/Age plus role-derived primary/fallback live-peer counts, detailed query/config/key-server diagnostics, and secret-safe field allowlisting. |
-| `sonic-mgmt` | Add CONFIG_DB/STATE_DB/CLI, rotation safety, failure/retry, process-restart, namespace, and traffic-continuity tests. |
-| MACsecOrch / SAI / vendor SDK | No change. Existing dataplane tables and programming remain separate. |
-
-**Unchanged external dependency:** WPA supplicant and
-`sonic-wpa-supplicant` require no changes for this design. Their existing
-fallback-feature control commands and status fields are owned by the companion
-WPA HLD and are consumed as-is.
-
-## 12 Test Plan
+## 11 Test Plan
 
 | # | Area | Scenario | Expected result |
 | - | ---- | -------- | --------------- |
@@ -1129,43 +1257,50 @@ WPA HLD and are consumed as-is.
 | 11 | Scheduler | Periodic namespace sweep | Every configured port is queried sequentially every 20 seconds; timer executions do not overlap |
 | 12 | Scheduler | One port exceeds the two-second query deadline | Only that row becomes query-error; its prior data/timestamp remain; later ports are still queried |
 | 13 | Scheduler | Startup, enable, or rollover safety query | Uses the same bounded two-second query path |
-| 14 | Config | Half-configured fallback or duplicate CKN | Rejected before CONFIG_DB change |
-| 15 | Config | Same-CKN CAK replacement | Rejected |
-| 16 | Config | Unknown old CKN or new CKN equals other CA | Rejected |
-| 17 | Config | Invalid CAK/CKN encoding or cipher length | Rejected |
-| 18 | Preflight | Attached primary rotation with selected old `is_primary=true`, live alternate `is_primary=false`, and `active/authenticated=false/secured=true/failed=false` | CONFIG_DB update allowed when query/config state is healthy and age is at most 60 seconds |
-| 19 | Preflight | Attached fallback rotation with selected old `is_primary=false`, live alternate `is_primary=true`, and `active/authenticated=false/secured=true/failed=false` | CONFIG_DB update allowed when query/config state is healthy and age is at most 60 seconds |
-| 20 | Preflight | `authenticated=true,secured=false` authenticated-only mode | Entire command rejected as unprotected |
-| 21 | Preflight | Contradictory CP fields such as `authenticated=true,secured=true` | Entire command rejected as state-inconsistent |
-| 22 | Preflight | Missing, older than 60 seconds, query-failed, or degraded session | Entire command rejected with affected ports |
-| 23 | Preflight | Alternate absent, wrong role, inactive, or zero live peers | Entire command rejected |
-| 24 | Preflight | Multiple attached ports, one unsafe or at the 60-second freshness boundary | One captured UTC `now` is used for every port; no CONFIG_DB update occurs if any port fails |
-| 25 | Preflight | Unattached profile | Update allowed without live-state validation |
-| 26 | Race | State changes after CLI validation | macsecmgrd revalidation aborts before remove |
-| 27 | Primary rollover | Remove old primary, then add replacement | Fallback carries traffic; replacement converges; primary ownership returns |
-| 28 | Fallback rollover | Remove old fallback, then add replacement | Primary carries traffic throughout |
-| 29 | Remove failure | Existing participant remains | No add; degraded state reported; safe retry |
-| 30 | Add failure | Selected participant absent, alternate survives | Service remains on alternate; degraded state reported; retry succeeds |
-| 31 | Idempotency | Retry sees replacement already present | Treat add as complete without duplicate participant |
-| 32 | Partial multi-port apply | Some ports updated before another becomes unsafe | Updated ports remain; untouched ports retain old state; per-port retry diff preserved |
-| 33 | Show | Healthy primary/fallback state | Compact output shows primary and fallback live-peer counts from the unique `is_primary=true/false` rows, independent of principal ownership |
-| 34 | Show | Fallback is principal | Principal CKN/Role shows fallback while Primary/Fallback live-peer columns still follow configured roles |
-| 35 | Show | Primary-only profile | Primary live peers is shown; Fallback live peers is `-` |
-| 36 | Show | Missing or duplicate configured role | The affected role-derived live-peer count is `-` |
-| 37 | Show | Any participant has missing/malformed `is_primary` | Both role-derived live-peer counts are `-` |
-| 38 | Show | Malformed `live_peers` | The affected role-derived live-peer count is `-` |
-| 39 | Show | Compact versus detailed diagnostics | Compact header omits Key-server SCI; detailed output retains Key server SCI and participant Live/Potential columns |
-| 40 | Show | Healthy protected state | Compact `Secured` is true; detail shows `PAE KaY status: active`, `Controlled port mode: secured`, and `Failed: false`; Status independently reflects query/config/age health |
-| 41 | Show | Authenticated-only CP state | Compact `Secured` is false; detail shows `Controlled port mode: authenticated-only`; Status is not overloaded with CP flags |
-| 42 | Show | Failed, inactive, contradictory, or incomplete CP state | Detail derives `failed`, `inactive`, `inconsistent`, or `unknown` according to the ordered mapping |
-| 43 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
-| 44 | Show | Config/runtime mismatch | `config_status=degraded` and redacted reason visible |
-| 45 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
-| 46 | Process restart | macsecmgrd restarts while the existing WPA session remains active | Rows are revalidated and rebuilt without dataplane teardown |
-| 47 | Security | Poison config/status/error paths with current and stale encoded/decoded CAKs plus CKN/interface/error context | Every CAK form is redacted from STATE_DB/show/log output; CKN and non-secret context remain visible |
-| 48 | Traffic | Supported primary and fallback rollover | Continuous bidirectional traffic has zero loss |
+| 14 | Config CLI | Complete dual-CA profile replacement | One CONFIG_DB write occurs after structural validation; runtime STATE_DB is not read |
+| 15 | Config CLI | Primary-only attached profile update | Rejected before CONFIG_DB mutation with create-new-profile/rebind guidance |
+| 16 | Config CLI | Primary-only unattached profile update | Rejected identically; attachment does not relax the command contract |
+| 17 | Config CLI | Missing required CAK/CKN pair member, same CKN, CKN collision, invalid encoding/length, or unsupported multi-field change | Rejected as invalid parameters before CONFIG_DB mutation |
+| 18 | Config CLI | Complete dual-CA update with missing/stale/unhealthy MKA state | Desired CONFIG_DB write succeeds; runtime reconciliation is deferred to macsecmgrd |
+| 19 | Config CLI | Error/advisory output | No CAK appears; primary-only rejection names the create-new-profile/rebind workflow |
+| 20 | Desired state | Direct primary-only CONFIG_DB change | macsecmgrd caches desired state; ingestion is not rejected |
+| 21 | Desired state | Direct unsupported shape such as fallback add/remove, non-key change, or same-CKN CAK change | Desired state is cached; runtime remains unchanged and degraded/pending rather than promising unsupported convergence |
+| 22 | No runtime | Port has no owned session | Desired state does not block profile processing; future enable uses the latest desired profile |
+| 23 | Peerless | Applied primary-only runtime has sole role-correct primary with zero live and potential peers | Primary replacement proceeds without an alternate |
+| 24 | Peer-bearing | Applied primary-only runtime has any live peer | No remove/add; port remains degraded because no alternate exists |
+| 25 | Peer-bearing | Applied primary-only runtime has any potential peer | No remove/add; potential peer prevents peerless classification |
+| 26 | Peerless | Applied dual-CA runtime has zero live and potential peers on both roles | Selected role replacement proceeds without alternate liveness |
+| 27 | Peer-bearing | Applied dual-CA runtime has any live or potential peer | Strict protected-state and role-correct live-alternate checks are required |
+| 28 | Unknown | Expected applied CKN missing, extra/duplicate CKN, wrong role, or malformed peer count | No participant mutation; applied state retained and port degraded |
+| 29 | Unknown | Query failure or stale retained snapshot previously showed zero peers | Retained zeros are not reused; no participant mutation |
+| 30 | Multi-port | Unsafe first port, later safe/peerless port | Unsafe port remains pending; later port still reconciles |
+| 31 | Multi-port | Safe/peerless first port, later unsafe port | First port remains complete; later port remains pending |
+| 32 | Multi-port | Multiple safe ports | All reconcile independently in one profile-processing pass |
+| 33 | Multi-role | Already-accepted desired state differs from applied state in primary and fallback | Primary then fallback complete sequentially in the same `loadProfile()` call; one CLI invocation still selects only one role |
+| 34 | Multi-role | Per-role authorization | Each role gets a fresh preflight and immediate pre-remove query; first add is observed before second role begins |
+| 35 | Multi-role | First role fails | Further role changes stop for that port in the current pass; other ports continue |
+| 36 | Multi-role | First role succeeds, second role fails | First role remains applied; second role is degraded/pending |
+| 37 | Retry | Partial multi-role progress | Completed role is skipped; retry resumes only the incomplete role |
+| 38 | Remove failure | Existing participant remains | No add; degraded state reported; safe retry |
+| 39 | Ambiguous add | Replacement was applied but command reported failure | Fresh observation recognizes the replacement; duplicate add is avoided |
+| 40 | Show | Healthy primary/fallback state | Compact output shows primary and fallback live-peer counts from the unique `is_primary=true/false` rows, independent of principal ownership |
+| 41 | Show | Fallback is principal | Principal CKN/Role shows fallback while Primary/Fallback live-peer columns still follow configured roles |
+| 42 | Show | Primary-only profile | Primary live peers is shown; Fallback live peers is `-` |
+| 43 | Show | Missing or duplicate configured role | The affected role-derived live-peer count is `-` |
+| 44 | Show | Any participant has missing/malformed `is_primary` | Both role-derived live-peer counts are `-` |
+| 45 | Show | Malformed `live_peers` | The affected role-derived live-peer count is `-` |
+| 46 | Show | Compact versus detailed diagnostics | Compact header omits Key-server SCI; detailed output retains Key server SCI and participant Live/Potential columns |
+| 47 | Show | Healthy protected state | Compact `Secured` is true; detail shows `PAE KaY status: active`, `Controlled port mode: secured`, and `Failed: false`; Status independently reflects query/config/age health |
+| 48 | Show | Authenticated-only CP state | Compact `Secured` is false; detail shows `Controlled port mode: authenticated-only`; Status is not overloaded with CP flags |
+| 49 | Show | Failed, inactive, contradictory, or incomplete CP state | Detail derives `failed`, `inactive`, `inconsistent`, or `unknown` according to the ordered mapping |
+| 50 | Show | Query failure, age over 60 seconds, config degradation, or never-successful query | Status combines independent flags and cannot look healthy |
+| 51 | Show | Config/runtime mismatch | Healthy observed old or partially updated runtime can have `query_status=ok,config_status=degraded` |
+| 52 | Multi-ASIC | Same CKN on different ports/namespaces | Rows remain distinct; correct namespace is used |
+| 53 | Process restart | macsecmgrd restarts with desired/applied/pending state and active WPA runtime | Desired and per-port progress are restored; fresh queries precede mutation; reconciliation resumes without replaying completed roles |
+| 54 | Security | Poison config/status/error paths with current and stale encoded/decoded CAKs plus CKN/interface/error context | Every CAK form is redacted from STATE_DB/show/log output; CKN and non-secret context remain visible |
+| 55 | Traffic | Peer-bearing supported primary/fallback rollover | Continuous bidirectional traffic has zero loss |
 
-## 13 Rollout and Dependency Ordering
+## 12 Rollout and Dependency Ordering
 
 The companion WPA fallback-key behavior and the SONiC changes in this document
 are delivered as one coupled feature set. The delivery order inside that set is:
