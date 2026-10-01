@@ -33,6 +33,8 @@
   - [3.1 Phase 1](#31-phase-1)
   - [3.2 Phase 2](#32-phase-2)
 - [4 Configuration](#4-configuration)
+  - [4.1 Yang Definition](#41-yang-definition)
+  - [4.2 Reference Configuration](#42-reference-configuration)
 - [5 Module Design](#5-module-design)
   - [5.1 PTP Container](#51-ptp-container)
   - [5.2 orchagent](#52-orchagent)
@@ -46,7 +48,6 @@
     - [6.1.1 CONFIG_DB](#611-config_db)
       - [6.1.1.1 Feature Config](#6111-feature-config)
       - [6.1.1.2 Port Config](#6112-port-config)
-      - [6.1.1.3 PTP Config](#6113-ptp-config)
     - [6.1.2 APPL_DB](#612-appl_db)
       - [6.1.2.1 Switch ptp port mode](#6121-switch-ptp-port-mode)
       - [6.1.2.2 ptp configuration](#6122-ptp-configuration)
@@ -63,13 +64,11 @@
 
 ### Revision
 
-
-| Rev | Date       | Author     | Change Description              |
-| --- | ---------- | ---------- | ------------------------------- |
-| 0.1 | 2026-04-29 | Maike Geng | Initial edition                 |
-| 0.2 | 2026-05-05 | Maike Geng | Review and merge in data models |
-
-
+| Rev | Date       | Author         | Change Description               |
+| --- | ---------- | -------------- | -------------------------------- |
+| 0.1 | 2026-04-29 | Maike Geng     | Initial edition                  |
+| 0.2 | 2026-05-05 | Maike Geng     | Review and merge in data models  |
+| 0.3 | 2026-09-30 | Vikram Chandra | add yang and show command output |
 
 
 ### About this manual
@@ -237,7 +236,7 @@ PTP packets may transmit certain PTP messages using multicast IPv4 or IPv6 packe
 
 ### 2.4.6 L2 transport
 
-PTP packets may transmit PTP packets with L2 addresses.
+These are PTP packets with ethertype 0x88F7.
 
 ## 2.5 Hardware Features Support
 
@@ -296,22 +295,65 @@ config feature state ptp enabled/disabled
 The following commands will have an entry for ptp:
 
 ```bash
-show feature config 
+show feature config
+Feature         State            AutoRestart     Owner
+--------------  ---------------  --------------  -------
+bgp             enabled          enabled         local
+database        always_enabled   always_enabled  local
+dhcp_relay      disabled         enabled         local
+eventd          enabled          enabled         local
+gnmi            enabled          enabled         local
+lldp            enabled          enabled         local
+macsec          disabled         enabled         local
+mgmt-framework  enabled          enabled         local
+mux             always_disabled  enabled         local
+nat             disabled         enabled         local
+otel            disabled         enabled         local
+pmon            enabled          enabled         local
+ptp             enabled          enabled         local
+radv            enabled          enabled         local
+sflow           disabled         enabled         local
+snmp            enabled          enabled         local
+swss            enabled          enabled         local
+syncd           enabled          enabled         local
+teamd           enabled          enabled         local
+
 show feature status
+Feature         State            AutoRestart     SetOwner
+--------------  ---------------  --------------  ----------
+bgp             enabled          enabled
+database        always_enabled   always_enabled
+dhcp_relay      disabled         enabled         local
+eventd          enabled          enabled
+gnmi            enabled          enabled
+lldp            enabled          enabled
+macsec          disabled         enabled         local
+mgmt-framework  enabled          enabled
+mux             always_disabled  enabled
+nat             disabled         enabled
+otel            disabled         enabled
+pmon            enabled          enabled
+ptp             enabled          enabled
+radv            enabled          enabled
+sflow           disabled         enabled
+snmp            enabled          enabled
+swss            enabled          enabled
+syncd           enabled          enabled
+teamd           enabled          enabled
 ```
 
 PTP Configuration Commands
-Create a unicast-master-table and add IP host addresses of potential masters
+Create a unicast-master-table and add IP host addresses of potential masters.  The unicast master table contains the ip addresses of potential master
 
 ```bash
-config ptp unicast-master-table add/remove <table-name>
-config ptp unicast-master-table ip add/remove <table-name> <ipv4/ipv6 address>
+config ptp unicast-master-table add/remove <id>
+config ptp unicast-master-table ip add/remove <id> <ipv4/ipv6 address>
 ```
 
 Enable PTP on a port and associate a unicast host table if required
 
 ```bash
-config ptp interface add <interface-name> [<table-name>][--unicast-listen]
+config ptp interface add <interface-name> [<id>][--unicast-listen]
 config ptp interface remove <interface-name>
 ```
 
@@ -327,6 +369,74 @@ Show which ports have PTP enabled/disabled:
 
 ```bash
 show ptp port status
+Interface    PTP       Mode
+-----------  --------  --------
+Ethernet0    disabled  none
+Ethernet8    disabled  none
+Ethernet16   disabled  none
+Ethernet24   disabled  none
+Ethernet32   disabled  none
+Ethernet40   disabled  none
+Ethernet48   disabled  none
+Ethernet56   disabled  none
+Ethernet64   disabled  none
+Ethernet72   disabled  none
+Ethernet80   disabled  none
+Ethernet88   disabled  none
+Ethernet96   disabled  none
+Ethernet104  disabled  none
+Ethernet112  disabled  none
+Ethernet120  disabled  none
+Ethernet128  disabled  none
+Ethernet136  enabled   one-step
+Ethernet144  enabled   one-step
+Ethernet152  disabled  none
+Ethernet160  disabled  none
+Ethernet168  disabled  none
+Ethernet176  disabled  none
+Ethernet184  disabled  none
+Ethernet192  disabled  none
+Ethernet200  disabled  none
+Ethernet208  disabled  none
+Ethernet216  disabled  none
+Ethernet224  disabled  none
+Ethernet232  disabled  none
+Ethernet240  disabled  none
+Ethernet248  disabled  none
+Ethernet256  disabled  none
+Ethernet264  disabled  none
+Ethernet272  disabled  none
+Ethernet280  disabled  none
+Ethernet288  disabled  none
+Ethernet296  disabled  none
+Ethernet304  disabled  none
+Ethernet312  disabled  none
+Ethernet320  disabled  none
+Ethernet328  disabled  none
+Ethernet336  disabled  none
+Ethernet344  disabled  none
+Ethernet352  disabled  none
+Ethernet360  disabled  none
+Ethernet368  disabled  none
+Ethernet376  disabled  none
+Ethernet384  disabled  none
+Ethernet392  disabled  none
+Ethernet400  disabled  none
+Ethernet408  disabled  none
+Ethernet416  disabled  none
+Ethernet424  disabled  none
+Ethernet432  disabled  none
+Ethernet440  disabled  none
+Ethernet448  disabled  none
+Ethernet456  disabled  none
+Ethernet464  disabled  none
+Ethernet472  disabled  none
+Ethernet480  disabled  none
+Ethernet488  disabled  none
+Ethernet496  disabled  none
+Ethernet504  disabled  none
+Ethernet512  disabled  none
+Ethernet513  disabled  none
 ```
 
 Shows ptp status:
@@ -373,19 +483,284 @@ cumulative rate offset(ppm)     -0.545
 last packet offset from master  -109.0
 last adjustment                 +0.000000000
 ```
+Shows ptp protocol status:
+```bash
+show ptp protocol status
+PTP Protocol
 
+Parameter          Value
+-----------------  -------
+domain-number      44
+sync-interval      -3
+announce-interval  1
+
+Unicast Master Table
+  Table ID  Address
+----------  ---------
+         1  2.3.27.2
+
+PTP Ports
+Interface    Role    Unicast Table    Unicast Listen
+-----------  ------  ---------------  ----------------
+Ethernet136  master  -                true
+Ethernet144  slave   1                false
+```
 Shows ptp interface counters:
 
 ```bash
 show ptp counters <interface-name>
+Interface: Ethernet136
+portIdentity: 4c62cd.fffe.759243-1
+
+Message                    RX      TX
+---------------------  ------  ------
+Sync                   568510       0
+Delay_Req                   0  563945
+Pdelay_Req                  0       0
+Pdelay_Resp                 0       0
+Follow_Up                   0       0
+Delay_Resp             560434       0
+Pdelay_Resp_Follow_Up       0       0
+Announce                17769       0
+Signaling                 729     407
+Management                  0       0
+
+Service
+Event                      Count
+-----------------------  -------
+announce_timeout               0
+sync_timeout                   0
+delay_timeout             564000
+unicast_service_timeout      493
+unicast_request_timeout    35512
+master_announce_timeout        0
+master_sync_timeout            0
+qualification_timeout          0
+sync_mismatch                  0
+followup_mismatch              0
+
+Interface: Ethernet144
+portIdentity: 4c62cd.fffe.759243-2
+
+Message                  RX    TX
+---------------------  ----  ----
+Sync                      0     0
+Delay_Req                 0     0
+Pdelay_Req                0     0
+Pdelay_Resp               0     0
+Follow_Up                 0     0
+Delay_Resp                0     0
+Pdelay_Resp_Follow_Up     0     0
+Announce                  0     0
+Signaling                 0     0
+Management              126   208
+
+Service
+Event                      Count
+-----------------------  -------
+announce_timeout               3
+sync_timeout                   0
+delay_timeout                  0
+unicast_service_timeout        0
+unicast_request_timeout        0
+master_announce_timeout    18076
+master_sync_timeout       578069
+qualification_timeout          0
+sync_mismatch                  0
+followup_mismatch              0
 ```
 
-Clears ptp counters on all ports:
+## 4.1 Yang Definition
+
+sonic-port.yang will have a new leaf:
+```bash
+				leaf ptp_mode {
+						description "PTP mode for interface";
+                                                type enumeration {
+                                                        enum none;
+                                                        enum one-step;
+                                                        enum two-step;
+                                                }
+						default none;
+				}
+
+```
+
+
+A new file called sonic-ptp.yang will be created:
+```bash
+module sonic-ptp {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-ptp";
+    prefix ptp;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    import sonic-port {
+        prefix port;
+    }
+
+    import sonic-types {
+        prefix stypes;
+    }
+
+    description "PTP yang Module for SONiC OS";
+
+    revision 2026-09-22 {
+        description "Add default log2 sync_interval (-3) and announce_interval (1)";
+    }
+
+    revision 2026-07-08 {
+        description "Change PTP_UNICAST_MASTER_TABLE_LIST key from name (string) to id (uint32)";
+    }
+
+    revision 2026-05-27 {
+        description "Add global PTP config, per-interface (port) config, and unicast master table";
+    }
+
+    container sonic-ptp {
+
+        container PTP {
+
+            description "PTP global configuration";
+
+            container global {
+
+                leaf domain_number {
+                    type uint8 {
+                        range "0..127" {
+                            error-message "PTP domain number must be in range 0..127 (IEEE 1588-2008)";
+                        }
+                    }
+                    description "PTP domain number (IEEE 1588-2008 section 7.1)";
+                }
+
+                leaf sync_interval {
+                    type int8 {
+                        range "-7..7" {
+                            error-message "PTP sync interval must be in range -7..7";
+                        }
+                    }
+                    default -3;
+                    description "Log2 of the mean Sync message transmission interval in seconds (default -3 = 8/s)";
+                }
+
+                leaf announce_interval {
+                    type int8 {
+                        range "-3..4" {
+                            error-message "PTP announce interval must be in range -3..4";
+                        }
+                    }
+                    default 1;
+                    description "Log2 of the mean Announce message transmission interval in seconds (default 1 = 2s)";
+                }
+
+            } /* end of container global */
+
+        } /* end of container PTP */
+
+        container PTP_PORT {
+
+            description "PTP per-interface (port) configuration";
+
+            list PTP_PORT_LIST {
+
+                key "name";
+
+                leaf name {
+                    type leafref {
+                        path /port:sonic-port/port:PORT/port:PORT_LIST/port:name;
+                    }
+                    description "Ethernet interface name";
+                }
+
+                leaf unicast_table {
+                    type leafref {
+                        path /ptp:sonic-ptp/ptp:PTP_UNICAST_MASTER_TABLE/ptp:PTP_UNICAST_MASTER_TABLE_LIST/ptp:id;
+                    }
+                    description "PTP unicast master table associated with this interface (optional)";
+                }
+
+                leaf unicast_listen {
+                    type stypes:boolean_type;
+                    default "false";
+                    description "When true, accept unicast Delay_Req messages on this interface";
+                }
+
+            } /* end of list PTP_PORT_LIST */
+
+        } /* end of container PTP_PORT */
+
+        container PTP_UNICAST_MASTER_TABLE {
+
+            description "PTP unicast master table - keyed by table ID";
+
+            list PTP_UNICAST_MASTER_TABLE_LIST {
+
+                key "id";
+
+                leaf id {
+                    type uint32;
+                    description "Numeric ID of the PTP unicast master table";
+                }
+
+            } /* end of list PTP_UNICAST_MASTER_TABLE_LIST */
+
+        } /* end of container PTP_UNICAST_MASTER_TABLE */
+
+        container PTP_UNICAST_MASTER_TABLE_IP {
+
+            description "PTP unicast master IP entries - one row per table-name|ip-address pair";
+
+            list PTP_UNICAST_MASTER_TABLE_IP_LIST {
+
+                key "id ip_address";
+
+                leaf id {
+                    type leafref {
+                        path /ptp:sonic-ptp/ptp:PTP_UNICAST_MASTER_TABLE/ptp:PTP_UNICAST_MASTER_TABLE_LIST/ptp:id;
+                    }
+                    description "ID of the parent PTP unicast master table";
+                }
+
+                leaf ip_address {
+                    type inet:ip-address;
+                    description "IPv4 or IPv6 address of the unicast master";
+                }
+
+            } /* end of list PTP_UNICAST_MASTER_TABLE_IP_LIST */
+
+        } /* end of container PTP_UNICAST_MASTER_TABLE_IP */
+
+    } /* end of container sonic-ptp */
+
+} /* end of module sonic-ptp */
+```
+
+## 4.2 Reference Configuration
+
+Below diagram and CLI commands show the example configuration for the Boundary Clock BC, where master is connected to port Ethernet8 and slave is connected to Ethernet128.
 
 ```bash
-sonic-clear ptp counters
-```
++---------------+                  +---------------+                  +---------------+
+|               |Ethernet0         |               |Ethernet128       |               |
+|               |1.1.1.1/24        |               |2.2.2.10/24       |               |
+|    Master     |------------------|      BC       |------------------|     Slave     |
+|               |       Ethernet8  |               |       Ethernet136|               |
+|               |       1.1.1.10/24|               |       2.2.2.1/24 |               |
++---------------+                  +---------------+                  +---------------+
 
+config feature state ptp enabled
+config ptp domain-number 44
+config ptp unicast-master-table add 1
+config ptp unicast-master-table ip add 1 1.1.1.1
+config ptp interface add Ethernet8 1
+config ptp interface add Ethernet128 –unicast-listen
+```
 
 
 # 5 Module Design
@@ -404,7 +779,7 @@ The telemetry feed is new process that will pool ptp4l through its UDS interface
 
 ## 5.2 orchagent
 
-Switch orch will recognize ptp_mode attribute in switch objects and translate it into SAI_SWITCH_ATTR_PORT_PTP_MODE.  There will be a copp rule added to handle PTP packets.
+Switch orch will recognize ptp_mode attribute in switch objects and translate it into SAI_SWITCH_ATTR_PORT_PTP_MODE.  There will be a copp rule added to handle PTP packets. A slave port receives announce, sync and delay response packets and a master port receives delay request packets.  With an announce interval of 1 and sync interval of -4, we will receive about 32.5 pkts/sec on a slave port.  A new queue group will be created with cir/cbs of 600, which will be adjusted after some testing.
 
 ## 5.3 Syncd Updates
 
@@ -416,7 +791,7 @@ The SAI is an existing library component with vendor-specific implementation. SA
 
 ## 5.5 SAI implementations and ASIC Device Driver Updates
 
-The SAI implementation and ASIC device driver is an existing vendor-specific component.  To support the PTP feature, the ASIC device driver creates and maintains Linux Ethernet devices that have associated Linux PHC devices.  The vendor-specific SAI implementation with support for SAI_SWITCH_ATTR_PORT_PTP_MODE on switch objects will be invoked to program the ASIC for PTP timestamping operation.
+The SAI implementation and ASIC device driver is an existing vendor-specific component.  To support the PTP feature, the ASIC device driver creates and maintains Linux Ethernet devices that have associated Linux PHC devices.  The vendor-specific SAI implementation with support for SAI_SWITCH_ATTR_PORT_PTP_MODE on switch objects will be invoked to program the ASIC for PTP timestamping operation.  SAI also installs trap rules for L3 PTP, which is IP UDP packets with ports 319 and 320.
 
 ## 5.6 Linux Ethernet Device Update
 
@@ -464,13 +839,7 @@ SWITCH|switch
 {
 +     "ptp-mode": ("none"|"one-step|two-step"),
 }
-```
 
-
-
-#### 6.1.1.3 PTP Config
-
-```
 PTP_UNICAST_MASTER_TABLE|{table-name}|<ip-addar>
   family = ipv4
 
@@ -478,7 +847,6 @@ PTP_Interface|{if-name}
   unicast_master_table=<table-name>
   unicast_listen=1
 ```
-
 
 
 ### 6.1.2 APPL_DB
