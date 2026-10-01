@@ -150,6 +150,8 @@ wrapper, before `exec /init`) and translates
 | `autorestart=false` (non-critical)                 | `finish` script holds the service down (`s6-svc -D`) |
 | critical process (from `critical_processes`)       | restarted by s6-supervise |
 | `[eventlistener:supervisor-proc-exit-listener]`    | longrun reading the event FIFO (see below) |
+
+The generated listener run script exports `S6_SUPERVISED=1` before executing the listener. The listener binaries use this explicit gate (combined with an init-is-s6-svscan check for the container-stop path) to enable their s6-specific behaviour; without the variable they follow the stock supervisord code path unchanged.
 | stdout/stderr to syslog                            | s6-log pipeline into `logger` |
 
 The oneshot translation is essential for correctness: s6-rc considers a
