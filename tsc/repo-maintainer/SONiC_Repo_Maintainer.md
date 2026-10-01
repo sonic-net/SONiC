@@ -8,6 +8,7 @@
 | sonic-dhcp-relay | sonic-dhcp-relay-maintainer | Saikrishna Arcot (Microsoft) | saiarcot895 | enabled |
 |  | sonic-dhcp-relay-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 | sonic-dhcpmon | sonic-dhcpmon-maintainer | Xichen Lin (Microsoft) | Xichen96 | Request on 10/01/2026 |
+|  | sonic-dhcpmon-maintainer | Ashutosh Agrawal (Cisco) | ashutosh-agrawal | Request on 10/01/2026 |
 | sonic-bmp | sonic-bmp-maintainer | Syed Hasan Raza Naqvi (BRCM) | hasan-brcm | enabled |
 |  | sonic-bmp-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
 |  | sonic-bmp-maintainer | Sudharsan Dhamal Gopalarathnam (Nvidia) | dgsudharsan | enabled |
