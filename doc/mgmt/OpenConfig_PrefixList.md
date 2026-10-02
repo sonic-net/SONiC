@@ -341,7 +341,7 @@ No COUNTER DB tables are used for prefix list configuration.
 | OpenConfig leaf | Extension | DB Name | Table:Field | Notes |
 |-----------------|-----------|---------|-------------|-------|
 | ip-prefix (list key) | | CONFIG_DB | PREFIX:key `{canonical-ip-prefix}` | Normalized on write; GET/DELETE accept URI forms that normalize to the same key |
-| masklength-range (list key) | | CONFIG_DB | PREFIX:key `{masklength-range}` | Empty allowed; see Notes in §4.5 |
+| masklength-range (list key) | | CONFIG_DB | PREFIX:key `{masklength-range}` | Must be `exact` or `MIN..MAX`; empty rejected. See Notes in §4.5 |
 
 ## 4.5 Prefix Entry Leaves (config/state)
 **OpenConfig path:**
@@ -354,12 +354,13 @@ No COUNTER DB tables are used for prefix list configuration.
 | OpenConfig leaf | Extension | DB Name | Table:Field | Notes |
 |-----------------|-----------|---------|-------------|-------|
 | ip-prefix | | CONFIG_DB | PREFIX:key `{canonical-ip-prefix}` | Prefixes with host bits set are rejected. Entry address family must match parent prefix-set `mode` |
-| masklength-range | | CONFIG_DB | PREFIX:key `{masklength-range}` | Single value `V` must equal prefix length `P`. Range `MIN..MAX` requires `MIN <= MAX` and `P` equal to `MIN` or `MAX` |
+| masklength-range | | CONFIG_DB | PREFIX:key `{masklength-range}` | Must be `exact` or a range `MIN..MAX` (OpenConfig pattern). Empty is rejected. `exact` is stored as `exact` in the CONFIG_DB key (exact prefix match). Range `MIN..MAX` requires `MIN <= MAX` |
 | sequence-number | Yes | CONFIG_DB | PREFIX:key `{sequence-number}` | **Mandatory** on create, update, and replace. OpenConfig does not use SONiC `PREFIX_NOSEQ_LIST`. To change sequence, delete the prefix entry and recreate. PATCH/UPDATE that changes only sequence for the same `(ip-prefix, masklength-range)` is rejected |
 | action | Yes | CONFIG_DB | PREFIX:action | `PERMIT`/`DENY` → `permit`/`deny`; default PERMIT when omitted on create |
 | (derived) | | CONFIG_DB | PREFIX:mode | Aligned with parent prefix-set `mode` |
 
 Additional validation (enforced on SET):
+- `masklength-range` must be `exact` or `MIN..MAX`; empty is rejected.
 - Two entries in the same set cannot share the same `(ip-prefix, masklength-range)` with different sequence numbers, or the same sequence number with different `(ip-prefix, masklength-range)`.
 - A single request must not include two prefix entries that normalize to the same `(ip-prefix, masklength-range)`.
 - Deleting the **last** prefix entry in a set also removes the `PREFIX_SET` row automatically.
@@ -510,6 +511,7 @@ Invalid configurations and unsupported operations report an error with a descrip
 - Duplicate prefix spellings in a single payload
 - Host-bit prefixes rejected for IPv4 and IPv6
 - Address family mismatch between entry and prefix-set `mode`
+- Empty `masklength-range` rejected; value must be `exact` or `MIN..MAX`
 - Invalid `masklength-range` format or inverted range
 - PATCH/UPDATE that changes only `sequence-number` for an existing entry
 - GET/DELETE on unknown prefix entry (`Prefix entry not found`)
@@ -530,6 +532,7 @@ Section 7 summarizes generic functional and negative scenarios for REST and gNMI
 **Prefix entries and normalization**
 
 - IPv4 and IPv6 prefix-set `mode` with PERMIT and DENY actions on entries.
+- Prefix entries with `masklength-range` `exact` and with `MIN..MAX` range (including `10.0.0.0/16` with `24..28`).
 - IPv6 prefix normalization (e.g. `0::/64` stored and retrieved as `::/64`).
 - GET and DELETE using canonical and non-canonical URI forms of the same prefix.
 - Prefix-set `description` stored in CONFIG_DB `PREFIX_SET:description`.
@@ -549,7 +552,7 @@ Section 7 summarizes generic functional and negative scenarios for REST and gNMI
 1. Missing `sequence-number` on prefix entry create rejected.
 2. Host-bit prefixes rejected for IPv4 and IPv6.
 3. IPv4 prefix in IPV6 set (and vice versa) rejected.
-4. Invalid `masklength-range` formats and inverted ranges rejected.
+4. Empty `masklength-range` rejected; value must be `exact` or `MIN..MAX`. Invalid formats and inverted ranges rejected.
 5. Invalid prefix-set `mode` values (e.g. `MIXED`) rejected.
 
 **Sequence and duplicate entries**
