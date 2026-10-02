@@ -74,6 +74,7 @@
 |  | sonic-mgmt-maintainer | Myron Sosyak (Intel) | msosyak | enabled |
 |  | sonic-mgmt-maintainer | Vamsi Punati(Google) | vamsipunati | invitation sent |
 |  | sonic-mgmt-maintainer | Sasthri Kristipati (BRCM) | ramakristipati | Approved on 5/3/2023 and enabled |
+|  | sonic-mgmt-maintainer | Storm Liang (Microsoft) | StormLiangMS | Request on 09/29/2026 |
 | sonic-fips | sonic-fips-maintainer | Xuhui Miao (Microsoft) | xumia | enabled |
 | sonic-genl-packet | sonic-genl-packet-maintainer | Don Newton (Intel) | donNewtonIntel | enabled |
 | sonic-platform-vpp | sonic-platform-vpp-maintainer | Abdel Baig; Yue Gao (yuega2) | yue-fred-gaoabdbaig | enabled |
