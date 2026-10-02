@@ -66,6 +66,7 @@
     - [pmon-enhancement-design.md](doc/pmon/pmon-enhancement-design.md)
     - [CLI-SNMP-flow.svg](doc/pmon/CLI-SNMP-flow.svg)
     - [sonic_platform_test_plan.md](doc/pmon/sonic_platform_test_plan.md)
+    - [pmon_daemon_config_hld.md](doc/pmon/pmon_daemon_config_hld.md)
   - acl
     - [egress-acl-bug-fix-description.md](doc/acl/egress-acl-bug-fix-description.md)
     - [ACL-enhancements-on-SONIC.docx](doc/acl/ACL-enhancements-on-SONIC.docx)
