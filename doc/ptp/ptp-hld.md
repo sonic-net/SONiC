@@ -47,29 +47,25 @@
   - [6.1 SONiC DBs](#61-sonic-dbs)
     - [6.1.1 CONFIG_DB](#611-config_db)
       - [6.1.1.1 Feature Config](#6111-feature-config)
-      - [6.1.1.2 Port Config](#6112-port-config)
-    - [6.1.2 APPL_DB](#612-appl_db)
-      - [6.1.2.1 Switch ptp port mode](#6121-switch-ptp-port-mode)
-      - [6.1.2.2 ptp configuration](#6122-ptp-configuration)
-    - [6.1.3 ASIC_DB](#613-asic_db)
-      - [6.1.3.1 Switch Port PTP Mode Configuration](#6131-switch-port-ptp-mode-configuration)
-    - [6.1.4 STATE_DB](#614-state_db)
-      - [6.1.4.1 PTP Config](#6141-ptp-config)
-      - [6.1.4.2 PTP Time Status](#6142-ptp-time-status)
-    - [6.1.5 COUNTERS_DB](#615-counters_db)
-      - [6.1.5.1 PTP Port Statistics](#6151-ptp-port-statistics)
-- [7 Testing](#7-testing)
-
+    - [6.1.2 STATE_DB](#612-state_db)
+      - [6.1.2.1 PTP Config](#6121-ptp-config)
+      - [6.1.2.2 PTP Time Status](#6122-ptp-time-status)
+    - [6.1.3 COUNTERS_DB](#613-counters_db)
+      - [6.1.3.1 PTP Port Statistics](#6131-ptp-port-statistics)
+- [7 Failure scenarios](#7-failure-scenarios)
+- [8 Testing](#8-testing)
+- [9 Other items not planned for first release](#9-other-items-not-planned-for-first-release)
+  - [9.1 PTP Interaction with NTP](#91-ptp-interaction-with-ntp)
 
 
 ### Revision
 
-| Rev | Date       | Author         | Change Description               |
-| --- | ---------- | -------------- | -------------------------------- |
-| 0.1 | 2026-04-29 | Maike Geng     | Initial edition                  |
-| 0.2 | 2026-05-05 | Maike Geng     | Review and merge in data models  |
-| 0.3 | 2026-09-30 | Vikram Chandra | add yang and show command output |
-
+| Rev | Date       | Author         | Change Description                  |
+| --- | ---------- | -------------- | ----------------------------------- |
+| 0.1 | 2026-04-29 | Maike Geng     | Initial edition                     |
+| 0.2 | 2026-05-05 | Maike Geng     | Review and merge in data models     |
+| 0.3 | 2026-09-30 | Vikram Chandra | add yang and show command output    |
+| 0.4 | 2026-10-01 | Vikram Chandra | addressed some comments from review |
 
 ### About this manual
 
@@ -343,7 +339,7 @@ teamd           enabled          enabled
 ```
 
 PTP Configuration Commands
-Create a unicast-master-table and add IP host addresses of potential masters.  The unicast master table contains the ip addresses of potential master
+Create a unicast-master-table and add IP host addresses of potential masters.  The unicast master table contains the ip addresses of potential master.  unicast-listen flag will basically set the port to unicast signalling messages.  Ports associated with id will be slave port and ports configured with unicast-listen flag will be master ports for downstream devices.
 
 ```bash
 config ptp unicast-master-table add/remove <id>
@@ -779,7 +775,7 @@ The telemetry feed is new process that will pool ptp4l through its UDS interface
 
 ## 5.2 orchagent
 
-Switch orch will recognize ptp_mode attribute in switch objects and translate it into SAI_SWITCH_ATTR_PORT_PTP_MODE.  There will be a copp rule added to handle PTP packets. A slave port receives announce, sync and delay response packets and a master port receives delay request packets.  With an announce interval of 1 and sync interval of -4, we will receive about 32.5 pkts/sec on a slave port.  A new queue group will be created with cir/cbs of 600, which will be adjusted after some testing.
+Switch orch will recognize ptp_mode attribute in switch objects and translate it into SAI_SWITCH_ATTR_PORT_PTP_MODE.  There will be a copp rule added to handle PTP packets. A slave port receives announce, sync and delay response packets and a master port receives delay request packets.  With an announce interval of 1 and sync interval of -4, we will receive about 32.5 pkts/sec on a slave port.  A new queue group 7 will be created with cir/cbs of 600 pps, which will be adjusted after some testing.
 
 ## 5.3 Syncd Updates
 
@@ -808,9 +804,7 @@ The PHC device is a new standard Linux infrastructure object representing PTP cl
 ## 6.1 SONiC DBs
 
 
-
 ### 6.1.1 Config_DB
-
 
 
 #### 6.1.1.1 Feature Config
@@ -830,63 +824,10 @@ FEATURE|ptp
 
 The PTP feature may be enabled or disabled in the "state" key.  Default is "disabled".  Auto-restart of the PTP feature may be enabled or disabled in "auto_restart" key.  Default is "enabled".
 
-#### 6.1.1.2 Port Config
-
-PTP feature adds a field into switch config object.  Default is "none".
-
-```
-SWITCH|switch
-{
-+     "ptp-mode": ("none"|"one-step|two-step"),
-}
-
-PTP_UNICAST_MASTER_TABLE|{table-name}|<ip-addar>
-  family = ipv4
-
-PTP_Interface|{if-name}
-  unicast_master_table=<table-name>
-  unicast_listen=1
-```
+### 6.1.2 STATE_DB
 
 
-### 6.1.2 APPL_DB
-
-Application DB of PTP is per ASIC namespace.  There changes to keys for PTP feature in the asic namespace.
-
-#### 6.1.2.1 Switch ptp port mode
-
-PTP feature adds a field into switch object.  Default is "none".
-
-```
-SWITCH_TABLE:switch
-{
-+     "ptp-mode": ("none"|"one-step|two-step"),
-}
-```
-
-
-
-### 6.1.3 ASIC_DB
-
-There are existing SAI definition for PTP timestamping mode and these existing SAI definitions are used.
-
-#### 6.1.3.1 Switch Port PTP Mode Configuration
-
-```
-ASIC_STATE:SAI_OBJECT_TYPE_SWITCH:oid:{{oid value}}
-{
-     "SAI_SWITCH_ATTR_PORT_PTP_MODE": ("SAI_PORT_PTP_MODE_NONE"|"SAI_PORT_PTP_MODE_SINGLE_STEP_TIMESTAMP"|"SAI_PORT_PTP_MODE_TWO_STEP_TIMESTAMP")
-}
-
-```
-
-
-
-### 6.1.4 STATE_DB
-
-
-
-### 6.1.4.1 PTP Config
+### 6.1.2.1 PTP Config
 
 There is a new state object adopted from [IETF RFC 8575](https://datatracker.ietf.org/doc/rfc8575/).  This reflects the configuration within running ptp4l processes.
 
@@ -966,7 +907,7 @@ PTP_GROUP|ptp_config
 
 For each ASIC, there is a separate instance in the table, PTP_GROUP|ptp_config, with keys "PTP|{asic-instance}".  Separator in the table and key will conform with the database separator.
 
-### 6.1.4.2 PTP Time Status
+### 6.1.2.2 PTP Time Status
 
 There is a new object that represents the status of the local clock.
 
@@ -991,11 +932,11 @@ PTP_GROUP|ptp_time_status
 
 For each ASIC, there is a separate instance in the table, PTP_GROUP|ptp_time_status, with keys of "PTP|{asic-instance}". Separator in the table and key will conform with the database separator.
 
-### 6.1.5 COUNTERS_DB
+### 6.1.3 COUNTERS_DB
 
 
 
-### 6.1.5.1 PTP Port Statistics
+### 6.1.3.1 PTP Port Statistics
 
 There is a new statistic object for ptp port statistics.  These counters represent number of packets seen by a running ptp4l process since the beginning of operation.  Each time the ptp4l instance restarts, these counters are reset.
 
@@ -1030,7 +971,16 @@ PTP_GROUP|ptp_port
 
 For each active ptp port there is a separate instance in the table, PTP_GROUP|ptp_port with keys of "{if-name}".  Separator in the table and key will conform with the database separator.   
 
-# 7 Testing
+# 7 Failure Scenarios
+
+If the connection to master clock goes away for whatever failure scenarios (link failure, switch reboot, process restarts etc), PTP aware switches should have a good oscillator that can maintain accurate time and phase synchoronization until the connection to reference clock is restored.  
+
+# 8 Testing
 
 Testing will be automated to validate the feature and deployment models found in each phase.  The testing HLD will be a separate document and is currently TBD.
 As per [phase 1](#31-phase-1) and [phase 2](#32-phase-2), testing will be limited to the targeted use cases.
+
+# 9 Other items not planned for first release
+
+## 9.1 PTP interaction with NTP
+PTP will not currently update system time.  In the future, this ability can be added with some logic to handle updating system time with NTP or PTP
