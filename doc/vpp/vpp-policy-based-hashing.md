@@ -21,6 +21,8 @@
 | Rev | Date | Author(s) | Changes |
 |-----|------|-----------|---------|
 | v0.1 | 09/24/2026 | Yue Gao (yuega2@cisco.com) | Initial draft. Plugin-based ECMP path (`pbh_plugin.so`, zero core patch); single small core patch `0019-sonic-pbh-lag-hash.patch` for the LAG path; new `pbh.api`; feature enabled by default and toggleable at three levels. |
+| v0.2 | 10/01/2026 | Yue Gao (yuega2@cisco.com) | Reconciled with the implementation. PBH ships inside `sonic_ext` rather than a new plugin. Rule matching is a typed linear priority scan, not a `vnet_classify` chain (§6.5). Hash state corrected to Jenkins' three words — the one-variable `hash_v3_finalize32 (h, h, h)` of v0.1 returns 0 for every input (§6.4.1). Inner-header resolution split out, with VXLAN peeled by the plugin because `ip_inner_resolve()` cannot identify it (§6.4.2). ECMP steering restricted to `DPO_ADJACENCY` with an explicit `ip4-rewrite` next instead of `.sibling_of` (§6.6). Side-band moved to its own `sonic_ext_vnet_buf_main_t` and refcounted (§6.7.3). API indices allocated by VPP and returned (§6.3). LAG core patch renumbered `0019` → `0021`. |
+| v0.3 | 10/02/2026 | Yue Gao (yuega2@cisco.com) | Added §6.10, support for PBH tables bound to ports that are L2 bridge members. `l2_to_bvi()` rewrites `sw_if_index[VLIB_RX]` to the BVI before `ip4-input`, so the arc armed in §6.6 on the member port is never evaluated; PBH now additionally arms a refcounted *shadow* attachment on the bridge domain's BVI (§6.10.2) and narrows it back to the bound ports in the dataplane using the `orig_rx_sw_if_index` capture cookie (§6.10.3). |
 
 ---
 
@@ -246,7 +248,22 @@ The reference implementation to copy is VPP's own **ABF plugin**
 ([abf_itf_attach.c](platform/vpp/vppbld/repo/src/plugins/abf/abf_itf_attach.c#L540-L580)),
 which solves exactly gap G1: rather than asking `ip4-lookup` to honour an
 externally-supplied forwarding decision, it performs **its own** FIB lookup and
-jumps straight to `dpo->dpoi_next_node`.
+resolves the bucket itself.
+
+This is not merely the tidier option, it is the only one that works. Setting
+`vnet_buffer(b)->ip.flow_hash` before `ip4-lookup` has **no effect**:
+`ip4_lookup_inline()` opens by discarding it
+([ip4_forward.h](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.h#L103)):
+
+```c
+  hash_c0 = vnet_buffer (b[0])->ip.flow_hash = 0;
+```
+
+and then recomputes the hash from the packet. Only the *recursive*
+`ip4-load-balance` node honours a pre-set value
+([ip4_forward.c](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.c#L131)),
+which a packet reaches only after a first-level lookup has already chosen the
+wrong bucket. `ip6_forward.c` behaves identically.
 
 ### P1b — Extend `sonic_ext`, do not add a plugin
 
@@ -268,8 +285,12 @@ What this avoids:
 
 Consequences for the code:
 
-* All state lives in `sonic_ext_main_t` (`sonic_ext.h`), alongside
-  `punt_via_member`, `host_xc`, `ip2me` and friends.
+* PBH state lives in its own `sonic_ext_pbh_main_t` in `pbh.h`. Only the
+  feature toggle joins `sonic_ext_main_t`, via the
+  `foreach_sonic_ext_feature` X-macro, alongside `punt_via_member`,
+  `host_xc`, `ip2me` and friends. Keeping the pools, the attachment vector
+  and the counters out of the shared struct is what lets PBH be a pure
+  addition to the plugin rather than an edit of its core.
 * API messages are named `sonic_ext_pbh_*` and live in `sonic_ext.api`.
 * Node names keep the plugin's prefix convention:
   `sonic-ext-pbh-ip4` / `sonic-ext-pbh-ip6`, matching `sonic-ext-ip2me-ip4`,
@@ -280,7 +301,7 @@ The one thing PBH does **not** inherit is `sonic_ext`'s `linux-cp` coupling:
 the PBH nodes never touch `lcp_itf_pair`, so they are wired from the SAI-driven
 attach API rather than from `sonic_ext_lcp_pair_add_cb()`.
 
-### P2 — Own the classifier; never share
+### P2 — Own the matcher; never share
 
 VPP does **not** merge classify tables. `vnet_classify` is a library, not a
 service: a classify *hit* on a core node (`ip4-inacl`, `l2-input-classify`) is
@@ -289,10 +310,16 @@ Composition is possible only via explicit `next_table_index` chaining by a
 **single owner**.
 
 Therefore PBH must not touch the core `input_acl` per-interface binding.
-Instead it follows the `tunterm_acl` house style: its own node, its own
-`sem->pbh_table_index_by_sw_if_index[]` vector, its own classify tables created
-**implicitly** by the API handler (SAI never sees a classify table index), torn
-down with `vnet_classify_delete_table_index (cm, idx, 1 /* del_chain */)`.
+It follows the `tunterm_acl` house style of owning its matcher outright: its
+own node and its own
+`sonic_ext_pbh_main.table_index_by_sw_if_index[]` vector, with the rule
+tables created implicitly by the API handler so SAI never sees a matcher
+index.
+
+It does **not**, however, use `vnet_classify` to do the matching. §6.5
+explains why a typed linear scan in priority order is the better fit for
+PBH's closed, variable-offset qualifier set. The ownership argument above is
+unaffected — it is about not sharing a matcher, not about which matcher.
 
 This also guarantees PBH coexists with the ACL plugin, `tunterm-acl` and the
 core L2 punt classifiers — they operate on disjoint packet sets or at disjoint
@@ -303,9 +330,10 @@ arc positions.
 `sonic_ext_pbh_table_add_replace` takes the **entire** ordered rule set for a
 table in one message. Reasons:
 
-* Rule priority maps to classify-chain position. An incremental
-  `sonic_ext_pbh_rule_add_del` would force the plugin to rebuild and re-link
-  the chain on every single rule, with a window of inconsistent forwarding.
+* Rule priority maps to position in the ordered rule vector. An incremental
+  `sonic_ext_pbh_rule_add_del` would force the plugin to re-sort and
+  republish the table on every single rule, with a window of inconsistent
+  forwarding.
 * `PbhOrch` already re-evaluates the full table on any change.
 * Matches the `tunterm_acl` precedent
   ([tunterm_acl_api.c](platform/vpp/vppbld/plugins/tunterm_acl/tunterm_acl_api.c#L51-L100)).
@@ -326,7 +354,7 @@ sonic-ext {
 
 | Keyword | Governs | Family |
 |---|---|---|
-| `pbh` | The `sonic-ext-pbh-ip4` / `sonic-ext-pbh-ip6` feature nodes, the classify chains, both the `SET_ECMP_HASH` and `SET_LAG_HASH` actions, and whether the plugin registers `bond_main.lag_hash_override` — which is what activates the core patch of §6.7 | VPP-wired |
+| `pbh` | The `sonic-ext-pbh-ip4` / `sonic-ext-pbh-ip6` feature nodes, the rule tables, both the `SET_ECMP_HASH` and `SET_LAG_HASH` actions, and whether the plugin registers `bond_main.lag_hash_override` — which is what activates the core patch of §6.7 | VPP-wired |
 
 The keyword accepts `on | enable | off | disable`. An unrecognised keyword
 returns a `clib_error_t`, so VPP fails at boot rather than running an
@@ -347,9 +375,9 @@ that touches VPP core.
 `sonic_ext_pbh_interface_attach_detach()` returns without calling
 `vnet_feature_enable_disable()`, so `sonic-ext-pbh-ip4` never appears in
 `show interface features <if>`. The dispatch cost is reclaimed entirely rather
-than paid and then short-circuited per packet. Same for the classify chain: a
-disabled `pbh` means `sonic_ext_pbh_table_add_replace()` never creates the
-tables.
+than paid and then short-circuited per packet. Same for the rule tables: a
+disabled `pbh` means `sonic_ext_pbh_table_add_replace()` returns
+`VNET_API_ERROR_FEATURE_DISABLED` and allocates nothing.
 
 ---
 
@@ -361,12 +389,13 @@ existing `sonic_ext` plugin. Each runs after the ACL plugin and after
 `ip4-validate`, and before `ip4-lookup`.
 
 For a packet arriving on an interface that has a PBH table bound, the node
-walks a `vnet_classify` chain that the plugin owns outright. The chain is
-ordered by rule priority and is terminal on first hit, so at most one rule
-matches. The qualifiers SONiC uses for PBH — GRE key, inner ethertype, outer
-IP protocol, L4 ports — are precisely what a classify mask/match pair
-expresses naturally, which is why the ACL plugin is bypassed rather than
-extended (gap **G3**).
+walks that table's rule vector, which the plugin owns outright. The vector is
+ordered by rule priority and the walk stops on first hit, so at most one rule
+matches. §6.5 explains why this is a typed linear scan rather than a
+`vnet_classify` chain: PBH's qualifier set is closed and enumerated, and two
+of its qualifiers sit at offsets that move with IPv4 options and with the GRE
+checksum bit, which a fixed-offset classify table cannot follow. Either way
+the ACL plugin is bypassed rather than extended (gap **G3**).
 
 A matching rule names up to two hash profiles, and the two are realised by
 different mechanisms, because the two stages consume their hash in different
@@ -375,11 +404,16 @@ places:
 * **ECMP (`SET_ECMP_HASH`).** The node computes the hash from the rule's
   profile and then does the forwarding decision itself: it calls
   `ip4_fib_forwarding_lookup()`, selects the load-balance bucket with that
-  hash, writes the resulting adjacency into `adj_index[VLIB_TX]` and jumps
-  straight to the next node. `ip4-lookup` never runs for that packet, which is
-  what sidesteps its unconditional overwrite of `ip.flow_hash` (gap **G1**).
-  This is the ABF plugin's pattern, and it means **no core node is patched for
-  the ECMP path at all**.
+  hash, writes the resulting adjacency into `adj_index[VLIB_TX]` and sends the
+  packet straight to `ip4-rewrite`. `ip4-lookup` never runs for that packet,
+  which is what sidesteps its unconditional overwrite of `ip.flow_hash`
+  (gap **G1**). This is the ABF plugin's pattern, and it means **no core node
+  is patched for the ECMP path at all**.
+
+  The node only short-circuits when the chosen bucket is a plain adjacency
+  (`DPO_ADJACENCY`). Anything else — a recursive load balance, a local or
+  drop DPO, a tunnel midchain — falls through to the arc and reaches
+  `ip4-lookup` normally. See §6.6 for why.
 
 * **LAG (`SET_LAG_HASH`).** The member is not chosen until `bond_tx_hash()` on
   the TX side, long after the node has run, and the hash function invoked there
@@ -415,19 +449,21 @@ flowchart TD
 
     I --> J{"PBH table<br/>on rx intf?"}
     J -->|no| K["vnet_feature_next"]
-    J -->|yes| L["walk classify chain<br/>(priority order)"]
+    J -->|yes| L["scan rule vector<br/>(priority order)"]
     L -->|miss| K
-    L -->|hit: rule r| M{"r.lag_profile_id<br/>!= ~0 ?"}
-    M -->|yes| N["h = pbh_profile_hash(lag_prof)<br/>vnet_buf_claim(bi)->pbh_lag_hash = h<br/><i>plugin-private side-band</i>"]
+    L -->|hit: rule r| M{"r.lag_profile<br/>!= ~0 ?"}
+    M -->|yes| N["h = pbh_hash_inner(lag_prof)<br/>vnet_buf_claim(bi)-&gt;pbh_lag_hash = h<br/><i>plugin-private side-band</i>"]
     M -->|no| O
-    N --> O{"r.ecmp_profile_id<br/>!= ~0 ?"}
+    N --> O{"r.ecmp_profile<br/>!= ~0 ?"}
     O -->|no| K
-    O -->|yes| P["hc = pbh_profile_hash(ecmp_prof)"]
+    O -->|yes| P["hc = pbh_hash_inner(ecmp_prof)"]
     P -->|hc == 0<br/>inner unparseable| K
-    P -->|hc != 0| Q["lbi = ip4_fib_forwarding_lookup(fib, dst)<br/>dpo = bucket(lb, hc &amp; mask)<br/>adj_index&#91;VLIB_TX&#93; = dpo-&gt;dpoi_index<br/>increment LB counter"]
+    P -->|hc != 0| Q["set ip.fib_index<br/>lbi = ip4_fib_forwarding_lookup(fib, dst)<br/>dpo = bucket(lb, hc &amp; mask)"]
+    Q -->|dpo not DPO_ADJACENCY| K
+    Q -->|dpo is DPO_ADJACENCY| Q2["adj_index&#91;VLIB_TX&#93; = dpo-&gt;dpoi_index<br/>increment LB counter"]
 
     K --> R["ip4-lookup<br/>(switch-global hash)"]
-    Q --> S["dpo-&gt;dpoi_next_node<br/>(ip4-rewrite / ip4-load-balance)"]
+    Q2 --> S["ip4-rewrite"]
     R --> S
     S --> T["interface-output"]
 ```
@@ -456,13 +492,13 @@ flowchart TD
 |---|---|
 | 1 | Packet arrives on `Ethernet0`: `eth(0x0800) / ip4(proto=0x2f) / gre(key=0x25000001) / eth(0x86dd) / ip6(...) / tcp(...)` |
 | 2 | ACL plugin permits; `tunterm-ip4-vxlan-bypass` does not match (not VXLAN); `ip4-validate` passes |
-| 3 | `sonic-ext-pbh-ip4`: `sem->pbh_table_index_by_sw_if_index[Ethernet0]` is valid → classify chain walked |
-| 4 | Chain head is the *priority 2* (`vxlan`) shape → miss. `next_table_index` → *priority 1* (`nvgre`) shape → **hit**, `opaque_index = 0` |
-| 5 | Rule 0 has `lag_profile_id == ~0`, `ecmp_profile_id == inner_v6_hash` |
-| 6 | `ip_inner_resolve()` walks GRE → inner ethertype 0x86dd → inner IPv6 header |
-| 7 | `sonic_ext_pbh_profile_hash()`: group `seq=1` → inner `ip_protocol`; group `seq=2` → `l4_src_port ^ l4_dst_port`; group `seq=4` → `(dst6 & ffff::) ^ (src6 & ::ffff)`; mixed in that order |
-| 8 | Own FIB lookup, bucket selected from the PBH hash, `adj_index[VLIB_TX]` set, LB counter incremented |
-| 9 | Jump straight to `ip4-rewrite` — `ip4-lookup` is never executed, so the hash is never clobbered |
+| 3 | `sonic-ext-pbh-ip4`: `sonic_ext_pbh_main.table_index_by_sw_if_index[Ethernet0]` is valid → rule vector scanned |
+| 4 | Highest-priority rule is *priority 2* (`vxlan`, matches UDP) → miss. Next is *priority 1* (`nvgre`) → **hit** |
+| 5 | That rule has `lag_profile == ~0`, `ecmp_profile == inner_v6_hash` |
+| 6 | `sonic_ext_pbh_inner_resolve()` → `ip_inner_resolve()` walks GRE → inner ethertype 0x86dd → inner IPv6 header |
+| 7 | `sonic_ext_pbh_hash_inner()`: group `seq=1` → inner `ip_protocol`; group `seq=2` → `l4_src_port ^ l4_dst_port`; group `seq=4` → `(dst6 & ffff::) ^ (src6 & ::ffff)`; mixed in that order |
+| 8 | Own FIB lookup, bucket selected from the PBH hash, bucket is a `DPO_ADJACENCY`, `adj_index[VLIB_TX]` set, LB counter incremented |
+| 9 | Go straight to `ip4-rewrite` — `ip4-lookup` is never executed, so the hash is never clobbered |
 | 10 | Thousands of distinct inner flows now spread across all ECMP next hops |
 
 ### 5.4 Interaction matrix
@@ -486,7 +522,7 @@ flowchart TD
 | Component | Kind | New `.so`? | Core patch? |
 |---|---|---|---|
 | `plugins/sonic_ext/pbh*.{c,h}` + `sonic_ext.api` additions | **Extension of the existing plugin** | **No** | **No** |
-| `0019-sonic-pbh-lag-hash.patch` | LAG hash override hook (~40 lines) | n/a | **Yes** |
+| `0021-sonic-pbh-lag-hash.patch` | LAG hash override hook (~40 lines) | n/a | **Yes** |
 | `vslib/vpp/SwitchVppHash.cpp` (new) | SAI fine-grained hash + hash objects | n/a | n/a |
 | `vslib/vpp/SwitchVppAcl.cpp` (edit) | Recognise the two PBH actions | n/a | n/a |
 | `vppxlate/SaiVppXlate.[ch]` (edit) | `vpp_pbh_*()` binary-API wrappers + `sonic_ext_feature_get` gate | n/a | n/a |
@@ -496,42 +532,55 @@ flowchart TD
 
 ```
 platform/vpp/vppbld/plugins/sonic_ext/
-├── CMakeLists.txt        # + pbh.c pbh_api.c pbh_node.c
-│                         #   sonic_ext_vnet_buf.c          (4 lines)
+├── CMakeLists.txt        # + pbh.c pbh_node.c
+│                         #   sonic_ext_vnet_buf.c          (3 lines)
 ├── FEATURE.yaml          # + pbh                          (1 line)
 ├── sonic_ext.api         # + sonic_ext_pbh_* messages     (§6.3)
-├── sonic_ext.h           # + pbh / pbh_enabled / vnet_bufs / vnet_buf_pools
-│                         #   in sonic_ext_main_t
-├── sonic_ext.c           # + pbh keyword in sonic_ext_config()
-│                         # + pbh latch in sonic_ext_apply_config()
-├── sonic_ext_api.c       # + pbh keyword in sonic_ext_feature_get handler
-├── cli.c                 # + pbh row in "show sonic-ext" + show sonic-ext pbh …
+├── sonic_ext.h           # + pbh in foreach_sonic_ext_feature
+├── sonic_ext.c           # (no change: the X-macro supplies the keyword)
+├── sonic_ext_api.c       # + the four sonic_ext_pbh_* message handlers
+├── cli.c                 # + show sonic-ext pbh [profiles|tables|interfaces]
 │
-├── pbh.h                 # NEW  sonic_ext_pbh_profile_t, _rule_t
-├── pbh.c                 # NEW  profile pool, classify chain, arc attach
-├── pbh_api.c             # NEW  API handlers
+├── pbh.h                 # NEW  sonic_ext_pbh_profile_t, _rule_t, _table_t
+├── pbh.c                 # NEW  profile/table pools, rule sort, arc attach
 ├── pbh_node.c            # NEW  sonic-ext-pbh-ip4 / -ip6 feature nodes
 ├── pbh_hash.h            # NEW  fine-grained hash computation (§6.4)
 ├── sonic_ext_vnet_buf.h  # NEW  plugin-private per-buffer side-band (§6.7.3)
-├── sonic_ext_vnet_buf.c  # NEW  side-band table init + buffer free callback
+├── sonic_ext_vnet_buf.c  # NEW  side-band table + buffer free callback
 │
 └── …                     # existing capture / ip2me / host-xc / … unchanged
 ```
 
-Additions to `sonic_ext_main_t`:
+Two placements are forced rather than chosen.
+
+**The API handlers live in `sonic_ext_api.c`, not a `pbh_api.c`.** `vppapigen`
+emits `sonic_ext.api.c` containing `setup_message_id_table()`, which registers
+every message with `.handler = vl_api_<msg>_t_handler` — resolved **by name,
+in whichever translation unit includes the generated file**. A separate
+`pbh_api.c` would therefore not link. For the same reason the PBH `show`
+command joins the existing `cli.c` rather than a new `pbh_cli.c`, for
+consistency rather than necessity.
+
+**No change is needed in `sonic_ext.c`.** Adding `pbh` to the
+`foreach_sonic_ext_feature` X-macro in `sonic_ext.h` supplies the
+`sonic-ext { pbh on|off }` keyword, the `show sonic-ext` row and the
+`sonic_ext_feature_get("pbh")` answer for free.
+
+PBH state lives in its own `sonic_ext_pbh_main_t` (§6.5) rather than in
+`sonic_ext_main_t`; only the toggle is shared.
+
+The only addition to `sonic_ext_main_t` is the toggle, supplied by the
+`foreach_sonic_ext_feature` X-macro in `sonic_ext.h`:
 
 ```c
-  /* Global feature toggles (sonic-ext stanza). */
-  u8 punt_via_member;
-  u8 host_xc;
-  u8 drop_member_stats;
-+ u8 pbh;
-  …
-  /* Latches: set once apply has run, so attaching is idempotent. */
-  u8 capture_enabled;
-  u8 host_xc_enabled;
-+ u8 pbh_enabled;
+#define foreach_sonic_ext_feature                                             \
+  _ (PUNT_VIA_MEMBER, punt_via_member, "punt-via-member", 1, VPP)             \
+  _ (HOST_XC, host_xc, "host-xc", 1, VPP)                                     \
+  …                                                                           \
++ _ (PBH, pbh, "pbh", 1, SAIVPP)
 ```
+
+No latch is added — see §6.6 for why PBH does not need one.
 
 Additions to `FEATURE.yaml`:
 
@@ -550,92 +599,110 @@ features:
  * stanza; see sonic_ext_feature_get.
  * ------------------------------------------------------------------ */
 
-enum sonic_ext_pbh_hash_field : u8
+/* One SAI_OBJECT_TYPE_FINE_GRAINED_HASH_FIELD.
+ *
+ * `field` is a sonic_ext_pbh_hash_field_id_t: INNER_IP_PROTOCOL,
+ * INNER_L4_SRC_PORT, INNER_L4_DST_PORT, INNER_SRC_IPV4, INNER_DST_IPV4,
+ * INNER_SRC_IPV6, INNER_DST_IPV6.  The C enum is generated from an X-macro
+ * in pbh.h which also supplies the format function, so the two cannot
+ * drift apart.
+ *
+ * The mask is 16 wire-order bytes whatever the address family, rather than
+ * a vl_api_address_t: what is carried here is a bitmask, not an address,
+ * and tagging it with an address family would invite a mask whose family
+ * disagrees with the field it masks. */
+typedef sonic_ext_pbh_hash_field
 {
-  SONIC_EXT_PBH_HASH_FIELD_INNER_IP_PROTOCOL = 0,
-  SONIC_EXT_PBH_HASH_FIELD_INNER_L4_SRC_PORT = 1,
-  SONIC_EXT_PBH_HASH_FIELD_INNER_L4_DST_PORT = 2,
-  SONIC_EXT_PBH_HASH_FIELD_INNER_SRC_IPV4    = 3,
-  SONIC_EXT_PBH_HASH_FIELD_INNER_DST_IPV4    = 4,
-  SONIC_EXT_PBH_HASH_FIELD_INNER_SRC_IPV6    = 5,
-  SONIC_EXT_PBH_HASH_FIELD_INNER_DST_IPV6    = 6,
-  /* outer-header variants reserved: 16.. */
-};
-
-/* One SAI_OBJECT_TYPE_FINE_GRAINED_HASH_FIELD. */
-typedef sonic_ext_pbh_hash_field_spec
-{
-  vl_api_sonic_ext_pbh_hash_field_t field;
-  u32                               sequence_id; /* order + assoc. group  */
-  vl_api_address_t                  mask;        /* ip_mask; ignored for
-                                                    non-IP fields         */
+  u8  field;
+  u32 sequence_id;    /* order + fold group; equal ids XOR-fold */
+  u8  mask[16];
 };
 
 /* One SAI_OBJECT_TYPE_HASH. */
-autoreply define sonic_ext_pbh_profile_add_del
+define sonic_ext_pbh_profile_add_del
 {
   u32  client_index;
   u32  context;
   bool is_add;
-  u32  profile_id;                       /* caller-allocated, == SAI OID key */
-  u8   n_fields;
-  vl_api_sonic_ext_pbh_hash_field_spec_t fields[n_fields];
+  u32  profile_index;   /* on destroy only; ignored on add */
+  u32  n_fields;
+  vl_api_sonic_ext_pbh_hash_field_t fields[n_fields];
 };
 
-/* Which qualifiers of a rule are active. */
-enum sonic_ext_pbh_match_flags : u16
+define sonic_ext_pbh_profile_add_del_reply
 {
-  SONIC_EXT_PBH_MATCH_ETHER_TYPE       = 0x0001,
-  SONIC_EXT_PBH_MATCH_IP_PROTOCOL      = 0x0002,
-  SONIC_EXT_PBH_MATCH_IPV6_NEXT_HEADER = 0x0004,
-  SONIC_EXT_PBH_MATCH_L4_DST_PORT      = 0x0008,
-  SONIC_EXT_PBH_MATCH_GRE_KEY          = 0x0010,
-  SONIC_EXT_PBH_MATCH_INNER_ETHER_TYPE = 0x0020,
+  u32 context;
+  i32 retval;
+  u32 profile_index;    /* VPP allocates; saivpp maps SAI OID -> this */
 };
+
+/* Which qualifiers of a rule are active: a bitmap of SONIC_EXT_PBH_Q_*,
+ * likewise generated from an X-macro. */
 
 /* One SAI_OBJECT_TYPE_ACL_ENTRY carrying a PBH action. */
 typedef sonic_ext_pbh_rule
 {
-  u32 priority;                          /* higher value wins               */
-  vl_api_sonic_ext_pbh_match_flags_t match_flags;
+  u32 rule_id;        /* caller's id, echoed by show and the stats segment */
+  u32 priority;       /* higher value wins; first match stops the walk */
+  u32 qualifiers;     /* a clear bit matches anything */
   u16 ether_type;
+  u16 inner_ether_type;
+  u16 l4_dst_port;
   u8  ip_protocol;
   u8  ipv6_next_header;
-  u16 l4_dst_port;
   u32 gre_key;
   u32 gre_key_mask;
-  u16 inner_ether_type;
-  u32 ecmp_profile_id;                   /* ~0 => no SET_ECMP_HASH action   */
-  u32 lag_profile_id;                    /* ~0 => no SET_LAG_HASH action    */
-  bool flow_counter_enable;
+  u32 ecmp_profile;   /* ~0 => no SET_ECMP_HASH action */
+  u32 lag_profile;    /* ~0 => no SET_LAG_HASH action */
+  bool flow_counter;
 };
 ```
 
+Profile and table indices are **allocated by VPP and returned**, not chosen by
+the caller. SAI OIDs are 64-bit and sparse while VPP pool indices are dense and
+32-bit, and `libsaivs` already keeps an OID→index map for ACLs; letting the
+caller pick would force either a sparse pool or a second map inside VPP.
+
 Note: in theory, PBH rule can match on any ACL attributes. The intention is not to implement full parity with ACL using ABF. Only the attributes useful for PBH are supported today.
 
-```
+```c
 /* Declarative: replaces the whole rule set of the table atomically. */
-autoreply define sonic_ext_pbh_table_add_replace
+define sonic_ext_pbh_table_add_replace
 {
   u32 client_index;
   u32 context;
-  u32 table_id;
+  u32 table_index;    /* ~0 to create a new table */
+  string name[64];    /* for `show` only */
   u32 n_rules;
   vl_api_sonic_ext_pbh_rule_t rules[n_rules];
 };
 
+define sonic_ext_pbh_table_add_replace_reply
+{
+  u32 context;
+  i32 retval;
+  u32 table_index;
+};
+
 autoreply define sonic_ext_pbh_table_del
 {
-  u32 client_index; u32 context; u32 table_id;
+  u32 client_index; u32 context; u32 table_index;
 };
 
 autoreply define sonic_ext_pbh_interface_attach_detach
 {
   u32 client_index; u32 context;
-  u32 table_id;
   vl_api_interface_index_t sw_if_index;
+  u32 table_index;
   bool is_attach;
 };
+```
+
+The rule carries **no encapsulation field**. The handler derives it from the
+qualifiers — UDP plus an `l4_dst_port` means VXLAN, GRE or IP-in-IP means the
+`ip_inner_resolve()` path — so the caller cannot state an encapsulation that
+contradicts the qualifiers it also stated. §6.4.2 explains why the
+encapsulation has to be known at all.
 
 There are deliberately **no** counter messages either. Per-rule packet and
 byte counts are published into the VPP **stats segment** and read from shared
@@ -672,19 +739,20 @@ typedef struct
 } sonic_ext_pbh_profile_t;
 ```
 
-Datapath. There is no per-stage salt — see §6.4.1:
+#### 6.4.1 Hash computation
+
+There is no per-stage salt — the ECMP and LAG stages hash different field
+sets, so they are already decorrelated:
 
 ```c
 static_always_inline u32
-sonic_ext_pbh_profile_hash (const sonic_ext_pbh_profile_t *p,
-                            vlib_buffer_t *b, void *l3)
+sonic_ext_pbh_hash_inner (const sonic_ext_pbh_profile_t *p,
+                          const ip_inner_hdr_t *inner)
 {
-  ip_inner_hdr_t inner;
-  u32 h = 0, i = 0, n = vec_len (p->fields);
-
-  /* Reuse the parser introduced by patch 0011. */
-  if (!ip_inner_resolve (b, l3, &inner))
-    return 0;                          /* caller falls back to switch hash */
+  /* Jenkins' lookup3 carries three words of state.  Seeding all three
+     identically is fine; collapsing them is not — see the note below. */
+  u32 a = 0x9e3779b9, b = 0x9e3779b9, c = 0x9e3779b9;
+  u32 i = 0, n = vec_len (p->fields);
 
   while (i < n)
     {
@@ -692,92 +760,144 @@ sonic_ext_pbh_profile_hash (const sonic_ext_pbh_profile_t *p,
 
       /* Same sequence_id => XOR-fold => order independent. */
       for (; i < n && p->fields[i].seq == s; i++)
-        group ^= sonic_ext_pbh_field_value (&p->fields[i], &inner);
+        group ^= sonic_ext_pbh_field_value (&p->fields[i], inner);
 
-      /* Distinct sequence_id => ordered mix. */
-      hash_v3_mix32 (h, group, s);
+      /* Distinct sequence_id => ordered mix.  Folding the sequence id in
+         alongside the value is what makes the groups positional: two
+         profiles that select the same values under different sequence ids
+         hash differently. */
+      a += group;
+      b += s;
+      hash_v3_mix32 (a, b, c);
     }
-  hash_v3_finalize32 (h, h, h);
+  hash_v3_finalize32 (a, b, c);
 
   /* 0 is the "unparseable" sentinel; never return it for a parsed packet. */
-  return h | (h == 0);
+  return c | (c == 0);
 }
 ```
 
-### 6.5 Rule matching via `vnet_classify` (gap G3)
+The caller resolves the inner header once — see §6.4.2 — and passes it in,
+because the matcher in §6.5 has already had to parse it to evaluate
+`INNER_ETHER_TYPE`, and a rule may drive both the ECMP and the LAG profile
+from the same packet. Resolving per profile would parse the same packet up to
+three times.
 
-The six PBH qualifiers all live at **fixed offsets** once the encapsulation
-shape is known, so they are directly expressible as `vnet_classify` masked byte
-matches — unlike `fa_5tuple_t`, which has no GRE-key or inner-ethertype member.
+> **Do not collapse the hash state.** `hash_v3_finalize32 (h, h, h)` — the
+> obvious-looking one-variable form — returns **0 for every input**. The macro
+> opens with `(c) ^= (b);`, which with all three arguments aliased to one
+> lvalue is `h ^= h`, and every subsequent step propagates the zero. With the
+> sentinel applied the function would return `1` for every packet and PBH
+> would pin all traffic to a single ECMP bucket. The three-word form above
+> was measured over 100k sequential inner source addresses — the adversarial
+> low-entropy case, and exactly what the PTF test generates — and gives
+> 12328–12674 packets per bucket across 8 ECMP buckets (ideal 12500) and a
+> strict-avalanche score of 16.002 bits out of 32 (ideal 16.0).
+
+#### 6.4.2 Inner-header resolution
+
+Patch 0011's parser is reused, but its real signature takes the already-known
+outer protocol and an explicit payload extent rather than a buffer
+([ip_inner_aware_hash.h](platform/vpp/vppbld/repo/src/vnet/ip/ip_inner_aware_hash.h#L123-L144)):
+
+```c
+void ip_inner_resolve (u8 outer_protocol, const u8 *payload, u32 remaining,
+                       ip_inner_hdr_t *out);
+```
+
+It handles `IP_IN_IP`, `IPV6` and `GRE`. It does **not** handle VXLAN, and
+cannot: nothing in a VXLAN packet identifies it as VXLAN except the
+destination port, which is policy, not encoding. PBH knows that policy —
+it is the `l4_dst_port` qualifier — so the rule carries the encapsulation
+shape it matched:
+
+```c
+typedef enum
+{
+  SONIC_EXT_PBH_ENCAP_NONE = 0,
+  SONIC_EXT_PBH_ENCAP_VXLAN,
+  SONIC_EXT_PBH_ENCAP_IP_GRE,
+} sonic_ext_pbh_encap_t;
+```
+
+`sonic_ext_pbh_inner_resolve()` peels UDP, the 8-byte VXLAN header and the
+inner Ethernet header itself for `ENCAP_VXLAN`, and delegates to
+`ip_inner_resolve()` otherwise. The outer header's own length field bounds
+the walk, so IPv4 options are handled and truncated or fragmented packets are
+rejected rather than read past.
+
+### 6.5 Rule matching (gap G3)
+
+Rules are matched by a **typed linear scan in priority order**, not by
+`vnet_classify`.
+
+`vnet_classify` was the initial design, and it is the right tool when the
+match is over arbitrary bytes at caller-chosen offsets — which is what the
+ACL plugin needs. PBH is not that problem:
+
+- **The qualifier set is closed.** SAI defines exactly six PBH qualifiers,
+  and they are enumerated, not byte ranges. Classify's generality buys
+  nothing and costs a mask-and-key marshalling layer on the control side.
+- **Classify offsets are fixed; PBH's are not.** A classify table matches at
+  a constant offset from a constant anchor. The GRE key sits at L3 + IHL×4 + 4,
+  and the inner ethertype after that — both move with IPv4 options, and the
+  GRE key's own offset moves with the GRE checksum bit. A fixed-offset table
+  silently mismatches those packets. The scan reads every offset from the
+  header's own length fields.
+- **Rule counts are tiny.** `PbhOrch` emits on the order of one rule per
+  encapsulation shape per inner address family — single digits — so a chain
+  walk's constant factors dominate any hash-lookup advantage.
+- **The dataplane here is a functional target.** It is exercised by PTF and by
+  VPP's own test suite, not asked to hold line rate, so clarity and
+  extensibility are worth more than a classify chain's throughput.
 
 `sonic_ext_pbh_table_add_replace` therefore:
 
-0. Returns immediately if `sem->pbh == 0` — a disabled feature never even
-   allocates a classify table (P4).
-1. Groups the rules by **shape** — the set of active `match_flags` determines
-   the mask, and hence the classify table.
-2. Creates one classify table per shape via `vnet_classify_add_del_table()`.
-3. Links them by **descending priority** through `next_table_index`, forming a
-   single chain rooted at
-   `sem->pbh_table_index_by_sw_if_index[sw_if_index]`.
-4. Adds one session per rule with `opaque_index = rule_index` (the plugin's own
-   rule pool index). `hit_next_index` and `metadata` are unused — the node
-   reads the result directly, exactly as
-   [tunterm_acl_node.c](platform/vpp/vppbld/plugins/tunterm_acl/tunterm_acl_node.c#L143-L178)
-   does.
+0. Returns `VNET_API_ERROR_FEATURE_DISABLED` if `sem->pbh == 0` — a disabled
+   feature allocates nothing (P4).
+1. Validates that every referenced hash profile exists, and that a rule with
+   an action resolves to a real encapsulation shape.
+2. Sorts the rules by **descending priority**, with `rule_id` as tiebreak so
+   the order is deterministic across replaces.
+3. Swaps the new rule vector in. Replace is atomic by construction: the vector
+   is built to one side and swapped, so a packet in flight sees either the old
+   rule set or the new one, never a partially rebuilt table.
 
-Worked example for the `nvgre` rule above (IPv4 / GRE, key at L3+20+4, inner
-ethertype at L3+20+8+12):
+The datapath walks that vector and stops at the first match — the same
+first-match-wins semantics a descending-priority classify chain would give:
 
-| Qualifier | Offset from L3 start | Mask | Match |
-|---|---|---|---|
-| `ether_type` 0x0800 | −2 (L2) | `ffff` | `0800` |
-| `ip_protocol` 0x2f | +9 | `ff` | `2f` |
-| `gre_key` 0x2500/24 | +24 | `ffffff00` | `25000000` |
-| `inner_ether_type` 0x86dd | +44 | `ffff` | `86dd` |
+```c
+vec_foreach (r, t->rules)
+  if (sonic_ext_pbh_match_outer (&r->match, l3, is_ip6))
+    { /* resolve inner once, check INNER_ETHER_TYPE, take the actions */ }
+```
 
-Classify session teardown uses
-`vnet_classify_delete_table_index (cm, idx, 1 /* del_chain */)` so the whole
-chain is released in one call.
+Worked example for the `nvgre` rule above (IPv4 / GRE):
+
+| Qualifier | Where it is read from | Match |
+|---|---|---|
+| `ether_type` 0x0800 | implied by the node (ip4 vs ip6 arc) | `0800` |
+| `ip_protocol` 0x2f | `ip4->protocol` | `2f` |
+| `gre_key` 0x2500/24 | GRE header at `l3 + ip4_header_bytes (ip4)`, key offset depends on the C bit | `(key & ffffff00) == 25000000` |
+| `inner_ether_type` 0x86dd | `inner.is_v6` after `sonic_ext_pbh_inner_resolve()` | v6 |
 
 **Per-rule counters.** `PBH_RULE.flow_counter` becomes a SAI ACL counter whose
 `SAI_ACL_COUNTER_ATTR_PACKETS` and `_BYTES` are read back from the VPP stats
-segment. The two halves do not come from the same place.
-
-Packets are almost free — a classify entry already carries a hit counter, and
-`vnet_classify_find_entry_inline()` bumps it whenever the caller passes a
-non-zero `now`
-([vnet_classify.h](platform/vpp/vppbld/repo/src/vnet/classify/vnet_classify.h#L563-L568)):
+segment. Each PBH table owns a `vlib_combined_counter_main_t` indexed by rule
+position, incremented on each hit:
 
 ```c
-  /* Hit counter */
-  union
-  {
-    u64 hits;
-    struct _vnet_classify_entry *next_free;
-  };
-```
-([vnet_classify.h](platform/vpp/vppbld/repo/src/vnet/classify/vnet_classify.h#L74-L80))
-
-Bytes are **not**. There is no byte accumulator in that structure, and adding
-one is a core change to a struct whose layout is asserted
-([vnet_classify.h](platform/vpp/vppbld/repo/src/vnet/classify/vnet_classify.h#L99-L102)).
-Each PBH table therefore owns a `vlib_combined_counter_main_t` indexed by rule,
-incremented on each hit:
-
-```c
-if (PREDICT_FALSE (r0->flow_counter_enable))
+if (PREDICT_FALSE (r0->flow_counter))
   vlib_increment_combined_counter (&t0->counters, thread_index,
-                                   r0->rule_index, 1,
+                                   r0 - t0->rules, 1,
                                    vlib_buffer_length_in_chain (vm, b0));
 ```
 
 A combined counter is per-thread internally, so this is a local increment with
-no atomics. Both halves of the SAI counter are served from it, so packets and
-bytes cannot drift apart; the classify `hits` field is left for
-`show sonic-ext pbh` and for cross-checking, not for SAI.
+no atomics, and packets and bytes cannot drift apart because both halves of the
+SAI counter come from it.
 
-Counters are allocated only for rules whose `flow_counter_enable` is set, which
+Counters are allocated only for rules whose `flow_counter` is set, which
 is why that flag rides in the rule message (§6.3) — in the canonical fixture
 the `nvgre` rule has `flow_counter` `DISABLED` and only `vxlan` has it
 `ENABLED`.
@@ -838,30 +958,28 @@ with the IPv6 mirror on `ip6-unicast`. The arc is armed only from the SAI
 attach API, and only when the feature survived the stanza:
 
 ```c
-void
-sonic_ext_pbh_interface_attach_detach (u32 table_id, u32 sw_if_index,
+int
+sonic_ext_pbh_interface_attach_detach (u32 sw_if_index, u32 table_index,
                                        int is_attach)
 {
-  sonic_ext_main_t *sem = &sonic_ext_main;
-
   /* PR #291 rule: a disabled feature is never attached, rather than
    * attached and short-circuiting per packet. */
-  if (!sem->pbh_enabled)
-    return;
+  if (!sonic_ext_main.pbh)
+    return VNET_API_ERROR_FEATURE_DISABLED;
   …
   vnet_feature_enable_disable ("ip4-unicast", "sonic-ext-pbh-ip4",
                                sw_if_index, is_attach, 0, 0);
 }
 ```
 
-where `sem->pbh_enabled` is the latch set by `sonic_ext_apply_config()`:
+No separate `pbh_enabled` latch is needed. The stanza is parsed by
+`VLIB_CONFIG_FUNCTION` at boot, long before any SAI attach can arrive, so
+`sonic_ext_main.pbh` is already final by the time this runs — and unlike the
+features PR #291 had to latch, PBH has nothing to walk at apply time because
+no interface has a PBH table until `saivpp` installs one.
 
-```c
-  /* PBH: nothing to walk — no interface has a PBH table until saivpp
-   * installs one.  The latch is what gates the attach path. */
-  if (sem->pbh)
-    sem->pbh_enabled = 1;
-```
+An interface carries at most one table, because `SAI_PORT_ATTR_PBH_*` is a
+single OID; attaching a second replaces the first.
 
 Justification for each ordering constraint:
 
@@ -869,59 +987,82 @@ Justification for each ordering constraint:
 |---|---|
 | after `acl-plugin-in-ip4-fa` | A denied packet must never be hashed or counted. |
 | after `tunterm-ip4-vxlan-bypass` | Locally-terminating VXLAN is diverted to `tunterm-acl` and is not being ECMP'd. The **inner** packet re-enters `ip4-input` post-decap and traverses `ip4-unicast` a second time, where PBH correctly applies. |
-| after `ip4-validate` | Do not spend a classify lookup on a packet that is about to be dropped. |
+| after `ip4-validate` | Do not spend a rule scan on a packet that is about to be dropped. |
 | after `ip4-sv-reassembly-feature` | Inner-header parsing needs a reassembled (or at least shallow-virtual-reassembled) first fragment. |
 | before `ip4-lookup` | The whole point: intercept before the hash is clobbered. |
 
-Node body — the ABF pattern, replicating the three things `ip4_lookup_inline`
-does after picking a bucket. Note there is no toggle test in the datapath: if
-`pbh` is off the node is not on the arc at all (P4).
+Node body — the ABF pattern, replicating what `ip4_lookup_inline` does after
+picking a bucket. Note there is no toggle test in the datapath: if `pbh` is off
+the node is not on the arc at all (P4).
 
 ```c
-/* miss, or rule has no usable SET_ECMP_HASH action -> stay on the arc */
-if (PREDICT_TRUE (e0 == 0) || r0->ecmp_profile_id == ~0)
-  {
-    vnet_feature_next (&next0, b0);
-    goto trace0;
-  }
+static int
+sonic_ext_pbh_steer_ip4 (vlib_main_t *vm, vlib_buffer_t *b,
+                         const ip4_header_t *ip4, u32 hash, u32 *dpo_index)
+{
+  const dpo_id_t *dpo;
+  const load_balance_t *lb;
+  u32 lbi;
 
-lbi0 = ip4_fib_forwarding_lookup (fib_index0, &ip0->dst_address);
-lb0  = load_balance_get (lbi0);
+  /* ip.fib_index is normally set inside ip4-lookup, which runs after us. */
+  ip_lookup_set_buffer_fib_index (ip4_main.fib_index_by_sw_if_index, b);
 
-if (PREDICT_TRUE (lb0->lb_n_buckets > 1))
-  {
-    hc0 = vnet_buffer (b0)->ip.flow_hash =
-            sonic_ext_pbh_profile_hash (prof0, b0, ip0);
-    dpo0 = load_balance_get_fwd_bucket (lb0, hc0 & lb0->lb_n_buckets_minus_1);
-  }
-else
-  dpo0 = load_balance_get_bucket_i (lb0, 0);
+  lbi = ip4_fib_forwarding_lookup (vnet_buffer (b)->ip.fib_index,
+                                   &ip4->dst_address);
+  lb = load_balance_get (lbi);
 
-next0 = dpo0->dpoi_next_node;
-vnet_buffer (b0)->ip.adj_index[VLIB_TX] = dpo0->dpoi_index;
-vlib_increment_combined_counter (cm, thread_index, lbi0, 1,
-                                 vlib_buffer_length_in_chain (vm, b0));
+  /* Nothing to steer: let ip4-lookup do its normal job. */
+  if (lb->lb_n_buckets <= 1)
+    return 0;
+
+  dpo = load_balance_get_fwd_bucket (lb, hash & lb->lb_n_buckets_minus_1);
+
+  /* Only a plain adjacency can be dispatched to our declared ip4-rewrite
+   * next.  Anything else falls through to the arc. */
+  if (dpo->dpoi_type != DPO_ADJACENCY)
+    return 0;
+
+  vnet_buffer (b)->ip.adj_index[VLIB_TX] = dpo->dpoi_index;
+  vnet_buffer (b)->ip.flow_hash = hash;
+
+  vlib_increment_combined_counter (&load_balance_main.lbm_to_counters,
+                                   vm->thread_index, lbi, 1,
+                                   vlib_buffer_length_in_chain (vm, b));
+  *dpo_index = dpo->dpoi_index;
+  return 1;
+}
 ```
 
 Implementation notes:
 
-* `fib_index0` must be derived exactly as `ip4_lookup_inline` does — use
-  `vnet_buffer(b0)->sw_if_index[VLIB_TX]` when it is not `~0`, else
-  `im->fib_index_by_sw_if_index[rx_sw_if_index]`. Getting this wrong silently
-  breaks VRFs.
+* **`ip.fib_index` must be set by this node.** It is normally assigned inside
+  `ip4-lookup` via `ip_lookup_set_buffer_fib_index()`
+  ([lookup.h](platform/vpp/vppbld/repo/src/vnet/ip/lookup.h#L135)), which runs
+  after us, so the buffer still holds a stale value when we arrive. Calling
+  the same helper reproduces the core's exact VRF semantics — it prefers
+  `sw_if_index[VLIB_TX]` when it is not `~0` and falls back to the RX
+  interface's table. Getting this wrong silently breaks VRFs.
+* **No `.sibling_of`.** The obvious move is `next = dpo->dpoi_next_node`, as
+  ABF does, but `dpoi_next_node` is an index into **`ip4-lookup`'s** next
+  vector, so using it requires `.sibling_of = "ip4-lookup"` — which conflicts
+  with the feature arc's own management of next indices. Instead the node
+  declares `ip4-rewrite` as an explicit next and steers only `DPO_ADJACENCY`
+  buckets to it. Every other DPO type falls through to `vnet_feature_next()`
+  and reaches `ip4-lookup` normally, which then dispatches it correctly. The
+  cost is that recursive routes do not get the PBH bucket at the first level;
+  the next point covers why they still get it.
+* Writing `vnet_buffer(b)->ip.flow_hash` does nothing for `ip4-lookup` —
+  which zeroes it on entry, see §P1a — but it is what makes the fall-through
+  case work: `ip4-load-balance` honours a non-zero incoming `flow_hash` via
+  `flow_hash >> 1` for second-level recursive load balancing
+  ([ip4_forward.c](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.c#L118-L160)).
 * The `vlib_increment_combined_counter` call is **not optional**; omitting it
   makes `show ip fib` / route flow counters under-report.
-* Writing `vnet_buffer(b0)->ip.flow_hash` is still useful even though we have
-  already selected the bucket: `ip4-load-balance` honours a non-zero incoming
-  `flow_hash` via `flow_hash >> 1` for second-level recursive / via-FIB load
-  balancing, see
-  [ip4_forward.c](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.c#L118-L160).
-  So the PBH decision propagates correctly through recursive FIBs.
-* If `sonic_ext_pbh_profile_hash()` returns 0 (inner header not parseable —
+* If `sonic_ext_pbh_hash_inner()` returns 0 (inner header not parseable —
   e.g. a non-first fragment), the node falls through to `vnet_feature_next()`
   and the packet gets the switch-global hash. Never a drop.
 
-### 6.7 LAG: `0019-sonic-pbh-lag-hash.patch` (gap G4)
+### 6.7 LAG: `0021-sonic-pbh-lag-hash.patch` (gap G4)
 
 #### 6.7.1 Why a core patch is unavoidable
 
@@ -1063,6 +1204,20 @@ typedef struct
   u32 stride;			/* bp->alloc_size >> CLIB_LOG2_CACHE_LINE_BYTES */
   u32 slot_base;		/* first slot belonging to this pool */
 } sonic_ext_vnet_buf_pool_t;
+
+/* The side-band owns its own state rather than living in sonic_ext_main_t.
+   That is not tidiness: the accessors above are static inlines that the PBH
+   node calls, so putting the table in sonic_ext_main_t would make this
+   header depend on sonic_ext.h, which already includes the feature headers
+   that will want to include this one. */
+typedef struct
+{
+  sonic_ext_vnet_buf_t *slots;
+  sonic_ext_vnet_buf_pool_t *pools;
+  u32 refs;
+} sonic_ext_vnet_buf_main_t;
+
+extern sonic_ext_vnet_buf_main_t sonic_ext_vnet_buf_main;
 ```
 
 A buffer index is owned by exactly one thread at a time, so no synchronisation
@@ -1079,18 +1234,18 @@ buffer *indices* and a pool number and must never dereference the buffers:
 /* Buffer index bi in pool p satisfies bi = bi_base + pad + stride * j with
    0 <= pad < stride, so truncating division recovers j exactly (D.1). */
 static_always_inline sonic_ext_vnet_buf_t *
-sonic_ext_vnet_buf_by_index (sonic_ext_main_t *sem, u8 pool_index, u32 bi)
+sonic_ext_vnet_buf_by_index (u8 pool_index, u32 bi)
 {
-  const sonic_ext_vnet_buf_pool_t *p = sem->vnet_buf_pools + pool_index;
+  sonic_ext_vnet_buf_main_t *vbm = &sonic_ext_vnet_buf_main;
+  const sonic_ext_vnet_buf_pool_t *p = vbm->pools + pool_index;
 
-  return sem->vnet_bufs + p->slot_base + (bi - p->bi_base) / p->stride;
+  return vbm->slots + p->slot_base + (bi - p->bi_base) / p->stride;
 }
 
 static_always_inline sonic_ext_vnet_buf_t *
-sonic_ext_vnet_buf_slot (vlib_main_t *vm, sonic_ext_main_t *sem,
-			 vlib_buffer_t *b)
+sonic_ext_vnet_buf_slot (vlib_main_t *vm, vlib_buffer_t *b)
 {
-  return sonic_ext_vnet_buf_by_index (sem, b->buffer_pool_index,
+  return sonic_ext_vnet_buf_by_index (b->buffer_pool_index,
 				      vlib_get_buffer_index (vm, b));
 }
 
@@ -1098,10 +1253,10 @@ sonic_ext_vnet_buf_slot (vlib_main_t *vm, sonic_ext_main_t *sem,
    guarantees the slot was zero when b was allocated, and any other bit that
    is set belongs to a feature that set it for this same packet. */
 static_always_inline sonic_ext_vnet_buf_t *
-sonic_ext_vnet_buf_claim (vlib_main_t *vm, sonic_ext_main_t *sem,
-			  vlib_buffer_t *b, sonic_ext_vnet_buf_field_t f)
+sonic_ext_vnet_buf_claim (vlib_main_t *vm, vlib_buffer_t *b,
+			  sonic_ext_vnet_buf_field_t f)
 {
-  sonic_ext_vnet_buf_t *sb = sonic_ext_vnet_buf_slot (vm, sem, b);
+  sonic_ext_vnet_buf_t *sb = sonic_ext_vnet_buf_slot (vm, b);
 
   sb->valid |= (u8) f;
   return sb;
@@ -1109,10 +1264,10 @@ sonic_ext_vnet_buf_claim (vlib_main_t *vm, sonic_ext_main_t *sem,
 
 /* b's slot iff field f was written during b's current incarnation, else 0. */
 static_always_inline sonic_ext_vnet_buf_t *
-sonic_ext_vnet_buf_find (vlib_main_t *vm, sonic_ext_main_t *sem,
-			 vlib_buffer_t *b, sonic_ext_vnet_buf_field_t f)
+sonic_ext_vnet_buf_find (vlib_main_t *vm, vlib_buffer_t *b,
+			 sonic_ext_vnet_buf_field_t f)
 {
-  sonic_ext_vnet_buf_t *sb = sonic_ext_vnet_buf_slot (vm, sem, b);
+  sonic_ext_vnet_buf_t *sb = sonic_ext_vnet_buf_slot (vm, b);
 
   return (sb->valid & (u8) f) ? sb : 0;
 }
@@ -1132,7 +1287,7 @@ consuming its value and clearing that flag would silently invalidate every
 other feature's field in the same slot. A bit per field makes each feature's
 claim independent, and makes a field's absence distinguishable from a field
 whose legitimate value happens to be zero — so a future field is not obliged
-to reserve a sentinel the way §6.4.1's `return h | (h == 0)` does.
+to reserve a sentinel the way §6.4.1's `return c | (c == 0)` does.
 
 **Sizing and initialisation.** The table is one slot per buffer *position*, with
 no rounding: $\sum \texttt{bp->size} / \texttt{bp->alloc\_size}$ over the pools,
@@ -1146,18 +1301,19 @@ through the page arithmetic of D.1 gives about **16.8 K slots = 131 KiB** on a
 single-NUMA switch.
 
 ```c
-static void
-sonic_ext_vnet_buf_init (vlib_main_t *vm, sonic_ext_main_t *sem)
+static int
+sonic_ext_vnet_buf_alloc (vlib_main_t *vm)
 {
+  sonic_ext_vnet_buf_main_t *vbm = &sonic_ext_vnet_buf_main;
   vlib_buffer_main_t *bm = vm->buffer_main;
   vlib_buffer_pool_t *bp;
   u32 n_slots = 0;
 
-  vec_validate (sem->vnet_buf_pools, vec_len (bm->buffer_pools) - 1);
+  vec_validate (vbm->pools, vec_len (bm->buffer_pools) - 1);
 
   vec_foreach (bp, bm->buffer_pools)
     {
-      sonic_ext_vnet_buf_pool_t *p = sem->vnet_buf_pools + bp->index;
+      sonic_ext_vnet_buf_pool_t *p = vbm->pools + bp->index;
 
       p->bi_base = (bp->start - bm->buffer_mem_start)
 		   >> CLIB_LOG2_CACHE_LINE_BYTES;
@@ -1168,14 +1324,14 @@ sonic_ext_vnet_buf_init (vlib_main_t *vm, sonic_ext_main_t *sem)
       n_slots += bp->size / bp->alloc_size;
     }
 
-  vec_validate_aligned (sem->vnet_bufs, n_slots - 1, CLIB_CACHE_LINE_BYTES);
-  clib_memset (sem->vnet_bufs, 0, n_slots * sizeof (sem->vnet_bufs[0]));
+  vec_validate_aligned (vbm->slots, n_slots - 1, CLIB_CACHE_LINE_BYTES);
+  clib_memset (vbm->slots, 0, n_slots * sizeof (vbm->slots[0]));
+  return 0;
 }
 ```
 
-Called once, from the same path that installs the hooks below, so an install
-with no PBH LAG rules never allocates the table at all. The zero fill is what
-establishes the invariant; everything below is about preserving it.
+The zero fill is what establishes the invariant; everything below is about
+preserving it.
 [Appendix D](#appendix-d-sizing-and-cache-behaviour-of-the-side-band-table)
 carries the exactness proof, the scaling table, and the cache analysis behind
 the prefetch in §6.7.5 — including what it costs to widen the struct.
@@ -1200,11 +1356,9 @@ static u32
 sonic_ext_vnet_buf_free_cb (vlib_main_t *vm, u8 pool_index, u32 *buffers,
 			    u32 n_buffers)
 {
-  sonic_ext_main_t *sem = &sonic_ext_main;
-
   for (u32 i = 0; i < n_buffers; i++)
-    clib_memset (sonic_ext_vnet_buf_by_index (sem, pool_index, buffers[i]),
-		 0, sizeof (sonic_ext_vnet_buf_t));
+    clib_memset (sonic_ext_vnet_buf_by_index (pool_index, buffers[i]), 0,
+		 sizeof (sonic_ext_vnet_buf_t));
 
   return n_buffers;
 }
@@ -1223,23 +1377,50 @@ function rather than around it
 Clearing the whole slot rather than just `valid` costs nothing — both are in
 the same line — and leaves the table readable in a debugger.
 
-**Lifecycle.** The table is built, and both hooks installed, on the *first*
-`SET_LAG_HASH` rule, or any future feature that needs the sidecar; all three
-are released with the last. An install with no PBH LAG rules therefore pays
-nothing beyond the per-frame NULL test of §6.7.2:
+**Lifecycle.** The table is **refcounted**, not initialised once. It is built
+and the free callback installed on the transition from zero to one holder, and
+released on the transition back; a PBH table that carries at least one
+`SET_LAG_HASH` rule is one holder, and any future feature that needs the
+sidecar is another. An install with no PBH LAG rules therefore pays nothing
+beyond the per-frame NULL test of §6.7.2:
 
 ```c
-if (vlib_buffer_set_alloc_free_callback (vm, 0, sonic_ext_vnet_buf_free_cb))
-  return clib_error_return (0, "buffer free callback already registered; "
-			       "PBH LAG hashing cannot be enabled");
-bond_main.lag_hash_override = sonic_ext_pbh_lag_hash_override;
+int
+sonic_ext_vnet_buf_ref (vlib_main_t *vm)
+{
+  sonic_ext_vnet_buf_main_t *vbm = &sonic_ext_vnet_buf_main;
+
+  if (vbm->refs++ > 0)
+    return 0;
+
+  sonic_ext_vnet_buf_alloc (vm);
+
+  if (vlib_buffer_set_alloc_free_callback (vm, 0,
+					   sonic_ext_vnet_buf_free_cb))
+    {
+      /* Fail closed: without the callback the invariant does not hold, and
+       * a stale slot is worse than no feature. */
+      sonic_ext_vnet_buf_free ();
+      vbm->refs = 0;
+      return 1;
+    }
+  return 0;
+}
 ```
+
+The configuration that needed it is rejected when this fails, rather than
+installed and left reading stale slots — `sonic_ext_pbh_table_add_replace()`
+returns an error and the rules are not published.
 
 VPP permits a single registrant and reports the conflict by returning 1
 ([buffer.c](platform/vpp/vppbld/repo/src/vlib/buffer.c#L1002-L1013)); the only
 other claimant in tree is `bufmon`, which takes the hook from `set buffer
 traces on`
 ([bufmon.c](platform/vpp/vppbld/repo/src/plugins/bufmon/bufmon.c#L163-L186)).
+The core setter is all-or-nothing — it has no refcount of its own — which is
+precisely why the refcount lives here: no other `sonic_ext` feature can be
+holding a slot while `refs > 0`, so unregistering on the last release cannot
+strand anyone.
 The design **fails closed** on that conflict: without the callback the
 invariant does not hold, and a silent correctness downgrade triggered by an
 unrelated debug command is worse than a refused configuration. Teardown runs
@@ -1342,14 +1523,19 @@ For a rule carrying `SET_LAG_HASH` only, the PBH node does **no** FIB lookup —
 it tags and yields:
 
 ```c
-if (r0->lag_profile_id != ~0)
+if (r0->lag_profile != ~0)
   {
-    u32 lh0 = sonic_ext_pbh_profile_hash (lag_prof0, b0, ip0);
-    sonic_ext_vnet_buf_claim (vm, sem, b0,
-			      SONIC_EXT_VNET_BUF_PBH_LAG_HASH)
+    u32 lh0 = sonic_ext_pbh_hash_inner (lag_prof0, &inner0);
+    sonic_ext_vnet_buf_claim (vm, b0, SONIC_EXT_VNET_BUF_PBH_LAG_HASH)
       ->pbh_lag_hash = lh0;
   }
 ```
+
+The table backing that `claim` is guaranteed to exist because
+`sonic_ext_pbh_table_add_replace()` takes a side-band reference whenever the
+incoming rule set contains a `SET_LAG_HASH` action, and refuses the
+configuration outright if the reference cannot be taken (§6.7.3). There is no
+path by which this node reaches an unallocated slot.
 
 The accessors take the buffer pointer rather than its index, because the slot
 number depends on `b->buffer_pool_index` as well — and that field sits in the
@@ -1362,16 +1548,14 @@ static void
 sonic_ext_pbh_lag_hash_override (vlib_main_t *vm, vlib_buffer_t **b,
                                  u32 *h, u32 n)
 {
-  sonic_ext_main_t *sem = &sonic_ext_main;
-
   for (u32 i = 0; i < n; i++)
     {
       sonic_ext_vnet_buf_t *sb;
 
       if (PREDICT_TRUE (i + 8 < n))
-        clib_prefetch_load (sonic_ext_vnet_buf_slot (vm, sem, b[i + 8]));
+        clib_prefetch_load (sonic_ext_vnet_buf_slot (vm, b[i + 8]));
 
-      sb = sonic_ext_vnet_buf_find (vm, sem, b[i],
+      sb = sonic_ext_vnet_buf_find (vm, b[i],
                                     SONIC_EXT_VNET_BUF_PBH_LAG_HASH);
       if (PREDICT_FALSE (sb != 0))
         {
@@ -1390,9 +1574,10 @@ array it is already handed.
 With `pbh off` the node never runs and the override is never registered, so
 the core call site of §6.7.2 is a permanently predicted-false branch.
 
-A rule carries `ecmp_profile_id` **and** `lag_profile_id`, so a single classify
-hit can drive both stages — though `PbhOrch` can only ever populate one of them
-today. See [Appendix C](#appendix-c-can-one-rule-drive-both-stages) for why the
+A rule carries `ecmp_profile` **and** `lag_profile`, so a single rule hit can
+drive both stages, and the binary API and CLI allow it — though `PbhOrch`
+cannot express it today. See
+[Appendix C](#appendix-c-can-one-rule-drive-both-stages) for why the
 fields are kept regardless, and for what happens when an operator tries to
 express "both" as two rules.
 
@@ -1434,11 +1619,11 @@ configuration of patch 0011 keeps working.
 | SAI object / attribute | Handling |
 |---|---|
 | `create_fine_grained_hash_field()` | New `SwitchVppHash.cpp`. Stored in the object DB only; no VPP call. |
-| `create_hash()` with `SAI_HASH_ATTR_FINE_GRAINED_HASH_FIELD_LIST` | Resolves each field OID, allocates a `profile_id`, calls `vpp_pbh_profile_add_del()`. |
+| `create_hash()` with `SAI_HASH_ATTR_FINE_GRAINED_HASH_FIELD_LIST` | Resolves each field OID, calls `vpp_pbh_profile_add_del()` and maps the SAI OID to the returned `profile_index`. |
 | `create_hash()` with `SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST` | Unchanged — continues to drive `vpp_ip_flow_hash_set()` (patch 0011 path). |
 | ACL table with PBH match fields | Recognised in `SwitchVppAcl.cpp`; routed to the PBH path instead of the ACL-plugin path. |
-| `SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID` | → `sonic_ext_pbh_rule.ecmp_profile_id` |
-| `SAI_ACL_ENTRY_ATTR_ACTION_SET_LAG_HASH_ID` | → `sonic_ext_pbh_rule.lag_profile_id` |
+| `SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID` | → `sonic_ext_pbh_rule.ecmp_profile` |
+| `SAI_ACL_ENTRY_ATTR_ACTION_SET_LAG_HASH_ID` | → `sonic_ext_pbh_rule.lag_profile` |
 | `SAI_PORT_ATTR_INGRESS_ACL` / `SAI_LAG_ATTR_INGRESS_ACL` binding a PBH table | → `vpp_pbh_interface_attach_detach()` |
 | `SAI_ACL_COUNTER_ATTR_PACKETS` / `_BYTES` on a PBH entry | → `vpp_rule_stats_query(VPP_RULE_STATS_PBH, …)` against the stats segment, reached through a new branch in `SwitchVpp::get()` |
 
@@ -1576,10 +1761,10 @@ The **second** summation in `getAclEntryStats()` is the one PBH does not need
 
 That loop exists because one SAI ACE can expand into several VPP ACL rules,
 which is why `m_ace_cntr_info_map` has to carry the `{vpp_rule_base_index,
-num_rules}` span at all. PBH has no such expansion: §6.5 adds **one classify
-session per rule**, with `opaque_index` set to the plugin's own rule pool
-index, and the chain is rooted once per interface rather than split per address
-family. The SAI entry to counter-index relation is therefore 1:1, so
+num_rules}` span at all. PBH has no such expansion: §6.5 keeps **one entry per
+rule**, indexed by the rule's position in the table's ordered vector, and a
+table is attached once per interface rather than split per address family. The
+SAI entry to counter-index relation is therefore 1:1, so
 `m_pbh_cntr_info_map` stores a bare `{table_id, rule_index}` and
 `getPbhEntryStats()` issues a single query.
 
@@ -1590,17 +1775,19 @@ spanning *n* rules re-walks the same counter vector *n* times to read *n*
 numbers. With a 1:1 mapping PBH pays one walk per rule read. A flex counter
 polling *R* PBH rules still costs *R* walks of an *R*-entry vector; at the
 handful of rules a PBH table realistically holds that is not worth batching,
-but it is the reason not to let one PBH rule fan out into many sessions later.
+but it is the reason not to let one PBH rule fan out into many entries later.
 
 New wrappers in `vppxlate/SaiVppXlate.[ch]`:
 
 ```c
-int vpp_pbh_profile_add_del (u32 profile_id, bool is_add,
-                             const vpp_pbh_hash_field_t *fields, u8 n_fields);
-int vpp_pbh_table_add_replace (u32 table_id,
-                               const vpp_pbh_rule_t *rules, u32 n_rules);
-int vpp_pbh_table_del (u32 table_id);
-int vpp_pbh_interface_attach_detach (u32 table_id, u32 sw_if_index, bool attach);
+/* profile_index / table_index are allocated by VPP and returned (§6.3). */
+int vpp_pbh_profile_add_del (bool is_add, const vpp_pbh_hash_field_t *fields,
+                             u32 n_fields, u32 *profile_index);
+int vpp_pbh_table_add_replace (const char *name, const vpp_pbh_rule_t *rules,
+                               u32 n_rules, u32 *table_index);
+int vpp_pbh_table_del (u32 table_index);
+int vpp_pbh_interface_attach_detach (u32 sw_if_index, u32 table_index,
+                                     bool attach);
 ```
 
 Note counters are absent from that list on purpose — they do not travel over
@@ -1646,11 +1833,11 @@ Per-object detail gets one sub-command, consistent with
 `show sonic-ext <thing>`:
 
 ```
-vpp# show sonic-ext pbh profile [<id>]
-vpp# show sonic-ext pbh table [<id>]
-vpp# show sonic-ext pbh interface
-vpp# show sonic-ext pbh counters
+vpp# show sonic-ext pbh [profiles|tables|interfaces]
 ```
+
+With no argument it prints all three sections plus the aggregate hit/miss
+counters. Per-rule match counters are printed inline under each table.
 
 As PR #291 states, `show sonic-ext` reports the **toggle**, not arc membership.
 The authoritative check remains:
@@ -1666,6 +1853,201 @@ There is intentionally no `set sonic-ext pbh …` runtime toggle: per P4 the
 whole point is that a disabled feature is never attached, and a CLI toggle can
 only gate.
 
+### 6.10 Bridged ports (VLAN members)
+
+#### 6.10.1 Why §6.6 alone is not enough
+
+`PbhOrch::createPbhTable()` declares the bind points as **PORT and LAG only**
+([pbhorch.cpp](src/sonic-swss/orchagent/pbhorch.cpp#L243-L252)), so a PBH table
+can never be bound to a VLAN. The sonic-mgmt PBH test nevertheless runs over a
+topology where the bound ports are members of `Vlan1000`, which means the
+`interface_list` names ports that VPP has configured as **L2 bridge members**,
+not as L3 interfaces.
+
+That combination defeats the arc placement of §6.6. When the bridge terminates
+a frame into L3 — destination MAC equals the router MAC — `l2_to_bvi()` strips
+the L2 header and **rewrites the RX interface** before jumping to `ip4-input`:
+
+```c
+  vnet_buffer (b0)->sw_if_index[VLIB_RX] = bvi_sw_if_index;
+```
+([l2_bvi.h](platform/vpp/vppbld/repo/src/vnet/l2/l2_bvi.h#L94))
+
+By the time the `ip4-unicast` arc is evaluated, the buffer's RX interface is
+the BVI (`loop0` / the VLAN's L3 interface), not the member port the table was
+attached to. `vnet_feature_enable_disable()` on the member port therefore has
+no observable effect: the arc is walked for the BVI, which has no PBH feature
+on it, and the packet reaches `ip4-lookup` with the switch-global hash.
+
+```mermaid
+flowchart LR
+  A[device-input<br/>sonic-ext-capture] --> B[ethernet-input]
+  B --> C[l2-input / l2-fwd<br/>Ethernet0 is a bridge member]
+  C --> D["l2_to_bvi()<br/>sw_if_index[VLIB_RX] := BVI"]
+  D --> E[ip4-input]
+  E --> F{{"ip4-unicast arc<br/>evaluated for the BVI"}}
+  F --> G[ip4-lookup]
+```
+
+#### 6.10.2 Shadow attachment on the BVI
+
+The arc must be armed on the interface the arc will actually be evaluated
+against. When a table is attached to a port that is a bridge member, PBH
+additionally arms the **BVI of that port's bridge domain** and records the same
+`table_index` for it. This is called a *shadow* attachment.
+
+Resolution is a direct read of the L2 input configuration, guarded at every
+step so an interface that is not bridged, is itself the BVI, or sits in a
+bridge domain without a BVI yields `~0`:
+
+```c
+static u32
+sonic_ext_pbh_bvi_of (u32 sw_if_index)
+{
+  l2input_main_t *l2im = &l2input_main;
+  …
+  config = vec_elt_at_index (l2im->configs, sw_if_index);
+  if (!l2_input_is_bridge (config) || l2_input_is_bvi (config))
+    return ~0;
+  bd = vec_elt_at_index (l2im->bd_configs, config->bd_index);
+  if (!bd_is_valid (bd))
+    return ~0;
+  return bd->bvi_sw_if_index;
+}
+```
+([pbh.c](platform/vpp/vppbld/plugins/sonic_ext/pbh.c#L320))
+
+Because a PBH table is normally bound to *every* member of the VLAN, many
+member attachments resolve to the same BVI. The shadow is therefore
+**refcounted**, with two new vectors in `sonic_ext_pbh_main_t`
+([pbh.h](platform/vpp/vppbld/plugins/sonic_ext/pbh.h#L202-L203)):
+
+| Field | Indexed by | Meaning |
+|---|---|---|
+| `bvi_by_sw_if_index` | member port | which BVI this port's attachment pulled in, or `~0` |
+| `bvi_refcount_by_sw_if_index` | BVI | how many member attachments currently hold the shadow |
+
+`bvi_by_sw_if_index` exists so that detach releases **exactly the BVI the
+attach took**, rather than re-deriving it. The port may have left the bridge
+domain between the two calls, in which case a re-derivation would find nothing
+and leak the shadow.
+
+The shadow deliberately does **not** appear in `t->sw_if_indices` and does not
+increment `t->n_attachments`. `sonic_ext_pbh_table_del()` drains
+`t->sw_if_indices` calling detach on each entry; keeping BVIs out of that list
+means each member's release naturally decrements the shadow refcount and the
+drain loop stays correct, with the last member dropping the arc.
+
+| Event | Action |
+|---|---|
+| attach to a bridge member | resolve BVI; if refcount was 0, arm the arc on the BVI and record its table; increment; record the BVI against the port |
+| attach to a plain L3 port | `bvi_of()` returns `~0`; nothing extra happens |
+| detach | look up the recorded BVI, clear it, decrement; on reaching 0 clear the BVI's table and disarm its arc |
+| BVI deleted (`sw_interface_add_del`) | **zero** the refcount and clear the table wholesale, and return early — the shadow is not a normal attachment to unwind |
+| a second table claims an already-shadowed BD | first wins; `clib_warning` and **no** reference is taken |
+
+The BVI-deletion case zeroes rather than decrements because it is the BVI
+itself that is dying, not one member. Decrementing would leave N−1 references
+against a freed `sw_if_index` and the last member's detach would then call
+`vnet_feature_enable_disable()` on it. Correspondingly,
+`sonic_ext_pbh_bvi_detach()` treats a refcount of 0 as "already gone" and
+returns, so the orphaned members' releases are no-ops.
+
+The "first wins" rule for a second table is a consequence of the arc placement:
+by the time `ip4-input` runs, traffic from two tables bound to disjoint members
+of the *same* bridge domain is indistinguishable at the BVI. Silently
+displacing the first owner would be worse than refusing and logging.
+
+#### 6.10.3 Narrowing the shadow back to the bound ports
+
+A shadow is bridge-domain-wide, but the binding it stands in for is per-port.
+Without further work, a table bound to only some members of a VLAN would also
+hash traffic arriving on the other members.
+
+The dataplane narrows it again using the capture cookie. `sonic-ext-capture`
+runs on the `device-input` arc, before `ethernet-input`, and stamps the real
+ingress interface into `vnet_buffer2`:
+
+```c
+seb->orig_rx_sw_if_index = vnet_buffer (b[0])->sw_if_index[VLIB_RX];
+```
+([capture_node.c](platform/vpp/vppbld/plugins/sonic_ext/capture_node.c#L153-L157))
+
+This lives in `sonic_ext_buffer_opaque_t` overlaid on `vnet_buffer2(b)->unused`
+([sonic_ext.h](platform/vpp/vppbld/plugins/sonic_ext/sonic_ext.h#L94-L98)) and
+is untouched by `l2_to_bvi()`, so it still names the member port after the
+rewrite. The node consults it only for interfaces that actually carry a shadow:
+
+```c
+static_always_inline int
+sonic_ext_pbh_shadow_admits (vlib_buffer_t *b, u32 rx_sw_if_index,
+                             u32 table_index)
+{
+  if (PREDICT_TRUE (rx_sw_if_index >=
+                      vec_len (pm->bvi_refcount_by_sw_if_index) ||
+                    pm->bvi_refcount_by_sw_if_index[rx_sw_if_index] == 0))
+    return 1;                      /* not a shadow: ordinary L3 port */
+
+  seb = sonic_ext_buffer (b);
+  if (seb->magic != SONIC_EXT_BUFFER_MAGIC)
+    return 1;                      /* no cookie: fail open */
+
+  orig = seb->orig_rx_sw_if_index;
+  return orig < vec_len (pm->table_index_by_sw_if_index) &&
+         pm->table_index_by_sw_if_index[orig] == table_index;
+}
+```
+([pbh_node.c](platform/vpp/vppbld/plugins/sonic_ext/pbh_node.c#L365))
+
+Three properties matter:
+
+* **Cost on the normal path is one vector load.** An ordinary L3 port has a
+  zero (or absent) shadow refcount and returns immediately without touching
+  the cookie.
+* **It fails open.** A missing or stale magic reproduces the un-narrowed
+  behaviour rather than silently dropping the hash. This matters for packets
+  already in flight when the first shadow is created.
+* **Sub-interfaces compare equal.** `sonic_ext_capture_enable_disable()` skips
+  sub-interfaces ([sonic_ext.c](platform/vpp/vppbld/plugins/sonic_ext/sonic_ext.c#L87)),
+  so the cookie always carries the parent hardware interface — which is also
+  what `saivpp` attaches the table to.
+
+The cookie only exists if capture is running, and capture has no keyword of its
+own: it is derived from its consumers. `sonic_ext_pbh_bvi_attach()` therefore
+calls `sonic_ext_capture_enable_all()`
+([sonic_ext.c](platform/vpp/vppbld/plugins/sonic_ext/sonic_ext.c#L356)) when it
+creates the first shadow. That function is a one-way latch, and
+`sonic_ext_lcp_pair_add_cb()` re-enables it for pairs created later, so a
+single call at shadow-creation time is sufficient.
+
+This is deliberately **not** implemented as a source-port qualifier on the PBH
+rules. Ports are a table-bind property, not a rule property, so encoding them
+in rules would require rewriting every rule whenever the bind set changes, for
+a case that does not arise in practice: `sonic-mgmt` binds the table to all
+members of the VLAN.
+
+#### 6.10.4 Observability
+
+`show sonic-ext pbh interfaces` distinguishes the two kinds of entry, so a
+shadow is never mistaken for a real binding:
+
+```
+vpp# show sonic-ext pbh interfaces
+interfaces:
+  Ethernet0: table 0
+  Ethernet4: table 0
+  loop0: table 0 (bridge domain shadow, 2 members)
+```
+
+#### 6.10.5 Limitations
+
+| Limitation | Consequence | Why it is acceptable |
+|---|---|---|
+| Bridge-domain membership is resolved **at attach time** | A port that joins a bridge domain *after* its table was attached gets no shadow | VPP exposes no bridge-membership callback; SONiC programs VLAN membership before PBH binds |
+| **Tagged** members get no shadow | For a tagged member the *sub-interface* is the bridge port, so `bvi_of(parent)` finds no bridge domain | Narrowing still admits such a member correctly if some untagged member created the shadow; the tested topology is untagged |
+| A deleted BVI's `sw_if_index` could be reused | A stale member's detach could decrement a new BVI's refcount | Cannot occur in SONiC, which removes members before removing the VLAN |
+| Two tables on one bridge domain | Only the first takes effect, with a warning | Indistinguishable at the BVI by construction (§6.10.2) |
+
 ---
 
 ## 7. Summary
@@ -1677,7 +2059,7 @@ only gate.
    fine-grained hash profile engine implementing SAI `sequence_id` and
    `ip_mask` semantics, an owned `vnet_classify` chain for rule matching, and
    `sonic_ext_pbh_*` messages appended to `sonic_ext.api`.
-2. One small core patch, `0019-sonic-pbh-lag-hash.patch` (2 files, ~15 lines),
+2. One small core patch, `0021-sonic-pbh-lag-hash.patch` (2 files, ~15 lines),
    adding an optional `bond_main.lag_hash_override` function pointer and its
    call site in `bond_tx_hash()`. No `vlib_buffer_t` metadata is consumed.
 3. One new default-on keyword `pbh` in the `sonic-ext { }` stanza, following
@@ -1725,28 +2107,27 @@ construction rather than competing.
 
 | Path | Purpose |
 |---|---|
-| `platform/vpp/vppbld/plugins/sonic_ext/pbh.h` | `sonic_ext_pbh_profile_t`, `sonic_ext_pbh_rule_t` |
-| `platform/vpp/vppbld/plugins/sonic_ext/pbh.c` | Pools, classify chain lifecycle, arc attach |
-| `platform/vpp/vppbld/plugins/sonic_ext/pbh_api.c` | API handlers |
+| `platform/vpp/vppbld/plugins/sonic_ext/pbh.h` | `sonic_ext_pbh_profile_t`, `sonic_ext_pbh_rule_t`, `sonic_ext_pbh_table_t`, `sonic_ext_pbh_main_t` |
+| `platform/vpp/vppbld/plugins/sonic_ext/pbh.c` | Pools, rule table lifecycle, arc attach |
 | `platform/vpp/vppbld/plugins/sonic_ext/pbh_node.c` | `sonic-ext-pbh-ip4` / `-ip6` |
 | `platform/vpp/vppbld/plugins/sonic_ext/pbh_hash.h` | Fine-grained hash (§6.4) |
 | `platform/vpp/vppbld/plugins/sonic_ext/sonic_ext_vnet_buf.h` | Plugin-private per-buffer side-band: `sonic_ext_vnet_buf_t`, its field bitmap, and the exact-index accessors (§6.7.3) |
-| `platform/vpp/vppbld/plugins/sonic_ext/sonic_ext_vnet_buf.c` | Side-band table sizing and init, plus the `vlib_buffer_set_alloc_free_callback()` free hook that keeps it clean (§6.7.3) |
-| `platform/vpp/vppbld/patches/0019-sonic-pbh-lag-hash.patch` | LAG override (§6.7) |
+| `platform/vpp/vppbld/plugins/sonic_ext/sonic_ext_vnet_buf.c` | Side-band table sizing, refcounted ref/unref, plus the `vlib_buffer_set_alloc_free_callback()` free hook that keeps it clean (§6.7.3) |
+| `0021-sonic-pbh-lag-hash.patch` | LAG hash override (§6.7) |
 | `src/sonic-sairedis/vslib/vpp/SwitchVppHash.cpp` | SAI hash / fine-grained hash objects |
 
 ### Modified files
 
 | Path | Change |
 |---|---|
-| `plugins/sonic_ext/CMakeLists.txt` | + `pbh.c pbh_api.c pbh_node.c` |
+| `plugins/sonic_ext/CMakeLists.txt` | + `pbh.c pbh_node.c sonic_ext_vnet_buf.c` |
 | `plugins/sonic_ext/FEATURE.yaml` | + `pbh` |
 | `plugins/sonic_ext/sonic_ext.api` | + `sonic_ext_pbh_*` messages (§6.3) |
-| `plugins/sonic_ext/sonic_ext.h` | + `pbh` toggle, `pbh_enabled` latch, PBH prototypes |
-| `plugins/sonic_ext/sonic_ext.c` | + `pbh` keyword in `sonic_ext_config()`, default in `sonic_ext_init()`, latch in `sonic_ext_apply_config()` |
-| `plugins/sonic_ext/sonic_ext_api.c` | + `pbh` keyword in the `sonic_ext_feature_get` handler |
-| `plugins/sonic_ext/cli.c` | + PBH toggle row and counters in `show sonic-ext`; + `show sonic-ext pbh …` |
-| `platform/vpp/vppbld/patches/series` | + `0019-sonic-pbh-lag-hash.patch` |
+| `plugins/sonic_ext/sonic_ext.h` | + `pbh` entry in `foreach_sonic_ext_feature` |
+| `plugins/sonic_ext/sonic_ext.c` | None — the X-macro supplies the keyword, the default and the `show` row |
+| `plugins/sonic_ext/sonic_ext_api.c` | + the four `sonic_ext_pbh_*` message handlers (§6.2) |
+| `plugins/sonic_ext/cli.c` | + `show sonic-ext pbh [profiles&#124;tables&#124;interfaces]` |
+| `platform/vpp/vppbld/patches/series` | + `0021-sonic-pbh-lag-hash.patch` |
 | `platform/vpp/docker-sonic-vpp/conf/startup.conf.tmpl` | + `# pbh off` in the commented `sonic-ext { }` stanza |
 | `platform/vpp/docker-syncd-vpp/conf/startup.conf.tmpl` | same |
 | `src/sonic-sairedis/vslib/vpp/SwitchVppAcl.cpp` | Recognise PBH table shape + the two PBH actions, gated on the cached feature answer; `getAclEntryStats()` call site moves to `vpp_rule_stats_query(VPP_RULE_STATS_ACL, …)` |
@@ -1760,7 +2141,7 @@ Not modified: `vpp_init.sh` and `10-01-vpp-cfg-init` — the existing
 `$SONIC_EXT_CONFIG` whitelist `^[a-z][a-z0-9-]*=(on|off|enable|disable)$`
 already accepts `pbh`.
 
-### Files inside `0019-sonic-pbh-lag-hash.patch`
+### Files inside `0021-sonic-pbh-lag-hash.patch`
 
 | Path | Change |
 |---|---|
@@ -1817,7 +2198,7 @@ of which is sufficient.
 
 **It is zeroed before the bond ever sees it.** PBH takes over forwarding only
 when the matched rule carries an ECMP profile; a `SET_LAG_HASH` rule leaves
-`r0->ecmp_profile_id == ~0` and falls through to `vnet_feature_next()` (§6.6).
+`r0->ecmp_profile == ~0` and falls through to `vnet_feature_next()` (§6.6).
 The packet therefore reaches `ip4_lookup_inline()`, which zeroes
 `ip.flow_hash` unconditionally and then either leaves it at 0 for a
 single-bucket route or overwrites it with `ip4_compute_flow_hash()`. Anything
@@ -1885,7 +2266,7 @@ Expressing "both" would need two PBH_RULE entries with identical match
 criteria, and the classify walk of §6.5 is **terminal on first hit**. The
 outcome depends purely on which one the chain reaches first:
 
-| Chain order | Hit | `ecmp_profile_id` | `lag_profile_id` | Result |
+| Scan order | Hit | `ecmp_profile` | `lag_profile` | Result |
 |---|---|---|---|---|
 | ECMP rule at higher priority | ECMP rule | set | `~0` | ECMP hash overridden; LAG falls back to `hash-eth-l34` |
 | LAG rule at higher priority | LAG rule | `~0` | set | LAG hash overridden; ECMP falls back to the switch-global hash |
@@ -1985,7 +2366,7 @@ eventually leaves by.
 
 ## Appendix D: Sizing and Cache Behaviour of the Side-Band Table
 
-Supporting material for the `sem->vnet_bufs` array introduced in §6.7.3.
+Supporting material for the `sonic_ext_vnet_buf_main.slots` array introduced in §6.7.3.
 
 ### D.1 Why the slot index is exact
 
