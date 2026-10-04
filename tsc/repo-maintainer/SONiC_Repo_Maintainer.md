@@ -28,10 +28,12 @@
 | sonic-platform-common | sonic-platform-common-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-common-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-common-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
+|  | sonic-platform-common-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
 | sonic-platform-daemons | sonic-platform-daemons-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-daemons-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-daemons-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
 |  | sonic-platform-daemons-maintainer | Junchao Chen (Nvidia) | Junchao-Mellanox | Request on 08/25/2026 |
+|  | sonic-platform-daemons-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
 | sonic-platform-pdk-pde | sonic-platform-pdk-pde-maintainer | Geans Pin (BRCM) | geans-pin | enabled |
 | sonic-py-swsssdk | sonic-py-swsssdk-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
 | sonic-restapi | sonic-restapi-maintainer | Lawrence Lee (Microsoft) | theasianpianist | enabled |
@@ -66,6 +68,7 @@
 |  | sonic-buildimage-maintainer | Yilan Ji (Google) | baxia-lan | enabled |
 |  | sonic-buildimage-maintainer | Praveen Elagala (BRCM) | Praveen-Brcm | Approved on 5/3/2023 and enabled |
 |  | sonic-buildimage-maintainer | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
+|  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
@@ -83,3 +86,6 @@
 | sonic-host-services | sonic-host-services-maintainer | Qi Luo(Microsoft) | qiluo-msft |  |
 | sonic-formal-infra | sonic-formal-infra-maintainer | Mengqi Liu (Alibaba) | mengqiliu20 | enabled |
 |  | sonic-formal-infra-maintainer | Ali Kheradmand (Google) | kheradmandG |enabled  |
+| sonic-redfish | sonic-redfish-maintainer | Judy Joseph (Microsoft) | judyjoseph | enabled |
+|  | sonic-redfish-maintainer | Chinmoy Dey (Nexthop AI) | chinmoy-nexthop | enabled |
+|  | sonic-redfish-maintainer | Shreyansh Jain (Nexthop AI) | shreyansh-nexthop | enabled |
