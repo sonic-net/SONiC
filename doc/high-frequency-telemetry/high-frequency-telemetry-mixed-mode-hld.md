@@ -43,6 +43,8 @@
 
 This document extends the existing [High frequency telemetry high level design](high-frequency-telemetry-hld.md) to add support for the `SAI_TAM_TEL_TYPE_MODE_MIXED_TYPE` mode of `sai_tam_tel_type`. It covers only orchagent-internal changes plus one contained internal extension to CounterSyncd's label-resolution path (§7.6.1). The CONFIG_DB schema, YANG model, CLI, STATE_DB schema, IPFIX wire format, the CounterSyncd public interface, and the OpenTelemetry exporter are unchanged.
 
+**Live reconfiguration is not supported for a MIXED_TYPE profile in this phase.** All of a profile's groups share one stream and one template set, so a configuration change can only take effect as a complete profile reconfiguration, not a partial update to a single group. The user must stop the entire profile, modify its configuration, then explicitly re-enable it; see §7.5 for the enforced stop-modify-start contract.
+
 ## 3. Definitions/Abbreviations
 
 The base HLD's abbreviations apply. Additional terms used in this document:
@@ -75,6 +77,7 @@ Non-requirements:
 - No CONFIG_DB, YANG, CLI, or STATE_DB schema changes.
 - No CounterSyncd schema or public-interface changes. One internal extension to the label-resolution path is required so that the per-group sessions sharing a template_id in MIXED resolve correctly (see §7.6.1).
 - No runtime mode switching - the chosen mode is fixed for the lifetime of the orchagent process.
+- No live reconfiguration of a MIXED_TYPE profile. Because its groups share one stream and one template set, a configuration change must be applied as a complete stop-modify-start cycle rather than a partial update while streaming (see §7.5).
 
 ## 6. Architecture Design
 
