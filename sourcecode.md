@@ -17,7 +17,7 @@
 		
 	- installer - contains scripts that are used by onie-mk-demo script that is called as part of build_image.sh
 	- rules - contains the "config" file where the build options can be modified, contains *.mk makefiles that contains the required marcros for building the image.
-	- platform - contains sub-folders for all platforms like "barefoot", "broadcom", "cavium", "centec", "marvell", "mellanox", "nephos", "p4", "vs" (virtual switch).
+	- platform - contains sub-folders for all platforms like "barefoot", "broadcom", "cavium", "centec", "marvell", "mellanox", "p4", "vs" (virtual switch).
 	  Each of those platform folders contains code specific to the hardware device from each vendor. It includes the required kernel drivers, platform sensors script for fetching data from hardware devices, etc.,
 	- sonic-slave, sonic-slave-stretch - Contains the main Dockerfile that lists the various Debian packages that are required for various features.
 	- src - contains sub-folders for features like bash, gobgp, hiredis, initramfs-tools, iproute2, isc-dscp, ixgbe, libnl3, libteam, 
