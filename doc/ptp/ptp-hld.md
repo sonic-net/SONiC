@@ -194,7 +194,7 @@ The PTP protocol stack is processed in the PTP container.  When SONiC launches t
 
 When a PTP container starts, it launches an instance of the PTP app manager, which will read the SONiC configuration from CONFIG_DB.  PTP configuration consists of a base ptp4l configuration that all PTP containers share and configuration for Ethernet ports.   The PTP app manager will combine configuration for Ethernet ports that are applicable to the ASIC namespace with the base ptp4l configuration and write a /etc/ptp4l.cfg inside the container.  When the /etc/ptp4l.cfg is written, the PTP app manager will start the ptp4l process.  After the ptp4l process starts, the PTP app manager will start a telemetry feed process.  The telemetry feed process will regularly query the ptp4l process for status and statistics through ptp4l's UDS/pmc interface and push all status and statistics into STATE_DB and COUNTERS_DB.
 
-The PTP app manager will continue to listen to CONFIG_DB for changes to configuration.  When PTP app manager receives an update, the app manager will regenerate the /etc/ptp4l.cfg file, and relaunches the ptp4l and telemetry feed processes.  On-the-fly configuration is not supported.
+The PTP app manager will continue to listen to CONFIG_DB for changes to configuration.  When PTP app manager receives an update, the app manager will regenerate the /etc/ptp4l.cfg file, and relaunches the ptp4l and telemetry feed processes.  On-the-fly configuration is not supported; this is due to the very limited configuration options of ptp4l software once the executable starts running.
 
 The ptp4l expects all interfaces are associated with one single PHC, and in BC and OC operation, the ptp4l can freely adjust the PHC as a slave clock.  This operational model requires each ASIC to have one independently adjustable PHC.  This one PHC must be associate with all ports attached to the ASIC.
 
@@ -836,7 +836,7 @@ For reference this is the original state object.
 ```
 PTP_GROUP|ptp_config
 {
-  "instance-list": [
+  [
     {
       "instance-number": uint32,
       "default-ds": {
@@ -914,17 +914,17 @@ There is a new object that represents the status of the local clock.
 ```
 PTP_GROUP|ptp_time_status
 {
-  "instance-list": [
-    {TB
-      "master_offset": int64,
-      "ingress_time": int64,
-      "cumulative_scaled_rate_offset": int32,
+  [
+    {
+      "master-offset": int64,
+      "ingress-time": int64,
+      "cumulative-scaled-rate-offset": int32,
       "nanoseconds": uint128,
-      "fractional_nanoseconds": uint16,
+      "fractional-nanoseconds": uint16,
       "gm-present": ("True"|"False"),
-      "gm_time_base_indicator": uint16,
+      "gm-time-base-indicator": uint16,
       "grandmaster-identity": string,
-      "scaled_last_gm_phase_change": uint64,
+      "scaled-last-gm-phase-change": uint64,
     },
   ]
 }
@@ -938,7 +938,7 @@ For each ASIC, there is a separate instance in the table, PTP_GROUP|ptp_time_sta
 
 ### 6.1.3.1 PTP Port Statistics
 
-There is a new statistic object for ptp port statistics.  These counters represent number of packets seen by a running ptp4l process since the beginning of operation.  Each time the ptp4l instance restarts, these counters are reset.
+There is a new statistic object for ptp port statistics.  These counters represent number of packets seen by a running ptp4l process since the beginning of execution.  Whenever a ptp4l instance restarts, these counters are reset.
 
 ```
 PTP_GROUP|ptp_port
@@ -969,7 +969,7 @@ PTP_GROUP|ptp_port
 }
 ```
 
-For each active ptp port there is a separate instance in the table, PTP_GROUP|ptp_port with keys of "{if-name}".  Separator in the table and key will conform with the database separator.   
+For each configured ptp port there is a separate instance in the table, PTP_GROUP|ptp_port with keys of "{if-name}".  Separator in the table and key will conform with the database separator.
 
 # 7 Failure Scenarios
 
