@@ -266,7 +266,7 @@ Extended to include custom TLV associations.
   }
 }
 ```
-**Note** : Global and port-level configurations are mutually exclusive but can coexist; interface-level configurations do not override global settings.
+**Note** : Port-level configuration adds to the global configuration, it does not replace it. A custom TLV configured under `LLDP|GLOBAL` is advertised on all LLDP enabled ports, and a custom TLV configured under `LLDP_PORT|<interface>` is advertised on that interface along with the global ones. This is intentional, since feature daemons program per-port custom TLVs through the `LLDP_TX_CUSTOM_TLV` table, and an override behaviour would silently remove the operator configured global TLVs on those ports.
 
 
 ### State DB Schema
