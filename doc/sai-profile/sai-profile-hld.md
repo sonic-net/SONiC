@@ -10,7 +10,7 @@
   * [4. Design](#4-design)
       * [4.1 SAI_PROFILE CONFIG_DB Table](#41-sai_profile-config_db-table)
       * [4.2 YANG Model](#42-yang-model)
-      * [4.3 Template Rendering](#43-template-rendering)
+      * [4.3 Rendering Mechanism](#43-rendering-mechanism)
       * [4.4 Vendor Integration](#44-vendor-integration)
       * [4.5 Precedence and Safety](#45-precedence-and-safety)
   * [5. CLI](#5-cli)
