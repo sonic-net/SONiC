@@ -83,8 +83,8 @@ Out of scope: any change to the `CONSOLE_SWITCH` / `CONSOLE_PORT` CONFIG_DB sche
 ## 1.2 Goals
 
 1. Eliminate the nested pexpect layers and the redundant Python processes from the interactive console data path.
-2. Preserve the existing CLI surface, exit codes, banner text, escape-character behavior, and STATE_DB schema.
-3. Preserve all existing error semantics (`LineBusyError`, `InvalidConfigurationError`, `LineNotFoundError`).
+2. Preserve the existing CLI surface, operator-visible banner text, escape-character behavior, and STATE_DB schema.
+3. Preserve pre-connect error semantics and exit codes (`LineBusyError` → 5, `InvalidConfigurationError` → 4, `LineNotFoundError` → 3). Picocom runtime exit status is propagated directly after the session hand-off (see [§4.3](#43-error-handling)).
 4. Keep the implementation centralized in `sonic-utilities` (primarily `consutil/lib.py`, with necessary plumbing changes in `consutil/main.py`) allowing for easier future enhancements through a unified, platform-independent code path.
 
 ## 1.3 Non-goals
@@ -142,6 +142,8 @@ os.execvp("/bin/bash", [
 4. On the EXIT trap: marks the line idle in STATE_DB and restores the terminal to the original mode captured via `stty -g` at session start.
 5. Exits with picocom's return code so callers see picocom's actual exit status.
 
+Unlike the legacy path, the new implementation does not wait for picocom's `Terminal ready` output. The session script prints the operator banner before starting picocom, so the banner confirms the pre-connect checks and script hand-off, not that picocom opened the UART. A subsequent startup/open failure is printed by picocom and returns picocom's exit code (see [§4.3](#43-error-handling)).
+
 Because `os.execvp` replaces the Python process image, after the call there is no Python interpreter and no extra pty pair on the byte path. The resulting byte path is:
 
 ```
@@ -186,19 +188,13 @@ Counting copies for one byte traveling from the operator's keystroke to the remo
 | **Round-trip** | **12 copies**                                                                                             | **4 copies**                                   |
 
 
-The new design eliminates **8 of the 12 kernel/user-space copies** per byte round-trip which is a reduction of approximately **67%** in the per-byte syscall + copy cost on the local box, and a corresponding reduction in the number of context switches needed per byte.
+The new design eliminates **8 of the 12 modeled kernel/user-space copies** per byte round-trip (approximately **67%** fewer copy crossings on paper). Actual CPU time depends on buffer sizes, scheduling, and load; this table is an architectural copy-count model, not a measured CPU benchmark.
 
 ## 3.2 Per-Keystroke Latency
 
-The dominant local-host latency contributor in the original design is the chain of `read → schedule → write` operations through the two Python pexpect forwarders. Each forwarder adds, per byte:
+The original design adds syscall, scheduling, and Python interpreter work in each of the two pexpect forwarding loops. The new design removes those forwarders from the steady-state byte path so bytes go directly from the user's TTY to picocom to the UART driver.
 
-- One syscall pair (read + write): ~1–2 µs each on x86, slightly more on ARM CO platforms.
-- One process schedule round-trip (I/O wakeup): typically 5–50 µs depending on system load.
-- Python interpreter dispatch to run the `interact()` callback: typically 10–100 µs depending on GIL contention and bytecode caching.
-
-With two pexpect forwarders, the original design adds approximately **30–300 µs of local-host latency per keystroke**, on top of the picocom + UART path. The new design removes this overhead entirely by making bytes go directly from the user's pty to picocom to the UART driver.
-
-For a single keystroke on an otherwise-idle box, this latency reduction is below human perception in both designs because the serial baud rate dominates. The improvement only becomes user-visible when many sessions share a constrained CPU (see §3.3).
+This HLD does not include comparable latency measurements and therefore makes no numerical latency claim. For a single session, the serial baud rate is expected to dominate; the architectural benefit is expected to be more relevant when many sessions share a constrained CPU (see §3.3).
 
 ## 3.3 Throughput and Aggregate CPU Load at Scale
 
@@ -206,32 +202,27 @@ End-to-end per-session throughput is bounded by the serial baud rate (`9600 → 
 
 The benefit at scale is in **aggregate CPU load on console-aggregator boxes**. Dedicated console platforms are deployed as CPU-centric appliances whose primary job is fronting **dozens of serial lines** simultaneously. Additionally, these platforms are expected to handle light CPU-forwarded IP traffic between a small number of Ethernet ports, possibly running BGP. A typical full-load configuration of a console box is designed to withstand up to 48 active sessions during a Point of Presence cut-over, fleet boot, or large maintenance window. In that scenario, the per-session forwarding cost of the connect path is what determines how many sessions the box can sustain in parallel without BGP session flap, operator-visible keystroke lag, or tail drops.
 
-Per active session, the original design ran two Python `pexpect.interact()` byte-forwarding loops in addition to picocom while the new design runs only picocom. picocom is a tight C `read()/write()` loop and consumes roughly an order of magnitude less CPU per byte than the equivalent Python forwarder that includes interpreter dispatch + Python GIL contention + two extra r/w syscall pairs per byte.
+Per active session, the original design ran two Python `pexpect.interact()` byte-forwarding loops in addition to picocom while the new design runs only picocom in the steady-state data path. picocom is a tight C `read()/write()` loop; removing the two Python forwarders per session reduces interpreter and syscall overhead on console-aggregator CPUs.
 
-For a fully loaded console box with **48 active sessions** under heavy traffic (e.g. boot logs streaming back from every attached device at once), the aggregate CPU saved by removing the 96 Python forwarders makes the new design **roughly 5–10× more efficient at full scale**, freeing the CPU to absorb simultaneous heavy console output without backpressure while leaving headroom for more application services such as BGP and other SONiC management services.
+On the Nokia 7215 IXS-C1, a full-load test used **48 active sessions** at **9600 baud** with **1024-byte chunks**. Under the same workload, aggregate CPU utilization was **91.64%** with the original path and **18.27%** with the new path. This is a **73.37 percentage-point (80.1%) reduction**, or approximately **5.0× lower aggregate CPU**, and verifies the lower end of the expected performance gain from removing the **96** Python `interact()` loops. This 48-session performance test is separate from the single-line functional tests.
 
 # 4 Existing SONiC Integration and Impact
 
-This section summarises how the enhancement interacts with the rest of SONiC. The intent of the new design is to be a drop-in replacement: every external contract (CONFIG_DB / STATE_DB schemas, CLI surface, exit codes) is preserved, and only the internal byte-forwarding mechanism changes.
+This section summarises how the enhancement interacts with the rest of SONiC. CONFIG_DB / STATE_DB schemas and the CLI surface are unchanged; only the internal byte-forwarding mechanism and the picocom startup hand-off change (see [§4.3](#43-error-handling)).
 
 ## 4.1 DB Changes
 
 None.
 
-CONFIG_DB tables (`CONSOLE_SWITCH|console_mgmt`, `CONSOLE_PORT|<N>`) and STATE_DB schema (`CONSOLE_PORT|<N>` with `state` / `pid` / `start_time`) are unchanged. The writer of the STATE_DB busy/idle transitions moves from the legacy Python `ConsoleSession` lifecycle into the inline bash script's `trap ... EXIT`, but the keyspace and value semantics are identical.
+CONFIG_DB tables (`CONSOLE_SWITCH|console_mgmt`, `CONSOLE_PORT|<N>`) and STATE_DB schema (`CONSOLE_PORT|<N>` with `state` / `pid` / `start_time`) are unchanged. The writer of the STATE_DB busy/idle transitions moves from the legacy Python `ConsoleSession` lifecycle into the inline bash script's `trap ... EXIT`; the keyspace and field format are unchanged.
 
 ## 4.2 CLI
 
-No CLI changes. `connect line <N>` and `consutil connect <N>` both behave identically from the operator's perspective:
-
-- Same connection banner: `Successful connection to line [<N>]` / `Press ^<X> ^X to disconnect`.
-- Same disconnect mechanism (`^A ^X` or whatever the configured escape character is).
-- Same exit codes (see [§4.3](#43-error-handling)).
+No command or option changes. The connection banner text and disconnect mechanism are unchanged. However, the banner is now emitted before picocom opens the UART, and failures after the hand-off return picocom's exit code rather than the legacy open-failure mapping. See [§4.3](#43-error-handling).
 
 ## 4.3 Error Handling
 
-The exception-to-exit-code mapping is preserved in the shared `console_connect()` entry point:
-
+The pre-connect exception-to-exit-code mapping is preserved in the shared `console_connect()` entry point:
 
 | Exception                    | Exit Code  | Meaning                                                       |
 | ---------------------------- | ---------- | ------------------------------------------------------------- |
@@ -240,8 +231,11 @@ The exception-to-exit-code mapping is preserved in the shared `console_connect()
 | `LineNotFoundError`          | 3          | Target line not found.                                        |
 | `OSError` (from `os.execvp`) | propagates | `/bin/bash` missing or not executable; extremely rare.        |
 
+The legacy path waited for picocom's `Terminal ready` or busy/error output before printing success, mapping busy to exit **5** and other open failures to exit **3**. The new script prints the success banner before starting picocom. A picocom startup, busy, or open failure after that point is therefore displayed after the banner and returns picocom's raw exit code rather than the legacy mapping. This is an intentional compatibility difference.
 
-Inside the bash script, picocom's exit code is propagated as the script's exit code, so `consutil connect 1; echo $?` reports picocom's actual return value (e.g. `0` on a clean disconnect via the escape sequence).
+The pre-connect busy check is not an atomic reservation. Two simultaneous attempts can both pass before either publishes `busy`; picocom's device/lock handling determines which session opens the line. Because each script writes the same STATE_DB fields and unconditionally writes `idle` on EXIT, a losing concurrent session can overwrite or clear the active session's state. The merged implementation does not guarantee ownership-safe STATE_DB cleanup for this race.
+
+For a single session, `HUP`/`INT`/`TERM` are forwarded to picocom and the EXIT trap reaps the child, writes `idle`, and restores the saved terminal settings. Picocom's exit code is propagated after cleanup.
 
 ## 4.4 Testing
 
@@ -251,4 +245,6 @@ Unit tests in `src/sonic-utilities/tests/console_test.py` are updated to reflect
 - `test_console_port_info_connect_connection_fail` — mocks `os.execvp` with `side_effect=OSError(...)` and asserts the `OSError` propagates.
 - `test_console_port_info_connect_success` — mocks `os.execvp` with `side_effect=SystemExit(0)`, then asserts the `argv` passed to `os.execvp` matches the documented contract: `["/bin/bash", "-c", <script>, "console_connect", <line>, <escape>, <picocom_cmd>]`.
 
-The remaining tests in the file are unaffected because they either mock `ConsolePortInfo.connect` directly or exercise paths that do not reach `os.execvp`.
+These tests do not execute the session script under a PTY. Startup failure, simultaneous connection, disconnect/termination/clear cleanup, STATE_DB lifecycle, and terminal restoration are therefore not covered by the current unit tests. PTY lifecycle tests would be required to verify those cases; in particular, the merged behavior includes the startup-banner and concurrent-cleanup differences documented in [§4.3](#43-error-handling).
+
+Existing console echo, escape-character, and clear-line tests provide single-line functional coverage. Separately, the **48-session** load test in §3.3 provides multi-session performance coverage.
