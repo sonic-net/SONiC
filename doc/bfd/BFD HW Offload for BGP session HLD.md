@@ -503,6 +503,7 @@ Here is an example to do it through config_db and frr supervisord:
     },
 ```
 dockers/docker-fpm-frr/frr/supervisord/supervisord.conf.j2
+{% raw %}
 ```
 {% if FEATURE.bgp.bfd_hw_offload is defined and FEATURE.bgp.bfd_hw_offload == "true" %}
 [program:bfdsyncd]
@@ -543,6 +544,7 @@ dependent_startup=true
 dependent_startup_wait_for=zebra:running
 {% endif %}
 ```
+{% endraw %}
 ```
 inside bgp container:
 root@sonic:/# ps -ef
