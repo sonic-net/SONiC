@@ -150,8 +150,11 @@ title: PTP operational flow
       end
 
       subgraph swss_service[swss container]
+        subgraph cfgmgr
+          portmgrd[[portmgrd]]
+        end
         subgraph orchagent
-          switchorch[[switchorch]]
+          portsorch[[portsorch]]
         end
       end
     end
@@ -169,9 +172,10 @@ title: PTP operational flow
     end
 
     config_db-- subscription -->appcfg
-    appcfg-- writes -->appl_db
-    appl_db-- subscription -->switchorch
-    switchorch-- writes -->asic_db
+    config_db-- subscription -->portmgrd
+    portmgrd-- writes -->appl_db
+    appl_db-- subscription -->portsorch
+    portsorch-- writes -->asic_db
     asic_db-- subscription -->syncd
     sai-- programs ---asic_dev
     asic_dev<==>|IP packets|eth_dev
