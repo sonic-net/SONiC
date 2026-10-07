@@ -33,6 +33,7 @@
 | Rev | Date | Author | Description |
 |---|---|---|---|
 | 0.1 | 2026-09-09 | Patrice Brissette (Cisco) | Initial HLD |
+| 0.2 | 2026-10-07 | Patrice Brissette (Cisco) | Enable knob folded into `advertise-all-vni [l3vni-neigh]`; flag carried in `ZEBRA_ADVERTISE_ALL_VNI` (review feedback) |
 
 ---
 
@@ -187,8 +188,11 @@ bond, it installs **nothing** — the route is simply not relevant to it.
 
 ### 7.4 The enable knob
 
-The feature is turned on per box with a single EVPN sub-command,
-**`advertise-l3vni-neigh`**, alongside the existing `advertise-all-vni`. It is a
+The feature is turned on per box with an optional **`l3vni-neigh`** token on the
+existing `advertise-all-vni` command (`advertise-all-vni l3vni-neigh`). Folding
+it into the existing command — rather than adding a stand-alone sub-command —
+means EVPN-enable and L3MH-enable are always applied together, with no ordering
+dependency between config commands or between ZAPI messages. It is a
 **capability enable that gates both directions**:
 
 - **Transmit:** authorizes originating the `label[0]=0` RT-2 for locally learned
@@ -198,9 +202,8 @@ The feature is turned on per box with a single EVPN sub-command,
   mandatory, so an Explicit-NULL label is a signal a receiver must be
   **explicitly enabled** to accept.
 
-With the knob off, the box neither originates nor installs these routes, exactly
-as a standard EVPN speaker would behave. This mirrors how `advertise-all-vni`
-enables EVPN itself.
+With the token absent, the box neither originates nor installs these routes,
+exactly as a standard EVPN speaker would behave.
 
 ---
 
@@ -288,7 +291,7 @@ small per-VLAN cache).
 | `zebra_evpn` (per-VNI EVPN instance) | new flag **`ZEVPN_L3_NEIGH_SYNC`** | Marks the L3VNI-keyed instance as the shared **pure-L3 neighbor-sync** container — no FDB, no flood, no VXLAN. |
 | `zebra_neigh` (synced ARP/ND entry) | new fields **`eth_tag`** (owning VLAN/ETAG) and **`sync_mac_ifindex`** (local-ES pin) | Let one shared container serve many SVIs, and track the sync-MAC pin for cleanup. |
 | `zebra_evpn_access_bd` (access VLAN/BD) | new **`l3_mac_es_table`** — hash of *host MAC → local access port* (**new table**) | On a no-L2VNI VLAN there is no MAC table; this cache records which local bond a host MAC sits behind, so the RT-2 carries the correct **ESI**. |
-| `bgp` (per-VRF) and `zebra_vrf` | new **`advertise_l3vni_neigh`** flag | Stores the enable knob in bgpd and zebra. |
+| `bgp` (EVPN default VRF) and `zebra_vrf` | new **`advertise_l3vni_neigh`** flag, set alongside `advertise_all_vni` | Stores the `l3vni-neigh` token in bgpd and zebra; set and cleared together with EVPN-enable. |
 
 RT-2 origination in bgpd is sourced entirely from the existing per-VRF EVPN
 instance — **no new bgpd EVPN instance is created**.
@@ -326,12 +329,13 @@ zebra_evpn                             reused instance, keyed on the L3VNI
 
 ### 8.5 ZAPI messages (bgpd ↔ zebra)
 
-ZAPI is the internal channel between bgpd and zebra. One new message is added and
-the existing MAC/IP messages are extended with a flag and an Ethernet Tag.
+ZAPI is the internal channel between bgpd and zebra. No new message is added:
+the existing EVPN-enable message carries one extra flag, and the existing MAC/IP
+messages are extended with a flag and an Ethernet Tag.
 
 | Message | Direction | Change |
 |---|---|---|
-| **`ZEBRA_ADVERTISE_L3VNI_NEIGH`** | bgpd → zebra | **New** — carries the enable knob (1-byte flag), mirroring `ZEBRA_ADVERTISE_ALL_VNI`. |
+| `ZEBRA_ADVERTISE_ALL_VNI` | bgpd → zebra | **Extended** — new 1-byte **`l3vni_neigh`** flag after the existing fields, so EVPN-enable and L3MH-enable arrive atomically in one message. |
 | `ZEBRA_MACIP_ADD` / `ZEBRA_MACIP_DEL` (local) | zebra → bgpd | **Extended** — new flag **`ZEBRA_MACIP_TYPE_L3_NEIGH_SYNC`** (`0x80`) marks the entry pure-L3; **Ethernet Tag** appended. |
 | `ZEBRA_REMOTE_MACIP_ADD` / `ZEBRA_REMOTE_MACIP_DEL` | bgpd → zebra | **Extended** — same pure-L3 flag + **Ethernet Tag**; the **ESI** (already carried) drives the local-ES match on install. |
 
@@ -339,7 +343,7 @@ the existing MAC/IP messages are extended with a flag and an Ethernet Tag.
 
 | Message | Fields |
 |---|---|
-| `ZEBRA_ADVERTISE_L3VNI_NEIGH` | `enable` |
+| `ZEBRA_ADVERTISE_ALL_VNI` | advertise, flood_ctrl, **l3vni_neigh** |
 | `ZEBRA_MACIP_ADD` (local) | VNI, MAC, IP, **flags (0x80)**, seq, ESI, **eth_tag** |
 | `ZEBRA_MACIP_DEL` (local) | VNI, MAC, IP, state, **eth_tag** |
 | `ZEBRA_REMOTE_MACIP_ADD` | VNI, MAC, IP, VTEP-IP, **flags (0x80)**, seq, ESI, **eth_tag** |
@@ -360,7 +364,7 @@ feature inactive.
 
 **Functional**
 
-1. On a leaf with `advertise-l3vni-neigh` set and **no L2VNI** for the host's
+1. On a leaf with `advertise-all-vni l3vni-neigh` set and **no L2VNI** for the host's
    VLAN, a locally learned ARP/ND entry is advertised as an RT-2 with
    `label[0]=0`, `label[1]=L3VNI`, Ethernet Tag = VLAN.
 2. A received pure-L3 RT-2 whose **ESI is local** installs a kernel neighbor and,
@@ -381,31 +385,38 @@ feature inactive.
 
 **Management**
 
-8. The feature is enabled/disabled by a single, persistent EVPN sub-command that
-   gates both transmit and receive.
+8. The feature is enabled/disabled by an optional `l3vni-neigh` token on the
+   existing `advertise-all-vni` command; it gates both transmit and receive, and
+   EVPN-enable and L3MH-enable are applied atomically.
 
 ---
 
 ## 10. Configuration and Management
 
-Configuration is a single additive EVPN knob, mirroring `advertise-all-vni`:
+Configuration is an optional token on the existing `advertise-all-vni` command:
 
 ```
 router bgp <asn>
  address-family l2vpn evpn
-  advertise-all-vni            ! master EVPN enable (required)
-  advertise-l3vni-neigh        ! enable L3MH neighbor sync (this feature)
+  advertise-all-vni l3vni-neigh   ! EVPN enable + L3MH neighbor sync
  exit-address-family
 ```
 
-- Both knobs are required functionally: `advertise-all-vni` is the master EVPN
-  gate; `advertise-l3vni-neigh` layers the L3MH neighbor-sync capability on top.
+| Command | EVPN | L3MH neighbor sync |
+|---|---|---|
+| `advertise-all-vni l3vni-neigh` | on | on |
+| `advertise-all-vni` | on | off |
+| `no advertise-all-vni l3vni-neigh` | on | off |
+| `no advertise-all-vni` | off | off |
+
+- A single command carries both settings, so there is no config-ordering
+  dependency, and the running-config shows a single line.
 - The feature is **per box** (gates TX and RX); whether a given VLAN actually
   uses it is decided automatically by the **absence of an L2VNI** for that VLAN.
-- State is visible through the existing EVPN show commands (the knob, and the
+- State is visible through the existing EVPN show commands (the token, and the
   RT-2's `Label-1: 0` / Ethernet Tag / IP-VRF RT / ESI).
 
-No new SONiC CLI, YANG model, or Config DB table is required — the knob lives in
+No new SONiC CLI, YANG model, or Config DB table is required — the token lives in
 the FRR EVPN configuration that SONiC already renders.
 
 ---
