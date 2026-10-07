@@ -23,6 +23,8 @@
 | v0.1 | 09/24/2026 | Yue Gao (yuega2@cisco.com) | Initial draft. Plugin-based ECMP path (`pbh_plugin.so`, zero core patch); single small core patch `0019-sonic-pbh-lag-hash.patch` for the LAG path; new `pbh.api`; feature enabled by default and toggleable at three levels. |
 | v0.2 | 10/01/2026 | Yue Gao (yuega2@cisco.com) | Reconciled with the implementation. PBH ships inside `sonic_ext` rather than a new plugin. Rule matching is a typed linear priority scan, not a `vnet_classify` chain (§6.5). Hash state corrected to Jenkins' three words — the one-variable `hash_v3_finalize32 (h, h, h)` of v0.1 returns 0 for every input (§6.4.1). Inner-header resolution split out, with VXLAN peeled by the plugin because `ip_inner_resolve()` cannot identify it (§6.4.2). ECMP steering restricted to `DPO_ADJACENCY` with an explicit `ip4-rewrite` next instead of `.sibling_of` (§6.6). Side-band moved to its own `sonic_ext_vnet_buf_main_t` and refcounted (§6.7.3). API indices allocated by VPP and returned (§6.3). LAG core patch renumbered `0019` → `0021`. |
 | v0.3 | 10/02/2026 | Yue Gao (yuega2@cisco.com) | Added §6.10, support for PBH tables bound to ports that are L2 bridge members. `l2_to_bvi()` rewrites `sw_if_index[VLIB_RX]` to the BVI before `ip4-input`, so the arc armed in §6.6 on the member port is never evaluated; PBH now additionally arms a refcounted *shadow* attachment on the bridge domain's BVI (§6.10.2) and narrows it back to the bound ports in the dataplane using the `orig_rx_sw_if_index` capture cookie (§6.10.3). |
+| v0.4 | 10/06/2026 | Yue Gao (yuega2@cisco.com) | Doc-only. Corrected the SAI binding description: `SAI_PORT_ATTR_INGRESS_ACL` / `SAI_LAG_ATTR_INGRESS_ACL` name an ACL *table group*, and the PBH table reaches an interface as a `SAI_ACL_TABLE_GROUP_MEMBER` (§3, §6.8.2); Appendix C.2 no longer claims `PbhOrch` creates no group. Corrected PBH table classification (§6.8.2) to match `isPbhTable()`: both `FIELD_GRE_KEY` and `FIELD_INNER_ETHER_TYPE` declared on the table, not an entry-action test. |
+| v0.5 | 10/06/2026 | Yue Gao (yuega2@cisco.com) | PBH now applies to **recursive routes**. v0.2–v0.4 steered only `DPO_ADJACENCY` buckets and claimed a recursive route still picked up the PBH hash at the second level via `ip4-load-balance`; that was wrong, because the only path to that node is through `ip4-lookup`, which zeroes `ip.flow_hash` on entry, so the hash was lost at *every* level. The node now also accepts a `DPO_LOAD_BALANCE` bucket and dispatches it to `ip4-load-balance` / `ip6-load-balance` as a second declared next, with the hash in place (§5, §6.6). Counter accounting and the per-level `flow_hash >> 1` anti-polarisation shift are inherited unchanged from the core graph. Also doc-only in §6.5: the per-rule counter listing now shows the shipped code rather than the ACL plugin's variant, and discloses that a table replace resets the counters of *every* rule in the table — which any single PBH entry change triggers. |
 
 ---
 
@@ -208,6 +210,11 @@ Order of operations as driven by `PbhOrch`:
         SAI_ACL_TABLE_ATTR_FIELD_L4_DST_PORT
         SAI_ACL_TABLE_ATTR_FIELD_INNER_ETHER_TYPE
 
+    sai_acl_api->create_acl_table_group_member()             (table joins the group)
+        SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_GROUP_ID
+        SAI_ACL_TABLE_GROUP_MEMBER_ATTR_ACL_TABLE_ID
+        SAI_ACL_TABLE_GROUP_MEMBER_ATTR_PRIORITY
+
 4.  sai_acl_api->create_acl_counter()                        (flow_counter == ENABLED only)
 
 5.  sai_acl_api->create_acl_entry()                     x2
@@ -221,6 +228,8 @@ Order of operations as driven by `PbhOrch`:
 
 6.  sai_port_api->set_port_attribute(SAI_PORT_ATTR_INGRESS_ACL)  per interface
     sai_lag_api ->set_lag_attribute (SAI_LAG_ATTR_INGRESS_ACL)   per PortChannel
+        = the ACL table *group* OID; the adapter walks its members to reach
+          the PBH table
 ```
 
 The two action attributes are mapped from the CONFIG\_DB strings in
@@ -262,8 +271,9 @@ This is not merely the tidier option, it is the only one that works. Setting
 and then recomputes the hash from the packet. Only the *recursive*
 `ip4-load-balance` node honours a pre-set value
 ([ip4_forward.c](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.c#L131)),
-which a packet reaches only after a first-level lookup has already chosen the
-wrong bucket. `ip6_forward.c` behaves identically.
+and a packet can only arrive there via `ip4-lookup`, which has already zeroed
+it — so the first-level bucket is always chosen from the outer header unless
+the lookup is bypassed entirely. `ip6_forward.c` behaves identically.
 
 ### P1b — Extend `sonic_ext`, do not add a plugin
 
@@ -404,16 +414,17 @@ places:
 * **ECMP (`SET_ECMP_HASH`).** The node computes the hash from the rule's
   profile and then does the forwarding decision itself: it calls
   `ip4_fib_forwarding_lookup()`, selects the load-balance bucket with that
-  hash, writes the resulting adjacency into `adj_index[VLIB_TX]` and sends the
-  packet straight to `ip4-rewrite`. `ip4-lookup` never runs for that packet,
+  hash, writes the result into `adj_index[VLIB_TX]` and sends the packet
+  straight to `ip4-rewrite`. `ip4-lookup` never runs for that packet,
   which is what sidesteps its unconditional overwrite of `ip.flow_hash`
   (gap **G1**). This is the ABF plugin's pattern, and it means **no core node
   is patched for the ECMP path at all**.
 
-  The node only short-circuits when the chosen bucket is a plain adjacency
-  (`DPO_ADJACENCY`). Anything else — a recursive load balance, a local or
-  drop DPO, a tunnel midchain — falls through to the arc and reaches
-  `ip4-lookup` normally. See §6.6 for why.
+  A bucket that is itself a load balance (`DPO_LOAD_BALANCE`, i.e. a
+  recursive route) is dispatched to `ip4-load-balance` instead, with the PBH
+  hash left in `ip.flow_hash` for that node to consume. Anything else — a
+  local or drop DPO, an unresolved adjacency, a tunnel midchain — falls
+  through to the arc and reaches `ip4-lookup` normally. See §6.6 for why.
 
 * **LAG (`SET_LAG_HASH`).** The member is not chosen until `bond_tx_hash()` on
   the TX side, long after the node has run, and the hash function invoked there
@@ -459,11 +470,14 @@ flowchart TD
     O -->|yes| P["hc = pbh_hash_inner(ecmp_prof)"]
     P -->|hc == 0<br/>inner unparseable| K
     P -->|hc != 0| Q["set ip.fib_index<br/>lbi = ip4_fib_forwarding_lookup(fib, dst)<br/>dpo = bucket(lb, hc &amp; mask)"]
-    Q -->|dpo not DPO_ADJACENCY| K
+    Q -->|dpo is neither| K
     Q -->|dpo is DPO_ADJACENCY| Q2["adj_index&#91;VLIB_TX&#93; = dpo-&gt;dpoi_index<br/>increment LB counter"]
+    Q -->|dpo is DPO_LOAD_BALANCE<br/>recursive route| Q3["adj_index&#91;VLIB_TX&#93; = dpo-&gt;dpoi_index<br/>ip.flow_hash = hc<br/>increment LB counter"]
 
     K --> R["ip4-lookup<br/>(switch-global hash)"]
     Q2 --> S["ip4-rewrite"]
+    Q3 --> R2["ip4-load-balance<br/><i>reuses flow_hash &gt;&gt; 1</i>"]
+    R2 --> S
     R --> S
     S --> T["interface-output"]
 ```
@@ -918,15 +932,27 @@ stats segment when `stat_segment_name` is set
 
 So `sonic_ext_pbh_table_add_replace()` does what the ACL plugin does in
 `validate_and_reset_acl_counters()`
-([acl.c](platform/vpp/vppbld/repo/src/plugins/acl/acl.c#L261-L291)):
+([acl.c](platform/vpp/vppbld/repo/src/plugins/acl/acl.c#L261-L291))
+([pbh.c](platform/vpp/vppbld/plugins/src/sonic_ext/pbh.c#L296-L304)):
 
 ```c
-  t->counters.name = 0;
-  t->counters.stat_segment_name =
-    (void *) format (0, "/sonic-ext/pbh/%d/matches%c", table_id, 0);
-  vlib_validate_combined_counter (&t->counters, n_rules);
+  if (t->counters.name == 0)
+    t->counters.name = (char *) format (0, "/sonic-ext/pbh/%u/matches%c",
+                                        *table_index, 0);
+  vlib_validate_combined_counter (&t->counters,
+                                  vec_len (rules) ? vec_len (rules) - 1 : 0);
   vlib_clear_combined_counters (&t->counters);
 ```
+
+**A replace zeroes every rule's counter in the table, not only the rules that
+changed.** The counter is indexed by *rule position* in the priority-sorted
+vector, and a replace rebuilds that vector from scratch, so position *i* before
+and after a replace need not denote the same rule. `vlib_clear_combined_counters()`
+above is therefore unconditional. This is visible from SONiC because the adapter
+reprograms the whole table on **any** entry change. So adding, removing or editing
+one PBH rule resets the packet and byte counts of every other rule in the same table.
+This is a limitation in the current implementation since we don't support update a
+PBH table.
 
 The path deliberately parallels the ACL plugin's `/acl/%d/matches`, and that
 parallel is load-bearing: because both are `<prefix>/<table>/matches` over a
@@ -998,7 +1024,8 @@ the node is not on the arc at all (P4).
 ```c
 static int
 sonic_ext_pbh_steer_ip4 (vlib_main_t *vm, vlib_buffer_t *b,
-                         const ip4_header_t *ip4, u32 hash, u32 *dpo_index)
+                         const ip4_header_t *ip4, u32 hash, u32 *dpo_index,
+                         u16 *steer_next)
 {
   const dpo_id_t *dpo;
   const load_balance_t *lb;
@@ -1017,9 +1044,14 @@ sonic_ext_pbh_steer_ip4 (vlib_main_t *vm, vlib_buffer_t *b,
 
   dpo = load_balance_get_fwd_bucket (lb, hash & lb->lb_n_buckets_minus_1);
 
-  /* Only a plain adjacency can be dispatched to our declared ip4-rewrite
-   * next.  Anything else falls through to the arc. */
-  if (dpo->dpoi_type != DPO_ADJACENCY)
+  /* A resolved next hop goes straight to rewrite; a recursive route is
+   * handed to ip4-load-balance with the hash already in place.  Anything
+   * else falls through to the arc. */
+  if (dpo->dpoi_type == DPO_ADJACENCY)
+    *steer_next = SONIC_EXT_PBH_NEXT_REWRITE;
+  else if (dpo->dpoi_type == DPO_LOAD_BALANCE)
+    *steer_next = SONIC_EXT_PBH_NEXT_LOAD_BALANCE;
+  else
     return 0;
 
   vnet_buffer (b)->ip.adj_index[VLIB_TX] = dpo->dpoi_index;
@@ -1046,18 +1078,35 @@ Implementation notes:
   ABF does, but `dpoi_next_node` is an index into **`ip4-lookup`'s** next
   vector, so using it requires `.sibling_of = "ip4-lookup"` — which conflicts
   with the feature arc's own management of next indices. Instead the node
-  declares `ip4-rewrite` as an explicit next and steers only `DPO_ADJACENCY`
-  buckets to it. Every other DPO type falls through to `vnet_feature_next()`
-  and reaches `ip4-lookup` normally, which then dispatches it correctly. The
-  cost is that recursive routes do not get the PBH bucket at the first level;
-  the next point covers why they still get it.
-* Writing `vnet_buffer(b)->ip.flow_hash` does nothing for `ip4-lookup` —
-  which zeroes it on entry, see §P1a — but it is what makes the fall-through
-  case work: `ip4-load-balance` honours a non-zero incoming `flow_hash` via
-  `flow_hash >> 1` for second-level recursive load balancing
-  ([ip4_forward.c](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.c#L118-L160)).
-* The `vlib_increment_combined_counter` call is **not optional**; omitting it
-  makes `show ip fib` / route flow counters under-report.
+  declares its two possible successors, `ip4-rewrite` and `ip4-load-balance`,
+  as explicit nexts. Every other DPO type falls through to
+  `vnet_feature_next()` and reaches `ip4-lookup` normally, which then
+  dispatches it correctly.
+* **Recursive routes are followed, not abandoned.** A `DPO_LOAD_BALANCE`
+  bucket is a via-route whose real next hop is one level further down. If
+  such a packet fell through to the arc it would reach `ip4-lookup`, which
+  opens with an unconditional `vnet_buffer (b)->ip.flow_hash = 0`
+  ([ip4_forward.h](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.h#L103-L106)),
+  so the PBH hash would be destroyed before `ip4-load-balance` ever saw it —
+  every level of the recursion would hash on the outer header. The node
+  therefore dispatches straight to `ip4-load-balance`, which needs only
+  `ip.adj_index[VLIB_TX]` (read as the load-balance index) and the IP header,
+  and which reuses a non-zero `ip.flow_hash` via `flow_hash >> 1`
+  ([ip4_forward.c](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.c#L187-L224)).
+  Using that node rather than recursing inside PBH inherits the core's
+  per-level shift — the mechanism that stops every level of the graph
+  polarising on the same bucket — and handles arbitrary recursion depth for
+  free. `ip6-load-balance` is the exact mirror.
+* **Counter accounting splits along the same seam.** `ip4-lookup` charges the
+  first-level load balance to `lbm_to_counters`
+  ([ip4_forward.h](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.h#L28)),
+  while `ip4-load-balance` charges each level it resolves to
+  `lbm_via_counters`
+  ([ip4_forward.c](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.c#L88)).
+  PBH stands in for the former only, so its single `lbm_to_counters`
+  increment is both necessary and sufficient; omitting it makes `show ip fib`
+  / route flow counters under-report, and duplicating the via-counter would
+  double-count.
 * If `sonic_ext_pbh_hash_inner()` returns 0 (inner header not parseable —
   e.g. a non-first fragment), the node falls through to `vnet_feature_next()`
   and the packet gets the switch-global hash. Never a drop.
@@ -1151,6 +1200,27 @@ The hook is a plain function pointer in `bond_main_t`, not an API message, so
 `b` is advanced by the gather loops, so the original base is saved as `b0`.
 Note the guard is evaluated **once per frame**, not once per packet — strictly
 cheaper than the per-packet flag test the buffer-metadata design required.
+
+**Member state, LACP and failover are untouched.** The hook substitutes a `u32`
+in `h[]`; it never names a member. Everything that resolves one runs downstream
+and unmodified — `bond_tx_inline()` drops the frame if the bond is admin-down or
+has no active member, snapshots `bif->active_members` under `bif->lockp`, and
+sets `n_members` from that snapshot, after which `bond_hash_to_port()` reduces
+`h %= n_members` and `bond_update_sw_if_index()` indexes `ptd->active_members`
+([device.c](platform/vpp/vppbld/repo/src/vnet/bonding/device.c#L470-L556)). A
+member that LACP has taken down is already out of that vector: SONiC runs the
+bond in XOR mode with LACP in teamd, and
+`vpp_set_lag_member_egress_disable()` detaches the member with
+`delete_bond_member()` while leaving its link up so LACP PDUs keep flowing over
+the LCP tap
+([SwitchVppFdb.cpp](src/sonic-sairedis/vslib/vpp/SwitchVppFdb.cpp#L2344-L2356)).
+PBH therefore cannot select an ineligible member, and failover needs nothing
+from it. Two consequences worth stating: the override is never invoked for
+active-backup, broadcast or round-robin bonds, nor when only one member is left,
+because those paths bypass `bond_tx_hash()` entirely — the side-band slot is
+then reclaimed by the buffer free callback rather than by the override (§6.7.3);
+and because the reduction is `hash % n_active`, losing a member rehashes *all*
+flows, which is stock VPP bonding behaviour that PBH neither causes nor repairs.
 
 #### 6.7.3 The `sonic_ext`-private buffer side-band
 
@@ -1624,7 +1694,7 @@ configuration of patch 0011 keeps working.
 | ACL table with PBH match fields | Recognised in `SwitchVppAcl.cpp`; routed to the PBH path instead of the ACL-plugin path. |
 | `SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID` | → `sonic_ext_pbh_rule.ecmp_profile` |
 | `SAI_ACL_ENTRY_ATTR_ACTION_SET_LAG_HASH_ID` | → `sonic_ext_pbh_rule.lag_profile` |
-| `SAI_PORT_ATTR_INGRESS_ACL` / `SAI_LAG_ATTR_INGRESS_ACL` binding a PBH table | → `vpp_pbh_interface_attach_detach()` |
+| `SAI_PORT_ATTR_INGRESS_ACL` / `SAI_LAG_ATTR_INGRESS_ACL` | Names an ACL *table group*, not a table. `aclBindUnbindPort()` resolves each `SAI_ACL_TABLE_GROUP_MEMBER` to its table; PBH members go to `vpp_pbh_interface_attach_detach()` and are kept out of the priority-sorted ACL chain. |
 | `SAI_ACL_COUNTER_ATTR_PACKETS` / `_BYTES` on a PBH entry | → `vpp_rule_stats_query(VPP_RULE_STATS_PBH, …)` against the stats segment, reached through a new branch in `SwitchVpp::get()` |
 
 That last row needs one change outside the PBH-specific files. `SwitchVpp::get()`
@@ -1799,10 +1869,18 @@ companion sairedis change to
 ([sonic-sairedis#2089](https://github.com/sonic-net/sonic-sairedis/pull/2089)).
 PBH adds one keyword to its call sites, nothing more.
 
-An ACL table is classified as a *PBH* table (rather than a regular ACL table)
-when its match-field set is a subset of the six PBH qualifiers **and** at least
-one entry carries a PBH action — mirroring the `AclTableTypeBuilder` shape that
-`PbhOrch` constructs.
+An ACL table is classified as a *PBH* table when it declares both
+`SAI_ACL_TABLE_ATTR_FIELD_GRE_KEY` and
+`SAI_ACL_TABLE_ATTR_FIELD_INNER_ETHER_TYPE` — the signature `PbhOrch`'s
+`AclTableTypeBuilder` produces. The test is on declared fields rather than on
+entry actions because the table is created and bound before any entry exists;
+requiring both rather than either keeps a P4Orch table, which uses
+`INNER_ETHER_TYPE` alone, out of this path.
+This design narrowly targets towards how PbhOrch behaves today. A more general
+solution is classifying a PBH table by action type, which is only available 
+when a rule is added to the table. This lazy table creation requires major
+surgery to current ACL implementation in vpp sai. Since PBH is primarily for
+sonic-mgmt test coverage, the simpler solution is chosen.
 
 ### 6.9 CLI
 
@@ -2312,8 +2390,9 @@ do here:
   non-conflicting — two entries in two tables joined by a
   `SAI_ACL_TABLE_GROUP_TYPE_PARALLEL` group would legitimately apply both. But
   `PbhOrch` builds a **single** table
-  ([pbhorch.cpp](src/sonic-swss/orchagent/pbhorch.cpp#L243-L252)) and no group,
-  so that door is closed before the adapter ever sees it.
+  ([pbhorch.cpp](src/sonic-swss/orchagent/pbhorch.cpp#L243-L252)), and AclOrch
+  places it in a group of its own, so there is never a second table to
+  accumulate actions from — that door is closed before the adapter sees it.
 * `sonic-platform-vpp` is used as a reference and test dataplane. A divergence
   that makes a configuration *work* on VPP and silently under-perform on
   hardware is worse than one that fails on both, because CI would ratify it.
