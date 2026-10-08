@@ -1496,6 +1496,9 @@ invariant does not hold, and a silent correctness downgrade triggered by an
 unrelated debug command is worse than a refused configuration. Teardown runs
 in the reverse order — clear `bond_main.lag_hash_override`, then unregister —
 so no override can ever run against an unmaintained table.
+Current bufmon strips existing registered callback when it tries to register
+the callbacks. This is not cooperative behaviour. We should not enable bufmon
+when pbh, or future feature needs the sideband, is configured.
 
 **Release, not consume-once.** On a hit the PBH consumer releases its own bit
 and leaves every other feature's field and bit untouched, so a tag is applied
