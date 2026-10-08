@@ -46,6 +46,7 @@
 | Rev | Date | Author | Change Description |
 |---|---|---|---|
 | 1.0 | 2026-09-18 | Patrice Brissette - Cisco<br>Manas Kumar Mandal - Cisco | Initial draft |
+| 1.1 | 2026-10-08 | Patrice Brissette - Cisco | Align with FRR HLD: drop Member VNI; flush and rebuild on every new FPM session (warm reboot and reconciliation out of scope) |
 
 ---
 
@@ -165,7 +166,7 @@ FRR computes the backup set from BGP EVPN and sends **three small objects** down
 
 | # | Object | Meaning | APPL_DB |
 |---|---|---|---|
-| 1 | **Member** (per peer VTEP) | one VXLAN L3 tunnel endpoint (`type=l3` in this release) + `{ remote_vtep, type, vni, router_mac (RMAC) }`; `vni` is validation/diagnostic context only, while SAI selects the encapsulation L3VNI from the packet VRF through tunnel maps | `L2_NEXTHOP_GROUP_TABLE:<nh_id>` |
+| 1 | **Member** (per peer VTEP) | one VXLAN L3 tunnel endpoint (`type=l3` in this release) + `{ remote_vtep, type, router_mac (RMAC) }`; the Member is VRF-independent, while SAI selects the encapsulation L3VNI from the packet VRF through tunnel maps | `L2_NEXTHOP_GROUP_TABLE:<nh_id>` |
 | 2 | **Group** (per protected parent interface) | the ECMP list of member ids inherited by eligible bridge ports | `L2_NEXTHOP_GROUP_TABLE:<nhg_id>` |
 | 3 | **Binding** (per port) | "this bridge port's backup is that group" | `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` |
 
@@ -239,7 +240,7 @@ These opt-outs may be combined on the same bridge-port protection object. With `
 
 ### 6.4 Warm boot requirements
 
-- On fpmsyncd/orchagent restart while zebra remains alive, the protection objects and backup NHGs are **reconciled by id** from APPL_DB and replayed with no renumbering. High availability across a full FRR/zebra restart is out of scope for this release and will be addressed in the future.
+- Warm reboot and reconciliation are out of scope for this release. Every new FPM session starts from empty: fpmsyncd flushes the FPM-produced protection rows and zebra's full replay rebuilds them ([§11](#11-warmboot-and-fastboot-design-impact)). The primary path is unaffected; protection is unavailable until the replay completes.
 
 ---
 
@@ -361,7 +362,7 @@ sequenceDiagram
     participant SAI as SAI/ASIC
 
     Note over FPM,APP: Member + Group build the backup NHG
-    FPM->>SY: L2_NEXTHOP member(s) (per VTEP: vtep,type,vni,rmac)
+    FPM->>SY: L2_NEXTHOP member(s) (per VTEP: vtep,type,rmac)
     SY->>APP: SET L2_NEXTHOP_GROUP_TABLE:{nh_id} (member rows)
     FPM->>SY: L2_NEXTHOP_GROUP (nhg_id + member ids)
     SY->>APP: SET L2_NEXTHOP_GROUP_TABLE:{nhg_id} (group row)
@@ -385,7 +386,7 @@ The inter-orch **call graph** — who calls whom (method-level) — and the one 
 ```mermaid
 flowchart TB
     FPM["FRR FPM"] --> FPMSY["fpmsyncd"]
-    FPMSY -->|"L2_NEXTHOP_GROUP_TABLE<br/>(vtep,type,vni,rmac / member ids)"| L2[L2NhgOrch]
+    FPMSY -->|"L2_NEXTHOP_GROUP_TABLE<br/>(vtep,type,rmac / member ids)"| L2[L2NhgOrch]
     FPMSY -->|"EVPN_ES_BACKUP_NHG_TABLE<br/>(ifname → nhg_id)"| BP["bpProtOrch (NEW)"]
 
     KERN["Kernel netlink"] --> FDBSY["fdbsyncd"]
@@ -407,7 +408,7 @@ flowchart TB
 
 **Flow (the coupling that matters):**
 
-1. **Population.** `fpmsyncd` writes the L3 **member rows** (`vtep,type=l3,vni,router_mac`) + **group row** to `L2_NEXTHOP_GROUP_TABLE`, and the **binding** (`ifname→nhg_id`) to `EVPN_ES_BACKUP_NHG_TABLE`. The member's `vni` records the L3VNI context used by FRR to qualify the peer and resolve the RMAC; SONiC uses it for validation and diagnostics, not as a SAI next-hop attribute.
+1. **Population.** `fpmsyncd` writes the L3 **member rows** (`vtep,type=l3,router_mac`) + **group row** to `L2_NEXTHOP_GROUP_TABLE`, and the **binding** (`ifname→nhg_id`) to `EVPN_ES_BACKUP_NHG_TABLE`. The Member is VRF-independent; SONiC selects the encapsulation L3VNI from the packet's VRF through tunnel maps, not from the Member.
 2. **L2NhgOrch → VxlanTunnelOrch.** For each member, L2NhgOrch resolves (or creates) a `PEER_MODE_P2P` tunnel to that peer VTEP with `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` = the member's RMAC, then builds a `SAI_NEXT_HOP_TYPE_BRIDGE_PORT` nexthop `{IP = vtep, TUNNEL_ID = that tunnel}` and assembles the members into a `BRIDGE_PORT`-type NHG → `oid(nhg_id)`.
 3. **bpProtOrch → L2NhgOrch — the one new cross-orch link** (see [Cross-orch contract](#85-cross-orch-contract-l2nhgorch--bpprotorch)). bpProtOrch joins by `nhg_id`, calls `getNhgOid(nhg_id)` + `refNhg()` (pin — no route references it), then sets the bridge-port protection attributes on the protected port with that oid as the protection path.
    - **Ordering:** binding may arrive before the NHG → bpProtOrch **parks & retries** via the observer mechanism.
@@ -439,8 +440,8 @@ With those values, the three FPM objects become the three APPL_DB rows below, an
 
 ```text
 # Member rows — one per peer VTEP (8.1.3)
-L2_NEXTHOP_GROUP_TABLE:0x40000007 = { remote_vtep:10.0.0.2, type:l3, vni:5000, router_mac:00:00:5e:00:53:02 }
-L2_NEXTHOP_GROUP_TABLE:0x40000008 = { remote_vtep:10.0.0.3, type:l3, vni:5000, router_mac:00:00:5e:00:53:03 }
+L2_NEXTHOP_GROUP_TABLE:0x40000007 = { remote_vtep:10.0.0.2, type:l3, router_mac:00:00:5e:00:53:02 }
+L2_NEXTHOP_GROUP_TABLE:0x40000008 = { remote_vtep:10.0.0.3, type:l3, router_mac:00:00:5e:00:53:03 }
 # Group row — the ECMP list (8.1.3)
 L2_NEXTHOP_GROUP_TABLE:0x80000001 = { nexthop_group:"0x40000007,0x40000008" }
 # Binding — port → backup group (8.1.2)
@@ -457,14 +458,14 @@ FPM already carries a family of **private EVPN-MH messages** (`RTM_FPM_*`, raw-p
 
 | # | Message | Carries | SONiC table |
 |---|---|---|---|
-| 1 | **Member** (per VTEP/tunnel identity) | `nh_id` + **{ `vni`, `type`, `remote_vtep`, `router_mac`(RMAC) }** | `L2_NEXTHOP_GROUP_TABLE:<nh_id>` |
+| 1 | **Member** (per VTEP/tunnel identity) | `nh_id` + **{ `type`, `remote_vtep`, `router_mac`(RMAC) }** | `L2_NEXTHOP_GROUP_TABLE:<nh_id>` |
 | 2 | **Group** (per protected ES bridge port) | `nhg_id` + `{ nexthop_group: "nh_id,nh_id,…" }` | `L2_NEXTHOP_GROUP_TABLE:<nhg_id>` |
 | 3 | **Binding** (per port) | `{ ifindex, backup_nhg_id }` (`evpn_backup_nhg_msg`) | `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` |
 
-- The **Member** message carries `vni`, `type` (l2\|l3), `remote_vtep`, and `router_mac` (RMAC), keyed by `nh_id`. There is one Member per shared peer-VTEP/tunnel identity. A peer may serve multiple compatible VRFs through that Member. When contexts are shared, FRR sets `vni` to the lowest eligible L3VNI for deterministic diagnostics and re-emits the Member when the context set changes. SONiC does not use this value to select forwarding behavior; tunnel maps select the actual encapsulation VNI from the packet's VRF.
+- The **Member** message carries `type` (l2\|l3), `remote_vtep`, and `router_mac` (RMAC), keyed by `nh_id`. There is one Member per shared peer-VTEP/tunnel identity, and it is VRF-independent, so a peer may serve multiple compatible VRFs through that Member. The Member carries no VNI; tunnel maps select the encapsulation VNI from the packet's VRF.
 - The **Group** message carries **member ids only** (no RMAC — that lives on each member).
 - The **Binding** message (existing `evpn_backup_nhg_msg`) is just `{ ifindex, backup_nhg_id }`.
-- `vni` and `router_mac` are **mandatory for `type=l3`** members. `router_mac` becomes `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC`; `vni` is diagnostic context and is never programmed as `SAI_NEXT_HOP_ATTR_TUNNEL_VNI`. For **`type=l2`** both are absent/zero and ignored. `type` remains on the wire mainly for **[R6](#61-functional-requirements)** (future L2).
+- `router_mac` is **mandatory for `type=l3`** members and becomes `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC`. For **`type=l2`** it is absent/zero and ignored. The Member carries no VNI; the encapsulation VNI comes from tunnel maps, never from a next-hop attribute. `type` remains on the wire mainly for **[R6](#61-functional-requirements)** (future L2).
 
 #### 8.1.2 `EVPN_ES_BACKUP_NHG` — per-port binding (EXISTS on SONiC side)
 
@@ -495,7 +496,6 @@ Two **new** `RTM_FPM_*` messages feed the `L2_NEXTHOP_GROUP_TABLE` (the two row 
 /* Message 1 — per-VTEP tunnel member (carries the encap) */
 struct __attribute__((packed)) l2_nhg_member_msg {
     uint32_t l2nm_nh_id;             /* member id (nh_id) — table key             */
-    uint32_t l2nm_vni;               /* diagnostic L3VNI                         */
     uint8_t  l2nm_type;              /* 0 = L2 (bridged backup), 1 = L3 (routed)  */
     uint8_t  l2nm_family;            /* AF_INET | AF_INET6 (remote_vtep family)   */
   union {
@@ -522,21 +522,21 @@ RTM_FPM_ADD_L2_NEXTHOP_GROUP
 RTM_FPM_DEL_L2_NEXTHOP_GROUP
 ```
 
-The Member API field order is `nh_id, vni, type, family, remote_vtep,
+The Member API field order is `nh_id, type, family, remote_vtep,
 router_mac`. IDs and counts are `uint32_t`, and all structures are packed. The
 Group Member ID list is sorted in ascending unsigned `nh_id` order before every
 Group Add or update. A membership set with unchanged IDs must not generate
 NHG churn merely because its input order changed.
 
-- **Message 1 (Member)** → fpmsyncd writes `L2_NEXTHOP_GROUP_TABLE:<nh_id>` = `{ remote_vtep, type` (+ `vni`, `router_mac` when `type=l3`) `}`. `router_mac` is programmed onto the peer's P2P tunnel. `vni` is the lowest eligible L3VNI across the contexts sharing the VTEP/tunnel identity and is retained for sanity checking and diagnostics only: SONiC validates its 24-bit range and may check for a matching configured VRF/VNI tunnel-map entry, but does not program it on the `BRIDGE_PORT` next hop. A map mismatch is logged as a control-plane consistency error; it does not make this field the source of VNI selection. `type` is on the wire mainly for **[R6](#61-functional-requirements)** (future L2).
+- **Message 1 (Member)** → fpmsyncd writes `L2_NEXTHOP_GROUP_TABLE:<nh_id>` = `{ remote_vtep, type` (+ `router_mac` when `type=l3`) `}`. `router_mac` is programmed onto the peer's P2P tunnel. The Member carries no VNI: it is VRF-independent, and SONiC selects the encapsulation L3VNI from the packet's VRF through tunnel maps, never from the `BRIDGE_PORT` next hop. `type` is on the wire mainly for **[R6](#61-functional-requirements)** (future L2).
 - **Message 2 (Group)** → fpmsyncd writes `L2_NEXTHOP_GROUP_TABLE:<nhg_id>` = `{ nexthop_group: "<nh_id>,<nh_id>,…" }` by joining `l2ng_nh_ids[]`. **No** `router_mac` is carried on the group row because it is per member.
 - Both are **new FPM API messages** emitted by the FRR dplane provider and
     consumed by fpmsyncd handlers (`RouteSync::onL2NhgMemberMsg` /
     `RouteSync::onL2NhgGroupMsg`).
 - **Framing & validation (Group is variable-length).** The payload is the `l2_nhg_group_msg` header followed by exactly `l2ng_count` member ids. fpmsyncd first bounds `l2ng_count` by `L2_NHG_MAX_MEMBERS`, then validates the exact payload length. This order prevents an unchecked socket-supplied count from overflowing the length calculation. Truncated, over-long, or out-of-range frames are dropped and logged; Member and Binding frames are fixed-size and length-checked the same way.
 - **Value validation (Member) — validate before commit, never partial or stale.** fpmsyncd validates a Member into a staging record and writes the whole row in **one set operation** (all fields together, never field by field), so a rejected frame performs **no** DB write and can never leave a half-written row. The policy is **reject, not partial-accept**:
-  - **Hard reject (drop + log, no DB mutation):** an unknown/unsupported message type, an unknown or missing address family, a `type=l3` member missing its mandatory RMAC or carrying an out-of-range (non-24-bit) `vni`, or any field inconsistent with `type` (e.g., `l3` without an RMAC). The offending frame is dropped and logged (`WARN`, or `ERROR` for framing errors), and **any existing row for that `nh_id` is left untouched** — fpmsyncd neither partially overwrites it nor deletes it. Because zebra is the source of truth, it re-emits a corrected Member or an explicit delete; fpmsyncd never fabricates a correction.
-  - **Known-but-deferred (accept + inert):** a well-formed `type=l2` member is valid on the wire but L2 backup is deferred ([R6](#61-functional-requirements)); the row is written and `L2NhgOrch` simply builds no SAI object for it yet, logging once. Fields that are meaningless for the declared `type` (e.g., RMAC/`vni` on `type=l2`) are ignored rather than treated as errors.
+  - **Hard reject (drop + log, no DB mutation):** an unknown/unsupported message type, an unknown or missing address family, a `type=l3` member missing its mandatory RMAC, or any field inconsistent with `type` (e.g., `l3` without an RMAC). The offending frame is dropped and logged (`WARN`, or `ERROR` for framing errors), and **any existing row for that `nh_id` is left untouched** — fpmsyncd neither partially overwrites it nor deletes it. Because zebra is the source of truth, it re-emits a corrected Member or an explicit delete; fpmsyncd never fabricates a correction.
+  - **Known-but-deferred (accept + inert):** a well-formed `type=l2` member is valid on the wire but L2 backup is deferred ([R6](#61-functional-requirements)); the row is written and `L2NhgOrch` simply builds no SAI object for it yet, logging once. Fields that are meaningless for the declared `type` (e.g., RMAC on `type=l2`) are ignored rather than treated as errors.
   - **Deletes always honored.** A delete removes the row idempotently (unknown id → no-op), so a withdrawal — or a follow-up delete after a rejected update — always clears state and can never leave a stale row.
 - **Idempotent by id:** re-send of the same `nh_id`/`nhg_id` overwrites the row; delete removes it. Group + member are reconciled by member id (see [Reconciliation model](#87-reconciliation-model)).
 
@@ -547,6 +547,7 @@ fpmsyncd is the **translator**: it turns the raw FPM messages above into APPL_DB
 - New handlers `RouteSync::onL2NhgMemberMsg()` / `onL2NhgGroupMsg()` write the two `L2_NEXTHOP_GROUP_TABLE` row kinds.
 - `RouteSync::onEvpnEsBackupNhgMsg()` (binding) writes `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` with `nexthop_group = <id>`. (The struct exists today; the FRR emitter is new.)
 - All are **idempotent by id**: re-send overwrites the row; delete removes it.
+- **Flush on new FPM session.** When an FPM session comes up, fpmsyncd deletes every FPM-produced protection row (`EVPN_ES_BACKUP_NHG_TABLE`, then group rows, then member rows) before applying any object from the session. zebra's full replay then rebuilds them. See [§11](#11-warmboot-and-fastboot-design-impact).
 - **Producer ownership.** The matching FPM **encoders** run in the SONiC-owned `dplane_fpm_sonic` dataplane plugin (maintained in `sonic-buildimage`, loaded by zebra), not in upstream FRR. Both ends of the wire — the `dplane_fpm_sonic` encoder and these fpmsyncd decoders — are SONiC code sharing one packed-struct contract; the zebra `DPLANE_OP_*` context that feeds the plugin is FRR-side (companion FRR HLD).
 
 ### 8.3 L2NhgOrch / VxlanTunnelOrch changes (backup group)
@@ -556,7 +557,7 @@ fpmsyncd is the **translator**: it turns the raw FPM messages above into APPL_DB
 What changes is where the routed-encap information goes.
 
 - **RMAC is programmed on the P2P tunnel.** `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` supplies the inner DMAC for routed packets sent through that peer's tunnel. An RMAC update is a `set` on the existing tunnel, not a nexthop rebuild. A `type=l3` member without an RMAC is deferred, retried when the RMAC appears or changes, and withdrawn when the RMAC is removed.
-- **L3VNI is selected by tunnel maps.** The Member `vni` is diagnostic only. On encap, `VIRTUAL_ROUTER_ID_TO_VNI` selects the L3VNI from the packet's VRF; on decap, `VNI_TO_VIRTUAL_ROUTER_ID` maps the received L3VNI back to the VRF ([row 3](#sai-row-3)). The per-peer P2P tunnel uses the common VLAN and VRF mapper sets, so it can serve multiple VRFs when their mappings exist and they share the same peer RMAC.
+- **L3VNI is selected by tunnel maps.** The Member carries no VNI. On encap, `VIRTUAL_ROUTER_ID_TO_VNI` selects the L3VNI from the packet's VRF; on decap, `VNI_TO_VIRTUAL_ROUTER_ID` maps the received L3VNI back to the VRF ([row 3](#sai-row-3)). The per-peer P2P tunnel uses the common VLAN and VRF mapper sets, so it can serve multiple VRFs when their mappings exist and they share the same peer RMAC.
 - **Members** are built by the existing path: `IP` = peer VTEP, `TUNNEL_ID` = that peer's P2P tunnel. Both are `MANDATORY_ON_CREATE` for `SAI_NEXT_HOP_TYPE_BRIDGE_PORT`.
 - **Group** stays `SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT` with one member per peer, so traffic load-balances across the peers after switchover.
 - Legacy `type=l2`/FDB members from fdbsyncd are unaffected — they already take this same path.
@@ -838,7 +839,6 @@ EVPN_ES_BACKUP_NHG_TABLE:{{ifname}}
 L2_NEXTHOP_GROUP_TABLE:{{nh_id}}
     remote_vtep = IP           ; the VTEP endpoint (the member)
     type        = l2 | l3      ; [NEW] routed (l3) vs bridged (l2, R6) backup
-    vni         = UINT         ; [NEW] lowest eligible L3VNI diagnostic context; not programmed on the SAI next hop
     router_mac  = MAC          ; [NEW] peer RMAC (type=l3) — set on the P2P tunnel
 
 ;  (2) GROUP row — one per protected parent interface (keyed by nhg_id); references member ids ONLY
@@ -870,7 +870,7 @@ This keeps the model aligned with the actual design: `L2NhgOrch` creates and own
 The three objects arrive on **independent streams** and are never assumed to be ordered — they simply **re-join by id**. That is the whole reconciliation story:
 
 ```text
-L2_NEXTHOP_GROUP_TABLE:<nh_id>     = { remote_vtep, type=l3, vni, router_mac }      ┐ member rows
+L2_NEXTHOP_GROUP_TABLE:<nh_id>     = { remote_vtep, type=l3, router_mac }      ┐ member rows
 L2_NEXTHOP_GROUP_TABLE:<nhg_id>    = { nexthop_group: "<nh_id>,<nh_id>,…" }        ┘→ L2NhgOrch → SAI tunnel NHG
 EVPN_ES_BACKUP_NHG_TABLE:<ifname>  = { nexthop_group: <nhg_id> }                    → bpProtOrch → SAI protection
                               └──────── join by <nhg_id> ────────┘
@@ -956,17 +956,16 @@ Because those signals and the port-down event race, the predicate is **tri-state
 
 | Result | Meaning for `FdbOrch` | When `bpProtOrch` returns it |
 |---|---|---|
-| `PROTECTED` | suppress the flush | the binding is resolved and the protection attribute is attached on the bridge port |
+| `PROTECTED` | suppress the flush | the binding resolves to a group with at least one member, and the protection attribute is attached on the bridge port |
 | `PENDING` | suppress the flush (conservative) | protection is intended or in-progress but not yet attached — see below |
-| `NONE` | flush normally | no protection intent, no binding, and warm-boot reconcile is complete |
+| `NONE` | flush normally | no protection intent and no binding |
 
 `PENDING` is the concrete state the reviewer asks about. It is **any** of:
 
-- **Policy-before-binding.** `CONFIG_DB BRIDGE_PORT_PROTECTION|<ifname>` exists (the operator has enabled protection) but the FRR `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` binding has not arrived yet.
+- **Policy-before-binding.** `CONFIG_DB BRIDGE_PORT_PROTECTION|<ifname>` exists (the operator has enabled protection) but the FRR `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` binding has not arrived yet. This also covers the replay after a session-start flush ([§11](#11-warmboot-and-fastboot-design-impact)), so no end-of-replay signal is needed.
 - **Binding-before-NHG (parked).** The binding is present but the backup NHG is not yet resolved/attached, so `bpProtOrch` has parked it (the same park/retry as [§8.5](#85-cross-orch-contract-l2nhgorch--bpprotorch) step 2).
-- **Warm-boot reconcile in progress.** APPL_DB has not finished replaying, so the *absence* of a binding is not yet authoritative and must not be read as "unprotected".
 
-A port leaves `PENDING` for `PROTECTED` when the binding attaches, or for `NONE` only on a **confirmed** withdrawal — the CONFIG policy is gone, the binding is gone, and warm-boot reconcile is complete. That confirmed `PENDING→NONE` (or `PROTECTED→NONE`) transition is exactly what fires the deferred flush described above: if the port is still down at that point, `bpProtOrch` asks `FdbOrch` to run the flush then. So the conservative default — suppress while `PROTECTED` *or* `PENDING`, flush only on confirmed `NONE` — never loses the FDB under a live failover and never leaks stale MACs after a real withdrawal.
+A port leaves `PENDING` for `PROTECTED` when the binding attaches, or for `NONE` only on a **confirmed** withdrawal — the CONFIG policy is gone and the binding is gone. That confirmed `PENDING→NONE` (or `PROTECTED→NONE`) transition is exactly what fires the deferred flush described above: if the port is still down at that point, `bpProtOrch` asks `FdbOrch` to run the flush then. So the conservative default — suppress while `PROTECTED` *or* `PENDING`, flush only on confirmed `NONE` — never loses the FDB under a live failover and never leaks stale MACs after a real withdrawal.
 
 ---
 
@@ -1087,11 +1086,10 @@ The operator does **not** configure the backup NHG. FRR derives it from EVPN sta
 
 ## 11. Warmboot and Fastboot Design Impact
 
-- **Reconcile from APPL_DB.** Protection objects and backup NHGs are reconstructed from APPL_DB on SONiC restart and reconciled by bit-preserved ids. No primary flap is expected when zebra remains alive and replays the same ids.
-- **Ref-hold re-established.** `bpProtOrch` re-asserts its **ref-hold** on the backup NHG during reconciliation so the SAI NHG is not garbage-collected mid-warm-boot.
-- **Out of scope: full FRR/zebra restart.** High availability across a full FRR/zebra restart — including any ID-persistence or snapshot/replay mechanism — is out of scope for this release and will be addressed in the future.
-- **Binding-before-NHG during warm boot.** The same ordering tolerance as steady state applies: if a Binding is restored/replayed before its group, `bpProtOrch` **parks and retries via the observer** — it never drops the binding.
-- **Primary path unchanged.** The FDB/neighbor primary path warm-boots exactly as today.
+- **Out of scope: warm reboot and reconciliation.** Warm reboot, reconciliation of protection objects, ID persistence, and protection without a gap across an FRR/zebra, fpmsyncd, or SONiC restart are out of scope for this release. For protection, every restart is treated as cold.
+- **Flush on every new FPM session.** A restarted zebra may reuse an `nhg_id`/`nh_id` for a different object, so a leftover Binding could otherwise point to a Group with a different meaning. To prevent that, fpmsyncd deletes all FPM-produced protection rows (Binding → Group → Member) whenever an FPM session comes up, before applying the replay ([§8.2](#82-fpmsyncd-changes)). The same rule covers FPM reconnect, fpmsyncd restart, SONiC reboot, and zebra restart.
+- **Binding-before-NHG during replay.** The same ordering tolerance as steady state applies: if a Binding is replayed before its group, `bpProtOrch` **parks and retries via the observer** — it never drops the binding.
+- **Primary path unchanged.** The flush only detaches protection; the FDB/neighbor primary path is unaffected. Protection is unavailable until the replay completes.
 
 ---
 
@@ -1122,7 +1120,7 @@ Testing splits cleanly along the same seam as the design: **unit tests** prove e
 
 ### 14.1 Unit test cases
 
-1. **fpmsyncd parsing** — `l2_nhg_member_msg` / `l2_nhg_group_msg` / `evpn_backup_nhg_msg` produce the correct `L2_NEXTHOP_GROUP_TABLE` member/group rows and `EVPN_ES_BACKUP_NHG_TABLE` rows; for `type=l3`, the member's `vni` is preserved, range-checked, and checked for presence in the configured VRF/VNI tunnel maps, but is never emitted as `SAI_NEXT_HOP_ATTR_TUNNEL_VNI`; add/update/delete are idempotent by id. A Member with an unknown type/address family, an `l3` member missing its RMAC, or an out-of-range `vni` is **rejected with no DB write** and leaves any existing row for that id untouched (no partial or stale state); a follow-up delete clears the row.
+1. **fpmsyncd parsing** — `l2_nhg_member_msg` / `l2_nhg_group_msg` / `evpn_backup_nhg_msg` produce the correct `L2_NEXTHOP_GROUP_TABLE` member/group rows and `EVPN_ES_BACKUP_NHG_TABLE` rows; the Member carries no VNI, so SONiC never emits `SAI_NEXT_HOP_ATTR_TUNNEL_VNI`; add/update/delete are idempotent by id. A Member with an unknown type/address family or an `l3` member missing its RMAC is **rejected with no DB write** and leaves any existing row for that id untouched (no partial or stale state); a follow-up delete clears the row.
 2. **L2NhgOrch / VxlanTunnelOrch builder** — a `type=l3` member resolves a `PEER_MODE_P2P` tunnel to the peer VTEP with `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` = the member's RMAC, and produces a `SAI_NEXT_HOP_TYPE_BRIDGE_PORT` nexthop `{IP, TUNNEL_ID}`; the group is `SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT`; a second compatible context shares the existing Member/tunnel when the RMAC matches; an RMAC replacement creates the new Member, updates the Group, removes the old Member from the Group, and deletes the old Member; a different RMAC creates a separate tunnel identity and Member when SONiC supports multiple identities to the peer, otherwise the context is parked/rejected and the port is degraded.
 3. **L2NhgOrch resolve/ref API** — `getNhgOid`/`refNhg`/`unrefNhg` behave correctly; ref pin blocks NHG delete.
 4. **bpProtOrch** — on `EVPN_ES_BACKUP_NHG_TABLE` set/del, resolves the NHG and sets/clears the bridge-port protection attributes; ordering race (binding before NHG) parks and retries via the observer; teardown clears the attribute before unref; a hardware switchover notification updates cached state and is reconciled against read-only `..._PROTECTION_STATE`; in software mode a PortsOrch down/up notification drives `PROTECTION` and the configured recovery sequence.
@@ -1139,7 +1137,7 @@ Testing splits cleanly along the same seam as the design: **unit tests** prove e
 5. **Membership churn** — leaf joins/leaves the ES; `nhg_id`/oid stable; `bpProtOrch` takes no action.
 6. **RMAC ordering** — member arrives before its RMAC: member deferred, installed on RMAC resolve.
 7. **Scale** — many ESIs/ports with ECMP backup groups; convergence and memory targets.
-8. **Warm boot** — SONiC reconciliation with zebra still running causes no primary flap and re-establishes the ref-hold. Full FRR/zebra-restart high availability is out of scope for this release.
+8. **Flush and rebuild** — on FPM reconnect, fpmsyncd restart, and zebra restart, verify the protection rows are flushed (Binding → Group → Member) before the replay is applied, that protection is re-established after the replay, that no Binding references a Group rebuilt with a recycled ID, and that the primary path does not flap.
 9. **Host import** — a synchronized MAC/neighbor and its tenant-VRF host route install so that routed traffic resolves through the protected bridge port.
 10. **Multiple VRFs on one protected port** — packets from two VRFs select different L3VNIs through `VR_ID_TO_VNI` while sharing the same peer P2P tunnel and RMAC; a peer not valid for every protected VRF is excluded from the port-level backup NHG.
 
@@ -1152,4 +1150,4 @@ The SAI shape used here is the pinned revision 0.4 [SAI EVPN-MH model](#4-refere
 | # | Item | Notes |
 |---|---|---|
 | O1 | **Shared RMAC requirement** | Because the RMAC is now a **tunnel** attribute and not part of the base SAI P2P tunnel key, two VRFs reaching the same peer VTEP can share one P2P tunnel only when they use the same peer RMAC. If a deployment needs different RMACs for the same peer VTEP, this release must reject/defer the second member or add a separate tunnel context outside the current base SAI model. |
-| O3 | **Identifying a protected bridge port in FdbOrch** | Needed for [R10](#61-functional-requirements). Shape mirrors MLAG: `gBpProtOrch->isProtectedBridgePort(alias)` next to `gMlagOrch->isMlagInterface(alias)`, sourced from `EVPN_ES_BACKUP_NHG_TABLE` (so FRR-driven, no new config). The predicate is tri-state (`PROTECTED`/`PENDING`/`NONE`) to resolve the ordering cases: port-down before the binding arrives, port-down after withdrawal, and warm-boot reconcile where the binding is restored after the port event. See [8.8](#88-mac-neighbor-and-fdb-lifecycle-constraints). |
+| O3 | **Identifying a protected bridge port in FdbOrch** | Needed for [R10](#61-functional-requirements). Shape mirrors MLAG: `gBpProtOrch->isProtectedBridgePort(alias)` next to `gMlagOrch->isMlagInterface(alias)`, sourced from `EVPN_ES_BACKUP_NHG_TABLE` (so FRR-driven, no new config). The predicate is tri-state (`PROTECTED`/`PENDING`/`NONE`) to resolve the ordering cases: port-down before the binding arrives, port-down after withdrawal, and port-down during the replay after a session-start flush. See [8.8](#88-mac-neighbor-and-fdb-lifecycle-constraints). |
