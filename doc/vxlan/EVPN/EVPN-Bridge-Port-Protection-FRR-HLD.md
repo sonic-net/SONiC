@@ -28,12 +28,15 @@
   - [8.8 Advertisement prerequisites](#88-advertisement-prerequisites)
 - [9. FPM interface](#9-fpm-interface)
   - [9.1 Message model](#91-message-model)
-  - [9.2 Database boundary](#92-database-boundary)
 - [10. Configuration and operational visibility](#10-configuration-and-operational-visibility)
 - [11. Restart and replay](#11-restart-and-replay)
 - [12. Error handling](#12-error-handling)
-- [13. Testing](#13-testing)
-- [14. Limitations and open items](#14-limitations-and-open-items)
+- [13. SAI API](#13-sai-api)
+- [14. Warmboot and fastboot design impact](#14-warmboot-and-fastboot-design-impact)
+  - [14.1 Warmboot and fastboot performance impact](#141-warmboot-and-fastboot-performance-impact)
+- [15. Memory consumption](#15-memory-consumption)
+- [16. Testing](#16-testing)
+- [17. Limitations and open items](#17-limitations-and-open-items)
 
 ---
 
@@ -42,6 +45,7 @@
 | Revision | Date | Author | Description |
 |---|---|---|---|
 | 1.0 | 2026-09-29 | Patrice Brissette | Initial FRR HLD |
+| 1.1 | 2026-10-08 | Patrice Brissette | Address review comments: Binding export independent of carrier state; drop Member VNI; flush and rebuild on every new FPM session (warm reboot and reconciliation out of scope); shared Group peer-set intersection; add SAI, warmboot/fastboot, and memory sections; fix links |
 
 ---
 
@@ -85,18 +89,17 @@ is described in the companion [Bridge-Port Protection Group HLD](https://github.
 
 The design is intended for routed VXLAN forwarding and is documented using
 all-active L3MH as the primary deployment context. L3MH neighbor synchronization
-is specified by the separate [L3MH Neighbor Synchronization HLD](../../../../l3mh_hld/doc/vxlan/EVPN/EVPN-L3MH-Neighbor-Sync.md). This HLD only consumes the forwarding state produced by that feature; it does not redefine neighbor synchronization.
+is specified by the separate [L3MH Neighbor Synchronization HLD](https://github.com/sonic-net/SONiC/pull/2543). This HLD only consumes the forwarding state produced by that feature; it does not redefine neighbor synchronization.
 
 ### In scope
 
 - Per-ES/interface enablement with `evpn mh bridge-port-protection`.
 - EVPN peer discovery and eligibility for the backup group.
 - Peer VTEP tunnel resolution, including L3VNI and RMAC dependencies.
-- In-memory Member and Group identifier continuity while zebra stays alive
-  (peer churn and FPM reconnect). Identifier persistence across a full zebra or
-  FRR restart is out of scope; zebra allocates `nh_id`/`nhg_id` from a runtime
-  bitmap and cannot make them persistent, so restart is handled by the
-  reconciliation epoch instead.
+- In-memory Member and Group identifier continuity across peer churn while
+  zebra stays alive. Warm reboot, reconciliation, and identifier persistence
+  across a restart are out of scope; every new FPM session starts from empty
+  and is rebuilt from zebra's full replay.
 - FPM emission of Member, Group, and bridge-port Binding objects.
 - Peer changes, tunnel resolution changes, restart, and replay behavior.
 - Interaction with existing EVPN MAC and neighbor state.
@@ -207,7 +210,7 @@ FRR and SONiC divide the work as follows:
 | R1 | FRR must derive the protection peer set from IP A-D per-EVI (RT-1) aliasing AND valid IP A-D per-ES (RT-1) coverage for the same ESI/IP-VRF/L3VNI. ES / RT-4 is used for ES discovery and initial validation. |
 | R2 | The initial protection path must use VXLAN L3 Members for all-active L3MH only. Single-active operation is out of scope. |
 | R3 | Protection is enabled on a parent interface. Every eligible bridge port/sub-interface under that interface inherits the same protection Group and receives a Binding. |
-| R4 | Each L3 Member must identify its peer VTEP tunnel and its required tunnel attributes, including RMAC and diagnostic L3VNI context. |
+| R4 | Each L3 Member must identify its peer VTEP tunnel and its required tunnel attributes, including RMAC. |
 | R5 | FRR must send a Binding that associates the protected bridge-port sub-interface with the Group. |
 | R6 | Protection or ES teardown must publish deletes for the Binding, Group, and unreferenced Members; SONiC owns their dependency ordering. Peer churn updates the Group in place while at least one eligible Member remains; an empty Group withdraws the Binding and Group. |
 | R7 | Membership changes must update the existing Group in place when possible. |
@@ -254,12 +257,12 @@ required on each sub-interface.
 - Protection state is proportional to the number of protected parent interfaces,
   inherited bridge-port Bindings, and peer tunnel identities, not the number of
   hosts, MACs, or routes behind an ES.
-- An FPM reconnect or replay while zebra stays alive must restore the current
-  protection state without changing identifiers or causing a primary-path flap,
-  because the objects and their IDs remain in zebra memory.
-- A full zebra restart cannot preserve identifiers, and identifier persistence
-  is out of scope for this project. Unchanged identifiers are therefore not
-  promised across a full restart.
+- Warm reboot and reconciliation are out of scope. Every new FPM session starts
+  from empty: SONiC flushes the protection objects and zebra's full replay
+  rebuilds them.
+- A flush and rebuild must never cause a primary-path flap. Protection is
+  unavailable until the replay completes.
+- Identifier persistence across a zebra restart is out of scope.
 
 ---
 
@@ -405,7 +408,6 @@ type           L3                                         # identity
 family         peer VTEP address family                   # identity
 remote_vtep    peer VTEP address                          # identity
 router_mac     peer RMAC                                  # identity
-vni            diagnostic L3VNI context                   # value
 ```
 
 `nh_id` is the row key that FRR allocates and that SONiC uses as the FPM/APPL_DB
@@ -414,9 +416,9 @@ Member key. It is functionally dependent on the tunnel identity
 per distinct identity and reuses it while that identity is unchanged. `type` is
 part of the identity so the same peer VTEP can hold two distinct Members — a
 separate `nh_id` for an L2 Member and for an L3 Member. `family` is identity
-only because it qualifies how `remote_vtep` is interpreted. The `vni` is context
-and diagnostics only. SONiC obtains the actual encapsulation VNI from the VRF
-tunnel map.
+only because it qualifies how `remote_vtep` is interpreted. The Member carries
+no VNI: it is VRF-independent, so SONiC obtains the encapsulation VNI from the
+VRF tunnel map at the bridge port's context.
 
 The Group contains a complete, sorted list of Member IDs. A Group update does
 not change the Binding. The Binding contains the protected bridge-port ifindex
@@ -448,9 +450,11 @@ BridgePortProtection
     export state       DISABLED / PENDING / ACTIVE / DEGRADED / WITHDRAWING
 ```
 
-FRR exports the Binding only when the local context is valid — the bridge port
-and ES are usable, `evpn mh bridge-port-protection` is enabled, and the
-IP-VRF/L3VNI is known — and at least one eligible Member exists. Before that
+FRR exports the Binding when the local context exists — the bridge port and ES
+are configured, `evpn mh bridge-port-protection` is enabled, and the
+IP-VRF/L3VNI is known — and at least one eligible Member exists. Carrier or
+operational-down state is not an export dependency; the Binding must remain
+installed so SONiC can select the backup. Before that
 point, zebra keeps the entry pending and exports nothing. If the Group becomes
 empty, FRR does not export/download an empty Group. It withdraws the Binding and
 Group, and SONiC then knows that the interface has no protection path. The local
@@ -458,9 +462,14 @@ port remains the primary path while protection is available.
 
 A Member is a peer tunnel identified by `(peer VTEP, address family, RMAC, type)`. The routed VXLAN
 encapsulation VNI comes from SONiC's VRF tunnel map; it is not encoded as a
-per-next-hop forwarding decision by FRR. The initial release creates one Group
-and one Binding for each eligible bridge port under the protected parent
-interface. The Group is referenced by those inherited Bindings.
+per-next-hop forwarding decision by FRR. Zebra creates one Binding for each
+eligible bridge port under the protected parent interface, and a Group may be
+referenced by the Bindings of multiple bridge ports. A shared Group contains
+only the peers eligible for every bridge-port context that references it: the
+intersection of their per-`(ifindex, IP-VRF/L3VNI)` peer sets. A failover on any
+of those bridge ports therefore never selects a peer that is invalid for its
+context. With a single IP-VRF, SVI, and bridge domain, all contexts have the
+same peer set, so the intersection is that set.
 
 ### 8.2 BGP peer context in zebra
 
@@ -484,8 +493,9 @@ Object identity:
 
 - One Member ID per `(peer VTEP, address family, RMAC, type)` tunnel identity,
   which is VRF-independent. The same Member may be shared by multiple Groups.
-- One Group ID per protected parent interface and eligible peer set. Each
-  inherited bridge-port Binding references that Group. A membership change
+- One Group ID per protected parent interface, shared by the Bindings of its
+  inherited bridge ports; its Members are the intersection defined in
+  [Section 8.1](#81-protection-state). A membership change
   updates the Group in place; it does not create a new Group for every
   peer-set variation.
 
@@ -582,7 +592,7 @@ The local link failure and remote peer failure have different owners:
 ### 8.7 Kernel MAC and neighbor lifecycle
 
 L3MH neighbor synchronization is specified by the separate [L3MH Neighbor
-Synchronization HLD](../../../../l3mh_hld/doc/vxlan/EVPN/EVPN-L3MH-Neighbor-Sync.md).
+Synchronization HLD](https://github.com/sonic-net/SONiC/pull/2543).
 That feature supplies the host neighbor and local-ES forwarding state; this HLD
 supplies the backup Group. FRR does not create, withdraw, or reprogram host
 neighbors as part of a bridge-port failure.
@@ -631,7 +641,6 @@ The initial interface uses private raw-processed FPM messages.
 /* Shared by FRR and fpmsyncd. Do not redefine these structures independently. */
 struct __attribute__((packed)) l2_nhg_member_msg {
   uint32_t l2nm_nh_id;
-  uint32_t l2nm_vni;        /* diagnostic L3VNI */
   uint8_t  l2nm_type;       /* 0 = L2, 1 = L3 */
   uint8_t  l2nm_family;     /* AF_INET or AF_INET6 */
   union {
@@ -683,8 +692,8 @@ Each operation carries the complete object and an add/update or delete action.
 All three object types use the existing dplane provider queue. No direct
 zebra-to-fpmsyncd channel or SONiC-side FPM walk is introduced.
 
-After reconnect, zebra queues the complete Member, Group, and Binding set under
-a new reconciliation epoch.
+At every FPM session start, zebra queues the complete Member, Group, and
+Binding set; see [Section 11](#11-restart-and-replay).
 
 ---
 
@@ -706,7 +715,7 @@ packets manually. At minimum, show output should identify:
 - Group ID.
 - Each Member ID.
 - Peer VTEP address.
-- L3VNI for each Member identity.
+- L3VNI per protection entry (bridge port / IP-VRF context).
 - Peer VTEP tunnel, RMAC, and tunnel-resolution state.
 - Eligible peer count and exported Member count.
 - Member and Group export state.
@@ -743,9 +752,11 @@ reported separately through its STATE_DB interface.
 
 ## 11. Restart and replay
 
-### FRR FPM reconnect
+### FPM session start
 
-When FPM reconnects, zebra replays the complete current state in this order:
+At every FPM session start, SONiC flushes the protection objects (see
+[below](#flush-on-every-new-fpm-session)) and zebra replays the complete current
+state in this order:
 
 1. Member objects.
 2. Group objects.
@@ -771,58 +782,42 @@ The SONiC ownership contract is explicit:
 
 ### Restart behavior at a glance
 
-| Event | Identifier behavior today |
+| Event | Behavior |
 |---|---|
-| FPM reconnect | Same IDs, because zebra retains the objects in memory. |
-| fpmsyncd or SONiC restart | Same IDs after zebra replays its current state. |
-| bgpd restart with zebra alive | Same IDs if objects are not withdrawn and recreated. |
-| zebra restart | IDs are not guaranteed to be restored. |
-| Full FRR restart | Same limitation as a zebra restart. |
+| FPM reconnect | Flush and rebuild. IDs are unchanged because zebra keeps them in memory. |
+| fpmsyncd restart | Flush and rebuild. |
+| SONiC reboot (warm or cold) | Treated as cold for protection: flush and rebuild. |
+| bgpd restart with zebra alive | No new FPM session. Objects are updated in place unless withdrawn and recreated. |
+| zebra or full FRR restart | Flush and rebuild. IDs may change. |
 
-### zebra restart and ID persistence
+### Flush on every new FPM session
 
-A still-running zebra preserves its in-memory IDs. This covers FPM/SONiC
-restart and FPM reconnect, provided the FRR objects are not deleted and
-recreated.
-
-Today, zebra allocates `nh_id` and `nhg_id` from a runtime bitmap. The values
-are stored in memory and released when their objects are deleted. The bitmap is
-reinitialized after a zebra restart, so creation order can change the IDs.
-
+Warm reboot and reconciliation are out of scope for this project, matching the
+companion SONiC HLD. zebra allocates `nh_id` and `nhg_id` from a runtime bitmap
+that is reinitialized after a restart, so creation order can change the IDs.
 Stale-kernel reservation prevents collisions with kernel objects during
-startup. It does not restore the previous FRR-to-object mapping.
+startup; it does not restore the previous FRR-to-object mapping.
 
-Persistent identifier restoration across a full restart is out of scope for
-this project. zebra has no mechanism to make `nh_id`/`nhg_id` persistent, and
-this design does not add one. After a full zebra or FRR restart the identifiers
-may differ, so restart is handled entirely by the reconciliation epoch below
-rather than by preserving the previous IDs.
+A restarted zebra may therefore assign a previously used `nhg_id` or `nh_id` to
+a different object. If SONiC applied that object over an old row, a Binding
+left from the previous zebra would point to a Group with a different meaning,
+and a failover on that port would send traffic to the wrong peers. Pruning
+stale rows after a replay does not prevent this, because the reused ID is
+republished, not stale.
 
-Because IDs may change across a restart, FRR cannot reliably delete objects
-owned by the previous zebra process. It therefore starts a new reconciliation
-epoch and emits a complete snapshot. fpmsyncd/SONiC marks rows in the new epoch
-as live and prunes rows from the previous epoch after the end marker.
+The design therefore guarantees one safety rule: **a Binding never outlives the
+Group meaning it was attached to.** It is enforced by starting every FPM
+session from empty:
 
-The epoch markers are versioned FPM control messages:
+- When an FPM session comes up, fpmsyncd deletes every FPM-produced protection
+  row in the order `Binding -> Group -> Member` before applying any object from
+  the session.
+- zebra then replays the complete Member, Group, and Binding set.
 
-```c
-struct __attribute__((packed)) evpn_protection_epoch_msg {
-  uint32_t epoch;
-};
-```
-
-```text
-RTM_FPM_EVPN_PROTECTION_SNAPSHOT_BEGIN { epoch }
-RTM_FPM_EVPN_PROTECTION_SNAPSHOT_END   { epoch }
-```
-
-The provider emits `SNAPSHOT_BEGIN`, the complete sorted object set, and then
-`SNAPSHOT_END` with the same epoch. SONiC prunes unseen rows only after
-`SNAPSHOT_END`; no SONiC acknowledgement is required by FRR.
-
-If the deployed fpmsyncd cannot provide epoch-based
-pruning, full zebra restart is not implementation-ready; only replay from a
-still-running zebra may claim no-flap behavior.
+Every case is handled the same way, so no marker or stored state is needed to
+tell a zebra restart from a reconnect. The flush only detaches protection. It does not touch the primary path, host
+MACs, neighbors, or routes. Protection is unavailable from the flush until the
+replay completes, so a local port failure in that window is not protected.
 
 ### Configuration replay
 
@@ -856,9 +851,67 @@ primary path or unrelated MAC, neighbor, or EVPN route state.
 
 ---
 
-## 13. Testing
+## 13. SAI API
 
-### 13.1 Unit tests
+No SAI API change is required on the FRR side. FRR does not call SAI; it only
+exports Member, Group, and Binding objects over FPM. The SAI objects and
+attributes that SONiC programs from those objects, including the bridge-port
+protection attributes, are specified in the companion
+[SONiC HLD](https://github.com/sonic-net/SONiC/pull/2556).
+
+---
+
+## 14. Warmboot and fastboot design impact
+
+Warm reboot and reconciliation of protection objects are out of scope (see
+[Section 11](#11-restart-and-replay)). For protection, every restart is treated
+as cold: each new FPM session flushes the protection objects and zebra's full
+replay rebuilds them. Existing warmboot and fastboot behavior for routes, MACs,
+and neighbors is unchanged, because protection objects use separate FPM
+messages and APPL_DB tables.
+
+During fastboot or warmboot, protection becomes available only after BGP EVPN
+converges and zebra exports the objects. Until then the primary path forwards
+normally, but a local port failure is not protected.
+
+### 14.1 Warmboot and fastboot performance impact
+
+- No stalls, sleeps, or blocking I/O are added to the boot critical chain.
+  Protection objects are queued on the existing dplane provider after the EVPN
+  state they depend on is learned.
+- No CPU-heavy processing (for example, template rendering) is added to the
+  boot path. The added work is proportional to the number of protected bridge
+  ports and peer tunnels, not hosts or routes.
+- No third-party dependency is added or updated.
+- No new service or docker is introduced, so nothing needs to be delayed.
+- When `evpn mh bridge-port-protection` is not configured, no protection
+  objects are created or exported, and boot behavior is unchanged.
+- No control-plane or data-plane downtime is added to existing traffic.
+
+---
+
+## 15. Memory consumption
+
+No protection state is allocated when `evpn mh bridge-port-protection` is not
+configured, and memory does not grow while the feature is disabled. When
+enabled, memory is bounded by topology, not by hosts, MACs, or routes:
+
+| Component | State | Scales with |
+|---|---|---|
+| bgpd | Protection eligibility entry per `(ifindex, type, peer VTEP)` | Protected bridge ports × eligible peers |
+| zebra | Protection entry per bridge port (Section 8.1) | Protected bridge ports |
+| zebra | Member per tunnel identity | Distinct `(peer VTEP, family, RMAC, type)` |
+| zebra | Group with a sorted Member ID list | Protected parent interfaces × Members per Group |
+| dplane/FPM | Queued Member (28 bytes), Group (8 + 4×N bytes), and Binding (8 bytes) payloads | Pending updates; freed after encoding |
+
+Identifiers are drawn from zebra's existing `nh_id`/`nhg_id` bitmap; no new
+allocator is added.
+
+---
+
+## 16. Testing
+
+### 16.1 Unit tests
 
 - **Configuration:** Require per-interface `evpn mh bridge-port-protection`;
   reject protection state without a valid local ES; remove the interface
@@ -895,7 +948,7 @@ primary path or unrelated MAC, neighbor, or EVPN route state.
   unchanged identifiers while zebra remains alive; verify duplicate Adds are
   harmless.
 
-### 13.2 Integration tests
+### 16.2 Integration tests
 
 1. **Steady state**: one local ES, two IP A-D per-EVI (RT-1) aliasing routes with matching
   IP A-D per-ES (RT-1) coverage and ES / RT-4 discovery, complete Member/Group/Binding
@@ -917,13 +970,15 @@ primary path or unrelated MAC, neighbor, or EVPN route state.
 9. **L2VNI coexistence**: verify existing L2 EVPN processing is unchanged.
 10. **Local link failure**: verify FRR does not withdraw valid host MAC or
    neighbor state solely because the primary link is down.
-11. **FPM reconnect**: verify SONiC reconstructs the same protection objects.
-12. **Warm restart**: verify identifiers and export order for a still-running
-   zebra.
-13. **Full restart:** verify the new reconciliation epoch prunes stale
-  objects before old protection references are released.
+11. **FPM reconnect**: verify SONiC flushes the protection objects in
+   `Binding -> Group -> Member` order and rebuilds them from the replay with
+   unchanged identifiers.
+12. **Primary path during flush**: verify the flush and rebuild cause no
+   primary-path flap and no host MAC, neighbor, or route change.
+13. **zebra restart:** verify the flush completes before the replay is applied,
+  and that no Binding ever references a Group rebuilt with a recycled ID.
 14. **Identifier reuse:** verify retired IDs are not reused within a zebra
-  lifetime and that a new epoch handles replacement IDs safely.
+  lifetime.
 15. **Scale:** verify many protected ESs, multiple L3VNIs, multiple RMACs, and
   multiple peer Members per Group.
 
@@ -933,7 +988,7 @@ state.
 
 ---
 
-## 14. Limitations and open items
+## 17. Limitations and open items
 
 1. **L3 Members only in the initial release.** The wire model carries a type
    field so L2 Members can be added later, but L2 protection behavior is not
@@ -944,10 +999,12 @@ state.
 3. **Shared RMAC assumption.** The design assumes one peer RMAC per peer VTEP,
    shared across all of that VTEP's VRFs; only the L3VNI varies per VRF. A peer
    VTEP that used different RMACs per VRF is not supported.
-4. **Stable IDs after full zebra restart.** Identifier persistence across a
-   full restart is out of scope. zebra cannot make `nh_id`/`nhg_id` persistent,
-   so no-flap full-restart behavior is not provided; a full restart relies on
-   epoch-based stale-row pruning rather than preserving the previous IDs.
+4. **Warm reboot and reconciliation.** Warm reboot, reconciliation, identifier
+   persistence across a zebra restart, and protection without a gap across a
+   restart are out of scope. Every new FPM session flushes and rebuilds the
+   protection objects, so protection is unavailable until the replay completes.
+   Future options include stable or namespaced IDs, or a staged snapshot in
+   which SONiC detaches old Bindings before exposing replacement Groups.
 5. **FPM message versioning.** The private message family must remain compatible
    between the FRR provider and SONiC fpmsyncd. A capability or version check is
    needed before deployment with mixed software versions.
@@ -962,6 +1019,5 @@ state.
    practical allocator range and type-bit layout must be documented in the
    shared FPM header.
 
-The implementation should resolve the FPM compatibility items before describing
-the feature as warm-restart complete. Full-restart identifier continuity is out
-of scope and is not a prerequisite for this feature.
+Warm reboot, reconciliation, and protection without a gap across a restart are
+out of scope and are not prerequisites for this feature.
