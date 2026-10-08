@@ -10,6 +10,7 @@ The following are the high level requirements for CoPP/TRAP managment
 2. User shall be able to configure, modify CoPP table entries for various policing requirements
 3. System shall be backward compatible with old Config DB without any CoPP Tables
 4. A VS test must be added to verify the Config DB CoPP tables
+5. Ports shall be able to be excluded from traps and configured in Config DB.
 
 # Design Proposal
 
@@ -51,6 +52,15 @@ key = "COPP_TRAP|name"
 trap_ids      = name ; list of trap ids
 trap_group    = name ; copp group name
 ```
+```
+key = "COPP_TRAP_EXCLUDE_PORTS|GLOBAL"
+; field        = value
+ports          = port-list ; ports that are excluded
+
+; value annotations
+port-name      = 1*64VCHAR                         ; name of the port
+port-list      = port-name [ 1*( "," port-name ) ] ; list of the ports. Valid values range is platform dependent
+```
 
 ### StateDB
 
@@ -77,7 +87,7 @@ With the new "always_enabled" field, coppmgr will determine if a trap should be 
 Now, traps which have no associated feature, will be installed only if "always_enabled" field value is "true".
 
 ### copporch
-```copporch``` shall only be a consumer of APP DB CoPP Table. It is not expected to handle feature logic and the current handling of features like sFlow, NAT shall be revisited and removed to be added as part of ```coppmgr```. However `copporch` must be able to handle any new trap_id getting added or removed from an existing CoPP table, and handle attribute value set for a trap group
+```copporch``` shall only be a consumer of both APP DB and CONFIG DB CoPP Tables. It is not expected to handle feature logic and the current handling of features like sFlow, NAT shall be revisited and removed to be added as part of ```coppmgr```. However `copporch` must be able to handle any new trap_id getting added or removed from an existing CoPP table, handle attribute value set for a trap group, and handle trap port exclusion list changes.
 
 ### swssconfig
 Handling of CoPP config json file shall be removed from ```dockers/docker-orchagent/swssconfig.sh```
@@ -245,6 +255,12 @@ The following flow captures CoPP manager functionality.
         "COPP_TRAP|sflow": {
             "trap_ids": "sample_packet",
             "trap_group": "queue2_group1"
+        },
+
+        "COPP_TRAP_EXCLUDE_PORTS": {
+            "GLOBAL": {
+                "ports": [ "Ethernet0", "Ethernet4" ]
+            }
         },
     }
 ```
