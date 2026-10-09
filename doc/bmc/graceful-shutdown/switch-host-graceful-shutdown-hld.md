@@ -43,6 +43,8 @@
 | Rev | Date | Author | Change Description |
 | --- | --- | --- | --- |
 | 0.1 | 2026-08-12 | William Tsai | Initial version |
+| 0.2 | 2026-10-01 | William Tsai | Align provisioning, timing and operation handling with the implementation |
+| 0.3 | 2026-10-08 | William Tsai | Document that the switch-host pre-shutdown path does not run the platform pre-reboot hook |
 
 ### 2. Scope
 
@@ -73,20 +75,12 @@ around them is the leak check above, and that their oper-status verification bec
 **Out of scope.** Abort or cancel of a request once the host has accepted it; more than one power
 operation at a time per BMC; resuming an operation across a `bmcctld` restart; BMC power-loss
 resilience; traffic draining and route withdrawal, which belong to the requester; WARM and COLD host
-reboots driven by the BMC; multi-ASIC and modular chassis. Leak-triggered graceful shutdown is deferred
-**on a critical trigger only**, and on both fields that carry one: with `system_critical_leak_action` or
-`rack_mgr_critical_alert_action` set to `graceful_shutdown`, a critical event waits the configured timeout
-before power is removed. That configuration is reachable today and this design does not rely on it being
-absent — the `0` timeout default is seeded only when no entry exists, and an operator value survives a
-reboot — so the guarantee is structural instead: a critical trigger ranks highest on its severity rather
-than on its action ([§7.6](#76-concurrency-and-preemption)). That ranking guarantees the action is neither
-refused as busy nor suppressed by the guard — it does not shorten the action, so it does not make such a
-configuration meet the platform's leak bound; that is rule 3 of [§7.4](#74-timing), and making both those
-actions a direct power off remains the cleaner end state, in open item 1
-([§14](#14-openaction-items)). Below critical the restriction does not apply at all: those severities have
-their own fields, and an event too small to justify an *immediate* cut — power is still removed at the end of
-the graceful leg — is precisely what this feature is for
-([§9.3](#93-config-db-enhancements)).
+reboots driven by the BMC; multi-ASIC and modular chassis. Existing leak-policy actions and defaults
+remain unchanged. A critical trigger configured as `graceful_shutdown` still performs the graceful wait;
+priority does not turn it into an immediate cut. Deployments requiring immediate power removal must
+configure `power_off` for the corresponding system-leak and rack-manager policies
+([§9.3](#93-config-db-enhancements)). Both critical power actions outrank ordinary requests, and
+critical power-off outranks critical graceful shutdown ([§7.6](#76-concurrency-and-preemption)).
 
 ### 3. Definitions/Abbreviations
 
@@ -111,9 +105,10 @@ so the host publishes its own result on `System.RebootStatus` and the BMC reads 
 hardware readiness signal and no new platform API are needed.
 
 The BMC waits for that result up to `graceful_shutdown_timeout`, then removes power. Power removal is not
-conditional on the result: it runs on the normal path, on a timeout, on an RPC failure, and when a
-higher-priority request preempts the wait. The one execution it does not survive is the daemon's own
-death, which abandons the operation rather than completing it ([§7.8](#78-failure-handling)). What the
+conditional on the result: it runs on the normal path, on a timeout and on an RPC failure. On
+preemption, the higher-priority operation owns the power action; the displaced worker does not issue
+another one. A redundant shutdown already confirmed offline needs no power call. The daemon's own
+death abandons the operation rather than completing it ([§7.8](#78-failure-handling)). What the
 result changes is only how the operation is recorded — as graceful when the host confirmed it finished, as
 forced otherwise.
 
@@ -127,17 +122,18 @@ plaintext, and a check that the report it reads answers its own request ([§7.3]
 | --- | --- |
 | 1 | Graceful shutdown from CLI `config chassis modules shutdown` and from the Rack-Manager `GRACEFUL_SHUT` command; graceful restart from a new `GRACEFUL_RESTART` command |
 | 2 | The wait is bounded by the existing `graceful_shutdown_timeout`, and power is removed when it expires. `0` means remove power immediately |
-| 3 | Power removal is attempted on every outcome `bmcctld` handles — timeout, RPC failure, preemption. The daemon's own death abandons the operation instead ([§12](#12-restrictionslimitations)) |
+| 3 | Power removal is attempted after timeout or RPC failure. A preempting operation owns the subsequent power action; an already-off shutdown needs none. Daemon death abandons the operation ([§12](#12-restrictionslimitations)) |
 | 4 | An operation is recorded as graceful only when the host confirmed it finished. Anything unproved is recorded as forced |
 | 5 | A graceful reboot cause is written only after that confirmation |
 | 6 | The BMC-to-host gNOI channel uses mTLS with mutual verification. A device without certificates stays forced-only |
 | 7 | When the configured leak action is a power action, a critical leak preempts a wait in progress; power-raising commands are refused while a critical leak is **present in published state**. The scope matters at daemon start, where power can be raised before any leak publisher has written anything ([§2](#2-scope)) |
-| 8 | The DPU `HALT` path keeps its behavior. The existing force paths keep their semantics, with their oper-status verification made interruptible so a leak is not held behind it |
+| 8 | The DPU `HALT` path retains its call order and timeout key, apart from the shared pre-check fixes and result-message suffix. The existing force paths keep their semantics, with interruptible oper-status verification |
 
 ### 6. Architecture Design
 
-The SONiC architecture does not change. The feature adds no daemon, container, database table, CLI
-command or gNOI method, and no persistent state on the BMC.
+The SONiC architecture does not change. The feature adds no daemon, container, CLI command or gNOI
+method. It adds one optional CONFIG_DB table for BMC client certificate paths; operation execution
+is not persisted or resumed across daemon restarts.
 
 ```mermaid
 flowchart LR
@@ -160,20 +156,26 @@ The only new traffic on the BMC-host link is gNOI over mTLS.
 
 | Component | Repository | Change |
 | --- | --- | --- |
-| `bmcctld` | sonic-platform-daemons | Send `HALT`, poll `RebootStatus`, remove power on every outcome it handles, add `GRACEFUL_RESTART`, add the priority handling of [§7.6](#76-concurrency-and-preemption) |
+| `bmcctld` | sonic-platform-daemons | Send `HALT`, poll `RebootStatus`, own the power sequence, add `GRACEFUL_RESTART` and the priority handling of [§7.6](#76-concurrency-and-preemption) |
 | `scripts/reboot` | sonic-utilities | Accept `-p` on a switch-host. Today the option is DPU-only |
-| `host_modules/reboot.py` | sonic-host-services | Report failure when a completion check cannot be answered, carry the requester's tag on every terminal report, read `switch_host_halt_services_timeout`, and write the graceful reboot cause after the check |
+| `host_modules/reboot.py` | sonic-host-services | Report failure when a completion check cannot be answered, carry the requester's tag on every terminal report, select the HALT timeout by device identity, and write the graceful reboot cause after the check |
 | `show chassis modules status` | sonic-utilities | New status columns |
 | `determine-reboot-cause` | sonic-host-services | The one display rule of [§7.7](#77-reboot-cause) |
-| mTLS material | sonic-buildimage | Certificate seeding on opted-in platforms |
+| Certificate-path schema | sonic-buildimage | Add the optional BMC client-path model |
+| mTLS material, gNMI configuration and CACL | deployment tooling | Provision credentials, authorization and management-access policy; not image boot-time DB writers |
 | Redfish bridge | sonic-redfish | Map `GracefulShutdown` and `GracefulRestart`. Optional — the release can ship without it |
 
-No platform code changes. Opting in does add per-platform content — the `platform.json` keys of
-[§9.3](#93-config-db-enhancements), and a bounded `pre_reboot_hook` for any platform that needs one.
+No new platform API is needed. Supported platforms may set the host timeout in
+[§9.3](#93-config-db-enhancements). Certificate and network-policy provisioning remain outside the
+image.
 
 ### 7. High-Level Design
 
 #### 7.1. Shutdown flow
+
+An already-off shutdown is completed by the admission guard without gNOI or another power call.
+This shortcut is not used when a previous power transition has an uncertain outcome. The diagram
+below describes the worker flow; a host found offline after admission still receives the power-off call.
 
 ```mermaid
 sequenceDiagram
@@ -200,12 +202,12 @@ sequenceDiagram
             end
         end
     end
-    Note over B,M: power is removed on every outcome above
+    Note over B,M: attempt power off unless preempted
     B->>M: power off
     alt power off confirmed
         Note over B: graceful if the host confirmed, else forced
     else not confirmed
-        Note over B: power-off failure, raise an alarm
+        Note over B: record POWER_OFF_FAILED
     end
 ```
 
@@ -215,16 +217,16 @@ sequenceDiagram
 
 `reboot.py` maps `HALT` to `sudo reboot -p`. The `-p` option already exists and already means
 pre-shutdown; it is currently rejected on anything that is not a DPU, and this design allows it on an
-opted-in switch-host. Nothing in the teardown itself changes.
+identified switch-host. The existing teardown order and vendor branches are retained; the switch-host
+pre-shutdown path adds failure checks and does not run the platform pre-reboot hook.
 
-Relaxing that rejection is not by itself enough on a switch-host that is also a SmartSwitch NPU: the same
-entry point otherwise continues into the path that reboots the NPU's DPUs, whose own status wait reads the
-same `platform.json` key. On an opted-in switch-host it returns to the pre-shutdown body instead, and the
-DPU legs are not driven from here.
+The switch-host `-p` path bypasses the SmartSwitch helper's DPU reboot legs. The existing DPU path
+keeps its call order and `dpu_halt_services_timeout`; the switch-host completion check uses its own
+timeout key ([§9.3](#93-config-db-enhancements)).
 
 ```mermaid
 flowchart LR
-    S["reboot -p"] --> G{"opted-in switch-host?"}
+    S["reboot -p"] --> G{"switch-host?"}
     G -- "no" --> F["report FAILURE"]
     G -- "yes" --> P1["pre-checks: firmware schedule, next image"]
     P1 --> P2["existing teardown, then stop and disable PMON"]
@@ -239,9 +241,8 @@ flowchart LR
     P5 -.-> F
 ```
 
-*Figure 3 — Any step that cannot be proved produces the same FAILURE result, and the BMC removes
-power anyway. The dotted edges show which step failed, not how quickly it is reported: one pre-check
-branch is detected only by the completion check afterwards ([§12](#12-restrictionslimitations)).*
+*Figure 3 — A failed required step produces FAILURE, and the BMC removes power anyway.
+Platform pre-check and next-image verification failures propagate immediately.*
 
 **A failed pre-shutdown is not repaired.** There is no rollback and no retry. PMON is not restarted,
 whatever was already flushed stays flushed, and the host is not returned to a serving state — it
@@ -260,8 +261,8 @@ feature has to avoid.
 
 **What the teardown does is platform-dependent.** On most platforms it asks the ASIC to shut down
 with `syncd_request_shutdown --cold`; some ASIC types skip that step entirely. The design does not
-change any of it, and does not depend on which branch a platform takes — but a platform can only opt
-in if its teardown leaves the ASIC safe to lose power ([§7.9](#79-platform-requirements)).
+change any of it, and does not depend on which branch a platform takes — but a platform is qualified
+only if its teardown leaves the ASIC safe to lose power ([§7.9](#79-platform-requirements)).
 
 **The reporting path survives the teardown.** `database`, `gnmi`, `sysmgr` and `sonic-hostservice` keep
 running, which is what lets the host answer the BMC's poll after its own teardown is done. The path is
@@ -281,17 +282,19 @@ its `ExecStart` waits on a container watch over `syncd`, so a `syncd` container 
 runs on to the cut, with or without an ASIC beneath it depending on whether the platform's teardown shut one
 down. Neither costs anything while power is about to go.
 
-**The host never removes its own power.** `reboot -p` asks the watchdog to arm before it exits, so a
-host left powered is meant to reboot itself back into service. Today that is an intent, not a proof:
-the script does not check the result and `watchdogutil arm` reports failure without a non-zero exit,
-so the effective timeout has to be read back before this can be relied on ([§14](#14-openaction-items)).
+**The host never removes its own power.** On the switch-host pre-shutdown path, `reboot -p` requests
+a 180-second watchdog and requires a successful readback of at least 180 seconds. It cannot rely on
+the utility's exit status alone. Once armed, the watchdog can reboot a host left powered; a failure
+before the arm has no such recovery guarantee. Rejecting a short readback fails pre-shutdown;
+it does not disarm an already-running watchdog.
 
-A platform that needs ordering of its own already has a place for it: `scripts/reboot` runs
-`<platform>/pre_reboot_hook` on every reboot if it is executable. Today its failure is logged and
-ignored and it has no time limit, which is not good enough to build a guarantee on, so **on the
-switch-host pre-shutdown path only** this design bounds it and treats a non-zero exit or a timeout as a
-failed pre-shutdown. Other reboot paths keep today's best-effort behaviour. A hook that touches a
-device another daemon also drives has to stop that daemon itself; the host stops only PMON.
+`scripts/reboot` runs `<platform>/pre_reboot_hook` on every reboot if it is executable. The hook
+prepares the device for the reboot that follows — on some platforms it programs firmware — and its
+failure is logged and ignored. **On the switch-host pre-shutdown path only**, the hook is not run:
+the path ends in external power removal rather than a reboot, and firmware programming must not
+start when power is about to be removed. Other reboot paths keep today's behaviour. A vendor step
+that touches a device another daemon also drives has to stop that daemon itself; the host stops
+only PMON.
 
 **Where vendor differences belong.** `scripts/reboot` already branches on platform attributes — it
 stops an extra container on one subtype, and skips the ASIC request on some ASIC types — and the
@@ -299,8 +302,7 @@ switch-host pre-shutdown runs that same body. A vendor that has to stop a servic
 leaves running, or sequence something differently, adds its branch there rather than anywhere in this
 design; nothing here needs to change to accommodate it. Two constraints apply to such a branch: it
 must not stop anything on the reporting path above, `sonic-hostservice` included, and it must be
-bounded, because it spends the BMC's timeout. Logic that is better expressed as an executable than as
-a change to the script belongs in `pre_reboot_hook` instead.
+bounded, because it spends the BMC's timeout.
 
 #### 7.3. Knowing the host finished
 
@@ -317,11 +319,12 @@ working: one matches `reboot complete` as a substring of the whole client output
 the active flag. `reason` is a free-form string, so no proto change is needed — and adding a field would
 be worse, because the gNOI server unmarshals the response strictly.
 
-**The id is a freshly generated UUID**, and that is what makes a stale report unmatchable. A counter would
-not: the acceptance the BMC holds is the reboot backend's, returned as soon as it has spawned its worker,
-while the host replaces its report later inside the call that worker makes — so a poll can land in between
-and read the previous operation's report, and a per-run counter repeats an id after a restart
-([§7.8](#78-failure-handling) keeps no state).
+**The id is a freshly generated UUID**, providing collision-resistant correlation without persistent
+state. A per-run counter is insufficient: the acceptance the BMC holds is the reboot backend's,
+returned as soon as it has spawned its worker, while the host replaces its report later inside that
+worker's call — so a poll can land in between and read the previous operation's report, and a
+per-run counter repeats an id after a restart
+([§7.8](#78-failure-handling) does not persist an id counter).
 
 Graceful is recorded only on the conjunction of **five** conditions: the tag extracts exactly and equals this
 operation's, the report is terminal, the method is `HALT`, the status is `SUCCESS`, **and the status message
@@ -352,33 +355,38 @@ forwards `RebootStatus` to the host only while it treats the halt as in progress
 wait for a platform that never halts — which on this path is every platform. After that the host's report is
 unreachable however healthy the host is, which is the 260 s ceiling in rule 1 of [§7.4](#74-timing).
 
-Three outcomes are distinguished, and the exact result strings are an implementation detail:
+`HOST_STATE|switch-host.op_result` distinguishes the following terminal outcomes:
 
-| Outcome | Meaning |
+| Result | Meaning |
 | --- | --- |
-| Graceful | The host confirmed it finished before power was removed |
-| Forced | Power was removed without that confirmation. Expected and safe, not an error |
-| Power-off failure | The power command itself was never acknowledged. This is the one outcome that needs attention |
+| `SUCCESS_GRACEFUL` | The host confirmed pre-shutdown, and the requested power sequence completed |
+| `SUCCESS_FORCED` | The requested power sequence completed without host confirmation, or a shutdown was already satisfied |
+| `SUCCESS` | A plain power operation completed or was already satisfied |
+| `POWER_OFF_FAILED` | The power-off call failed or offline status was not confirmed |
+| `POWER_ON_FAILED` | The restart, power-on or power-cycle operation did not complete its power-raise leg |
+| `OFF_LEAK_BLOCKED` | Published critical leak state blocked a power raise |
+| `PREEMPTED` | A higher-priority operation displaced this operation |
+| `ABANDONED` | The operation ended without a result, including daemon restart recovery |
 
 Each is written to `HOST_STATE|switch-host` and to the BMC event log, together with the reason a
 graceful shutdown ended up forced ([§7.11](#711-serviceability)).
 
 A confirmed pre-shutdown means the teardown ran to the end and PMON is stopped. It does not mean
 Linux stopped, and it is only as strong as the checks the host performs — today the script ignores the
-result of the ASIC request, of the flush and of the platform hook, so those become checks this design
-adds rather than guarantees it inherits. The host is ready to lose power, not shut down.
+result of the ASIC request and of the flush, so those become checks this design adds rather than
+guarantees it inherits. The host is ready to lose power, not shut down.
 
 #### 7.4. Timing
 
 | Parameter | Value | Source |
 | --- | --- | --- |
-| `graceful_shutdown_timeout` | `bmcctld` uses `0`, which means forced; the parent design documents 120 s | Existing field, but the two disagree — see below. It is the binding bound: the whole pre-shutdown is spent inside it |
-| Pre-shutdown duration | To be measured | New measurement. It decides whether 120 s is enough |
+| `graceful_shutdown_timeout` | Default and missing/unparseable-value fallback: 120 s; explicit 0 means forced-only | Existing BMC CONFIG_DB field; operator values are preserved. Bounds the handshake, not the complete power operation |
+| Pre-shutdown duration | Per-platform measurement | Must fit the selected graceful timeout |
 | Reboot-backend halt wait | `260 s` | Existing `sonic-sysmgr` constant, compiled into the *host* image. After it the host's report is unreachable — the ceiling in rule 1 |
-| Residual completion check | 0 s when its window opens satisfied; otherwise up to `switch_host_halt_services_timeout`, rounded up to its 5 s poll, plus one probe. When that key is absent the existing `dpu_halt_services_timeout` applies, and only then a `60 s` default — so on a platform that sets the DPU key this term is that value, not 60 s ([§9.3](#93-config-db-enhancements)) | Existing mechanism, read on any `HALT`. It starts only after `reboot -p` exits, so it bounds the residual check and not the teardown — a conditional worst-case term in rule 1 |
-| Watchdog | Requested 180 s; the effective value is whatever the platform returns | Existing `watchdogutil arm` |
-| `RebootStatus` poll interval | 1 s, proposed | New constant. It bounds how late a result is noticed, and it spends the timeout |
-| Restart pause | 3 s, proposed | New constant |
+| Residual completion check | `switch_host_halt_services_timeout`, default 60 s; no fallback to the DPU key. Completes immediately when satisfied, otherwise polls every 5 s | Host `platform.json`; the window starts after `reboot -p` succeeds, not before teardown |
+| Watchdog | Request 180 s; require a successful readback of at least 180 s | Fixed for switch-host pre-shutdown only |
+| `RebootStatus` poll interval | 1 s | Fixed; each RPC is also bounded by the remaining handshake time |
+| Restart pause | 10 s | Fixed, cancelable power-off pause |
 | Leak response bound | Per platform | It preempts any wait, but not a call already running (rule 3) |
 
 Three rules have to hold, and measurement on real hardware settles all three:
@@ -394,15 +402,15 @@ Three rules have to hold, and measurement on real hardware settles all three:
 
    The host runs `reboot -p` to completion in a blocking call and fetches its own completion-check timeout
    only after that call returns, so the teardown is spent while the BMC polls and nothing has been reported
-   yet. An unbounded platform hook therefore spends the BMC's timeout, which is where
-   [§7.2](#72-host-side-reboot--p) already puts it.
+   yet. Anything unbounded in the teardown therefore spends the BMC's timeout, which is why
+   [§7.2](#72-host-side-reboot--p) requires a vendor branch on this path to be bounded.
 
    **(a)** is the precondition. It carries a poll allowance rather than the residual bound, because on a
    completed teardown the host's check normally passes on its first pass; the allowance covers the case where
    PMON's container is not yet observably stopped when the window opens. It is small and unmeasured — a term
-   to size, not one to assume away. **(b)** is a goal. One teardown branch reports success without having achieved
-   it ([§12](#12-restrictionslimitations)), and there the host spends the whole residual bound before
-   publishing `FAILURE`. Missing (b) does not break the feature — those branches record forced either
+   to size, not one to assume away. **(b)** is a goal. If completion cannot be confirmed after the script
+   returns, the host can spend the residual bound before publishing `FAILURE`.
+   Missing (b) does not break the feature — those branches record forced either
    way — it costs the *reason*, since a report arriving after the deadline is recorded `deadline` rather than
    what the host said.
 
@@ -410,9 +418,9 @@ Three rules have to hold, and measurement on real hardware settles all three:
    ([§7.3](#73-knowing-the-host-finished)). The two clocks share no origin and neither side can order them, so
    **the BMC establishes its deadline before it sends `Reboot`** and charges the request and every poll to that
    one deadline, capping each RPC by what remains; without a pre-send origin the ceiling is not enforceable.
-   **The two BMC-side defaults disagree:** `bmcctld` seeds `0` when no entry exists, while the parent design
-   and the CLI say 120 s. Picking one, against measurement and inside this bracket, is open item 1
-   ([§14](#14-openaction-items)).
+   The daemon and CLI default to **120 seconds**. Existing values, including 0, are preserved.
+   The CLI accepts nonnegative integers without an upper bound; these inequalities qualify a
+   deployment's selected value, not every value the CLI accepts.
 2. **Power has to be removed before the watchdog fires.** Otherwise the host reboots in the middle of
    the power sequence. The watchdog is armed near the end of the pre-shutdown, not when the operation
    starts, so the quantity that has to hold is:
@@ -422,9 +430,9 @@ Three rules have to hold, and measurement on real hardware settles all three:
    ```
 
    Neither side can evaluate that alone — the BMC owns the left, the host reads the right — which is why
-   the two local checks of [§9.2](#92-cliyang-model-enhancements) and open item 2 exist, and why a
-   platform whose watchdog cannot satisfy it cannot be enabled. Only the value the platform actually
-   returns counts as evidence.
+   the host verifies an effective watchdog value of at least 180 seconds and deployment qualification
+   checks this inequality. The watchdog minimum is not a platform.json knob.
+   Only the value the platform actually returns counts as evidence.
 3. **A critical leak present in published state has to reach the power domain within the platform's leak
    bound**, when the
    configured leak action is a power action at all — `syslog_only` is a valid setting and takes none.
@@ -432,9 +440,9 @@ Three rules have to hold, and measurement on real hardware settles all three:
    power call today: up to 60 s after `set_admin_state`, and up to 120 s after `do_power_cycle()`.
    `do_power_cycle()` itself is a single platform call that cannot be interrupted, so a leak arriving
    during it is served only when it returns — which is why graceful restart does not use it
-   ([§7.5](#75-graceful-restart)). One configuration cannot satisfy this rule at all: a *critical* trigger whose own
-   configured action is `graceful_shutdown` reaches the power domain no sooner than the timeout, which is why
-   open item 1 turns that action into a direct power off.
+   ([§7.5](#75-graceful-restart)). A critical trigger configured as `graceful_shutdown` can wait for
+   the full timeout. Deployments requiring an immediate cut must select `power_off`; this feature
+   does not remap the configured action.
 
 `graceful_shutdown_timeout` also bounds the shutdown leg of a graceful restart; no second timeout is
 added. Neither the CLI request nor the Rack-Manager command row carries a per-request timeout — the
@@ -468,7 +476,8 @@ interruptible: a leak arriving after the
 check waits for `set_admin_state()` to return — a shorter window than `do_power_cycle()`'s, but not an
 absent one ([§12](#12-restrictionslimitations)). `POWER_CYCLE` keeps using `do_power_cycle()` unchanged.
 
-A restart does not modify `admin_status`.
+A restart does not modify `admin_status`. Its success uses the platform's `ONLINE` indication;
+this is not a separate check that the OS and management services have finished booting.
 
 #### 7.6. Concurrency and preemption
 
@@ -489,9 +498,10 @@ refused as busy. Within that row the action decides: a direct power off displace
 wait, since the two critical policies are independent and either may fire first. Below it, nothing ranks on
 its trigger.
 
-A higher-priority operation displaces the one in flight. An equal or lower one is refused as busy,
-except a repeat of the same request against the same module, which joins the operation already running
-and returns its id — a Rack-Manager retry must not become a second operation. Displacement has a third
+A higher-priority operation displaces the one in flight. Otherwise, an identical action joins the
+operation already running and shares its id and result, including duplicate critical actions from
+different event sources. A conflicting equal- or lower-priority action is refused as `BUSY`, not
+retained for later execution or retried automatically. Displacement has a third
 outcome: when the operation in flight is inside a call that cannot be cancelled, the higher-priority one
 is deferred until that call returns rather than taking effect at once.
 
@@ -504,8 +514,8 @@ enqueuing.
 
 So the operation body moves to a worker thread and the sleep becomes a wait that ends **on demand rather than
 at the next poll**. It ends on exactly the three events [§7.3](#73-knowing-the-host-finished) names, plus a
-cancellation from the action loop, which the caller treats as a preemption and still removes power on. Nothing
-about the wait is on the queue's consumer any more, which is the whole point of moving it.
+cancellation from the action loop. The displaced worker stops, and the higher-priority operation owns
+the next power action. The graceful polling wait no longer blocks the queue's consumer.
 
 ```mermaid
 sequenceDiagram
@@ -516,11 +526,12 @@ sequenceDiagram
     S->>D: GRACEFUL_SHUT
     D->>W: start worker
     W->>W: poll RebootStatus, interruptible
-    S->>D: critical leak
+    S->>D: critical leak, configured POWER_OFF
     D->>W: cancel the wait
-    W-->>D: cancelled
-    D->>M: power off now
-    Note over D,W: a late result from the cancelled worker is discarded
+    W-->>D: stopped, with outcome
+    Note over D,W: record the old outcome before starting its successor
+    D->>W: start higher-priority POWER_OFF worker
+    W->>M: power off
 ```
 
 *Figure 5 — How a higher-priority request stops a wait already in progress.*
@@ -543,6 +554,7 @@ commands identically, and the exemption must not turn on which of the two a leak
 One existing guard has to give way to this. Today a queued shutdown is skipped — and reported successful —
 on three conditions: the host reads `OFFLINE` live, or the recorded power state is `POWERING_OFF`, or it is
 `GRACEFUL_SHUTTING_DOWN`, which is exactly the state a graceful shutdown writes before it starts waiting.
+The recorded-state conditions apply only while the writing operation has no terminal result.
 The guard covers the graceful action as well as the power off, so exempting only a power off would not be
 enough. And preemption is the wrong test: the guard exists to swallow a **redundant repeat**, and a
 critical-leak action is never one *while power is still on*. The guard's three conditions split exactly along
@@ -550,6 +562,8 @@ that line — one reads the live oper-status, two read a recorded transition —
 action is exempt from the two recorded conditions and not from the live one.** A direct power off arriving
 against a graceful shutdown's transitional state is therefore exempt and displaces it; a second critical action
 arriving once the host actually reads offline is the redundant repeat the guard exists for, and is absorbed.
+Live `OFFLINE` is not sufficient after an unconfirmed power-off or a preempted power-on/power-cycle:
+those transitions leave power uncertain, so an admitted shutdown still makes its power-off call.
 Nothing here needs to count actions or track an episode.
 
 The exemption belongs **at the guard**, not in the action loop, because the guard has a second caller: the
@@ -587,12 +601,13 @@ landing Reference 9.
 
 #### 7.8. Failure handling
 
-No operation state survives a `bmcctld` restart, and nothing is resumed. A transitional state left
-behind by a killed daemon is overwritten and logged.
+An unfinished operation is marked `ABANDONED` at `bmcctld` startup, not resumed. The recorded power
+state is refreshed from the live platform status; the last operation record remains for diagnosis.
+If `device_status` is unavailable, the startup power-state label is not proof that power is off.
 
-Almost every failure still ends with the host either off or back online: the requester re-issues, a
-leak that is still present fires again, and a host left after a pre-shutdown is rebooted by its
-watchdog — once the arm is actually verified, which is open item 2. Re-issuing is not immediate, though:
+Recovery can come from a requester re-issuing, a newly published leak event, or the host's verified
+watchdog. A persistent leak does not guarantee another event; sensor publication is not an automatic
+retry mechanism. Re-issuing is not immediate, though:
 a second `Reboot` is refused for the whole of the reboot backend's halt wait, so within that window a
 retried graceful attempt records `rpc_failure` ([§7.11](#711-serviceability)) and the operator meets the
 260 s ceiling from the other side. Two cases need an operator, and they differ in what is left. One is
@@ -604,18 +619,25 @@ leave a torn-down host with no watchdog; there the BMC does remove power, and wh
 automatic return to service.
 
 A power-off failure leaves `device_power_state` transitional on purpose: the real power state is
-unknown, so claiming either stable state would be wrong.
+unknown, so claiming either stable state would be wrong. It is recorded as `POWER_OFF_FAILED`,
+without automatically retrying the power call. A graceful restart stops before its power-on leg.
+
+An unexpected worker error during the graceful handshake still leads to one power-off attempt unless
+preempted. Recovery never repeats an issued power call or continues a restart's power-on leg.
 
 #### 7.9. Platform requirements
 
-A platform opts in by setting `bmc_pairing` in `platform.json`, which asserts that:
+A supported pair is identified by the existing `is_switch_bmc()` and `is_switch_host()` helpers;
+there is no additional `bmc_pairing` flag. Platform qualification must confirm that:
 
 - `set_admin_state(down)` removes power from exactly this host;
 - the teardown `reboot -p` performs on this platform leaves the ASIC safe to lose power;
+- nothing on this path starts firmware programming; the platform pre-reboot hook is not run there
+  ([§7.2](#72-host-side-reboot--p));
 - on the rendered image, `syncd` ending leaves the reporting path — `database`, `gnmi`, `sysmgr`,
   `sonic-hostservice` — serving. What has to hold is the effective graph, drop-ins and scripted container
   watches included, not a list of unit-file directives;
-- no platform hook or vendor branch stops one of those four, `database` among them, since `gnmi` and
+- no vendor branch stops one of those four, `database` among them, since `gnmi` and
   `sysmgr` require it and it carries the path with them;
 - the BMC covers thermal and leak protection for the whole interval where PMON is stopped. On a
   liquid-cooled chassis its leak publishers are also producing state before power is raised; on an air-cooled
@@ -632,8 +654,9 @@ A platform opts in by setting `bmc_pairing` in `platform.json`, which asserts th
   where a platform cannot meet it;
 - the pre-shutdown duration, the power-off latency and the leak bound have been measured.
 
-Without it the platform stays forced-only, exactly as it behaves today. These properties vary between
-platforms of the same vendor, so the assertion is per platform.
+These properties vary between platforms of the same vendor, so qualification is per platform.
+Provisioning explicitly sets the graceful timeout to 0 until qualification and transport setup are
+complete; the daemon's 120-second default is not an enablement approval.
 
 The power operations use `set_admin_state()`, `get_oper_status()` and `do_power_cycle()`; on top of
 those `bmcctld` already needs `get_all_modules()`, `get_type()`, `is_liquid_cooled()`,
@@ -645,8 +668,12 @@ was accepted — this design cannot detect a rail that ignored it.
 
 The BMC already owns host power physically. What is new is the network path that carries the request.
 No new RPC is added: the existing gNOI `System` service becomes reachable with client authentication
-on opted-in platforms, protected by mTLS with mutual verification, CN-to-role authorization on the
+on supported deployments, protected by mTLS with mutual verification, CN-to-role authorization on the
 gNMI server, and a CACL rule that limits the gNMI port to the BMC-link address.
+
+Deployment installs the certificate files, gNMI authorization and complete CACL policy. The image
+does not seed these DB rows or ship private keys. BMC client paths are configurable in
+`BMC_GNOI|certs`; switch-host server paths use the existing `GNMI|certs` configuration (§9.3).
 
 One gap gates enablement, and it is wider than per-module. Authorization is not per module: nearly every call
 site authorizes against a **single `gnoi` target** with the role matched by prefix and a read-only,
@@ -664,25 +691,26 @@ issued for it would also unlock.
 
 Either a security review accepts that breadth for the BMC-link CA, or per-RPC authorization lands in
 `sonic-gnmi` — a larger change than "per module" would have implied, because the granularity has to be
-introduced rather than narrowed. Until then, devices stay forced-only.
+introduced rather than narrowed. Until then, deployment must explicitly keep the graceful timeout at 0.
 
 #### 7.11. Serviceability
 
 No new counters. Every operation is recorded in `HOST_STATE|switch-host` and in the BMC event log with
 its request id, trigger, outcome, and — when a graceful shutdown ended up forced — why:
 
-The reason is decided by taking the **first** row that matches, so the codes cannot overlap:
+The admission guard can complete an already-off shutdown before the handshake starts. Within the
+handshake, qualification and timeout checks precede the RPC; reports are classified as follows:
 
 | # | Reason | Condition |
 | --- | --- | --- |
-| 1 | `not_qualified` | The platform is not opted in, or has no certificates. No request sent |
+| 1 | `not_qualified` | Switch-BMC identity is absent, a client path is invalid, or selected certificate files are missing/empty. No request sent |
 | 2 | `timeout_zero` | `graceful_shutdown_timeout` is `0`. No request sent |
-| 3 | `already_off` | The host already reads offline, or a shutdown is already recorded in progress, so the guard skips this one as a redundant repeat ([§7.6](#76-concurrency-and-preemption)). No request sent |
+| 3 | `already_off` | The guard skips a redundant shutdown, or an admitted worker finds the host offline. Neither sends gNOI; only the latter still attempts power-off ([§7.1](#71-shutdown-flow)) |
 | 4 | `preempted` | A higher-priority operation displaced this one |
 | 5 | `rpc_failure` | The `Reboot` or a poll returned an error rather than a response — gNOI unreachable, TLS failure, the reboot backend's synchronous refusal of a second request, or an RPC that never resolved |
 | 6 | `backend_answered` | A terminal report whose *status message is non-empty*, so the reboot backend answered from its own state rather than forwarding. This is also where the host's own *"Previous reboot is ongoing"* lands, because that refusal comes back as a status message and not as an RPC error ([§7.3](#73-knowing-the-host-finished)) |
 | 7 | `check_failed` | A terminal report from the host — empty status message — that is not a success. It covers both a pre-shutdown that ran and could not be proved complete and one that never started, since a refused `reboot -p` reports the same way |
-| 8 | `deadline` | No terminal report *carrying our tag* before the deadline. This is where an untagged report lands, including one from a host image that does not carry the tag, and where a report left permanently active lands — neither ends the wait, so neither is classified on its own ([§7.3](#73-knowing-the-host-finished)) |
+| 8 | `deadline` | No terminal report *carrying our tag* before the deadline. Untagged, mismatched and permanently active reports do not end the wait ([§7.3](#73-knowing-the-host-finished)) |
 | 9 | `unclassified` | Anything else. The rows above are not provably total, so the table has a floor rather than an implied one; a record landing here is a defect to investigate |
 
 Rows 6 and 7 are evaluated against the report that ended the wait, and their order is the part that matters:
@@ -695,25 +723,18 @@ would give the rate without the reason.
 
 #### 7.12. Compatibility
 
-A device does the graceful leg only when its platform is opted in and its certificates are
-provisioned. `graceful_shutdown_timeout` is the second gate: `bmcctld` reads it as `0` when there is
-no `CHASSIS_MODULE|SWITCH-HOST` entry, so an unconfigured device stays forced-only until an operator
-sets it.
+Both BMC and switch-host images must implement this design. Old or mixed pairs are not supported;
+no compatibility probe or feature-enable flag is added. The BMC image must supply the gRPC/gNOI
+client dependencies.
 
-| Combination | Behavior |
-| --- | --- |
-| New BMC, old host image | The host rejects `-p` within seconds, but its failure report carries no tag, so the BMC cannot attribute it and waits out the timeout before removing power |
-| New BMC, new host image, pre-shutdown refuses early | The failure report carries the tag, so the BMC acts on it in seconds ([§12](#12-restrictionslimitations) item 3) |
-| Old BMC, new host image | The BMC never sends `HALT`, so the switch-host path never runs. `reboot.py`'s tag change is shared with the DPU path, which is asserted unchanged ([§13.2](#132-system-test-cases)) |
-| Either side unprovisioned | Forced-only, which is today's behavior |
-
-No merge order is required across the repositories; every mixed combination falls back to forced.
+On a supported pair, missing credentials or an explicit timeout of 0 skips the handshake and uses
+forced power-off. Runtime TLS/RPC failures and a tagged host failure also take the forced path.
 
 #### 7.13. Considered alternatives
 
 | Alternative | Why not |
 | --- | --- |
-| ACPI soft-off, or asserting the power button | No new security surface, which is attractive. But the host ends up powered off and silent, so the BMC learns that power dropped and nothing else. It also cannot carry the reboot-cause tag or bound a platform hook. Worth revisiting if the platform gains an out-of-band readiness signal carrying the same evidence |
+| ACPI soft-off, or asserting the power button | No new security surface, which is attractive. But the host ends up powered off and silent, so the BMC learns that power dropped and nothing else. It also cannot carry the reboot-cause tag. Worth revisiting if the platform gains an out-of-band readiness signal carrying the same evidence |
 | The host removes its own power once ready | Kills the reporting path, which then has to be replaced by vendor hardware evidence and new platform APIs |
 | A separate daemon to hold the wait | `bmcctld` already owns switch-host power; a second process would exist only to hold a timer |
 | `do_power_cycle()` for graceful restart | [§7.5](#75-graceful-restart) |
@@ -733,13 +754,10 @@ Not applicable. This is a built-in feature, not an Application Extension.
 #### 9.2. CLI/YANG model Enhancements
 
 No new command. `config chassis modules shutdown|startup` is already the entry point and
-`config chassis modules shutdown-timeout` already sets the timeout, which gains an upper limit here —
-today any non-negative value is accepted, so nothing stops a timeout longer than the platform's
-watchdog. That limit can only be a coarse sanity bound, for both of rule 1's and rule 2's ceilings and for the
-same reason: the command runs on the BMC and neither value is readable from there ([§7.4](#74-timing)). Rule
-2's binding check is the host's own readback (open item 2); rule 1's ceiling has no run-time check at all
-([§12](#12-restrictionslimitations)), so it is a release-time contract like the rest of §7.4. The CLI's job is
-to reject absurd values. `show chassis modules status` on the BMC gains `RESULT` and `REQUEST-ID` columns;
+`config chassis modules shutdown-timeout` keeps accepting nonnegative integers without an upper bound.
+The default is 120 seconds; 0 requests forced-only behavior. Accepting a value does not establish that
+it meets the platform's watchdog and backend timing budgets ([§7.4](#74-timing)).
+`show chassis modules status` on the BMC gains `RESULT` and `REQUEST-ID` columns;
 existing columns and their order do not change.
 
 ```
@@ -755,17 +773,17 @@ host (next boot)$ show reboot-cause
 `GRACEFUL_RESTART` has no CLI verb in this release; it arrives as a Rack-Manager command or over
 Redfish. From the CLI the same result is `shutdown`, then `startup`.
 
-No new YANG model. `sonic-utilities` `doc/Command-Reference.md` is updated with the new columns and
-the limit.
+`sonic-bmc-gnoi.yang` models the optional BMC certificate paths. `sonic-utilities`
+`doc/Command-Reference.md` documents the new columns and timeout behavior.
 
 #### 9.3. Config DB Enhancements
 
-No new table, and no new mandatory field. The BMC side uses existing fields only:
+No new mandatory field. Existing BMC power-policy fields are retained:
 
 ```
 CHASSIS_MODULE|SWITCH-HOST
     admin_status              = up|down     ; existing
-    graceful_shutdown_timeout = <secs>|0    ; existing. 0 = forced. Upper limit added here
+    graceful_shutdown_timeout = <secs>|0    ; default 120; 0 = forced; no upper bound
 LEAK_CONTROL_POLICY|policy
     ; No field added and no default changed. The fields, their value sets and their
     ; defaults are defined in sonic-leak-control.yang and are not restated here —
@@ -774,35 +792,44 @@ LEAK_CONTROL_POLICY|policy
     ; What matters to this design is which of them can select 'graceful_shutdown':
     ;
     ;   on a CRITICAL trigger  — system_critical_leak_action, rack_mgr_critical_alert_action
-    ;                            deferred on both, see open item 1
+    ;                            waits when graceful; use power_off for an immediate cut
     ;   otherwise              — system_minor_leak_action, rack_mgr_minor_alert_action
     ;                            (the latter also serves MAJOR); the intended home for it
 ```
 
-Why the critical rows are deferred and the others are not is in [§2](#2-scope). The one fact that belongs here
-rather than there: **their defaults differ**, and this design changes neither — only
+The action policy is described in [§2](#2-scope). **The defaults differ**, and this design changes neither — only
 `system_critical_leak_action` defaults to a power action, so an unconfigured critical rack-manager alert takes
 none.
 
-`platform.json` gains **two** new keys, both optional. Without them the platform behaves as it does today:
+The BMC adds one optional CONFIG_DB singleton, `BMC_GNOI|certs`:
+
+| Field | Default when absent |
+| --- | --- |
+| `ca_crt` | `/etc/sonic/bmc-link/ca.crt` |
+| `client_crt` | `/etc/sonic/bmc-link/client.crt` |
+| `client_key` | `/etc/sonic/bmc-link/client.key` |
+
+These are absolute paths, not certificate contents; files must be visible inside PMON. Each absent
+field uses its default; an explicitly invalid path or a missing/empty file causes forced-only operation, without
+trying another credential. Paths are read once per operation, so changes apply to the next operation
+without a daemon restart. Deployment installs the files and persists any configured paths.
+
+The switch-host `platform.json` gains one optional key:
 
 ```
-bmc_pairing                       = true      ; this platform passed the checks in 7.9
-switch_host_halt_services_timeout = <secs>    ; bounds the host's residual completion check for a
-                                              ; switch-host HALT. Falls back to the existing
-                                              ; dpu_halt_services_timeout, then to its own 60 s default
+switch_host_halt_services_timeout = <secs>    ; positive integer; default 60 seconds
 ```
 
-The second key exists because the switch-host's residual bound has to be sized for this host, and the shared
-DPU-named one cannot be. The only platform that sets it uses 180 s for its DPUs, which charged as rule 1's
-residual term leaves under 75 s of the ceiling for everything else; lowering it is not the alternative, because
-the same value bounds an NPU's wait for its DPUs, the `halt_services` module transition and the requester
-daemon's poll, so lowering it retimes the DPU legs instead. Only the *value* is open, in open item 1. Whether
-any BMC-paired platform is also a smart switch is not established here.
+Timeout selection follows device identity: switch-host first, then SmartSwitch or DPU. A switch-host
+reads only `switch_host_halt_services_timeout`; SmartSwitch and DPU retain `dpu_halt_services_timeout`.
+A missing or invalid selected value uses 60 seconds, never the other role's key. This timeout bounds
+the completion check after `reboot -p`, not the teardown itself.
 
-On the host, the existing `GNMI` tables gain the certificate material and `client_auth`, seeded at
-runtime on opted-in platforms only — never from build-time `init_cfg.json`, which cannot be per
-platform.
+On the switch-host, deployment configures the existing `GNMI|certs`, `GNMI|gnmi` and
+`GNMI_CLIENT_CERT` rows for server certificate paths, client authentication and authorization.
+Certificate files and CACL policy are provisioned at deployment, not through image-side DB seeding.
+The BMC's optional `bmc.json` key `switch_host_gnmi_port` defaults to 8080 and must match
+the host's gNMI listening port and deployment CACL policy.
 
 #### 9.4. State DB Enhancements
 
@@ -810,7 +837,8 @@ No new table. `HOST_STATE|switch-host` gains `op_result`, `op_reason`, `op_trigg
 the four fields [§7.11](#711-serviceability) records — and reuses the existing
 `device_power_state` values: a graceful shutdown goes `GRACEFUL_SHUTTING_DOWN`, `POWERING_OFF`,
 `POWERED_OFF`, and a restart continues to `POWERING_ON`, `POWERED_ON`.
-`RACK_MANAGER_COMMAND|CMD_<id>` gains `GRACEFUL_RESTART` as a `command` value.
+`RACK_MANAGER_COMMAND|CMD_<id>` gains `GRACEFUL_RESTART` as a `command` value and a `request_id`
+field linking an admitted command to its operation. A joined command shares the running operation's id.
 
 No APP_DB, ASIC_DB, COUNTERS_DB or LOGLEVEL_DB change.
 
@@ -832,34 +860,31 @@ and no third-party dependency is added. Control-plane and data-plane downtime ar
 ### 11. Memory Consumption
 
 No new process, container or daemon. The BMC adds one worker thread that exists only while an
-operation is in flight. Nothing accumulates across operations, and no state persists after an
-operation finishes. When the feature is unused, memory consumption is unchanged.
+operation is in flight. The last operation record remains in STATE_DB; no execution history or
+resumable work is retained. When the feature is unused, memory consumption is unchanged.
 
 ### 12. Restrictions/Limitations
 
 1. `HALT` only, with no delay. One operation at a time, and once the host has accepted, its pre-shutdown
    cannot be aborted — the BMC's own pause on a restart is cancelable, the host's work is not.
 2. The timing rules in [§7.4](#74-timing) are release-time contracts confirmed by measurement. Nothing
-   verifies them at run time today; the watchdog readback of open item 2 is the only run-time check the
-   design adds.
+   jointly verifies them at run time; the host checks its watchdog readback, but cannot check the
+   BMC's configured timeout.
 3. Two existing `-p` behaviours make the pre-shutdown fail rather than run: a pending image upgrade or
    firmware-schedule conflict, and a kdump capture kernel, where `-p` reboots instead. Both are safe —
    the BMC removes power either way — but they consume part of the timeout.
-   A third refuses and reports *slowly*, because of an upstream defect rather than a design choice: the
-   platform pre-check's failure is tested such that the script exits **zero** having done no teardown, so the
-   host reports `FAILURE` only after the residual timeout (rule 1 of [§7.4](#74-timing)). An in-tree platform
-   ships such a hook and fails it on real storage conditions, so the defect turns a refusal into a silent
-   success. Fixing it belongs to `sonic-utilities`; here it means this design does not count that branch among
-   the fast ones, and opting in carries an assertion about the hook
-   ([§7.9](#79-platform-requirements)).
+   Platform pre-check and next-image verification failures now propagate as nonzero exits, rather
+   than being masked. These two error-propagation fixes apply to ordinary reboot and DPU callers
+   too; the additional teardown and watchdog checks, and the skipped pre-reboot hook, remain
+   switch-host-only. Firmware installs scheduled for the next reboot are not performed on this path.
 4. The system-leak handler does not suppress an unchanged severity, so a republished row enqueues another
    action. Below critical the skip guard absorbs those while the host is down. At critical the guard is exempted only
    against a recorded transition ([§7.6](#76-concurrency-and-preemption)) and still absorbs a repeat once the
-   host reads offline, so the residue either way is log noise and a repeat after any power-on while the leak is
-   still present.
+   host reads offline. A row republished after power-on can request another shutdown, but an unchanged
+   leak alone does not guarantee another publication.
 5. **A `bmcctld` death abandons an operation rather than completing it.** Nothing removes power, and no state
    is resumed on the next start — a transitional state is overwritten from the live rail. A host that had
-   accepted the pre-shutdown returns via its watchdog; one that had not is untouched. Persisting an accepted
+   armed its watchdog can return through it; acceptance alone does not guarantee recovery. Persisting an accepted
    intent across a restart is out of scope ([§2](#2-scope)).
 6. Certificate provisioning policy is defined elsewhere and gates enablement.
 7. Each BMC serialises one operation at a time, and `graceful_shutdown_timeout` bounds only the host
@@ -883,7 +908,11 @@ operation finishes. When the feature is unused, memory consumption is unchanged.
 Against injected fakes, asserting the outcome, the state sequence and the power calls:
 
 - **Happy paths** — graceful shutdown; graceful restart; host already off.
-- **No graceful leg** — `timeout = 0`; platform not opted in; no certificates.
+- **No graceful leg** — `timeout = 0`; non-switch-BMC identity; missing or invalid credentials.
+- **Configuration** — default 120-second BMC timeout, preserved explicit 0, role-specific host timeout
+  without cross-role fallback, and custom certificate paths applied on the next operation.
+- **Host safeguards** — pre-check error propagation, the pre-reboot hook not run, watchdog readback
+  and failure when completion cannot be checked.
 - **Degraded to forced** — host rejects `-p`; host never answers or answers late; RPC fails; a reboot
   already in flight; a completion check that cannot be answered. Every one of these must end forced,
   never graceful.
@@ -899,8 +928,10 @@ Against injected fakes, asserting the outcome, the state sequence and the power 
   power on; a critical-leak action arriving against a transitional recorded state with an **empty** queue,
   which displaces nothing and must still not be suppressed by the guard; and the four critical-tier arrivals
   across both sources — direct off second displaces a graceful wait, graceful second is refused behind it, and
-  each same-action pair is refused as busy with the second absorbed by the guard.
-- **Power failures** — power off not confirmed, which also stops a restart before it powers on.
+  each same-action pair joins the running operation. A later repeat after completion is absorbed by
+  the live-OFFLINE guard unless a prior power transition remains uncertain.
+- **Power failures** — power off not confirmed, which also stops a restart before it powers on;
+  worker exceptions must not duplicate a power call or start a restart's power-on leg.
 - **Daemon death**, at three points, each asserting that nothing resumes and no power call is implied: before
   the host accepts, after acceptance but before the watchdog arm, and after the arm — only the last returns the
   host to service on its own.
@@ -910,22 +941,26 @@ Against injected fakes, asserting the outcome, the state sequence and the power 
 #### 13.2. System Test cases
 
 On hardware: a graceful shutdown with the reboot cause checked on the next boot; a `timeout = 0` run
-compared against today's power sequence; an old host image; a graceful restart; a `POWER_CYCLE`
+compared against today's power sequence; a graceful restart; a `POWER_CYCLE`
 regression; leak preemption with the response time measured; and fault injection over bad
 certificates, a stopped `gnmi` container, a hung RPC, and `syncd` ending both ways — a clean process exit,
 injected where the teardown does not produce one, and the unit stopped outright — with the reporting path
 asserted alive through both.
 
+Also verify the default timeout on a platform whose pre-reboot hook programs firmware, custom BMC
+certificate paths, invalid-path forced fallback without using default credentials, and OS/management
+recovery after restart. Restore deployment configuration and test fixtures after fault injection.
+
 Two release gates sit on top. The **DPU path** shares `reboot.py` and `scripts/reboot`, so its call
-sequences are asserted unchanged. **Measurement** settles the timing parameters before they are
-frozen.
+sequences remain unchanged apart from the documented pre-check fixes and result-message suffix.
+**Measurement** qualifies the selected timing values for each supported platform.
 
 ### 14. Open/Action items
 
 | # | Item |
 | --- | --- |
-| 1 | **The timeout values, and their owner.** `bmcctld` seeds `0` while the parent design documents 120 s; the `0` is a placeholder for a feature that does not exist yet, and today the request is not merely unimplemented but absent — the shutdown path returns success without sending anything, and its stub names `COLD`. Unresolved: the value of `graceful_shutdown_timeout`, the value of `switch_host_halt_services_timeout`, and the CLI's upper limit, all sized against measurement inside rule 1's bracket. Coupled: freezing a non-zero timeout turns a critical `graceful_shutdown` into a real delay, so [§2](#2-scope)'s change belongs in the same commit. **Needs an owner** — this carries a safety-relevant coupled change, not only a constant |
-| 2 | **Proving the watchdog is armed, and against what.** Today nothing checks the arm: `scripts/reboot` ignores its result and `watchdogutil arm` reports failure without a non-zero exit, so the value read back at arm time is the only usable evidence. The host can read it but the BMC owns the timeout, and neither side has both values. The simplest answer is to give the host a required minimum and let it fail the pre-shutdown when the readback is below it, which needs no proto change |
+| 1 | **Timing decisions closed.** BMC default/fallback 120 s; explicit 0 preserved; no CLI upper bound. Host residual timeout defaults to 60 s. Restart pause 10 s. Per-platform timing qualification remains required |
+| 2 | **Watchdog decision closed.** Request and verify at least 180 s on switch-host pre-shutdown. No additional platform setting or protocol field |
 | 3 | **gNOI authorization granularity** ([§7.10](#710-security)). Either a security review accepts the current role for the BMC-link CA, or per-RPC authorization lands in `sonic-gnmi`. This gates enablement and needs an owner |
 
 ### 15. References
