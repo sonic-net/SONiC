@@ -26,6 +26,8 @@
 | v0.4 | 10/06/2026 | Yue Gao (yuega2@cisco.com) | Doc-only. Corrected the SAI binding description: `SAI_PORT_ATTR_INGRESS_ACL` / `SAI_LAG_ATTR_INGRESS_ACL` name an ACL *table group*, and the PBH table reaches an interface as a `SAI_ACL_TABLE_GROUP_MEMBER` (§3, §6.8.2); Appendix C.2 no longer claims `PbhOrch` creates no group. Corrected PBH table classification (§6.8.2) to match `isPbhTable()`: both `FIELD_GRE_KEY` and `FIELD_INNER_ETHER_TYPE` declared on the table, not an entry-action test. |
 | v0.5 | 10/06/2026 | Yue Gao (yuega2@cisco.com) | PBH now applies to **recursive routes**. v0.2–v0.4 steered only `DPO_ADJACENCY` buckets and claimed a recursive route still picked up the PBH hash at the second level via `ip4-load-balance`; that was wrong, because the only path to that node is through `ip4-lookup`, which zeroes `ip.flow_hash` on entry, so the hash was lost at *every* level. The node now also accepts a `DPO_LOAD_BALANCE` bucket and dispatches it to `ip4-load-balance` / `ip6-load-balance` as a second declared next, with the hash in place (§5, §6.6). Counter accounting and the per-level `flow_hash >> 1` anti-polarisation shift are inherited unchanged from the core graph. Also doc-only in §6.5: the per-rule counter listing now shows the shipped code rather than the ACL plugin's variant, and discloses that a table replace resets the counters of *every* rule in the table — which any single PBH entry change triggers. |
 | v0.6 | 10/09/2026 | Yue Gao (yuega2@cisco.com) | **Side-band validity corrected (§6.7.3, §6.7.4).** v0.2–v0.5 held that the buffer free callback made the slot's `valid` bit a sufficient per-incarnation witness, on the premise that `vlib_buffer_pool_put()` is the only way a buffer returns to a pool. It is not: a buffer freed by a DPDK PMD is put back on the *cached* mempool, where a per-lcore cache with room short-circuits the backend and never reaches `dpdk_ops_vpp_enqueue()` → `vlib_buffer_pool_put()`, so the slot survives into the next incarnation. VPP itself is immune only because `dpdk_device_input()` re-applies the buffer template to every packet. PBH now pairs the slot with `SONIC_EXT_BUFFER_F_VNET_BUF` (`VNET_BUFFER_F_AVAIL2`), which lives in that template and is therefore cleared on every incarnation by every buffer source. The bit belongs to the side-band facility rather than to PBH, and is set by `claim()` and tested by `find()` so that no feature can add a field without it; nothing ever clears it, since clearing on release would mask other features' fields and clearing on free would miss the very path the flag exists to cover. The free callback is retained, and is what keeps clones safe. Also documents §6.7.2 member state, LACP and failover, which the hook does not participate in. |
+| v0.7 | 10/09/2026 | Yue Gao (yuega2@cisco.com) | **Hash profile update supported (§6.3, §6.8.2).** v0.2–v0.6 wired create and remove for `SAI_OBJECT_TYPE_HASH` but not set, so a `PbhOrch` hash update was cached in the libsaivs object store and never pushed to VPP: the dataplane kept hashing on the old field set while orchagent saw success. `profile_index` was already an input on `sonic_ext_pbh_profile_add_del`, so the fix needs no API change and no CRC bump — add now treats a non-`~0` index as replace-in-place, and a new `SwitchVppPbh::setHash()` re-resolves the field list and replaces the profile at its existing index. In place rather than delete-and-recreate because rules carry the index. Scope is exactly one attribute: hash *fields* are immutable by `PbhOrch` policy, and PBH *rule* updates already reprogrammed the table through `tableConfig()`. |
+| v0.8 | 10/09/2026 | Yue Gao (yuega2@cisco.com) | **Single-bucket recursive routes now steered (§6.6).** v0.5 followed `DPO_LOAD_BALANCE` buckets but kept the `lb_n_buckets <= 1` early return ahead of the bucket inspection, so a route with **one** recursive next hop that resolves to an ECMP set never got that far: forwarding continued through `ip4-lookup`, which zeroes `ip.flow_hash`, and the downstream ECMP selection lost the PBH override. The guard is now `lb_n_buckets == 1` inside the adjacency branch only — a lone adjacency still has no choice worth influencing, but a lone load balance does, one level down. A separate `lb_n_buckets == 0` bounds check replaces what the old `<= 1` incidentally covered. Mirrored for IPv6, with `test_single_recursive_v4_ecmp` / `_v6_ecmp` covering the shape in both families. |
 
 ---
 
@@ -639,7 +641,7 @@ define sonic_ext_pbh_profile_add_del
   u32  client_index;
   u32  context;
   bool is_add;
-  u32  profile_index;   /* on destroy only; ignored on add */
+  u32  profile_index;   /* destroy, or replace in place; ~0 on add creates */
   u32  n_fields;
   vl_api_sonic_ext_pbh_hash_field_t fields[n_fields];
 };
@@ -712,6 +714,18 @@ autoreply define sonic_ext_pbh_interface_attach_detach
   bool is_attach;
 };
 ```
+
+`profile_index` is an **input** on add as well as on destroy: `~0` allocates a
+new profile, any other value replaces the field vector of the profile already
+at that index. Replace is needed because SAI models a hash update as a set on
+an existing `SAI_OBJECT_TYPE_HASH`, and rules carry the profile *index* — a
+delete-and-recreate could hand back a different index and strand every rule
+referencing that hash, leaving a window in which matching packets hit
+`STALE_PROFILE`. The handler validates the whole new vector before freeing the
+old one, so a rejected update leaves the profile exactly as it was, and it
+needs no barrier of its own because an API handler that is not MP-safe already
+runs with the workers parked. The same create-or-replace shape is what
+`sonic_ext_pbh_table_add_replace` already uses for rules (P3).
 
 The rule carries **no encapsulation field**. The handler derives it from the
 qualifiers — UDP plus an `l4_dst_port` means VXLAN, GRE or IP-in-IP means the
@@ -1039,17 +1053,25 @@ sonic_ext_pbh_steer_ip4 (vlib_main_t *vm, vlib_buffer_t *b,
                                    &ip4->dst_address);
   lb = load_balance_get (lbi);
 
-  /* Nothing to steer: let ip4-lookup do its normal job. */
-  if (lb->lb_n_buckets <= 1)
+  /* load_balance_create() accepts zero buckets, and lb_n_buckets_minus_1 is
+   * then 0xffff, so the mask below would index past the inline buckets. */
+  if (lb->lb_n_buckets == 0)
     return 0;
 
   dpo = load_balance_get_fwd_bucket (lb, hash & lb->lb_n_buckets_minus_1);
 
-  /* A resolved next hop goes straight to rewrite; a recursive route is
-   * handed to ip4-load-balance with the hash already in place.  Anything
-   * else falls through to the arc. */
+  /* A resolved next hop goes straight to rewrite, but only when there is
+   * more than one of them -- a single adjacency is not an ECMP set and
+   * ip4-lookup already handles it.  A recursive route is handed to
+   * ip4-load-balance with the hash already in place whatever this level's
+   * bucket count, because the choice it feeds is made a level down.
+   * Anything else falls through to the arc. */
   if (dpo->dpoi_type == DPO_ADJACENCY)
-    *steer_next = SONIC_EXT_PBH_NEXT_REWRITE;
+    {
+      if (lb->lb_n_buckets == 1)
+        return 0;
+      *steer_next = SONIC_EXT_PBH_NEXT_REWRITE;
+    }
   else if (dpo->dpoi_type == DPO_LOAD_BALANCE)
     *steer_next = SONIC_EXT_PBH_NEXT_LOAD_BALANCE;
   else
@@ -1098,6 +1120,21 @@ Implementation notes:
   per-level shift — the mechanism that stops every level of the graph
   polarising on the same bucket — and handles arbitrary recursion depth for
   free. `ip6-load-balance` is the exact mirror.
+* **The bucket-count guard applies to adjacencies only.** A load balance with
+  a single `DPO_ADJACENCY` bucket is not an ECMP set: there is no choice for
+  the hash to influence, so PBH leaves it to `ip4-lookup`, which does the
+  same work with every corner case already covered. A load balance with a
+  single `DPO_LOAD_BALANCE` bucket is the opposite case — one recursive next
+  hop that resolves to an ECMP set. The decision PBH exists to influence is
+  made a level down and is made on `ip.flow_hash`, so refusing to steer here
+  would send the packet through `ip4-lookup` and zero the hash before it
+  reached the only choice that mattered. Forwarding would still work; the
+  override would silently not. The guard is therefore `lb_n_buckets == 1`
+  inside the adjacency branch, not `<= 1` before the bucket is examined. The
+  separate `lb_n_buckets == 0` test is a bounds check, not a policy:
+  `load_balance_create()` accepts zero buckets and leaves
+  `lb_n_buckets_minus_1` at `0xffff`, which would index past the four inline
+  buckets.
 * **Counter accounting splits along the same seam.** `ip4-lookup` charges the
   first-level load balance to `lbm_to_counters`
   ([ip4_forward.h](platform/vpp/vppbld/repo/src/vnet/ip/ip4_forward.h#L28)),
@@ -1805,6 +1842,7 @@ configuration of patch 0011 keeps working.
 |---|---|
 | `create_fine_grained_hash_field()` | New `SwitchVppHash.cpp`. Stored in the object DB only; no VPP call. |
 | `create_hash()` with `SAI_HASH_ATTR_FINE_GRAINED_HASH_FIELD_LIST` | Resolves each field OID, calls `vpp_pbh_profile_add_del()` and maps the SAI OID to the returned `profile_index`. |
+| `set_hash_attribute()` with `SAI_HASH_ATTR_FINE_GRAINED_HASH_FIELD_LIST` | `setHash()` re-resolves the new field list and replaces the profile **in place** at its existing `profile_index`. |
 | `create_hash()` with `SAI_HASH_ATTR_NATIVE_HASH_FIELD_LIST` | Unchanged — continues to drive `vpp_ip_flow_hash_set()` (patch 0011 path). |
 | ACL table with PBH match fields | Recognised in `SwitchVppAcl.cpp`; routed to the PBH path instead of the ACL-plugin path. |
 | `SAI_ACL_ENTRY_ATTR_ACTION_SET_ECMP_HASH_ID` | → `sonic_ext_pbh_rule.ecmp_profile` |
