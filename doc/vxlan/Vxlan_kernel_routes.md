@@ -21,7 +21,7 @@
 
   * [Limitations](#8-limitations)
 
-  * [Cofiguration and management](#9-configuration-and-management)
+  * [Configuration and management](#9-configuration-and-management)
 
   * [Test plan](#10-test-plan)
 
@@ -36,6 +36,8 @@
 # 2 Scope
 This document is an extension to the VxLAN feature implementation defined in [VxLAN HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md). This documents specifically deals with kernel routes and interfaces that are required by the CPU to communicate to a VxLAN endpoint. This is for a specific use case where CPU generated packets (such as BGP, ping etc) shoud be encapped/decapped with VxLAN. Transit traffic (which are not destined to CPU) are not in the scope of this document. NPU config required for transit traffic are discussed in [VxLAN HLD](https://github.com/sonic-net/SONiC/blob/master/doc/vxlan/Vxlan_hld.md).
 
+The motivation for this enhancement is to support BGP over VxLAN on SONiC. In addition to supporting VxLAN encap/decap of CPU generated traffic, this document also proposes changes to handle recursive next-hop lookup for routes learned over VxLAN-BGP. This is required to resolve the right next-hop tunnel information for routes learned from a BGP neighbor that is behind a VxLAN tunnel. 
+
 # 3 Definitions/Abbreviation
 ###### Table 1: Abbreviations
 |                          |                                |
@@ -49,7 +51,7 @@ This document is an extension to the VxLAN feature implementation defined in [Vx
 # 4 Overview
 This document provides information about kernel routes required for SONiC to encap/decap VxLAN traffic originated/destined to CPU. For scenarios where SONiC needs to communicate to an endpoint that is behind a VTEP, the kernel needs to be aware of the VTEP and have routes to encap/decap the packets before sending it over the wire. For example, if SONiC needs to establish BGP over VxLAN, the kernel should know the VTEP and overlay routes to send and receive the packet. If the kernel is unaware of the VTEP, it will treat it as unreachable and drop the packets in kernel. 
 
-Currently, SONiC creates kernel routes, bridge and vxlan interfaces for a VNET. For example, consider a VNET `Vnet_1000` as defined below:
+To explain the issue and the need for this enahncement, consider the example config mentioned below:
 
 ```
 --- CONFIG_DB
@@ -69,7 +71,24 @@ Currently, SONiC creates kernel routes, bridge and vxlan interfaces for a VNET. 
          |--- Vxlan1000 -> vxlan interface
 ```
 
-For the above config, SONiC creates kernel configs for a L2 bridge and a VxLAN interface. For the vxlan routes that are added using `VXLAN_ROUTE_TUNNEL`, there are no kernel configurations applied. The kernel cannot initiate communication to the vnet endpoints behind VTEP since the kernel interface and routes for these prefixes are not installed on the kernel. This document enhances the VxLAN capabilities of SONiC to have the kernel routes and vxlan P2P interface to communicate with the remote endpoints defined in `VNET_ROUTE_TUNNEL`. This can be used for traffic originated by CPU (like BGP, ping etc) and destined to a remote VTEP endpoint. 
+The sections below explain the issue and the need for the enhancement in VxLAN route handling of SONiC.
+
+## 4.1 Need for kernel configs for VxLAN tunnel routes
+Currently, SONiC creates kernel routes, bridge and vxlan interfaces for a VNET. For the above config, SONiC creates kernel configs for a L2 bridge and a VxLAN interface for the VNET. For the vxlan routes that are added using `VXLAN_ROUTE_TUNNEL`, there are no kernel configurations applied. The kernel cannot initiate communication to the vnet endpoints behind VTEP since the kernel interface and routes for these prefixes are not installed on the kernel. When CPU tries to send/receive traffic to `10.0.0.2` IP on Vnet_1000 VRF, the kernel will drop the packet since it does not know how to reach the destination.
+
+This document enhances the VxLAN capabilities of SONiC to have the kernel routes and vxlan P2P interface to communicate with the remote endpoints defined in `VNET_ROUTE_TUNNEL`. This can be used for traffic originated by CPU (like BGP, ping etc) and destined to a remote VTEP endpoint. 
+
+## 4.2 Handling decap of VNI in inbound VxLAN traffic
+In the above config, when `Vnet_1000` gets created, the orchagent creates the VRF for this VNET in SAI and NPU and also associates VNI 1000 to the VRF. So any VxLAN traffic inbound with VNI 1000 will be mapped to the VNET. When `VNET_ROUTE_TUNNEL` gets created with a different VNI, the orchagent creates a tunnel NextHop object in SAI and NPU that contains the encap info to encasulate the packet with the outer VxLAN headers. This NextHop object contains the outer IP address and the VNI to be used in the encap packets. However, the VNI defined in `VNET_ROUTE_TUNNEL` is not associated to the VNET/VRF object in SAI or NPU for the decapsulation part. When hardware gets a VxLAN packet with VNI 2000, it does not associate it with Vnet_1000 since the decap mapper is not added for this VNI and the packet is dropped in the NPU. 
+
+In order to decap the packet correctly and punt the packet to CPU, an additional config is required to associate the VNI to VNET/VRF object in SAI/NPU. 
+
+## 4.3 Recursive nexthop lookup for routes learned over neighbor behind VxLAN endpoint
+Consider a routing-protocol neighbor, such as a BGP or OSPF peer, whose IP address (10.0.0.2) is reachable through a VxLAN tunnel. If this neighbor advertises the prefix 20.0.0.0/24 with itself as the next hop, SONiC learns the route with 10.0.0.2 as its next-hop IP and the kernel VxLAN interface as its outgoing interface.
+
+The route cannot be programmed directly in the NPU as a regular IP route because SAI and the NPU are not aware of the kernel VxLAN interface used to establish the routing-protocol session. Therefore, the next hop must be resolved recursively before the route is passed to orchagent.
+
+The recursive lookup resolves 10.0.0.2 to its underlying VxLAN tunnel next hop. In this example, 20.0.0.0/24 must be programmed as a VxLAN route using the tunnel next-hop object for endpoint 100.100.100.1 and VNI 2000—the same tunnel information used to reach 10.0.0.2. It must not be programmed as a regular route whose next hop is the neighbor IP.
 
 # 5 Usecase
 
@@ -113,6 +132,8 @@ A new component called VnetMgr will be introduced that will handle kernel progra
 - VnetMgr should install/delete kernel routes for the  VTEP endpoints.
 - VnetMgr should subscribe to CONFIG_DB changes to VNET_ROUTE_TUNNEL and update the same in APPL_DB
 
+### Orchagent:
+Vnet Orchagent should handle NPU and SAI objects for supporting multiple VNI decapsulation for the same VNET
  
 ## 6.3 CLI requirements
 - User should be able to specify if vnet tunnel routes should be installed on kernel.
@@ -121,16 +142,23 @@ A new component called VnetMgr will be introduced that will handle kernel progra
   config vnet add-route <vnet-name> <prefix> <endpoint> <vni> <mac_address> <install_on_kernel>
 ```
 
+- User should be able to associate multiple decapsulation VNI to the VNET:
+
+```
+  config vnet add <vnet_name> <vni> <vxlan_tunnel> <peer_list>
+                       <guid> <scope> <advertise_prefix> <overlay_dmac>
+                       <src_mac> <decap_vni_list>
+```
+
 ## 6.4 Scale requirement
 
 SONiC will support a maximum of 2000 kernel configs for `VNET_ROUTE_TUNNEL`. Kernel config includes the vxlan P2P interface and the kernel routes for the prefix defined in the `VNET_ROUTE_TUNNEL`.
 
 # 7 Architecture Design
 
-## 7.1 Config DB
+## 7.1 VXLAN ROUTE TUNNEL flag
 Following new flag will be added to VNET_ROUTE_TUNNEL table to indicate if the flag has to installed on the kernel. By default the flag will be false.
 
-### 7.1.1 VXLAN ROUTE TUNNEL
 ```
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
     "endpoint": {{ip_address}} 
@@ -139,7 +167,7 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     "install_on_kernel": "true" / "false" (OPTIONAL)
 ```
 
-### 7.1.3 ConfigDB Schemas
+### 7.1.1 ConfigDB Schemas
 ```
 ; Defines schema for VNet Route tunnel table attributes
 key                                   = VNET_ROUTE_TUNNEL_TABLE:vnet_name:prefix ; Vnet route tunnel table with prefix
@@ -154,7 +182,7 @@ INSTALL_ON_KERNEL                     = true/false                    ; Indicate
 Please refer to the [schema](https://github.com/sonic-net/sonic-swss/blob/master/doc/swss-schema.md) document for details on value annotations. 
 
 
-### 7.2.1 APP DB Schemas
+### 7.1.2 APP DB Schemas
 
 ```
 ; Defines schema for VNet Route tunnel table attributes
@@ -164,6 +192,44 @@ ENDPOINT                              = ipv4                          ; Host VM 
 MAC_ADDRESS                           = 12HEXDIG                      ; Inner dest mac in encapsulated packet (Optional)
 VNI                                   = DIGITS                        ; VNI value in encapsulated packet (Optional)
 INSTALL_ON_KERNEL                     = true/false                    ; Indicates if this route should be installed on kernel
+```
+
+## 7.2 Decap VNIs on VNET config
+In order to support multiple decap VNIs on the VNET, a new field `decap_vni` will be added on the VNET object that takes in a list of VNIs that are associated with the VNET. 
+
+```
+VNET|{{vnet_name}} 
+    "vxlan_tunnel": {{tunnel_name}}
+    "vni": {{vni}} 
+    "scope": {{"default"}} (OPTIONAL)
+    "peer_list": {{vnet_name_list}} (OPTIONAL)
+    "decap_vni": {{list of VNIs associated with VNET}}
+```
+
+### 7.2.1 ConfigDB Schemas
+```
+; Defines schema for VNet configuration attributes
+key                                   = VNET:name                     ; Vnet name
+; field                               = value
+VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
+VNI                                   = DIGITS                        ; 1 to 16 million VNI values
+SCOPE                                 = Vnet Scope                    ; Whether to use default or non-default VRF
+PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
+                                                                             (empty indicates no peering)
+DECAP_VNI                             = vni list                      ; list of VNIs seperated by ","
+```
+
+### 7.2.2 AppDb Schemas
+```
+; Defines schema for VNet configuration attributes
+key                                   = VNET:name                     ; Vnet name
+; field                               = value
+VXLAN_TUNNEL                          = tunnel_name                   ; refers to the Vxlan tunnel name
+VNI                                   = DIGITS                        ; 1 to 16 million VNI values
+SCOPE                                 = Vnet Scope                    ; Whether to use default or non-default VRF
+PEER_LIST                             = \*vnet_name                   ; vnet names seperate by "," 
+                                                                             (empty indicates no peering)
+DECAP_VNI                             = vni list                      ; list of VNIs seperated by ","
 ```
 
 ## 7.3 Config Manager
@@ -191,6 +257,7 @@ VNET|{{vnet_name}}
     "vxlan_tunnel": {{tunnel_name}}
     "vni": {{vni}} 
     "src_mac": {{src_mac}}
+    "decap_vni": {{list of VNIs associated with VNET}}
 
 VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}} 
     "endpoint": {{endpoint_ip_address}} 
@@ -220,7 +287,10 @@ In addition to the tasks mentioned in the previous section, VnetMgr will also do
 - Subscribe to VNET_ROUTE CONFIG_DB table and publish to APPL_DB
 - Subscribe to VNET_ROUTE_TUNNEL CONFIG_DB table and publish to APPL_DB
 
-## VNetRouteOrch
+### VnetOrchagent
+VnetOrchagent handles the configurations associated with the VNET and the VxLAN tunnel. Currently, this orchagent subscribes to VNET table from APPL_DB and calls SAI APIs to program VNET related objects. As an additional task, this orchagent will handle programming additional decap VNIs by calling the appropriate SAI APIs to map the list of decap VNIs to the VNET.
+
+### VNetRouteOrch
 There are no changes to VNetRouteOrch. This orch agent performs the south-bound programming of the vnet routes in the NPU. 
 
 # 8 Limitations
@@ -277,6 +347,87 @@ Yang model for vnet will be changed to include the new fields. In [sonic-vnet.ya
             }
             /* end of list VNET_ROUTE_TUNNEL_LIST */
         }
+```
+
+On the VNET object, a new field will be added to handle multiple decapsulation VNIs:
+
+```
+       container VNET {
+
+            description "Virtual Network configuration table for overlay networking";
+
+            list VNET_LIST {
+
+                description "Configuration entry for a Virtual Network instance";
+
+                key "name";
+
+                leaf name {
+                    description "Unique alphanumeric name identifying the virtual network";
+                    type string {
+                        length 1..255;
+                    }
+                }
+
+                leaf vxlan_tunnel {
+                    mandatory true;
+                    description "A valid and active vxlan tunnel to be used with this vnet for traffic encapsulation.";
+                    type leafref {
+                        path "/svxlan:sonic-vxlan/svxlan:VXLAN_TUNNEL/svxlan:VXLAN_TUNNEL_LIST/svxlan:name";
+                    }
+                }
+
+                leaf vni {
+                    mandatory true;
+                    description "A valid and unique vni which will become part of the encapsulated traffic header.";
+                    type stypes:vnid_type;
+                }
+
+                leaf peer_list {
+                    description "Set of peers";
+                    /* Values in leaf list are UNIQUE */
+                    type string;
+                }
+
+                leaf guid {
+                    description "An optional guid.";
+                    type string {
+                        length 1..255;
+                    }
+                }
+
+                leaf scope {
+                    description "can only be default.";
+                    type string {
+                        pattern "default" {
+                            error-message "Invalid VRF name";
+                        }
+                    }
+                }
+
+                leaf advertise_prefix {
+                    description "Flag to enable advertisement of route prefixes belonging to the Vnet.";
+                    type  boolean;
+                }
+
+                leaf overlay_dmac {
+                    description "Overlay Dest MAC address to be used by Vnet ping.";
+                    type yang:mac-address;
+                }
+
+                leaf src_mac {
+                    description "source mac address for the Vnet";
+                    type yang:mac-address;
+                }
+
+                leaf decap_vni {
+                    description "Set of VNIs used in decap pipeline";
+                    type string;
+                }
+            }
+            /* end of list VNET_LIST */
+        }
+        /* end of container VNET */
 ```
 
 # 10 Test Plan
