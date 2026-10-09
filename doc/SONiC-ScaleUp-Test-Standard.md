@@ -1,7 +1,7 @@
 # SONiC Scale-Up Test Standard
 
-**Document Version:** Draft v0.4
-**Draft Date:** 02/Jun/26
+**Document Version:** v1.0
+**Release Date:** 10/Oct/26
 **Working Group:** SONiC Scale Up WG - Test Subgroup
 **Author:** SONiC Scale Up Test Subgroup (Alibaba, Broadcom, ByteDance, Keysight, Univista)
 
@@ -38,6 +38,7 @@
 | 0.2 | 11/May/26 | Topology simplification (4-port), Scope refinement (LLR/CBFC only) |
 | 0.3 | 22/May/26 | Integrated LLR/CBFC SAI test framework & unified test cases |
 | 0.4 | 02/Jun/26 | Refined LLR/CBFC test cases with hardware counter verification, protocol state machine focus, boundary packet testing, and generalized hardware roles. |
+| 1.0 | 10/Oct/26 | Addressed review feedback: added a concise rationale for the two-layer topology and removed the inaccessible historical-case references. Released as v1.0. |
 
 ---
 
@@ -59,8 +60,6 @@ This draft aims to define standardized test methods, pass/fail criteria, and dat
 |------|---------|-----------|
 | **UEC Spec** | UE Specification v1.0.2 | Ref: §5.1 (LLR), §5.2 (CBFC) |
 | **SAI Extensions** | PR #2225 (LLR), #2263 (CBFC) | Merged |
-| **Historical Cases** | SONiC-Scale-Up-LLR-CBFC-Test-Proposal.xlsx | Keysight |
-| **Historical Cases** | UV_ORI_005_SUE_Protocol_UEC-TF1_Network_Report.pdf | Univista |
 
 ---
 
@@ -72,7 +71,7 @@ This draft aims to define standardized test methods, pass/fail criteria, and dat
 - **Endpoints:** Must support LLR/CBFC protocol stack, acting as peer or sink.
 
 ### 3.2 Switch Topology & SAI Configuration
-To verify flow control and retry mechanisms in Scale-Up scenarios, a **multi-layer topology** is adopted. This setup supports flexible switching configurations.
+A two-layer switch topology is the minimum setup that reproduces the multi-hop LLR/CBFC behavior of a real Scale-Up fabric — backpressure propagating across an intermediate switch and end-to-end losslessness across chained links — which a single switch cannot exercise.
 
 **Topology Diagram:**
 
@@ -232,7 +231,7 @@ Timestamp, Scenario_ID, Frame_Size, Source_IP, Dest_IP, Test_Case, Config_Params
 
 Based on the UEC Scale-Up specification and current SAI PRs (#2225, #2263), the following SAI attributes and counters are identified as **missing** or **not fully covered** by the current test cases. These should be discussed with the SAI vendor for inclusion in the final implementation.
 
-| Missing SAI Attribute/Counter | Expected Type | Description / Usage in v0.4 |
+| Missing SAI Attribute/Counter | Expected Type | Description / Usage in v1.0 |
 | :--- | :--- | :--- |
 | **SAI_PORT_ATTR_LLR_REPLAY_COUNT_MAX** | uint32_t | LLR-03: Max replay attempts before flush. |
 | **SAI_PORT_ATTR_LLR_FLUSH_FRAME_ACTION** | sai_llr_frame_action_t | LLR-06: Action on flush (DISCARD/REPLAY). |
@@ -260,6 +259,6 @@ Based on the UEC Scale-Up specification and current SAI PRs (#2225, #2263), the 
 
 ---
 
-**Doc Status:** Draft v0.4 (Pending Discussion/Supplement)
-**Next Update:** 06/09
+**Doc Status:** v1.0 (Released)
+**Next Review:** TBD
 **Maintainer:** Haiyang Zheng (Alibaba)
