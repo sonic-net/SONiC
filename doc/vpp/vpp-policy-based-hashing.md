@@ -25,6 +25,7 @@
 | v0.3 | 10/02/2026 | Yue Gao (yuega2@cisco.com) | Added §6.10, support for PBH tables bound to ports that are L2 bridge members. `l2_to_bvi()` rewrites `sw_if_index[VLIB_RX]` to the BVI before `ip4-input`, so the arc armed in §6.6 on the member port is never evaluated; PBH now additionally arms a refcounted *shadow* attachment on the bridge domain's BVI (§6.10.2) and narrows it back to the bound ports in the dataplane using the `orig_rx_sw_if_index` capture cookie (§6.10.3). |
 | v0.4 | 10/06/2026 | Yue Gao (yuega2@cisco.com) | Doc-only. Corrected the SAI binding description: `SAI_PORT_ATTR_INGRESS_ACL` / `SAI_LAG_ATTR_INGRESS_ACL` name an ACL *table group*, and the PBH table reaches an interface as a `SAI_ACL_TABLE_GROUP_MEMBER` (§3, §6.8.2); Appendix C.2 no longer claims `PbhOrch` creates no group. Corrected PBH table classification (§6.8.2) to match `isPbhTable()`: both `FIELD_GRE_KEY` and `FIELD_INNER_ETHER_TYPE` declared on the table, not an entry-action test. |
 | v0.5 | 10/06/2026 | Yue Gao (yuega2@cisco.com) | PBH now applies to **recursive routes**. v0.2–v0.4 steered only `DPO_ADJACENCY` buckets and claimed a recursive route still picked up the PBH hash at the second level via `ip4-load-balance`; that was wrong, because the only path to that node is through `ip4-lookup`, which zeroes `ip.flow_hash` on entry, so the hash was lost at *every* level. The node now also accepts a `DPO_LOAD_BALANCE` bucket and dispatches it to `ip4-load-balance` / `ip6-load-balance` as a second declared next, with the hash in place (§5, §6.6). Counter accounting and the per-level `flow_hash >> 1` anti-polarisation shift are inherited unchanged from the core graph. Also doc-only in §6.5: the per-rule counter listing now shows the shipped code rather than the ACL plugin's variant, and discloses that a table replace resets the counters of *every* rule in the table — which any single PBH entry change triggers. |
+| v0.6 | 10/09/2026 | Yue Gao (yuega2@cisco.com) | **Side-band validity corrected (§6.7.3, §6.7.4).** v0.2–v0.5 held that the buffer free callback made the slot's `valid` bit a sufficient per-incarnation witness, on the premise that `vlib_buffer_pool_put()` is the only way a buffer returns to a pool. It is not: a buffer freed by a DPDK PMD is put back on the *cached* mempool, where a per-lcore cache with room short-circuits the backend and never reaches `dpdk_ops_vpp_enqueue()` → `vlib_buffer_pool_put()`, so the slot survives into the next incarnation. VPP itself is immune only because `dpdk_device_input()` re-applies the buffer template to every packet. PBH now pairs the slot with `SONIC_EXT_BUFFER_F_VNET_BUF` (`VNET_BUFFER_F_AVAIL2`), which lives in that template and is therefore cleared on every incarnation by every buffer source. The bit belongs to the side-band facility rather than to PBH, and is set by `claim()` and tested by `find()` so that no feature can add a field without it; nothing ever clears it, since clearing on release would mask other features' fields and clearing on free would miss the very path the flag exists to cover. The free callback is retained, and is what keeps clones safe. Also documents §6.7.2 member state, LACP and failover, which the hook does not participate in. |
 
 ---
 
@@ -536,7 +537,7 @@ flowchart TD
 | Component | Kind | New `.so`? | Core patch? |
 |---|---|---|---|
 | `plugins/sonic_ext/pbh*.{c,h}` + `sonic_ext.api` additions | **Extension of the existing plugin** | **No** | **No** |
-| `0021-sonic-pbh-lag-hash.patch` | LAG hash override hook (~40 lines) | n/a | **Yes** |
+| `0022-sonic-pbh-lag-hash.patch` | LAG hash override hook (~40 lines) | n/a | **Yes** |
 | `vslib/vpp/SwitchVppHash.cpp` (new) | SAI fine-grained hash + hash objects | n/a | n/a |
 | `vslib/vpp/SwitchVppAcl.cpp` (edit) | Recognise the two PBH actions | n/a | n/a |
 | `vppxlate/SaiVppXlate.[ch]` (edit) | `vpp_pbh_*()` binary-API wrappers + `sonic_ext_feature_get` gate | n/a | n/a |
@@ -1111,7 +1112,7 @@ Implementation notes:
   e.g. a non-first fragment), the node falls through to `vnet_feature_next()`
   and the packet gets the switch-global hash. Never a drop.
 
-### 6.7 LAG: `0021-sonic-pbh-lag-hash.patch` (gap G4)
+### 6.7 LAG: `0022-sonic-pbh-lag-hash.patch` (gap G4)
 
 #### 6.7.1 Why a core patch is unavoidable
 
@@ -1139,19 +1140,25 @@ keeps its per-packet state in storage it owns outright (§6.7.3), and the core
 patch reduces to a **registration hook**: one function pointer and one call
 site. **2 files, ~15 lines, and `buffer.h` is untouched.**
 
-The plugin does not take a **bit** from that pool either, and that is worth
-stating up front because it is not obvious. The one thing side-band storage
-cannot trivially supply for itself is *validity*: telling a value written for
-**this** packet apart from one left behind by the previous tenant of the same
-buffer index. The reflex is to borrow a flag bit, since `b->flags` is part of
-`vlib_buffer_template_fields` and VPP zeroes it on every allocation
-([buffer.h](platform/vpp/vppbld/repo/src/vlib/buffer.h#L150-L155)). But VPP
-already exports a mechanism aimed squarely at this problem: a plugin may ask
-to be told which buffer indices are being freed
-([buffer.c](platform/vpp/vppbld/repo/src/vlib/buffer.c#L1002-L1013)). Clearing
-slots there makes the side table self-resetting, so validity can live *inside*
-the slot, and the shared metadata — word and bit alike — is left exactly as
-found. §6.7.3 builds on that; §6.7.4 works through the alternatives.
+The plugin takes no **word** from that pool, and exactly one **bit**, and the
+split is worth stating up front because it is not obvious. The one thing
+side-band storage cannot supply for itself is *validity*: telling a value
+written for **this** packet apart from one left behind by the previous tenant
+of the same buffer index. The reflex is to borrow a flag bit, since `b->flags`
+is part of `vlib_buffer_template_fields` and VPP zeroes it on every allocation
+([buffer.h](platform/vpp/vppbld/repo/src/vlib/buffer.h#L150-L155)). VPP also
+exports a mechanism aimed squarely at this problem: a plugin may ask to be told
+which buffer indices are being freed
+([buffer.c](platform/vpp/vppbld/repo/src/vlib/buffer.c#L1002-L1013)).
+
+PBH uses **both**, because neither covers the other's gap. The free callback
+cannot see a buffer recycled inside DPDK's per-lcore mempool cache, which never
+reaches VPP's free list; the flag cannot distinguish a clone, which inherits it
+but gets a fresh index. So the payload stays in storage the plugin owns
+outright, one `AVAIL` bit carries the per-incarnation witness for the side-band
+as a whole, and the callback keeps the table clean for every index VPP hands
+out. §6.7.3 builds the storage; §6.7.4 works through the alternatives and the
+DPDK argument in full.
 
 **(a) `src/vnet/bonding/node.h` — one typedef and one field**
 
@@ -1217,8 +1224,9 @@ the LCP tap
 PBH therefore cannot select an ineligible member, and failover needs nothing
 from it. Two consequences worth stating: the override is never invoked for
 active-backup, broadcast or round-robin bonds, nor when only one member is left,
-because those paths bypass `bond_tx_hash()` entirely — the side-band slot is
-then reclaimed by the buffer free callback rather than by the override (§6.7.3);
+because those paths bypass `bond_tx_hash()` entirely — the tag is then retired
+by the free callback and the template reset rather than by the override
+(§6.7.3, §6.7.4);
 and because the reduction is `hash % n_active`, losing a member rehashes *all*
 flows, which is stock VPP bonding behaviour that PBH neither causes nor repairs.
 
@@ -1242,15 +1250,30 @@ rather than a single PBH tag.
 
 /* Plugin-private side-band metadata: one slot per buffer, exactly indexed.
    This is sonic_ext's analogue of vnet_buffer2() — a place to pass a value
-   between nodes without spending a word, or a bit, of the shared,
+   between nodes without spending a word, and only one bit, of the shared,
    upstream-owned vlib_buffer_t metadata.
 
+   VALIDITY: two things must hold before a consumer trusts a field — the
+   side-band flag SONIC_EXT_BUFFER_F_VNET_BUF in b->flags, and the field's
+   own bit in `valid`.  b->flags is the per-incarnation witness, shared by
+   every field: it lives in vlib_buffer_template_t, which VPP documents as
+   "initialized or zeroed on alloc", so every buffer source clears it.
+   `valid` is the per-field witness, and gives at-most-once consumption
+   within one incarnation.  claim() sets the flag and find() tests it, so no
+   feature has to remember either; nothing ever clears it, because that is
+   the buffer template's job and only the template is on every path.
+
    INVARIANT: a slot is all-zero whenever its buffer index is free.  It is
-   established at init and restored by the buffer free callback, so every
-   freshly allocated buffer — including a clone, which gets a fresh index —
-   starts from a clean slot.  `valid` is therefore a true per-incarnation
-   witness, with no help needed from b->flags.  Every consumer must test its
-   own bit before trusting the matching field. */
+   established at init and restored by the buffer free callback, which runs
+   before a freed index reaches either the per-thread cache or bp->buffers.
+   Every index vlib_buffer_alloc() can return has therefore been scrubbed —
+   which is what keeps a clone, whose index comes from there, safe. */
+
+/* Set by claim() on every claim; cleared only by the buffer template.  One
+   bit for the whole facility, not one per feature — `valid` already
+   discriminates between fields, and the AVAIL bits are shared with every
+   other plugin. */
+#define SONIC_EXT_BUFFER_F_VNET_BUF VNET_BUFFER_F_AVAIL2
 
 typedef enum
 {
@@ -1321,7 +1344,11 @@ sonic_ext_vnet_buf_slot (vlib_main_t *vm, vlib_buffer_t *b)
 
 /* Claim field f of b's slot.  No scrub and no conditional: the invariant
    guarantees the slot was zero when b was allocated, and any other bit that
-   is set belongs to a feature that set it for this same packet. */
+   is set belongs to a feature that set it for this same packet.
+
+   The field bit and the buffer flag are written together here and nowhere
+   else, so a feature cannot acquire the storage without also acquiring the
+   witness that makes it readable. */
 static_always_inline sonic_ext_vnet_buf_t *
 sonic_ext_vnet_buf_claim (vlib_main_t *vm, vlib_buffer_t *b,
 			  sonic_ext_vnet_buf_field_t f)
@@ -1329,16 +1356,23 @@ sonic_ext_vnet_buf_claim (vlib_main_t *vm, vlib_buffer_t *b,
   sonic_ext_vnet_buf_t *sb = sonic_ext_vnet_buf_slot (vm, b);
 
   sb->valid |= (u8) f;
+  b->flags |= SONIC_EXT_BUFFER_F_VNET_BUF;
   return sb;
 }
 
-/* b's slot iff field f was written during b's current incarnation, else 0. */
+/* b's slot iff field f was written during b's current incarnation, else 0.
+   The flag is tested before the slot address is formed, so a buffer that
+   claimed nothing never pulls in the table. */
 static_always_inline sonic_ext_vnet_buf_t *
 sonic_ext_vnet_buf_find (vlib_main_t *vm, vlib_buffer_t *b,
 			 sonic_ext_vnet_buf_field_t f)
 {
-  sonic_ext_vnet_buf_t *sb = sonic_ext_vnet_buf_slot (vm, b);
+  sonic_ext_vnet_buf_t *sb;
 
+  if ((b->flags & SONIC_EXT_BUFFER_F_VNET_BUF) == 0)
+    return 0;
+
+  sb = sonic_ext_vnet_buf_slot (vm, b);
   return (sb->valid & (u8) f) ? sb : 0;
 }
 
@@ -1412,16 +1446,22 @@ the prefetch in §6.7.5 — including what it costs to widen the struct.
 /* plugins/sonic_ext/sonic_ext_vnet_buf.c */
 
 /* Restore the invariant: a slot is zero whenever its index is free.  VPP
-   calls this at the top of vlib_buffer_pool_put(), which is the sole funnel
-   by which buffers return to a pool, and which is reached only once a
-   buffer's refcount has fallen to zero.  Every index in a given call belongs
-   to the pool named by pool_index, because the caller flushes its queue
-   whenever the pool changes.
+   calls this at the top of vlib_buffer_pool_put(), before the index reaches
+   either the per-thread cache or bp->buffers, so every index VPP can hand
+   back out through vlib_buffer_alloc() has been scrubbed.  Every index in a
+   given call belongs to the pool named by pool_index, because the caller
+   flushes its queue whenever the pool changes.
 
-   Note what this does not do: touch b->flags, or the buffer at all.  By this
-   point vlib_buffer_free_inline() has already reset each buffer's template
-   fields, so the header is both cold and uninformative.  Indices are all we
-   need, and all we use. */
+   This is not the only way a buffer re-enters the dataplane: one freed by a
+   DPDK PMD can be recycled inside DPDK's per-lcore mempool cache without the
+   backend — and so without this callback — ever running.  Trusting a slot
+   therefore also requires SONIC_EXT_BUFFER_F_VNET_BUF.
+
+   Note what this does not do: clear that flag, or touch the buffer at all.
+   Doing so would be redundant here and absent where it matters — by this
+   point vlib_buffer_free_inline() has already stamped the pool template over
+   each buffer's flags, and on the DPDK path this callback never runs.
+   Indices are all we need, and all we use. */
 static u32
 sonic_ext_vnet_buf_free_cb (vlib_main_t *vm, u8 pool_index, u32 *buffers,
 			    u32 n_buffers)
@@ -1441,9 +1481,12 @@ reached from the batched fast path, the one-by-one path and the final flush of
 ([L1006-L1016](platform/vpp/vppbld/repo/src/vlib/buffer_funcs.h#L1006-L1016),
 [L1055-L1064](platform/vpp/vppbld/repo/src/vlib/buffer_funcs.h#L1055-L1064),
 [L1077-L1078](platform/vpp/vppbld/repo/src/vlib/buffer_funcs.h#L1077-L1078)),
-and from the DPDK plugin's own free path, which routes through the same
+and from the DPDK plugin's mempool *backend* op, which routes through the same
 function rather than around it
 ([buffer.c](platform/vpp/vppbld/repo/src/plugins/dpdk/buffer.c#L231-L260)).
+That last one is reached only when DPDK's per-lcore cache actually spills to
+the backend — see the flag argument in §6.7.4, which is what covers the case
+where it does not.
 Clearing the whole slot rather than just `valid` costs nothing — both are in
 the same line — and leaves the table readable in a debugger.
 
@@ -1496,24 +1539,30 @@ invariant does not hold, and a silent correctness downgrade triggered by an
 unrelated debug command is worse than a refused configuration. Teardown runs
 in the reverse order — clear `bond_main.lag_hash_override`, then unregister —
 so no override can ever run against an unmaintained table.
+
 Current bufmon strips existing registered callback when it tries to register
 the callbacks. This is not cooperative behaviour. We should not enable bufmon
 when pbh, or future feature needs the sideband, is configured.
 
+
 **Release, not consume-once.** On a hit the PBH consumer releases its own bit
 and leaves every other feature's field and bit untouched, so a tag is applied
 at most once. The stale `pbh_lag_hash` value it leaves behind is unreachable:
-the bit is what gates the read. Unlike the earlier buffer-flag design this is
-purely an optimisation — a tag that is never consumed, because the packet was
-dropped or forwarded to a non-LAG next hop, is cleared by the free callback
-anyway rather than left to be misread by the next tenant of the index.
+the bit gates the read within an incarnation, and the buffer flag gates it
+across incarnations. A tag that is never consumed — because the packet was
+dropped or forwarded to a non-LAG next hop — is cleared by the free callback
+if the buffer returns to VPP's pool, and rendered unreadable by the template
+reset if it does not.
 
 #### 6.7.4 Why this is safe
 
-* Zero footprint in shared buffer metadata: no `opaque2` word and no flag bit.
-  `vnet_buffer_opaque2_t.unused[]` and `VNET_BUFFER_FLAGS_ALL_AVAIL` are left
-  exactly as found, so nothing here has to be re-litigated at a VPP uprev, and
-  no upstream feature that later claims either can collide with us.
+* Near-zero footprint in shared buffer metadata: one `AVAIL` bit of nine, and
+  no `opaque2` word. `vnet_buffer_opaque2_t.unused[]` is left exactly as
+  found, so nothing there has to be re-litigated at a VPP uprev. The bit is
+  `VNET_BUFFER_F_AVAIL2`, alongside `sonic_ext`'s existing
+  `SONIC_EXT_BUFFER_F_MIRROR_PENDING` on `AVAIL1`, and it is charged to the
+  side-band facility as a whole rather than to PBH, so adding a second
+  side-band field costs no further buffer metadata at all.
 * One predicted-false pointer test per *frame* on the LAG TX path, and nothing
   at all anywhere else in the graph.
 * No API, no ABI, no CRC change — `bond.api` is untouched, in contrast to 0011.
@@ -1528,14 +1577,18 @@ anyway rather than left to be misread by the next tenant of the index.
   clear `bond_main.lag_hash_override` on plugin teardown.
 * **Clones and copies are covered, and this is the reason for the free
   callback.** A clone gets a fresh buffer index, so it reads its *own* slot —
-  and by the invariant that slot was zeroed when the index was last freed, so
-  it reads a clean miss and falls back to the configured hash function. Note
-  that a flag bit could not have achieved this: `VLIB_BUFFER_COPY_CLONE_FLAGS_MASK`
+  and that index came from `vlib_buffer_alloc()`, which can only return one
+  the free callback has scrubbed, so it reads a clean miss and falls back to
+  the configured hash function. Note that the flag alone could not have
+  achieved this: `VLIB_BUFFER_COPY_CLONE_FLAGS_MASK`
   preserves everything outside `VLIB_BUFFER_FLAGS_ALL`, which is only the four
   generic bits, so every `AVAIL` bit is inherited verbatim by
   `vlib_buffer_copy` and `vlib_buffer_clone_255`
   ([buffer_funcs.h](platform/vpp/vppbld/repo/src/vlib/buffer_funcs.h#L1183-L1186)).
-  A clone would have presented a set validity bit over a slot it never wrote.
+  A clone presents a set flag over a slot it never wrote; `valid` is what
+  then correctly misses. The two witnesses are complementary — the flag
+  covers recycling that bypasses VPP's free list, the slot covers clones that
+  inherit the flag — and neither is sufficient alone.
   This matters because the window between `sonic-ext-pbh-ip4` and
   `bond_tx_hash()` contains several duplication sites —
   `span` ([node.c](platform/vpp/vppbld/repo/src/vnet/span/node.c#L89)),
@@ -1551,11 +1604,13 @@ anyway rather than left to be misread by the next tenant of the index.
 * **Stranded tags cannot be misread.** A `SET_LAG_HASH` rule tags at ingress,
   *before* the next hop is known, so a packet that is dropped or forwarded to
   a non-LAG next hop leaves a value behind — and buffer indices are recycled
-  LIFO, so the next tenant arrives quickly. The free callback clears the slot
-  on the way back to the pool, which is precisely what an in-slot owner stamp
-  could **not** have done: with an exact index map only buffer `bi` ever
-  writes slot `bi`, so a stamp would match every time and carry no information
-  at all. Space cannot distinguish incarnations; only the allocator can.
+  LIFO, so the next tenant arrives quickly. Where the buffer returns to VPP's
+  pool the free callback clears the slot on the way back, which is precisely
+  what an in-slot owner stamp could **not** have done: with an exact index map
+  only buffer `bi` ever writes slot `bi`, so a stamp would match every time
+  and carry no information at all. Space cannot distinguish incarnations; only
+  the allocator can — or, where the allocator is bypassed, the buffer
+  template, which is why the flag is needed as well.
 * The free callback's cost is bounded and gated. It runs on a batch of at most
   128 indices
   ([buffer_funcs.h](platform/vpp/vppbld/repo/src/vlib/buffer_funcs.h#L851-L858)),
@@ -1572,19 +1627,66 @@ line-rate one, so the side-band is tuned for clarity and extensibility over
 absolute throughput: a general struct that other features can add fields to is
 worth more here than a hand-packed `u64`.
 
-**A note on the road not taken.** Should the validity test ever land on a hot
-path, `VNET_BUFFER_F_AVAIL1` can be reintroduced — not as the validity witness
-it was in an earlier draft, but as a cheap *claimed* filter in front of it:
-set alongside the first `sonic_ext_vnet_buf_claim()` on a buffer, tested before
-the side-band load, and allowing a consumer to skip the table entirely for the
-overwhelming majority of packets that no `sonic_ext` feature ever tagged. That
-trades one bit of shared metadata for one cache line not touched per packet.
-It is sound *because* the free callback still owns correctness: the bit would
-only ever be an over-approximation, and the clone inheritance that made it
-unusable as a witness is harmless in a filter — a clone carrying a spurious
-bit merely pays for a table lookup that then correctly misses. It is left out
-for now because the override is the only consumer, it runs on the LAG TX path
-alone, and unnecessary claims on shared metadata age badly.
+**Why the allocator alone is not enough.** An earlier draft of this document
+made the free callback solely responsible for correctness, on the premise that
+`vlib_buffer_pool_put()` is the only way a buffer returns to a pool. That
+premise is false for DPDK-backed ports. `dpdk_buffer_pool_init()` creates two
+mempools per buffer pool and points every object header at the **cached** one
+([buffer.c](platform/vpp/vppbld/repo/src/plugins/dpdk/buffer.c#L50),
+[L101](platform/vpp/vppbld/repo/src/plugins/dpdk/buffer.c#L101)); the zero-cache
+mempool is substituted onto `mb->pool` only for chained segments with
+`ref_count > 1`
+([device.c](platform/vpp/vppbld/repo/src/plugins/dpdk/device/device.c#L134-L136)),
+which is not the ordinary PBH packet. A PMD freeing a transmitted mbuf therefore
+reaches `rte_mempool_put()` on the cached pool, and a per-lcore cache with room
+short-circuits before `dpdk_ops_vpp_enqueue()` ever calls
+`vlib_buffer_pool_put()`. The buffer can then be re-allocated by the PMD's RX
+refill from that same cache, having never touched VPP's free list — so the slot,
+and its `valid` bit, survive into a packet that has nothing to do with the one
+that wrote them.
+
+VPP itself is immune to this only because `dpdk_device_input()` re-applies the
+buffer template to every packet it receives
+([node.c](platform/vpp/vppbld/repo/src/plugins/dpdk/device/node.c#L183-L186)),
+rebuilding the header regardless of whether the free path ran. That is exactly
+the line VPP draws in `vlib_buffer_t`: *"Data above is initialized or zeroed on
+alloc, data bellow is not and it is app responsibility to ensure data is
+valid"*
+([buffer.h](platform/vpp/vppbld/repo/src/vlib/buffer.h#L159-L160)). The
+side-band table sits below that line and gets no such treatment.
+
+`SONIC_EXT_BUFFER_F_VNET_BUF` (`VNET_BUFFER_F_AVAIL2`) is the answer: it lives
+in `vlib_buffer_template_t`, so it is cleared on every incarnation by every
+buffer source — `vlib_buffer_free_inline()` stamps the pool template over it on
+the way to the free list
+([buffer_funcs.h](platform/vpp/vppbld/repo/src/vlib/buffer_funcs.h#L995-L1002)),
+and DPDK RX re-stamps it on receive. `sonic_ext_vnet_buf_find()` tests it
+before it forms the slot address at all, which also keeps the table cold for
+traffic that never matched a PBH rule — the cheap *claimed* filter an earlier
+draft contemplated, now doing double duty as the witness that makes the whole
+scheme sound. Note that the exposure is confined to DPDK-backed ports:
+`af_packet`, `tap` and the `pg` interfaces used by the unit suite all free
+through `vlib_buffer_free()` and so always run the callback, which is why no
+test in §8 can reproduce the original defect.
+
+The bit is charged to the **facility**, not to PBH. One `AVAIL` bit covers
+every side-band field, present and future, because `valid` already
+discriminates between fields and the nine `AVAIL` bits are shared with every
+other plugin in the tree. The cost of sharing is a false positive — a consumer
+whose own field is absent, but whose buffer was claimed by some other feature,
+pays one table load before missing on `valid` — which is strictly cheaper than
+spending a second bit. Correspondingly the flag is set in
+`sonic_ext_vnet_buf_claim()` and tested in `sonic_ext_vnet_buf_find()` rather
+than at the feature's call sites, so a future field cannot be added without it.
+
+Nothing clears the flag. Clearing it in `release()` would be wrong: one
+feature's consume would hide every other feature's field in the same slot,
+which is exactly what the per-field `valid` bitmap exists to prevent. Clearing
+it in the free callback would be useless twice over — on VPP's path the
+template has already zeroed `b->flags` before the callback runs, and on the
+DPDK path the callback never runs, which is the gap the flag was introduced to
+close. Clearing belongs to the buffer template, because only the template is on
+every path.
 
 **Possible migration of existing feature to the sidecar solution.** everflow
 stores mirror session index in the vnet_buffer2 today for ingress ACL and
@@ -1603,6 +1705,10 @@ if (r0->lag_profile != ~0)
       ->pbh_lag_hash = lh0;
   }
 ```
+
+The node does not touch `b0->flags`: `claim()` sets the witness alongside the
+field bit, so storage and the thing that makes it readable are acquired in one
+place (§6.7.4).
 
 The table backing that `claim` is guaranteed to exist because
 `sonic_ext_pbh_table_add_replace()` takes a side-band reference whenever the
@@ -1625,7 +1731,8 @@ sonic_ext_pbh_lag_hash_override (vlib_main_t *vm, vlib_buffer_t **b,
     {
       sonic_ext_vnet_buf_t *sb;
 
-      if (PREDICT_TRUE (i + 8 < n))
+      if (PREDICT_TRUE (i + 8 < n) &&
+          (b[i + 8]->flags & SONIC_EXT_BUFFER_F_VNET_BUF))
         clib_prefetch_load (sonic_ext_vnet_buf_slot (vm, b[i + 8]));
 
       sb = sonic_ext_vnet_buf_find (vm, b[i],
@@ -1638,6 +1745,11 @@ sonic_ext_pbh_lag_hash_override (vlib_main_t *vm, vlib_buffer_t **b,
     }
 }
 ```
+
+The flag test inside `find()` gates the table load, and the prefetch is gated
+on the same bit, so a bond carrying no PBH
+traffic never touches the side-band table at all — the first cache line of each
+buffer is already hot here, and nothing else is read.
 
 Note that nothing here writes to `b[i]` at all — the consumer reads
 `buffer_pool_index` to locate the slot and is otherwise read-only on the
@@ -1879,11 +1991,6 @@ An ACL table is classified as a *PBH* table when it declares both
 entry actions because the table is created and bound before any entry exists;
 requiring both rather than either keeps a P4Orch table, which uses
 `INNER_ETHER_TYPE` alone, out of this path.
-This design narrowly targets towards how PbhOrch behaves today. A more general
-solution is classifying a PBH table by action type, which is only available 
-when a rule is added to the table. This lazy table creation requires major
-surgery to current ACL implementation in vpp sai. Since PBH is primarily for
-sonic-mgmt test coverage, the simpler solution is chosen.
 
 ### 6.9 CLI
 
@@ -2140,7 +2247,7 @@ interfaces:
    fine-grained hash profile engine implementing SAI `sequence_id` and
    `ip_mask` semantics, an owned `vnet_classify` chain for rule matching, and
    `sonic_ext_pbh_*` messages appended to `sonic_ext.api`.
-2. One small core patch, `0021-sonic-pbh-lag-hash.patch` (2 files, ~15 lines),
+2. One small core patch, `0022-sonic-pbh-lag-hash.patch` (2 files, ~15 lines),
    adding an optional `bond_main.lag_hash_override` function pointer and its
    call site in `bond_tx_hash()`. No `vlib_buffer_t` metadata is consumed.
 3. One new default-on keyword `pbh` in the `sonic-ext { }` stanza, following
@@ -2194,7 +2301,7 @@ construction rather than competing.
 | `platform/vpp/vppbld/plugins/sonic_ext/pbh_hash.h` | Fine-grained hash (§6.4) |
 | `platform/vpp/vppbld/plugins/sonic_ext/sonic_ext_vnet_buf.h` | Plugin-private per-buffer side-band: `sonic_ext_vnet_buf_t`, its field bitmap, and the exact-index accessors (§6.7.3) |
 | `platform/vpp/vppbld/plugins/sonic_ext/sonic_ext_vnet_buf.c` | Side-band table sizing, refcounted ref/unref, plus the `vlib_buffer_set_alloc_free_callback()` free hook that keeps it clean (§6.7.3) |
-| `0021-sonic-pbh-lag-hash.patch` | LAG hash override (§6.7) |
+| `0022-sonic-pbh-lag-hash.patch` | LAG hash override (§6.7) |
 | `src/sonic-sairedis/vslib/vpp/SwitchVppHash.cpp` | SAI hash / fine-grained hash objects |
 
 ### Modified files
@@ -2208,7 +2315,7 @@ construction rather than competing.
 | `plugins/sonic_ext/sonic_ext.c` | None — the X-macro supplies the keyword, the default and the `show` row |
 | `plugins/sonic_ext/sonic_ext_api.c` | + the four `sonic_ext_pbh_*` message handlers (§6.2) |
 | `plugins/sonic_ext/cli.c` | + `show sonic-ext pbh [profiles&#124;tables&#124;interfaces]` |
-| `platform/vpp/vppbld/patches/series` | + `0021-sonic-pbh-lag-hash.patch` |
+| `platform/vpp/vppbld/patches/series` | + `0022-sonic-pbh-lag-hash.patch` |
 | `platform/vpp/docker-sonic-vpp/conf/startup.conf.tmpl` | + `# pbh off` in the commented `sonic-ext { }` stanza |
 | `platform/vpp/docker-syncd-vpp/conf/startup.conf.tmpl` | same |
 | `src/sonic-sairedis/vslib/vpp/SwitchVppAcl.cpp` | Recognise PBH table shape + the two PBH actions, gated on the cached feature answer; `getAclEntryStats()` call site moves to `vpp_rule_stats_query(VPP_RULE_STATS_ACL, …)` |
@@ -2222,7 +2329,7 @@ Not modified: `vpp_init.sh` and `10-01-vpp-cfg-init` — the existing
 `$SONIC_EXT_CONFIG` whitelist `^[a-z][a-z0-9-]*=(on|off|enable|disable)$`
 already accepts `pbh`.
 
-### Files inside `0021-sonic-pbh-lag-hash.patch`
+### Files inside `0022-sonic-pbh-lag-hash.patch`
 
 | Path | Change |
 |---|---|
