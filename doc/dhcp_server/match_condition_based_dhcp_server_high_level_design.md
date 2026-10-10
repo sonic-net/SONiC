@@ -93,7 +93,7 @@ This extension introduces a **generalized match condition system** where all mat
 
 ## Background
 
-In the current design, port identity is determined by matching against the Circuit ID sub-option of DHCP Option 82, which encodes the `hostname:port_alias` of the ingress port. This is fundamentally the same operation as matching any other DHCP option value.
+In the current design, port identity is determined by matching against the Circuit ID sub-option of DHCP Option 82, which `dhcp_relay` stamps with `hostname:port_alias` for the ingress port, falling back to the port name when the port has no alias. PortChannels are stamped by name. This is fundamentally the same operation as matching any other DHCP option value.
 
 By making `circuit_id` a match condition type alongside `option60`, the design achieves full uniformity:
 - A port-only assignment is a binding with a single `circuit_id` match
@@ -137,9 +137,11 @@ Configuration of match condition feature can be done via:
 
 * In the current design, only **exact matching** is supported. Substring/prefix matching may be added in future releases.
 
-* IP assignments remain the same if the device reconnects before the lease expires; after lease expiry, a new IP can be assigned from the available IP range.
+* IP assignments remain the same if the device reconnects before the lease expires and the lease's pool is still reachable through the client's effective binding. If a configuration or packet change makes a more-specific binding effective, a lease from a less-specific pool is not retained, as described in [Specificity Ordering](#specificity-ordering).
 
-* For a client to be matched by an  option60  match condition, the Vendor Class Identifier (Option 60) must be present in the DISCOVER and in every subsequent DHCPREQUEST.  If Option 60 is absent from a REQUEST, the client is re-classified into a different (or no) binding, the requested address no longer falls within a pool reachable by that class, and the server replies with a DHCPNAK, forcing the client back to INIT.
+* For a client to be matched by an `option60` match condition, the Vendor Class Identifier (Option 60) must be present in the DISCOVER and in every subsequent DHCPREQUEST. If Option 60 is absent from a REQUEST, the client is re-classified into a different (or no) binding. Whether that costs the client its lease depends on how the leased address was reached:
+    * **Dedicated pool** — if the address belongs to a pool reachable only through the Option 60 binding, the requested address no longer falls within a pool allowed for the client's new classification, and the server replies with a DHCPNAK, forcing the client back to INIT. This is the common case.
+    * **Shared pool** — if the same pool is also reachable through a less specific binding, as in the OR and fallback arrangements described under [OR Logic](#or-logic), the generator emits a single pool guarded by one class whose condition is the OR of both bindings' effective predicates. The client still satisfies the generic branch, so the address remains allowed and the renewal succeeds.
 
 ## Design Overview
 
@@ -191,26 +193,60 @@ Either VendorA or VendorB devices on etp1 will receive addresses from that pool.
 
 ### Specificity Ordering
 
-When a VLAN has multiple bindings with overlapping conditions, more-specific bindings (more match conditions) take priority over less-specific ones:
+When a client matches more than one binding on a VLAN, the binding with the most match conditions wins. `dhcpservd` enforces this when it generates the Kea configuration, by making the generated client classes mutually exclusive. It does not rely on the order in which classes or pools are declared, because Kea evaluates every class independently and selects pools by address order.
 
-1. Bindings with more match conditions are evaluated first (most specific)
-2. Bindings with fewer match conditions are evaluated next
+Two definitions are needed:
 
-For example, a "VendorA device on etp1" matches both a 2-condition binding [port_etp1, vendor_a] and a 1-condition binding [port_etp1]. The more-specific 2-condition binding takes priority.
+* The **specificity** of a binding is its number of match conditions. `[port_etp1]` has specificity 1 and `[port_etp1, vendor_a]` has specificity 2.
+* Two bindings are **simultaneously matchable** when one DHCP packet can satisfy both. They are not simultaneously matchable when they require different values for the same condition type, such as `option60 = VendorA` and `option60 = VendorB`, because no packet carries both values.
 
-**Note:** Operators should avoid creating multiple bindings with the same number of conditions that can both match the same client. If such an overlap exists, the behavior is non-deterministic. This is considered a misconfiguration. This becomes especially applicable when more match conditions are supported in future like MAC address.  Example :
+Each binding starts with a raw predicate, which is the AND of its match conditions. The generator then subtracts from it every binding of higher specificity that is simultaneously matchable with it:
+
+```
+effective(B) = raw(B) AND NOT ( raw(S1) OR raw(S2) OR ... )
+
+  where each Si has more match conditions than B,
+  and one client can match both B and Si
+```
+
+Subtraction therefore applies only to a binding that something more specific sits above. A binding that nothing is more specific than keeps its raw predicate unchanged. With the currently supported `circuit_id` and `option60` types, specificity 2 is the maximum, so only specificity 1 bindings are ever subtracted from.
+
+The generated pool is guarded by the class holding this effective predicate. A client that matches a more specific binding is therefore not a member of the less specific class at all, so neither Kea's additive classification nor its pool address ordering can place that client in the less specific pool.
+
+For example, for `[port_etp1]` and `[port_etp1, vendor_a]`:
+
+| Binding | Conditions | Specificity | Effective predicate |
+|:-|:-|:-|:-|
+|`default_etp1`|`[port_etp1]`|1|`port_etp1 AND NOT (port_etp1 AND vendor_a)`|
+|`vendor_a_on_etp1`|`[port_etp1, vendor_a]`|2|`port_etp1 AND vendor_a`|
+
+A VendorA device on etp1 satisfies the raw conditions of both bindings, but after subtraction it is a member only of `vendor_a_on_etp1`, so it is offered an address only from that pool. Any other device on etp1 matches `default_etp1` only.
+
+Subtraction is skipped when two bindings cannot both match. `[port_etp1]` and `[port_etp2, vendor_a]` name different ports, so no client can match both and `[port_etp1]` keeps its raw predicate.
+
+Specificity is strict rather than a fallback policy:
+
+* If the most-specific eligible pool is exhausted, Kea does not allocate from a less-specific pool. A DISCOVER receives no offer from this server, and a REQUEST for an unavailable address is rejected according to the DHCP protocol.
+* A lease already allocated from a less-specific pool is not proactively deleted when the client starts matching a more-specific binding or when such a binding is added. On the client's next DHCPREQUEST, that less-specific pool is no longer reachable through its generated class. Kea sends a DHCPNAK and the client returns to INIT to obtain a lease from the more-specific pool. If that pool is exhausted, the client remains without a lease from this server; it does not renew or fall back to the less-specific lease.
+
+**Note:** Two bindings of equal specificity that are simultaneously matchable cannot be ordered by the rule above, because neither is more specific than the other. This is reachable today with only `circuit_id` and `option60`, by using one condition of each type in separate bindings:
 
 ```json
-"Vlan100|vendor_a_on_etp1": {
-    "matches": ["port_etp1", "vendor_a"],
+"Vlan100|on_etp1": {
+    "matches": ["port_etp1"],
     "ips": ["100.1.1.20", "100.1.1.21"]
 },
-"Vlan100|vendor_b_on_etp1": {
-    "matches": ["port_etp1", "macaddress_a"],
-    "ips": ["100.1.1.20", "100.1.1.21"]
+"Vlan100|vendor_a_anywhere": {
+    "matches": ["vendor_a"],
+    "ips": ["100.1.1.30", "100.1.1.31"]
 }
 ```
-There is a chance that a device can match both of the above match conditions. The behavior becomes non-deterministic in this case and the bindings should be updated to avoid ambiguity.
+
+Both bindings have specificity 1, so neither subtracts from the other, and a VendorA device on etp1 satisfies both. The two pools are different, so which one the device is offered an address from would be arbitrary.
+
+Such a pair is rejected at two independent points. `config dhcp_server ipv4 binding add` and `config dhcp_server ipv4 binding update` both validate the whole VLAN's bindings including the candidate, so neither command can introduce the overlap; both fail with `Bindings <binding_1> and <binding_2> overlap with equal specificity on <vlan_interface>`. `dhcp_cfggen` repeats the check for configuration that reaches Config DB without the CLI, such as a direct write or a `config_db.json` reload. Generation then fails with an error of the form `Bindings <binding_1> and <binding_2> overlap with equal specificity`, the candidate configuration is discarded, the error is logged to syslog, and the previously generated configuration continues to be served, so the bindings must be corrected before the change takes effect.
+
+A deterministic tiebreak, such as binding-name lexical order or configuration insertion order, was considered and rejected. In the example above there is no principled reason for the port condition to outrank the vendor condition or the reverse, so any such rule would silently pick a winner based on what the bindings happened to be named or on the order in which they were added, and the operator would get no signal that the intent was ambiguous. Failing at configuration time surfaces it immediately and without an outage, because the previous configuration keeps serving. If explicit control over such cases is wanted later, an explicit priority attribute on the binding is preferable to an implicit ordering rule, because it records the operator's intent instead of inferring it. Equal-specificity overlaps become more likely as further match types are added, so this decision should be revisited when support for MAC address or Option 61/77 is introduced.
 
 ## DB Changes
 
@@ -234,7 +270,7 @@ Two new tables are added. One existing table is extended with a new mode value.
 | Field | Type   | Required | Description |
 |-------|--------|----------|-------------|
 | type  | enum   | Yes      | Match type. Currently: `circuit_id`, `option60`. Extensible for future types. |
-| value | string | Yes      | Value to match against (exact match). For `circuit_id`, the user configures the **port alias** (e.g., "etp1"); the implementation constructs the full on-wire Circuit ID (`hostname:port_alias`) internally, consistent with existing `PORT` mode behavior. |
+| value | string | Yes      | Value to match against (exact match). For `circuit_id`, the user configures the port as `dhcp_relay` names it: the **port alias** (e.g., "etp1"), the **port name** where that port has no alias, or a **PortChannel name**. The implementation prefixes the hostname to build the full on-wire Circuit ID (`hostname:<value>`) internally, consistent with existing `PORT` mode behavior. A value naming no existing port is rejected at configuration time, because it could never match a packet. |
 
 **DHCP_SERVER_IPV4_BINDING** — Associates match condition(s) with an IP pool.
 
@@ -327,6 +363,10 @@ The following existing tables are **not modified**:
 
 #### Yang Model
 
+The following is an excerpt of `sonic-dhcp-server-ipv4.yang` showing only the new and
+changed nodes. The `port:` and `lag:` prefixes refer to the imported `sonic-port` and
+`sonic-portchannel` modules.
+
 The existing `DHCP_SERVER_IPV4` mode enum is extended with `MATCH`. The following new YANG containers are added to the `sonic-dhcp-server-ipv4` module:
 
 ```yang
@@ -368,12 +408,23 @@ container DHCP_SERVER_IPV4_MATCH {
         }
 
         leaf value {
-            description "Value to match against (exact match). For circuit_id, this is the port alias.";
+            description "Exact value to match. For circuit_id this is the SONiC port
+                         alias, the port name when the port has no alias, or a
+                         PortChannel name. For option60 it is the vendor class string.";
             mandatory true;
             type string {
                 length 1..255 {
-                    error-message "Invalid length for match value";
+                    error-message "Invalid length for match condition value";
                 }
+            }
+            /* A circuit_id that names no existing port can never match a packet,
+               so it is rejected at configuration time rather than at service start. */
+            must "not(../type = 'circuit_id') or " +
+                 "/port:sonic-port/port:PORT/port:PORT_LIST[port:alias = current()] or " +
+                 "/port:sonic-port/port:PORT/port:PORT_LIST[port:name = current() and not(port:alias)] or " +
+                 "/lag:sonic-portchannel/lag:PORTCHANNEL/lag:PORTCHANNEL_LIST[lag:name = current()]" {
+                error-message "circuit_id value must match an existing port alias, an aliasless port name, or a PortChannel name";
+                error-app-tag circuit-id-unknown-port;
             }
         }
     }
@@ -530,7 +581,7 @@ This command is used to add a named match condition.
   Options:
      match_name: Unique name for the match condition. [required]
      type: Match type. Currently 'circuit_id' and 'option60' are supported. [required]
-     value: Value to match against (exact match). For circuit_id, this is the port alias. [required]
+     value: Value to match against (exact match). For circuit_id, this is the port alias, the port name when the port has no alias, or a PortChannel name. [required]
   ```
 
 - Example
@@ -850,6 +901,18 @@ extensions to existing commands (`config dhcp_server ipv4 add|update --mode`).
 Existing `PORT` mode test cases remain unchanged
 and must continue to pass, to verify backward compatibility.
 
+### Generated Kea Classification and Allocation
+
+|Case Description|Expected res|
+|:-|:-|
+|Client matches a binding and a simultaneously matchable binding of higher specificity|Generated effective predicates make the client a member only of the more-specific class; the address is allocated only from the more-specific pool regardless of class declaration order, pool declaration order, or pool address order|
+|Client matches a chain of three nested bindings (requires a third match type, so not reachable with `circuit_id` and `option60` alone)|Only the most-specific effective predicate is true|
+|Client matches only the generic binding|Generic effective predicate is true and the address is allocated from the generic pool|
+|Most-specific pool is exhausted while a less-specific pool has free addresses|No address is allocated from the less-specific pool|
+|Client has an active generic-pool lease and subsequently matches a more-specific binding|The next DHCPREQUEST for the generic address is NAKed; the client returns to INIT and is allocated from the more-specific pool when an address is available|
+|Client has an active generic-pool lease, subsequently matches a more-specific binding, and the specific pool is exhausted|The generic lease is not renewed and no fallback address is allocated|
+|Two bindings of equal specificity are simultaneously matchable|Config generation fails with `Bindings <binding_1> and <binding_2> overlap with equal specificity`; the candidate config is discarded and the previously generated config continues to be served|
+
 ### Config CLI
 
 - config dhcp_server ipv4 match add \<match_name\> --type \<type\> --value \<value\>
@@ -866,7 +929,8 @@ and must continue to pass, to verify backward compatibility.
   |Add with empty value|Add failed because value length invalid|
   |Add with value longer than 255 characters|Add failed because value length invalid|
   |Add with match name longer than 255 characters|Add failed because match name length invalid|
-  |Add with --type=circuit_id and value not an existing port alias|Add failed because port alias not exist|
+  |Add with --type=circuit_id and value naming no existing port|Add failed, because the value matches no port alias, aliasless port name or PortChannel name|
+  |Add with --type=circuit_id and value naming an aliasless port, or a PortChannel|Add success|
   |Add with same type and value as an existing match, different name|Add success with warning of duplicated match condition|
 
 - config dhcp_server ipv4 match del \<match_name\>
@@ -913,8 +977,8 @@ and must continue to pass, to verify backward compatibility.
   |Add with range not exist|Add failed because range not exist|
   |Add with binding name longer than 255 characters|Add failed because binding name length invalid|
   |Add to a vlan_interface whose mode is PORT|Add success with warning that binding is not effective under PORT mode|
-  |Add a binding that has the same number of matches as an existing binding and can match the same client|Add success, Behavior becomes non-deterministic and this is an operator level misconfiguration|
-  |Add a binding whose matches are a strict superset of an existing binding|Add success, more specific binding takes priority|
+  |Add a binding of equal specificity that is simultaneously matchable with an existing binding|Add failed with `Bindings <binding_1> and <binding_2> overlap with equal specificity on <vlan_interface>`|
+  |Add a binding of higher specificity that is simultaneously matchable with an existing binding|Add success; generated mutually exclusive predicates make the more-specific binding the only eligible binding when both raw predicates match|
 
 - config dhcp_server ipv4 binding update \<vlan_interface\> \<binding_name\> [--match \<match_list\>] [--range \<ip_range_list\> | \<ip_list\>]
 
@@ -929,7 +993,7 @@ and must continue to pass, to verify backward compatibility.
   |Update with vlan_interface not exist|Update failed|
   |Update with match not exist|Update failed because match not exist|
   |Update without any option|Update failed because nothing to update|
-  |Update to a binding that becomes ambiguous with an existing binding|Update failed because binding is ambiguous|
+  |Update to a binding that becomes ambiguous with an existing binding|Update failed with `Bindings <binding_1> and <binding_2> overlap with equal specificity on <vlan_interface>`|
 
 - config dhcp_server ipv4 binding del \<vlan_interface\> \<binding_name\>
 
