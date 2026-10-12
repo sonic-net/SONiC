@@ -110,7 +110,7 @@ SONiC provides a default watchdog daemon configuration that is merged into the p
 The SONiC defaults are:
 
 	watchdog-device = /dev/watchdog0
-	watchdog-timeout = 30
+	watchdog-timeout = 300
 	interval = 10
 	realtime = yes
 
@@ -119,8 +119,8 @@ At runtime, `watchdog-control.sh` updates the following keys in `/etc/watchdog.c
 	# Device selected by identity matching or defaulted to /dev/watchdog0
 	watchdog-device = /dev/watchdog0
 
-	# Watchdog timeout configured by CLI or defaulted to 30 seconds
-	watchdog-timeout = 30
+	# Watchdog timeout configured by CLI or defaulted to 300 seconds
+	watchdog-timeout = 300
 
 Some important static configs are listed below.
 
@@ -151,7 +151,7 @@ In order to safely use the Linux watchdog feature on a platform, the following s
 
 - Verify the correct Linux watchdog identity under `/sys/class/watchdog/watchdog*/identity`.
 - Configure the watchdog identity with `config watchdog identity <name>` if the default `/dev/watchdog0` is not the desired device.
-- Configure the watchdog timeout with `config watchdog timeout <timeout>` if the default `30` second timeout is not appropriate.
+- Configure the watchdog timeout with `config watchdog timeout <timeout>` if the default `300` second timeout is not appropriate.
 - Ensure existing platform reboot or shutdown code paths using `watchdogutil` continue to work when SONiC watchdog is enabled.
 - Enable kernel dump or other debug collection on watchdog expiry if supported by the platform.
 - Ensure reboot cause is correctly updated on watchdog triggered reboot.
@@ -197,7 +197,7 @@ Watchdog configuration is stored in CONFIG_DB under the `WATCHDOG` table:
 	    "config": {
 	        "enabled": "true",
 	        "identity": "board",
-	        "timeout": "30"
+	        "timeout": "300"
 	    }
 	}
 
@@ -205,7 +205,7 @@ Fields:
 
 - `enabled`: `true` enables the Linux watchdog service. `false` or missing disables it.
 - `identity`: Optional identity string matched against `/sys/class/watchdog/watchdog*/identity`.
-- `timeout`: Optional positive integer timeout in seconds. Missing value defaults to `30`.
+- `timeout`: Optional positive integer timeout in seconds. Missing value defaults to `300`.
 
 The CLI writes this table and runs `watchdog-control.sh` immediately. The control script writes `watchdog-device` and `watchdog-timeout` into `/etc/watchdog.conf`, updates `/etc/default/watchdog` to run the watchdog daemon with that config file, and restarts `watchdog.service` when enabled.
 
