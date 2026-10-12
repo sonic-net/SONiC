@@ -11,16 +11,15 @@
 
 ### LLR testcases
 1. [LLR-01](#-llr-01--llr-eligible-frame-sequence-encoding-and-acknolwdgement) LLR-eligible frame sequence encoding and acknolwdgement
-2. [LLR-02](#-llr-02--nack-generation-due-to-frame-sequence-gap-detection-and-replay-acceptance) NACK generation due to frame sequence gap detection and replay acceptance
-3. [LLR-03](#-llr-03--nack-generation-due-to-bad-crc-frame-reception-and-replay-acceptance) NACK generation due to bad CRC frame reception and replay acceptance
-4. [LLR-04](#-llr-04--replay-after-receiving-nack) Replay after receiving NACK
-4. [LLR-05](#-llr-05--replay-after-replay-timer-expiry) Replay after replay timer expiry
-5. [LLR-06](#-llr-06--poisoned-fcs-handling) Poisoned FCS handling
-6. [LLR-07](#-llr-07--outstanding_frames_max-validation) `OUTSTANDING_FRAMES_MAX` validation
-7. [LLR-08](#-llr-08--buffer-capacity-validation-when-rtt-is-equivalent-of-500-meter-of-cable) Buffer capacity validation when RTT is equivalent of 500 meter of cable
-8. [LLR-09](#-llr-09--recovery-from-flush-state) Recovery from FLUSH state
-9. [LLR-10](#-llr-10--latency-of-llr-eligible-traffic-of-different-frame-sizes) Latency of LLR-eligible traffic of different frame sizes
-10. [LLR-11](#-llr-11--handling-of-llr-eligible-and-llr-ineligible-frames-in-presence-of-uncorrectable-fec-error) Handling of LLR-eligible and LLR-ineligible frames in presence of uncorrectable FEC error
+2. [LLR-02](#-llr-02--nack-generation-and-replay-acceptance) NACK generation and replay acceptance
+3. [LLR-03](#-llr-03--replay-after-receiving-nack) Replay after receiving NACK
+4. [LLR-04](#-llr-04--replay-after-replay-timer-expiry) Replay after replay timer expiry
+5. [LLR-05](#-llr-05--poisoned-fcs-handling) Poisoned FCS handling
+6. [LLR-06](#-llr-06--outstanding_frames_max-validation) `OUTSTANDING_FRAMES_MAX` validation
+7. [LLR-07](#-llr-07--buffer-capacity-validation-when-rtt-is-equivalent-of-500-meter-of-cable) Buffer capacity validation when RTT is equivalent of 500 meter of cable
+8. [LLR-08](#-llr-08--recovery-from-flush-state) Recovery from FLUSH state
+9. [LLR-09](#-llr-09--latency-of-llr-eligible-traffic-of-different-frame-sizes) Latency of LLR-eligible traffic of different frame sizes
+10. [LLR-10](#-llr-10--handling-of-llr-eligible-and-llr-ineligible-frames-in-presence-of-uncorrectable-fec-error) Handling of LLR-eligible and LLR-ineligible frames in presence of uncorrectable FEC error
 
 ### CBFC testcases
 1. [CBFC-01](#-cbfc-01--credit-handling-by-cbfc-sender) Credit Handling by CBFC Sender
@@ -95,9 +94,9 @@ This test case uses [Topology 1](#topology-1)
 6. Repeat the above steps for maximum frame size supported by DUT.
 ---
 
-### 🟦 LLR-02 • NACK generation due to frame sequence gap detection and replay acceptance
+### 🟦 LLR-02 • NACK generation and replay acceptance
 #### Objective
-Verify that DUT (a)generates NACK when it detects sequence gap, and (b)accepts subsequent replay
+Verify that DUT (a)generates NACK when it detects sequence gap or bad FCS, and (b)accepts subsequent replay
 #### Topology
 This test case uses [Topology 1](#topology-1)
 #### Steps
@@ -114,32 +113,23 @@ This test case uses [Topology 1](#topology-1)
    - `LLR_TX_STATUS` on Tester Port 1 & DUT Port 2 = `SAI_PORT_LLR_TX_STATUS_ADVANCE`
    - `LLR_RX_STATUS` on DUT Port 1 & Tester Port 2 = `SAI_PORT_LLR_RX_STATUS_SEND_ACKS`
 6. Verify there is no frame loss in tester traffic statistics
-7. Repeat the above steps for maximum frame size supported by DUT.
----
-
-### 🟦 LLR-03 • NACK generation due to bad CRC frame reception and replay acceptance
-#### Objective
-Verify that DUT (a)generates NACK when it recieves bad CRC frame, and (b)accepts subsequent replay
-#### Topology
-This test case uses [Topology 1](#topology-1)
-#### Steps
-1. Configure `init_seq` = 1 on Tester Port 1. Enable LLR on Tester Port 1, 2 and DUT Port 1, 2.
-2. Send 1000 64B LLR-eligible frames from Tester Port 1 at 100% line rate while injecting bad CRC at 901st frame.
-3. Verify DUT send 1 NACK with sequence number 900, and Tester triggered one replay event 
+7. Disable and enable LLR again on Tester Port 1, 2 and DUT Port 1, 2.
+8. Send 1000 64B LLR-eligible frames from Tester Port 1 at 100% line rate while injecting bad CRC at 901st frame.
+9. Verify DUT send 1 NACK with sequence number 900, and Tester triggered one replay event 
    - `LLR_TX_NACK_CTL_OS` on DUT Port 1 = `LLR_RX_NACK_CTL_OS` on Tester Port 1 = 1
    - Sequence number in NACK is 900
-4. Verify LLR Rx Expected Seq Good, Rx Expected Seq Bad on DUT Port 1 and LLR Tx Replayed Frames on Tester port 1
+10. Verify LLR Rx Expected Seq Good, Rx Expected Seq Bad on DUT Port 1 and LLR Tx Replayed Frames on Tester port 1
    - `LLR_RX_EXPECTED_SEQ_GOOD` on DUT Port 1 = 1000
    - `LLR_RX_EXPECTED_SEQ_BAD` on DUT Port 1 = 1000
    - LLR Tx Replayed Frames on Tester Port 1 > 0  
-5. Verify LLR Tx and Rx state after replay
+11. Verify LLR Tx and Rx state after replay
    - `LLR_TX_STATUS` on Tester Port 1 & DUT Port 2 = `SAI_PORT_LLR_TX_STATUS_ADVANCE`
    - `LLR_RX_STATUS` on DUT Port 1 & Tester Port 2 = `SAI_PORT_LLR_RX_STATUS_SEND_ACKS`
-6. Verify there is no frame loss in tester traffic statistics
-7. Repeat the above steps for maximum frame size supported by DUT.
+12. Verify there is no frame loss in tester traffic statistics
+13. Repeat the above steps for maximum frame size supported by DUT.
 ---
 
-### 🟦 LLR-04 • Replay after receiving NACK
+### 🟦 LLR-03 • Replay after receiving NACK
 #### Objective
 Verify that DUT replays frames from its replay buffer after receiving NACK
 #### Topology
@@ -159,7 +149,7 @@ This test case uses [Topology 1](#topology-1)
 7. Repeat the above steps for maximum frame size supported by DUT.
 ---
 
-### 🟦 LLR-05 • Replay after replay timer expiry
+### 🟦 LLR-04 • Replay after replay timer expiry
 #### Objective
 Verify that DUT replays frames from its replay buffer after replay timer expiry
 #### Topology
@@ -177,7 +167,7 @@ This test case uses [Topology 1](#topology-1)
 7. Repeat the above steps by replacing step 2 with freezing ACK sequence instead of blocking ACK Tx from Tester Port 2.
 ---
 
-### 🟦 LLR-06 • Poisoned FCS handling
+### 🟦 LLR-05 • Poisoned FCS handling
 #### Objective
 Verify that DUT does not send NACK when frames with poisoned FCS are received.
 #### Topology
@@ -194,7 +184,7 @@ This test case uses [Topology 1](#topology-1)
 5. Repeat the above steps for maximum frame size supported by DUT.
 ---
 
-### 🟦 LLR-07 • `OUTSTANDING_FRAMES_MAX` validation
+### 🟦 LLR-06 • `OUTSTANDING_FRAMES_MAX` validation
 #### Objective
 Verify that DUT obeys configured `OUTSTANDING_FRAMES_MAX` 
 #### Topology
@@ -216,7 +206,7 @@ This test case uses [Topology 1](#topology-1)
 6. Repeat the above steps for maximum frame size supported by DUT.
 ---
 
-### 🟦 LLR-08 • Buffer capacity validation when RTT is equivalent of 500 meter of cable
+### 🟦 LLR-07 • Buffer capacity validation when RTT is equivalent of 500 meter of cable
 #### Objective
 Verify that DUT can support reach of 500 meter cable (approximate RTT = 5 us)
 #### Topology
@@ -235,7 +225,7 @@ This test case uses [Topology 1](#topology-1)
 8. Verify there is no frame loss in tester traffic statistics
 ---
 
-### 🟦 LLR-09 • Recovery from FLUSH state
+### 🟦 LLR-08 • Recovery from FLUSH state
 #### Objective
 Verify that DUT can recover from FLUSH state when `RE_INIT_ON_FLUSH` is enabled
 #### Topology
@@ -260,7 +250,7 @@ This test case uses [Topology 1](#topology-1)
    - Tester Port 2 `LLR_RX_EXPECTED_SEQ_GOOD` = 100
 ---
 
-### 🟦 LLR-10 • Latency of LLR-eligible traffic of different frame sizes
+### 🟦 LLR-09 • Latency of LLR-eligible traffic of different frame sizes
 #### Objective
 Verify that latency for LLR-eligible traffic is consistent across different frame sizes.
 #### Topology
@@ -274,7 +264,7 @@ This test case uses [Topology 1](#topology-1)
 5. In each iteration, verify latency of traffic reported in tester traffic statistics is consistent with cut-through/store-and-forward opeation mode of DUT.
 ---
 
-### 🟦 LLR-11 • Handling of LLR-eligible and LLR-ineligible frames in presence of uncorrectable FEC error
+### 🟦 LLR-10 • Handling of LLR-eligible and LLR-ineligible frames in presence of uncorrectable FEC error
 #### Objective
 Verify that in presence of uncorrectable FEC error there is no loss in LLR-eligible frames. 
 #### Topology
