@@ -370,7 +370,7 @@ sequenceDiagram
     Note over CFG,MAIN: (1) container / daemon startup
     CFG-->>HOST: FEATURE change notification
     HOST->>SUPV: start dhcp_snooping container
-    SUPV->>MAIN: start dhcpv4snoopd process<br/>→ main() → loop_snooping()
+    SUPV->>MAIN: start dhcpv4snoopd process<br/>then main() -> loop_snooping()
     Note over SUPV,MAIN: dhcpv4snoopd main process is now running
 
     Note over CFG,ORCH: (2) L2 DHCP CoPP trap programming
@@ -378,7 +378,7 @@ sequenceDiagram
     COPP->>COPP: doFeatureTask()<br/>setFeatureTrapIdsStatus("dhcp_snooping", true)<br/>(trap key == feature name)
     COPP->>APPL: write COPP_TABLE|queue4_group4<br/>trap_ids = dhcp_l2, trap_action = copy
     APPL-->>ORCH: COPP_TABLE update
-    ORCH->>ORCH: create_hostif_trap(SAI_HOSTIF_TRAP_TYPE_DHCP_L2)<br/>action = COPY → syncd → SAI → ASIC
+    ORCH->>ORCH: create_hostif_trap(SAI_HOSTIF_TRAP_TYPE_DHCP_L2)<br/>action = COPY -> syncd -> SAI -> ASIC
     Note over ORCH: L2 DHCP packets copied to CPU (queue 4)<br/>received by dhcpv4snoopd raw socket
 
 ```
@@ -405,19 +405,19 @@ sequenceDiagram
     MAIN->>MAIN: clear binding table (STATE_DB)<br/>+ pending cache
     MGR->>APPL: del DHCPV4_SNOOPING_VLAN /<br/>DHCPV4_SNOOPING_UNTRUSTED_INTERFACE /<br/>DHCPV4_SNOOPING_BINDING
     APPL-->>ORCH: snooping APPL_DB deletes
-    ORCH->>ORCH: dhcpSnoopOrch removes rules from HW TCAM<br/>(dhcpSnoopOrch → AclOrch → syncd → SAI → ASIC)
+    ORCH->>ORCH: dhcpSnoopOrch removes rules from HW TCAM<br/>(dhcpSnoopOrch -> AclOrch -> syncd -> SAI -> ASIC)
 
     Note over CFG,ORCH: (2) L2 DHCP CoPP trap removal
     CFG-->>COPP: FEATURE change notification
     COPP->>COPP: doFeatureTask()<br/>setFeatureTrapIdsStatus("dhcp_snooping", false)
     COPP->>APPL: del COPP_TABLE|queue4_group4<br/>(no active traps remain)
     APPL-->>ORCH: COPP_TABLE delete
-    ORCH->>ORCH: remove_hostif_trap(SAI_HOSTIF_TRAP_TYPE_DHCP_L2)<br/>→ syncd → SAI → ASIC
+    ORCH->>ORCH: remove_hostif_trap(SAI_HOSTIF_TRAP_TYPE_DHCP_L2)<br/>then syncd -> SAI -> ASIC
     Note over ORCH: L2 DHCP packets no longer copied to CPU
 
     Note over CFG,HOST: (3) container / daemon teardown
     CFG-->>HOST: FEATURE change notification
-    HOST->>MAIN: stop dhcp_snooping container<br/>SIGTERM → shutdown_snooping()
+    HOST->>MAIN: stop dhcp_snooping container<br/>SIGTERM -> shutdown_snooping()
 
 ```
 
@@ -438,7 +438,7 @@ sequenceDiagram
     CFG-->>MGR: DHCPV4_SNOOPING_VLAN notification
     MGR->>MGR: mgr_snooping_vlans.insert(100)
     MGR->>MAIN: SNOOPING_VLAN_UPDATE (is_add=true)
-    MAIN->>MAIN: snooping_vlans.insert(100); resolve policy → ipsg
+    MAIN->>MAIN: snooping_vlans.insert(100), resolve policy -> ipsg
     MAIN->>APPL: set DHCPV4_SNOOPING_VLAN|100 ipsg
     MAIN->>STATE: set DHCPV4_SNOOPING_VLAN|100<br/>policy, ipsg, binding_count = 0
     APPL-->>ORCH: DHCPV4_SNOOPING_VLAN SET
@@ -455,10 +455,10 @@ sequenceDiagram
 
     loop each DHCPV4_SNOOPING_STATIC_BINDING for VLAN 100 in CONFIG
         MGR->>MAIN: SNOOPING_STATIC_BINDING_UPDATE (is_add=true)
-        MAIN->>MAIN: cfg.static_bindings += row; install runtime
+        MAIN->>MAIN: cfg.static_bindings += row, install runtime
         MAIN->>STATE: set DHCPV4_SNOOPING_BINDING|100|ip (static)
         MAIN->>APPL: set DHCPV4_SNOOPING_BINDING|100|ip
-        APPL-->>ORCH: BINDING SET → IPSG permit when effective
+        APPL-->>ORCH: BINDING SET, IPSG permit when effective
     end
 
 ```
@@ -481,15 +481,15 @@ sequenceDiagram
     MGR->>MGR: mgr_snooping_vlans.erase(100)<br/>purge_snooping_vlan_member_mirror(100)
     MGR->>MAIN: SNOOPING_VLAN_UPDATE (is_add=false)
     MAIN->>MAIN: flush bindings + pending for VLAN 100<br/>cfg.static_bindings keys for VLAN 100 cleared
-    MAIN->>MAIN: vlan_members(100) → del untrusted / VLAN-interface rows
+    MAIN->>MAIN: vlan_members(100), del untrusted and VLAN-interface rows
     MAIN->>STATE: del DHCPV4_SNOOPING_BINDING|100|*<br/>del DHCPV4_SNOOPING_VLAN|100<br/>del DHCPV4_SNOOPING_VLAN_INTERFACE|100|*
     MAIN->>APPL: del DHCPV4_SNOOPING_VLAN|100<br/>del DHCPV4_SNOOPING_UNTRUSTED_INTERFACE|100|*<br/>del DHCPV4_SNOOPING_BINDING|100|*
     MAIN->>MAIN: clear_vlan_membership_cache(100)<br/>port_tagged_vlans / port_untagged_vlan
     APPL-->>ORCH: DHCPV4_SNOOPING_VLAN DEL (+ member/binding DELs)
-    ORCH->>ORCH: processVlanDel(100)<br/>remove rogue/IPSG rules; detach IPSG flex counter<br/>→ AclOrch → syncd → ASIC
+    ORCH->>ORCH: processVlanDel(100)<br/>remove rogue/IPSG rules, detach IPSG flex counter<br/>then AclOrch -> syncd -> ASIC
     ORCH->>ORCH: erase cached VLAN state
 
-    Note over CFG,MAIN: CONFIG VLAN_MEMBER unchanged;<br/>future VLAN_MEMBER on 100 ignored until re-enable
+    Note over CFG,MAIN: CONFIG VLAN_MEMBER unchanged<br/>future VLAN_MEMBER on 100 ignored until re-enable
 ```
 
 ##### 7.3.8 Trusted interface add flow
@@ -514,7 +514,7 @@ sequenceDiagram
         MAIN->>APPL: del DHCPV4_SNOOPING_UNTRUSTED_INTERFACE|vlan|Ethernet8
         MAIN->>STATE: set DHCPV4_SNOOPING_VLAN_INTERFACE|vlan|Ethernet8<br/>trust = trusted
         APPL-->>ORCH: DHCPV4_SNOOPING_UNTRUSTED_INTERFACE DEL
-        ORCH->>ORCH: processUntrustedInterfaceDel(vlan, Ethernet8)<br/>remove rogue DHCP deny (+ IPSG deny) rule<br/>→ AclOrch → syncd → SAI → ASIC
+        ORCH->>ORCH: processUntrustedInterfaceDel(vlan, Ethernet8)<br/>remove rogue DHCP deny (+ IPSG deny) rule<br/>then AclOrch -> syncd -> SAI -> ASIC
     end
 
     Note over MAIN,ORCH: DHCP server packets now allowed on Ethernet8
@@ -542,7 +542,7 @@ sequenceDiagram
         MAIN->>APPL: set DHCPV4_SNOOPING_UNTRUSTED_INTERFACE|vlan|Ethernet8
         MAIN->>STATE: set DHCPV4_SNOOPING_VLAN_INTERFACE|vlan|Ethernet8<br/>trust = untrusted
         APPL-->>ORCH: DHCPV4_SNOOPING_UNTRUSTED_INTERFACE SET
-        ORCH->>ORCH: processUntrustedInterfaceSet(vlan, Ethernet8)<br/>install rogue DHCP deny (+ IPSG deny if effective) rule<br/>→ AclOrch → syncd → SAI → ASIC
+        ORCH->>ORCH: processUntrustedInterfaceSet(vlan, Ethernet8)<br/>install rogue DHCP deny (+ IPSG deny if effective) rule<br/>then AclOrch -> syncd -> SAI -> ASIC
     end
 
     Note over MAIN,ORCH: DHCP server packets dropped on Ethernet8 again
@@ -577,7 +577,7 @@ sequenceDiagram
         PORTS-->>ORCH: oper_status
         ORCH->>ORCH: updateInterfaceRules(Ethernet8, vlanIf)
         opt Vlan100 and Ethernet8 both operationally up
-            ORCH->>ORCH: rogue DHCP deny (+ IPSG deny if ipsg enabled)<br/>→ AclOrch → syncd → ASIC
+            ORCH->>ORCH: rogue DHCP deny (+ IPSG deny if ipsg enabled)<br/>then AclOrch -> syncd -> ASIC
         end
     else Ethernet8 is trusted
         MAIN->>APPL: del DHCPV4_SNOOPING_UNTRUSTED_INTERFACE|100|Ethernet8 (if any)
@@ -587,7 +587,7 @@ sequenceDiagram
         loop each static binding on VLAN 100 for interface Ethernet8
             MAIN->>STATE: set DHCPV4_SNOOPING_BINDING|100|ip (static)
             MAIN->>APPL: set DHCPV4_SNOOPING_BINDING|100|ip
-            APPL-->>ORCH: BINDING SET → IPSG permit when effective
+            APPL-->>ORCH: BINDING SET, IPSG permit when effective
         end
     end
     MAIN->>STATE: refresh DHCPV4_SNOOPING_VLAN|100 binding_count
@@ -616,13 +616,13 @@ sequenceDiagram
     loop each binding (dynamic or static) on VLAN 100 with interface Ethernet8
         MAIN->>STATE: del DHCPV4_SNOOPING_BINDING|100|ip
         MAIN->>APPL: del DHCPV4_SNOOPING_BINDING|100|ip
-        APPL-->>ORCH: BINDING DEL → remove IPSG permit rules
+        APPL-->>ORCH: BINDING DEL, remove IPSG permit rules
     end
     MAIN->>APPL: del DHCPV4_SNOOPING_UNTRUSTED_INTERFACE|100|Ethernet8
     MAIN->>STATE: del DHCPV4_SNOOPING_VLAN_INTERFACE|100|Ethernet8
-    APPL-->>ORCH: UNTRUSTED_INTERFACE DEL → remove rogue/IPSG ACLs for pair
+    APPL-->>ORCH: UNTRUSTED_INTERFACE DEL -> remove rogue/IPSG ACLs for pair
     MAIN->>STATE: refresh DHCPV4_SNOOPING_VLAN|100 binding_count
-    Note over CFG,MAIN: CONFIG static-binding rows kept;<br/>runtime restored on member re-add
+    Note over CFG,MAIN: CONFIG static-binding rows kept<br/>runtime restored on member re-add
 ```
 
 ##### 7.3.12 L2 VLAN deleted while snooping enabled
@@ -913,7 +913,7 @@ sequenceDiagram
     rect rgb(255, 220, 220)
         Note over Orch, ASIC: Teardown cascades through every interface
         Note over Orch, ASIC: still cached under this VLAN
-        Orch->>Orch: doVlanTask() → deleteSnoopVlan()
+        Orch->>Orch: doVlanTask() -> deleteSnoopVlan()
         loop each interface still present under Vlan100
             Orch->>Orch: deleteVlanInterface(Vlan100, interface)
             Orch->>AclOrch: removeAclRule rogue_dhcp_deny
@@ -1024,7 +1024,7 @@ sequenceDiagram
 
     rect rgb(255, 220, 220)
         Note over Orch, ASIC: Teardown interface and binding rules
-        Orch->>Orch: doVlanInterfaceTask() → deleteVlanInterface()
+        Orch->>Orch: doVlanInterfaceTask() -> deleteVlanInterface()
         Orch->>AclOrch: removeAclRule rogue_dhcp_deny
         AclOrch->>syncd: remove_acl_entry
         syncd->>ASIC: remove rule
@@ -1121,7 +1121,7 @@ sequenceDiagram
 
     rect rgb(255, 220, 220)
         Note over Orch, ASIC: Teardown binding rule
-        Orch->>Orch: doBindingTask() → deleteSnoopBinding()
+        Orch->>Orch: doBindingTask() -> deleteSnoopBinding()
         Orch->>AclOrch: removeAclRule ipsg_permit
         AclOrch->>syncd: remove_acl_entry
         syncd->>ASIC: remove rule
