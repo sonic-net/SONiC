@@ -92,9 +92,6 @@
     - [transceiver-monitor-hld.md](doc/xrcvd/transceiver-monitor-hld.md)
   - vxlan
     - [Vxlan_hld.md](doc/vxlan/Vxlan_hld.md)
-  - barefoot_dtel
-    - [Dtel-SONiC.md](doc/barefoot_dtel/Dtel-SONiC.md)
-    - [Dtel-test-plan.md](doc/barefoot_dtel/Dtel-test-plan.md)
   - crm
     - [CRM_requirements.md](doc/crm/CRM_requirements.md)
   - ztp
