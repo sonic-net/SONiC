@@ -15,6 +15,7 @@
 |  | sonic-linkmgrd-maintainer | Longxiang Lyu (Microsoft) | lolyu | enabled |
 |  | sonic-linkmgrd-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 | sonic-linux-kernel | sonic-linux-kernel-maintainer | Saikrishna Arcot (Microsoft) | saiarcot895 | enabled |
+|  | sonic-linux-kernel-maintainer | Hemanth Kumar Tirupati (Nvidia) | tirupatihemanth | Request on 08/25/2026 |
 | sonic-mgmt-common | sonic-mgmt-common-maintainer | Kim, Kwan (DELL) | kwangsuk | enabled |
 |  | sonic-mgmt-common-maintainer | Shashank Neelam (Google) | sneelam20 | enabled |
 |  | sonic-mgmt-common-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | enabled |
