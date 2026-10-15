@@ -239,7 +239,7 @@ The referenced `MIRROR_SESSION` contains export attributes such as `src_ip`, `ds
 
     ;Configure a sampled ERSPAN source binding.
     key = PORT_MIRROR_SAMPLE|port|direction
-        ;port references an existing physical port in PORT.
+        ;port references a physical port in PORT or a PortChannel in PORTCHANNEL.
         ;direction is rx or tx; CLI both creates one entry per direction.
         ;The port and direction together uniquely identify the binding.
 
@@ -249,6 +249,8 @@ The referenced `MIRROR_SESSION` contains export attributes such as `src_ip`, `ds
     mirror_session = mirror_session_name ;Required. References an ERSPAN entry in MIRROR_SESSION.
     sample_rate    = uint32             ;Required. Range: 1..4294967295. Sampling probability: 1/N.
     truncate_size  = uint32             ;Optional. Range: 64..9216 bytes. Absent: no truncation.
+
+PortChannel source bindings are stored at the logical interface level in CONFIG_DB; no separate member-port entries are generated.
 
 Truncation is configured through the SamplePacket object, subject to hardware support for the requested scope and value.
 
@@ -312,6 +314,8 @@ An enabled binding creates or acquires a compatible SamplePacket profile. Its di
 - CLI **both**: two independent configuration entries request the two attribute pairs. Equal policies may reuse an `EXCLUSIVE` SamplePacket profile with reference counting; different rates require different profiles. Profile reuse must preserve independent sampling per attachment.
 
 Bindings wait for the referenced session and its destination to be ready. Removing one binding releases only its attachment and unused sampling resources, not a still-referenced export session.
+
+For a PortChannel source, MirrorOrch expands the binding to its physical member ports for SAI programming and updates the attachments as members join or leave. Each member uses the configured sampling policy. Binding ownership must prevent overlapping PortChannel and direct member-port bindings from overwriting or clearing each other's attachments on the same physical port and direction.
 
 See Section 3.1.1 for the architecture overview and Section 4 for the detailed workflow.
 
@@ -654,7 +658,7 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
 +--rw sonic-port-mirror-sample
    +--rw PORT_MIRROR_SAMPLE
       +--rw PORT_MIRROR_SAMPLE_LIST* [port direction]
-         +--rw port             -> /sonic-port/PORT/PORT_LIST/name
+         +--rw port             union (PORT or PORTCHANNEL reference)
          +--rw direction        enumeration (rx, tx)
          +--rw admin_state?     enumeration (up, down; default down)
          +--rw mirror_session   -> /sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST/name
@@ -662,7 +666,7 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
          +--rw truncate_size?   uint32 (64..9216)
 ```
 
-YANG validates source-port and mirror-session references, mandatory fields, and value ranges for both enabled and disabled bindings. A mirror session referenced by `PORT_MIRROR_SAMPLE` must have type `ERSPAN` and must not contain `src_port`.
+The `port` key is a union of leafrefs to `PORT/PORT_LIST/name` and `PORTCHANNEL/PORTCHANNEL_LIST/name` in their respective YANG modules. YANG validates source-port and mirror-session references, mandatory fields, and value ranges for both enabled and disabled bindings. A mirror session referenced by `PORT_MIRROR_SAMPLE` must have type `ERSPAN` and must not contain `src_port`.
 
 **Configuration exclusivity:** Explicit `SFLOW|global` configuration and `PORT_MIRROR_SAMPLE` entries are mutually exclusive system-wide. GCU/YANG validation rejects any candidate configuration containing both, regardless of port, direction, or administrative state. Unsampled SPAN/ERSPAN is not subject to this restriction.
 
@@ -1041,7 +1045,7 @@ The following test cases validate the mirror capability discovery and validation
 | 37 | Verify binding remove/add changes policy without disrupting other users of the shared export session |
 | 38 | Verify disabled bindings create no active sampled attachment and administrative updates reconcile correctly |
 | 39 | Verify bypassed validation cannot overwrite conflicting sFlow resources; cleanup failure blocks activation |
-| 40 | Verify the sampled-binding port key rejects a PortChannel; retain unsampled LAG mirroring regression coverage |
+| 40 | Verify a PortChannel binding remains a logical CONFIG_DB entry, programs its physical members, follows member additions/removals, and does not overwrite overlapping direct member-port bindings |
 | 41 | Verify that a binding whose export destination is unresolved has no active sampled source attachment |
 | 42 | Verify route withdraw/reactivate: the session deactivates when the route is withdrawn and reactivates when it returns |
 
