@@ -31,6 +31,7 @@
     * [2.4 Switch-Host and BMC platform management interaction](#24-switch-host-and-bmc-platform-management-interaction)
       * [2.4.1 pmon/thermalctld](#241-pmonthermalctld)
       * [2.4.2 CLI commands](#242-cli-commands)
+      * [2.4.3 Switch-Host initiated BMC hardware reset control](#243-switch-host-initiated-bmc-hardware-reset-control)
     * [2.5 Firmware upgrade](#25-firmware-upgrade)
   * [3 Future Items](#3-future-items)
 
@@ -40,6 +41,7 @@
  | Rev |     Date    |       Author                                                         | Change Description                |
  |:---:|:-----------:|:--------------------------------------------------------------------:|-----------------------------------|
  | 1.0 |             |       Judy Joseph                                                    | Initial version                   |
+ | 1.1 | 2026-08-12  |       Prajjwal Singh                                                 | Add Switch-Host initiated BMC hardware reset control |
 
 
 # Scope
@@ -78,6 +80,13 @@ Hybrid cooled sku requirements
 * Sku with Liquid cooling and Air cooling for certain components(eg: CPU, ASIC etc) - will follow Liquid cooling sku requirements
 * The thermalctld daemon in Switch-Host will run the thermal algorithm to control fan speed as applicable.
     
+Switch-Host initiated BMC management requirements *(optional — applicable only to platforms where the BMC can be individually reset without affecting Switch-Host operation)*
+* Switch-Host shall expose the BMC through `ChassisBase.get_bmc()`.
+* Switch-Host shall provide a platform API to reset the BMC (assert reset and then deassert reset).
+* BMC hardware reset control shall not depend on Redfish, the Host-BMC-Link, or BMC software availability.
+* The vendor platform implementation shall use a hardware reset path directly accessible from the Switch-Host while the BMC is unresponsive.
+* Not all vendors may have hardware support for individual BMC reset. This feature must only be implemented on platforms where the BMC can be individually reset without impacting the Switch-Host or chassis-level power rails.
+
 ### 1.2. BMC Platform Stack
 The SONiC in BMC interoperates with the SONiC in Switch-Host as in below diagram.
  
@@ -643,6 +652,13 @@ This base class is already defined in sonic-platform-common.
 | is_bmc() | New | Retrieves whether the sonic chassis instance is/has a BMC module |
 | is_liquid_cooled() | New | Is this chassis liquid/hybrid cooled ? |
 
+#### BMCBase (Switch-Host)
+This base class is already defined in sonic-platform-common and models the BMC from the Switch-Host side. The Switch-Host obtains the `BMCBase`-derived object using `ChassisBase.get_bmc()`.
+
+| Method | Present | Action |
+|--------|---------|--------|
+| reset() | New | Resets the BMC by asserting the hardware reset signal followed by deasserting it. The BMC is not held in reset. This API controls the reset signal only and does not control BMC power rails. <br/>This is implemented by the vendor platform driver and must not depend on Redfish.<br/>Returns `True` when the reset is successfully performed, otherwise `False`. <br/>A successful return does not indicate that BMC boot has completed. <br/>This API is optional — platforms without dedicated BMC reset hardware should not implement it. |
+
 ### 2.3 BMC CLI Commands
 
 Following is the config and show CLI commands which are either newly added or needs a change to support BMC.
@@ -910,6 +926,67 @@ Name                 Cause                                             Time     
 2026_03_18_02_06_06  power down request from BMC                       Wed Mar 18 02:05:12 AM UTC 2026  admin   N/A
 ....
 
+```
+
+##### 2.4.3 Switch-Host initiated BMC hardware reset control
+
+**Note:** This feature is optional and must only be implemented on platforms
+where the BMC can be individually reset without affecting
+Switch-Host operation or chassis-level power rails. Platforms without dedicated
+BMC reset hardware should not implement this feature.
+
+The Switch-Host controls the BMC hardware reset through the platform API.
+A Switch-Host-accessible hardware reset path is required to recover the BMC when
+its firmware, operating system, or Redfish service is unresponsive. The existing
+`request_bmc_reset()` API uses Redfish and therefore cannot recover failures that
+prevent the BMC from servicing Redfish requests.
+
+There have been cases where the BMC becomes stuck or unresponsive — for example, firmware hangs, kernel panics, or watchdog failures
+on evaluation and production boards. In such situations, operators need the
+ability to reset the BMC directly from the Switch-Host without disrupting live
+network traffic. A full chassis power-cycle is unacceptable because it causes
+packet-forwarding interruption. This feature enables targeted BMC recovery
+while the Switch-Host continues forwarding traffic, significantly reducing the
+operational impact of BMC failures.
+
+The BMC reset is performed by asserting the hardware reset signal followed by
+deasserting it. The BMC is not held in reset. This ensures the BMC always
+reboots into a known-good state after the reset, rather than remaining in an
+indeterminate held-in-reset condition.
+
+Resetting the BMC stops BMC software and BMC-owned monitoring and
+safety functions, including leak-policy enforcement. It is intended for
+deliberate recovery operations when the required safeguards are in place.
+
+The operation is immediate and is not stored in CONFIG_DB. No platform daemon or BMC service is involved.
+
+* **CLI Command - config bmc reset**
+
+This command is supported only on Switch-Host platforms exposing a BMC through `ChassisBase.get_bmc()`.
+The command requires admin privileges (root/sudo) and is subject to SONiC's
+AAA (Authentication, Authorization, and Accounting) audit framework.
+
+```
+config bmc reset
+   - Calls bmc.reset().
+   - Resets the BMC: asserts the hardware reset signal followed by
+     deasserting it.
+   - The BMC reboots after reset is deasserted.
+```
+
+* **Platform API Sample usage**
+
+```
+from sonic_platform import platform
+
+chassis = platform.Platform().get_chassis()
+bmc = chassis.get_bmc()
+
+if bmc is None:
+    raise RuntimeError("BMC hardware reset control is not supported")
+
+# Reset the BMC (assert reset followed by deassert)
+result = bmc.reset()
 ```
 
 #### 2.5 Firmware upgrade
