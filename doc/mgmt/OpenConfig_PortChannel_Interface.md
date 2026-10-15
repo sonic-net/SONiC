@@ -42,6 +42,7 @@
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
+| 0.2 | 01/28/2026  | Neha Das | Additional leaves                  |
 | 0.1 | 02/24/2024  | Satoru Shinohara | Initial version                   |
 
 # About this Manual
@@ -137,8 +138,12 @@ module: openconfig-interfaces
         +--rw oc-lag:aggregation
            +--rw oc-lag:config
            |  +--rw oc-lag:min-links?   uint16
+           |  +--rw oc-lag:lag-type?    oc-lag:aggregation-type
            +--ro oc-lag:state
               +--ro oc-lag:min-links?   uint16
+              +--rw oc-lag:lag-type?    oc-lag:aggregation-type
+              +--rw oc-lag:lag-speed?   uint32
+              +--rw oc-lag:member?      leaf-list
 ```
 # Definition/Abbreviation
 ### Table 1: Abbreviations
@@ -306,6 +311,8 @@ Mapping attributes between OpenConfig YANG and SONiC YANG:
 |-------------------------|-------------------------|
 |   name                  |      name               |
 |   min-links             |      min_links          |
+|   lag-type              |      lag_type           |
+
 
 # 5 Error Handling
 Invalid configurations will report an error.
