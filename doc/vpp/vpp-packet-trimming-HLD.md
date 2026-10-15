@@ -184,11 +184,20 @@ the implementation direction:
   (LCP) TAP** interfaces paired to those members. (An AF_PACKET
   `host-interface` backend exists in `vpp_init.sh` only for veth-based ports;
   this testbed presents virtio PCI, so it takes the DPDK path.)
-- **No QoS / admission substrate (measured).** The running VPP graph has no
-  policer (the CLI is not even compiled in), no scheduler, shaper, HQoS, or
-  per-queue admission node, no per-queue buffer accounting, and no
-  congestion/tail-drop counter in the transit path. There is no native
-  equivalent of `SAI_BUFFER_PROFILE_PACKET_ADMISSION_FAIL_ACTION_DROP_AND_TRIM`.
+- **No QoS / admission substrate (measured).** When this baseline was measured
+  the running VPP graph had no policer (the CLI was not even compiled in), no
+  scheduler, shaper, HQoS, or per-queue admission node, no per-queue buffer
+  accounting, and no congestion/tail-drop counter in the transit path. There is
+  no native equivalent of
+  `SAI_BUFFER_PROFILE_PACKET_ADMISSION_FAIL_ACTION_DROP_AND_TRIM`. The CoPP
+  feature has since enabled the native policer plugin and calls
+  `vnet_police_packet()` from `sonic_ext` with per-worker counters, but that is a
+  rate policer keyed per policer index (ACL or interface), whereas trim admission
+  is keyed per egress `{port, queue}` off the scheduler `PIR`, and VPP still
+  exposes no real queue-occupancy signal — so the small per-`{port, queue}`
+  bucket remains the simplest fit. Converging trim admission onto the CoPP
+  policer once it fits is tracked as future work
+  ([13.2](#132-design-limitations)).
 - **The SONiC scheduler is a dataplane no-op.** SAI-VPP stores the
   `SAI_SCHEDULER_GROUP` / `SAI_QUEUE` object model so orchagent is satisfied,
   but programs no VPP rate/shaper. The packet-trimming test creates congestion
@@ -639,6 +648,11 @@ the advertised *enum values* to exactly what the software admission shim honors:
 | `SwitchVpp::queryAttributeCapability` | Inherits the base: the six `SAI_SWITCH_ATTR_PACKET_TRIM_*` attributes (size, DSCP mode, DSCP value, TC value, queue mode, queue index) stay create/set/get implemented, so `sonic-swss`'s `isSwitchTrimmingSupported()` follows the `set` capability and `SWITCH_TRIMMING_CAPABLE` is `true` |
 | `SwitchVpp::queryAttrEnumValuesCapability` | Overrides the base to advertise a single value per trim enum — `DSCP_VALUE` for `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` and `STATIC` for `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` — so orchagent never programs the asymmetric `FROM_TC` or `DYNAMIC` modes VPP does not implement. `DROP`/`DROP_AND_TRIM` buffer-profile actions are left to the base metadata |
 
+Advertising the capability is intentional for VPP's role as a software test
+platform; the operational limits this advertisement does not itself convey —
+trimming is functionally demonstrated, not yet useful under real congestion — are
+stated in the "Maturity and key limitations" callout in [§2](#2-scope).
+
 Because the capability stays `true`, the symmetric `packet_trimming` PTF suite
 runs on sonic-vpp. Cases that exercise unimplemented behavior — asymmetric
 per-port DSCP (`FROM_TC`), `DYNAMIC` queue resolution, ACL disable-trim, trim
@@ -741,7 +755,8 @@ These commands are for serviceability and do not replace the standard SONiC CLI.
 ### 9.1 Disabling and Opting Out
 
 Packet trimming is opt-in and disabled by default; it cannot perturb normal
-forwarding unless explicitly configured. Four levels of control exist:
+forwarding unless explicitly configured. Five levels of control exist, from
+automatic to coarse:
 
 1. **Default off.** The `sonic-ext-trim-admission` feature node is registered on
    the `interface-output` arc but is enabled on no interface at initialization
@@ -766,13 +781,24 @@ forwarding unless explicitly configured. Four levels of control exist:
    dispatch that immediately bypasses — a no-op, not a structural detach.
    Combining it with per-queue eligibility removal (in that order) also drops the
    arcs.
-4. **Whole-plugin disable.** VPP's generic plugin loader honors
+4. **Trim-specific runtime off switch.** Packet trimming is registered in the
+   plugin's generic per-feature control registry (`foreach_sonic_ext_feature`),
+   so `sonic-ext { trim disable }` in `startup.conf` — and the matching
+   `show sonic-ext` readout — force the admission node off independently of SAI
+   and without disturbing the other `sonic_ext` features. The admission node
+   self-gates on this toggle and bypasses at its first per-packet check when it
+   is cleared. The registry entry defaults enabled, so trimming stays opt-in
+   through the SAI global policy (control 3) rather than through this toggle; the
+   switch is a deterministic operator override that takes trimming out of the
+   datapath regardless of SAI state.
+5. **Whole-plugin disable.** VPP's generic plugin loader honors
    `plugin sonic_ext_plugin.so { disable }` in `startup.conf`, which removes the
    entire `sonic_ext` plugin and all trim behavior. This is a coarse control that
    also disables the plugin's other functions and is not trim-specific.
 
-There is no packet-trim-specific compile-time flag; the trim sources are compiled
-unconditionally into `sonic_ext_plugin.so`.
+The per-feature registry toggle above is the trim-specific *runtime* control;
+there is no packet-trim-specific *compile-time* flag, as the trim sources are
+compiled unconditionally into `sonic_ext_plugin.so`.
 
 ## 10. Warmboot and Fastboot
 
@@ -909,7 +935,11 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
   [7.4](#74-truncation-and-header-handling)).
 - The admission shim uses one token bucket per `{port, queue}` updated on the
   egress worker; multi-worker per-queue bucket sharding is future work and is not
-  required by the single-worker KVM topology.
+  required by the single-worker KVM topology. This single-worker assumption is
+  documented but not currently enforced: because `startup.conf` can request
+  multiple workers, refusing to enable trimming (or sharding to per-worker
+  buckets) when more than one worker is configured is a cheap safety net tracked
+  as future work.
 - The global trim policy and the DSCP-to-queue table are switch-wide; per-port
   QoS-map variation is not modeled in the initial implementation, which matches
   the uniform testbed configuration. This design is therefore **not safe for
@@ -927,12 +957,24 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
   supported VPP KVM topology. Additional backends (for example the AF_PACKET
   `host-interface` path used for veth ports) may reuse the same generic admission
   node at their own pre-transmit point.
+- Re-injecting a trimmed copy at `interface-output-arc-end`
+  ([7.6](#76-static-trim-queue-and-retry)) bypasses every `interface-output` arc
+  node ordered after `sonic-ext-trim-admission`, including
+  `sonic-ext-egress-mirror`, so a trimmed copy is not egress-mirrored (Everflow
+  `MIRROR_EGRESS`) in this increment. That same arc-end re-injection is what
+  makes the one-shot guarantee structural, so the fix is to order mirroring
+  before admission (or mirror the trimmed copy explicitly) rather than to drop
+  the re-injection; it is tracked as future work. The supported test scope never
+  runs trimming and egress mirroring on the same traffic, so the interaction is
+  not exercised today.
 - Advanced interactions such as mirroring and SRv6 are enabled in sonic-mgmt only
   after their focused validation passes.
 
 Future work includes dynamic queue resolution, per-worker bucket sharding,
-per-port QoS-map fidelity, broader software QoS scheduling, and upstreaming any
-generic VPP admission-failure integration through FD.io.
+per-port QoS-map fidelity, broader software QoS scheduling, evaluating the native
+CoPP policer (`vnet_police_packet()`) as the admission substrate, a multi-worker
+enablement guard, and upstreaming any generic VPP admission-failure integration
+through FD.io.
 
 ## 14. Testing
 
