@@ -100,12 +100,10 @@ prefixes, and configuration policy (stateless vs. stateful/DHCPv6). In SONiC,
 RAs for routed interfaces are originated by **FRR/zebra** using `ipv6 nd ...`
 interface commands.
 
-VLAN interfaces already expose a small ND subset (`nd_suppress_ra`, the M/O
-flags, and `VLAN_INTERFACE_ND_PREFIX.disable_autoconfiguration`). This feature
-extends that model to Ethernet and PortChannel interfaces, adds the remaining
-RA scalars, and generalizes per-prefix advertisement so an RA prefix is an
-independent object (matching FRR/zebra) rather than a property of an assigned
-interface address.
+This feature adds per-interface RA scalars and per-prefix advertisement
+on Ethernet, PortChannel, and VLAN interfaces. An RA prefix is an independent
+object (matching FRR/zebra) rather than a property of an assigned interface
+address.
 
 ## Requirements
 
@@ -128,8 +126,8 @@ interface address.
 
 There is no change to the overall SONiC architecture. New leaves are added to
 existing CONFIG_DB interface tables, three dedicated per-prefix tables are
-introduced (and the VLAN prefix table is aligned with them), and `frrcfgd`
-in the `bgp` container consumes those tables and programs FRR.
+introduced, and `frrcfgd` in the `bgp` container consumes those tables and
+programs FRR.
 
 ```
                  +----------------------------+
@@ -159,10 +157,9 @@ in the `bgp` container consumes those tables and programs FRR.
 
 | Repository | Change |
 |------------|--------|
-| `sonic-yang-models` | ND scalar leaves on the three interface lists; `INTERFACE_ND_PREFIX` / `PORTCHANNEL_INTERFACE_ND_PREFIX`; VLAN prefix table aligned to the same key and leaves |
+| `sonic-yang-models` | ND scalar leaves on the three interface lists; `INTERFACE_ND_PREFIX`, `PORTCHANNEL_INTERFACE_ND_PREFIX`, and `VLAN_INTERFACE_ND_PREFIX` |
 | `sonic-frr-mgmt-framework` | `frrcfgd` handlers for scalars and prefixes; VLAN zebra template |
 | `sonic-buildimage` | `zebra.interfaces.conf.j2` for Ethernet and PortChannel |
-| `sonic-frr` | Patch adding `ipv6 nd prefix ... no-advertise` (not supported in upstream FRR) |
 | `sonic-utilities` | `config interface ipv6 nd ...` and `show ipv6 nd ...` |
 
 ### Config DB Schema
@@ -241,10 +238,8 @@ Example:
 }
 ```
 
-`Ethernet0|2001:db8:1::/64` with an empty hash is a keys-only advertise.
-`VLAN_INTERFACE_ND_PREFIX` previously used key `name prefix` and required
-`disable_autoconfiguration`; it now uses `name ip-prefix` and the same
-optional leaves as the Ethernet and PortChannel tables.
+`Ethernet0|2001:db8:1::/64` with an empty hash is a keys-only advertise. The
+PortChannel and VLAN prefix tables use the same key and optional leaves.
 
 ### YANG Model Changes
 
@@ -254,7 +249,7 @@ are added to:
 * `sonic-interface.yang` — `INTERFACE_LIST` and new `INTERFACE_ND_PREFIX_LIST`
 * `sonic-portchannel.yang` — `PORTCHANNEL_INTERFACE_LIST` and new
   `PORTCHANNEL_INTERFACE_ND_PREFIX_LIST`
-* `sonic-vlan.yang` — `VLAN_INTERFACE_LIST` and updated
+* `sonic-vlan.yang` — `VLAN_INTERFACE_LIST` and new
   `VLAN_INTERFACE_ND_PREFIX_LIST`
 
 Each prefix list is keyed by `name ip-prefix`. `ip-prefix` is
@@ -343,18 +338,6 @@ Example composite command:
 ```
 ipv6 nd prefix 2001:db8:a::/64 3600 1800 router-address off-link no-autoconfig
 ```
-
-#### FRR `no-advertise` support
-
-Upstream FRR previously left the YANG `no-advertise` case commented out
-("FRR doesn't support no-advertise"). SONiC carries
-`0116-zebra-Support-no-advertise-for-ipv6-nd-prefix.patch`, which:
-
-* Re-enables the `control-adv-prefixes` choice in `frr-zebra.yang`
-* Adds `AdvNoAdvertise` so the PIO is omitted from RAs
-* Accepts `ipv6 nd prefix X:X::X:X/M no-advertise`
-* Adds the northbound destroy callbacks required for leaves under that YANG
-  case
 
 ## SAI API
 
@@ -461,39 +444,23 @@ restored from CONFIG_DB and re-applied to FRR after reboot.
   must not exceed it.
 * Parameters take effect only when IPv6 is operational on the interface.
 * Loopback interfaces are not supported.
-* `VLAN_INTERFACE_ND_PREFIX` key `prefix` is renamed to `ip-prefix`, and
-  `disable_autoconfiguration` is no longer mandatory. Existing VLAN prefix
-  rows must be migrated.
+* Runtime programming through `frrcfgd` requires the FRR management framework
+  (`DEVICE_METADATA.localhost.frr_mgmt_framework_config` set to `true`).
+  Without it, ND settings are applied from the zebra templates when the BGP
+  container starts or reloads.
 
 ## Testing Requirements/Design
 
 ### Unit tests
 
-* `sonic-frr-mgmt-framework` unit tests cover `frrcfgd` for Ethernet,
-  PortChannel, and VLAN:
-  * keys-only prefix advertise and keys-only delete
-  * ConfigDB `NULL`/`NULL` placeholder treated as keys-only
-  * `no-advertise`, composite prefix command, preferred defaulting to valid
-  * cache merge on partial prefix updates
-  * host address rewritten to covering network
-  * IPv4 and invalid IPv6 prefixes skipped
-  * last optional attr removed keeps the prefix programmed
-  * scalar boolean aliases, suppress-ra default restore, fast-retrans
-  * seconds ↔ msec interval switch without `no ipv6 nd ra-interval`
-  * address-row keys skipped on scalar tables
-* YANG model tests in `sonic-yang-models` for valid and invalid RA scalar
-  and prefix configs on interface, PortChannel, and VLAN (range, interval
-  exclusivity, no-advertise combinations, preferred > valid, IPv4 prefix
-  rejected).
+* `sonic-frr-mgmt-framework` unit tests cover `frrcfgd` programming of ND
+  scalars and prefixes on Ethernet, PortChannel, and VLAN interfaces.
+* `sonic-yang-models` tests cover valid and invalid RA scalar and prefix
+  configuration on those interface types.
 
 ### System tests
 
-* Configure scalars and prefixes via CLI / CONFIG_DB; verify `vtysh`
-  `show running-config` contains the mapped `ipv6 nd` commands.
-* With `nd_suppress_ra=false`, capture RAs and confirm interval, M/O flags,
-  lifetimes, and PIO contents (including omitted PIO for `no-advertise`).
-* Reload / restart the BGP container and confirm ND state is restored from
-  the zebra templates.
+Separate SONiC management tests will be added to cover this feature.
 
 ## Open/Action items
 
