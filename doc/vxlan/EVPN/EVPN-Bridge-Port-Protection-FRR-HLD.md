@@ -17,6 +17,7 @@
   - [7.3 Data flow](#73-data-flow)
   - [7.4 BGP extension](#74-bgp-extension)
   - [7.5 Zebra extension](#75-zebra-extension)
+  - [7.6 IP A-D route origination and import (bgpd)](#76-ip-a-d-route-origination-and-import-bgpd)
 - [8. Zebra protection lifecycle](#8-zebra-protection-lifecycle)
   - [8.1 Protection state](#81-protection-state)
   - [8.2 BGP peer context in zebra](#82-bgp-peer-context-in-zebra)
@@ -46,6 +47,7 @@
 |---|---|---|---|
 | 1.0 | 2026-09-29 | Patrice Brissette | Initial FRR HLD |
 | 1.1 | 2026-10-08 | Patrice Brissette | Address review comments: Binding export independent of carrier state; drop Member VNI; flush and rebuild on every new FPM session (warm reboot and reconciliation out of scope); shared Group peer-set intersection; add SAI, warmboot/fastboot, and memory sections; fix links |
+| 1.2 | 2026-10-14 | Patrice Brissette | Re-align the FRR architecture: one Group per ES, eligibility and RMAC decided in bgpd, new BPP_PEER ZAPI |
 
 ---
 
@@ -123,7 +125,7 @@ is specified by the separate [L3MH Neighbor Synchronization HLD](https://github.
 | **RT-1** | EVPN Ethernet Auto-Discovery route; the base route for both terms below. |
 | **IP A-D per-EVI (RT-1)** | Ethernet Auto-Discovery route scoped to an EVI, advertised into the IP-VRF to identify candidate peer VTEPs for the corresponding IP-VRF/L3VNI. |
 | **IP A-D per-ES (RT-1)** | Ethernet Auto-Discovery route scoped to an Ethernet Segment, used for peer eligibility, fast convergence, and withdrawal. |
-| **ES / RT-4** | Ethernet-Segment route used for ES-wide discovery and initial validation. |
+| **ES / RT-4** | Ethernet-Segment route used for ES peer discovery and as an operational cross-check for debugging; it does not gate protection eligibility. |
 | **RT-2** | EVPN MAC/IP route. |
 | **RT-5** | EVPN IP Prefix route. |
 | **EVPN IP route** | The reachability route being aliased: an EVPN MAC/IP route (RT-2) or EVPN IP Prefix route (RT-5) carrying the ES's ESI. |
@@ -207,7 +209,7 @@ FRR and SONiC divide the work as follows:
 
 | ID | Requirement |
 |---|---|
-| R1 | FRR must derive the protection peer set from IP A-D per-EVI (RT-1) aliasing AND valid IP A-D per-ES (RT-1) coverage for the same ESI/IP-VRF/L3VNI. ES / RT-4 is used for ES discovery and initial validation. |
+| R1 | FRR must derive the protection peer set from IP A-D per-EVI (RT-1) aliasing AND valid IP A-D per-ES (RT-1) coverage for the same ESI/IP-VRF/L3VNI. ES / RT-4 provides ES peer discovery and an operational cross-check for debugging; it does not gate eligibility. |
 | R2 | The initial protection path must use VXLAN L3 Members for all-active L3MH only. Single-active operation is out of scope. |
 | R3 | Protection is enabled on a parent interface. Every eligible bridge port/sub-interface under that interface inherits the same protection Group and receives a Binding. |
 | R4 | Each L3 Member must identify its peer VTEP tunnel and its required tunnel attributes, including RMAC. |
@@ -275,12 +277,12 @@ FRR builds protection state from existing EVPN control-plane and zebra state:
 | Input | Owner | Use |
 |---|---|---|
 | Local interface and ESI | zebra | Identifies the protected parent interface, its inherited bridge ports, and the local ES. |
-| Local ES operational state | zebra | Determines whether a Binding may be exported. |
+| Local ES operational state | zebra | Drives IP A-D per-ES TX only. Never an input to Binding export: a local link down leaves the Binding, Group, and Members installed. |
 | Remote IP A-D per-EVI (RT-1) routes | bgpd | Provides the aliasing candidate PE set for a specific ESI and IP-VRF/L3VNI; imported by the IP-VRF Route Target. |
 | Remote IP A-D per-ES (RT-1) routes | bgpd | Provides fast-convergence eligibility and withdrawal for the same ESI/IP-VRF. A route withdrawal invalidates the corresponding peer, following the existing MAC-aliasing route handling. |
-| Remote ES / RT-4 routes | bgpd | Provides ES-wide discovery and initial validation; not a substitute for IP A-D per-ES (RT-1). |
+| Remote ES / RT-4 routes | bgpd | Provides ES peer discovery and an operational cross-check for debugging; does not gate eligibility and is not a substitute for IP A-D per-ES (RT-1). |
 | IP-VRF and L3VNI | bgpd/zebra | Qualifies the routed protection context. |
-| Peer VTEP tunnel and RMAC | bgpd/zebra EVPN state | Supplies the routed VXLAN tunnel and inner DMAC. |
+| Peer VTEP tunnel and RMAC | bgpd | Peer VTEP from the RT-1 next hop; RMAC from the Router's MAC EC of the peer's IP A-D per-EVI routes. |
 | Eligible peer VTEP set | bgpd | Selects the active peer VTEPs for the ES/context from the EVPN aliasing state and sends the resulting peer-set changes to zebra. |
 | `evpn mh bridge-port-protection` | zebra | Per-ES/interface protection-group gate. |
 
@@ -313,7 +315,7 @@ sequenceDiagram
     participant O as SONiC orchagent
 
     B->>B: Select IP A-D per-EVI (RT-1) aliasing for the IP-VRF/L3VNI
-    B->>B: Track IP A-D per-ES (RT-1) coverage and ES / RT-4 discovery separately
+    B->>B: Record ES / RT-4 for discovery and debugging only (no eligibility effect)
     B->>Z: Report peer/context add/del through ZAPI
     Z->>Z: Resolve L3 context and peer VTEP tunnel
     Z->>F: Existing dplane operations reach FPM provider
@@ -329,63 +331,97 @@ by their FRR-owned identifiers.
 
 ### 7.4 BGP extension
 
-bgpd owns the EVPN route join. It must maintain protection eligibility per
-`(ESI, bridge-port ifindex, IP-VRF/L3VNI, peer VTEP)` and notify zebra whenever
-that result changes.
+bgpd owns the EVPN route join. Protection is **ESI-based**: the ESI is
+configured on the parent interface, inherited by every bridge port below it,
+and matched against the ESI carried in the peers' RT-1 routes. bgpd therefore
+maintains route state per `(ESI, IP-VRF/L3VNI, peer VTEP)`, derives
+eligibility per `(ESI, peer VTEP)` over every IP-VRF of the ES, and
+notifies zebra whenever that result changes. The new protection peer messages
+do not carry a bridge-port `ifindex`; zebra maps each ESI-scoped result to the
+bridge ports that inherit the ESI. Existing uses of `ifindex` in bgpd, zebra,
+ZAPI, and the dplane are unchanged, and the bridge-port `ifindex` remains the
+key of the Binding (zebra protection entry, `DPLANE_OP_BR_PORT_UPDATE`, FPM
+`ebnm_ifindex`).
 bgpd does not allocate `nh_id`/`nhg_id` and does not emit FPM messages.
+
+Zebra tells bgpd which local ESIs are protected by sending
+`ZEBRA_LOCAL_ES_EVI_ADD (esi, l3vni)` for each IP-VRF of the ES, only when
+the ES is in L3MH mode and has `bridge-port-protection`
+([Section 7.6](#76-ip-a-d-route-origination-and-import-bgpd)). bgpd
+evaluates protection eligibility only for local ESIs with at least one L3VNI
+ES-EVI.
 
 The eligibility rule is:
 
 ```text
-eligible = valid IP A-D per-EVI (RT-1) aliasing
-           AND valid IP A-D per-ES (RT-1) coverage
+active(ESI, VRF, VTEP) = valid IP A-D per-EVI (RT-1) aliasing, with Router's MAC EC
+                         AND valid IP A-D per-ES (RT-1) coverage
+eligible(ESI, VTEP)    = active in every IP-VRF of the local ES
+rmac(ESI, VTEP)        = latest RMAC received in the peer's per-EVI routes
 ```
 
-RT-4 provides ES discovery and initial validation. It is not the source of the
-per-peer backup list. IP A-D per-EVI and IP A-D per-ES route state determines
-whether a peer is valid. An RT-2 or RT-5 host withdrawal changes host
-reachability, not protection membership.
+A single bgpd resolver, `bgp_evpn_es_l3_vtep_re_eval()`, computes
+`eligible` and is the only sender of protection peer updates. It follows the
+L2 pattern of `bgp_evpn_es_vtep_re_eval_active()` (an ES-VTEP is active when
+ANY EVI is active), with EVERY IP-VRF instead, because one Group per ES must
+be valid for every bridge port of the ES. zebra never re-checks eligibility.
 
-The implementation extends the existing remote-ES-VTEP ZAPI path:
+RT-4 provides ES peer discovery and an operational cross-check for debugging.
+Its presence does not gate protection eligibility, which is determined by the
+per-EVI and per-ES RT-1 routes. Changes to RT-4 alone do not add or remove a
+protection peer. bgpd records whether each peer's RT-4 is present and exposes
+it in show output. An RT-2 or RT-5 host withdrawal changes host reachability,
+not protection membership.
+
+Protection peer updates use **two new, dedicated ZAPI commands** (bgpd →
+zebra). The existing `ZEBRA_REMOTE_ES_VTEP_ADD/DEL` commands and their payloads
+are **unchanged**:
 
 ```text
-ZEBRA_REMOTE_ES_VTEP_ADD
-ZEBRA_REMOTE_ES_VTEP_DEL
+ZEBRA_EVPN_BPP_PEER_ADD     (new)
+ZEBRA_EVPN_BPP_PEER_DEL     (new)
 ```
 
-The payload must carry the complete context:
+Both new commands carry the same key; ADD also carries the peer RMAC:
 
 ```text
-ifindex        protected local bridge port                # key
-type           protection Member type: L2 or L3           # key
-vtep_family    remote peer VTEP address family            # key
-vtep_address   remote peer VTEP                           # key
-esi[10]        parent Ethernet Segment Identifier         # value
-vrf_id         protected IP-VRF (L3 context)              # value
-vni            protected VNI (L3VNI now, L2VNI for future # value
-               L2 protection)
+esi[10]        local ESI matched by the peer's RT-1        # key
+type           protection Member type: L2 or L3            # key
+vtep_family    remote peer VTEP address family             # key
+vtep_address   remote peer VTEP                            # key
+rmac           peer RMAC, latest received                  # attribute, ADD only
 ```
 
-The message key is `(ifindex, type, vtep_family, vtep_address)`; it identifies
-one protected-context/peer eligibility entry. `type` distinguishes L3 protection
-from future L2 protection for the same bridge port and peer. `esi`, `vrf_id`,
-and `vni` are carried as value/context, not key: the `esi` is redundant with
-`ifindex` (its parent interface owns exactly one ESI) and is carried for
-validation and convenience; `vni` is functionally dependent on the protected
-context and holds the L3VNI for L3 Members today and will hold the L2VNI for
-future L2 Members; `vtep_family` is a key field only because it qualifies how
-`vtep_address` is interpreted.
+The message key is `(esi, type, vtep_family, vtep_address)`; it identifies
+one ESI-scoped eligible peer, one message per peer (not per VRF). `type`
+distinguishes L3 protection from future L2 protection for the same ESI and
+peer; `vtep_family` is a key field only because it qualifies how
+`vtep_address` is interpreted. No VRF or VNI is carried: bgpd has already
+checked every IP-VRF of the ES and rejected any per-EVI route whose label
+does not match the VRF's L3VNI. ADD is re-sent when the peer's RMAC changes.
+Future L2 protection will define its own
+context fields when it is specified. These new messages carry no bridge-port
+`ifindex`: zebra resolves `esi → local ES → parent interface → inherited
+bridge ports` and uses each bridge port's `ifindex` for its Binding.
 
-The message is scoped to one protected bridge-port context. The `ifindex` is
-the local bridge port where the Binding will be installed; it is not a BGP
-object identifier and is not used to allocate an `nh_id` or `nhg_id`. bgpd
-maintains route-instance state internally and sends zebra the resulting
+The ZAPI command code is the discriminator between the two scopes:
+
+- **`ZEBRA_REMOTE_ES_VTEP_ADD/DEL` (existing, unchanged):** ES-wide EVPN-MH
+  handling. bgpd sends it when the peer joins or leaves the whole ESI; zebra's
+  existing handler updates only the ES-VTEP entry (ES NHG, MAC aliasing, DF).
+- **`ZEBRA_EVPN_BPP_PEER_ADD/DEL` (new):** sent by the resolver when a peer
+  becomes eligible or ineligible for the ESI; a separate zebra handler
+  updates only protection state. A protection `DEL` never touches the shared
+  `(ESI, VTEP)` ES-VTEP entry, which is deleted only by
+  `ZEBRA_REMOTE_ES_VTEP_DEL`.
+
+bgpd maintains route-instance state internally and sends zebra the resulting
 eligible/ineligible peer transition, rather than asking zebra to aggregate
 individual route withdrawals.
 
-The ZAPI service version must be updated with the payload. An incompatible
-bgpd/zebra pair must reject the message rather than silently losing the VNI
-context.
+Because the existing commands are unchanged, no existing payload is reinterpreted.
+The new commands are decoded strictly: a short or malformed payload is
+rejected and logged, never partially applied.
 
 ### 7.5 Zebra extension
 
@@ -395,8 +431,9 @@ FPM-ready objects. It performs the following work:
 1. Accept and hold the protection command in a pending state when its ES or VRF
    dependencies are not yet available, and activate it automatically once they
    are.
-2. Create a protection entry for a valid local bridge port.
-3. Resolve each peer VTEP tunnel and peer RMAC.
+2. Add each ESI-scoped eligible peer to the ES Group, and create a
+   protection entry for each valid local bridge port that inherits the ESI.
+3. Build each Member from the peer VTEP and the RMAC received from bgpd.
 4. Allocate or restore Member and Group identifiers.
 5. Export the complete Member, Group, and Binding state through the dplane.
 
@@ -407,13 +444,15 @@ nh_id          FRR-owned Member identifier                # key (allocated)
 type           L3                                         # identity
 family         peer VTEP address family                   # identity
 remote_vtep    peer VTEP address                          # identity
-router_mac     peer RMAC                                  # identity
+router_mac     peer RMAC                                  # attribute
 ```
 
 `nh_id` is the row key that FRR allocates and that SONiC uses as the FPM/APPL_DB
 Member key. It is functionally dependent on the tunnel identity
-`(type, family, remote_vtep, router_mac)`: zebra allocates exactly one `nh_id`
-per distinct identity and reuses it while that identity is unchanged. `type` is
+`(type, family, remote_vtep)`: zebra allocates exactly one `nh_id` per
+distinct identity and reuses it while that identity is unchanged. The RMAC is
+an attribute: an RMAC change re-sends the same `nh_id` with the new value,
+which SONiC applies as a `set` on the peer tunnel. `type` is
 part of the identity so the same peer VTEP can hold two distinct Members — a
 separate `nh_id` for an L2 Member and for an L3 Member. `family` is identity
 only because it qualifies how `remote_vtep` is interpreted. The Member carries
@@ -427,6 +466,72 @@ and the Group ID.
 This section is the ownership boundary: BGP decides *which peers qualify*;
 zebra decides *whether the forwarding objects are ready* and *how they are
 exported*.
+
+### 7.6 IP A-D route origination and import (bgpd)
+
+Today FRR's EVPN-MH originates and imports RT-1 only in **MAC-VRF scope**:
+EAD-per-EVI per L2VNI (L2VNI RD, label = L2VNI, L2VNI RTs) and EAD-per-ES
+carrying the ES's L2VNI RTs. The **IP-VRF-scoped** IP A-D per-EVI and IP A-D
+per-ES routes this design relies on are neither originated nor classified
+today. They are new bgpd work, and they are bound to L3MH.
+
+**L3MH binding**
+
+- IP-VRF scope applies only to an ES in **L3MH mode**: `advertise-all-vni
+  l3vni-neigh` is set and at least one bridge port's BD is `L3VNI_NEIGH`
+  (no L2VNI), as defined by
+  [FRRouting/frr PR #23304](https://github.com/FRRouting/frr/pull/23304).
+  `evpn mh bridge-port-protection` on an ES that is not in L3MH mode leaves
+  the entry `PENDING` with reason `not in L3MH mode`.
+- Zebra signals the ES's IP-VRF set by reusing
+  `ZEBRA_LOCAL_ES_EVI_ADD/DEL (esi, vni)` with the VRF's L3VNI, payload
+  unchanged. It is sent only for an L3MH ES with `bridge-port-protection`,
+  while at least one bridge port of the ES is configured in that VRF. bgpd
+  classifies the VNI (L2VNI → existing ES-EVI path; L3VNI → IP-VRF
+  reference on `bgp_evpn_es_vrf`). `ZEBRA_LOCAL_ES_ADD` is unchanged: no
+  new flag.
+- An ES that is not in L3MH mode keeps today's MAC-VRF-only behavior,
+  unchanged.
+
+**TX (local L3MH ES)**
+
+| Route | RD | Ethernet Tag | Label | Extended communities |
+|---|---|---|---|---|
+| IP A-D per-EVI, one per (ES, IP-VRF) | IP-VRF RD | 0 | L3VNI | VXLAN encap, IP-VRF export RTs, Layer-2 Attributes EC with `P=1`, Router's MAC EC (the VRF's RMAC) |
+| IP A-D per-ES | the existing EAD-per-ES route (existing RD/fragment scheme) — no second per-ES route | MAX-ET | 0 | existing ECs, with the ES's IP-VRF export RTs **added** to its RT set (fragmented as today) |
+
+IP A-D per-EVI follows config only: it is advertised while at least one
+bridge port of the ES is configured in that VRF, and withdrawn when the last
+one is removed, the VRF leaves the ES, or the ES leaves L3MH mode. Its role
+is to give peers the VRF's reachability (L3VNI and RMAC); bridge-port and ES link
+state are never inputs (same as L2, `ead_evi_adv_for_down_links`).
+IP A-D per-ES follows the existing EAD-per-ES activity rule and is the only
+route that carries link state, so a local ES failure mass-withdraws the leaf
+from every peer's protection Group. When the ES also has L2VNIs, the MAC-VRF
+EAD-per-EVI routes are still originated unchanged, and the single EAD-per-ES
+route carries both the L2VNI and the IP-VRF RTs.
+
+**RX classification (scope)**
+
+A received RT-1 is classified by its import context:
+
+- **IP-scoped:** its RTs match an IP-VRF's import RTs. It is recorded in that
+  VRF's ES-VRF state (`bgp_evpn_es_vrf`) per peer VTEP. A per-EVI route
+  counts only with Ethernet Tag 0, a label equal to that VRF's L3VNI, and a
+  Router's MAC EC, whose RMAC is stored with it;
+  otherwise it is ignored for protection and logged under the protection
+  debug flag. A per-ES route provides per-ES coverage for that VRF.
+- **MAC-VRF scoped:** its RTs match an L2VNI's import RTs. Existing
+  processing, unchanged.
+- A route matching both is processed independently in each scope. State never
+  moves between the MAC-VRF and IP-VRF scopes. Overlapping L2VNI and IP-VRF
+  RTs are not recommended.
+- Only IP-scoped routes whose ESI matches a local L3MH ES feed protection
+  eligibility ([Section 7.4](#74-bgp-extension)).
+- As in L2 (`bgp_evpn_remote_es_evi_add()`), IP-scoped state is created on
+  RX for any ESI and freed on the last withdraw. It never depends on local
+  protection config; `bridge-port-protection` gates only what the resolver
+  sends to zebra.
 
 ---
 
@@ -447,7 +552,7 @@ BridgePortProtection
     IP-VRF / L3VNI     the VRF context of this bridge port; L3VNI is diagnostic
     protection enabled inherited from the parent interface
     Group ID           nhg_id of the backup Group for this bridge port
-    export state       DISABLED / PENDING / ACTIVE / DEGRADED / WITHDRAWING
+    export state       DISABLED / PENDING / ACTIVE / WITHDRAWING
 ```
 
 FRR exports the Binding when the local context exists — the bridge port and ES
@@ -460,23 +565,25 @@ empty, FRR does not export/download an empty Group. It withdraws the Binding and
 Group, and SONiC then knows that the interface has no protection path. The local
 port remains the primary path while protection is available.
 
-A Member is a peer tunnel identified by `(peer VTEP, address family, RMAC, type)`. The routed VXLAN
+A Member is a peer tunnel identified by `(peer VTEP, address family, type)`, with the RMAC as an attribute. The routed VXLAN
 encapsulation VNI comes from SONiC's VRF tunnel map; it is not encoded as a
 per-next-hop forwarding decision by FRR. Zebra creates one Binding for each
 eligible bridge port under the protected parent interface, and a Group may be
 referenced by the Bindings of multiple bridge ports. A shared Group contains
-only the peers eligible for every bridge-port context that references it: the
-intersection of their per-`(ifindex, IP-VRF/L3VNI)` peer sets. A failover on any
-of those bridge ports therefore never selects a peer that is invalid for its
-context. With a single IP-VRF, SVI, and bridge domain, all contexts have the
-same peer set, so the intersection is that set.
+only peers eligible for every IP-VRF of the ES; bgpd enforces this before
+sending the peer ([Section 7.4](#74-bgp-extension)). A failover on any
+bridge port therefore never selects a peer that is invalid for its VRF.
 
 ### 8.2 BGP peer context in zebra
 
-Peer eligibility is calculated by bgpd and delivered to zebra through ZAPI as
-described in [Section 7.4](#74-bgp-extension). Zebra only adds local readiness
-checks: the peer must have a usable VTEP tunnel and RMAC before its Member is
-exported.
+Peer eligibility is calculated by bgpd per `(ESI, peer VTEP)` over every
+IP-VRF of the ES and delivered to zebra through ZAPI as described in
+[Section 7.4](#74-bgp-extension). Zebra adds each peer to the ES Group, which
+is bound to every bridge port that inherits the ESI, including bridge ports
+created after the peer was received. Each received peer becomes a Member
+with the RMAC bgpd sent; zebra adds no readiness check of its own.
+Underlay reachability of the peer VTEP is handled by bgpd nexthop tracking
+([Section 8.6](#86-failure-flows)).
 
 ### 8.3 Member and group identifiers
 
@@ -491,10 +598,11 @@ encode any route, MAC, or neighbor identity.
 
 Object identity:
 
-- One Member ID per `(peer VTEP, address family, RMAC, type)` tunnel identity,
-  which is VRF-independent. The same Member may be shared by multiple Groups.
-- One Group ID per protected parent interface, shared by the Bindings of its
-  inherited bridge ports; its Members are the intersection defined in
+- One Member ID per `(peer VTEP, address family, type)` tunnel identity,
+  which is VRF-independent. The RMAC is an attribute and does not change the
+  ID. The same Member may be shared by multiple Groups.
+- One Group ID per protected ES (`es->l3_nhg_id`), shared by the Bindings of its
+  inherited bridge ports; its Members are the eligible peers defined in
   [Section 8.1](#81-protection-state). A membership change
   updates the Group in place; it does not create a new Group for every
   peer-set variation.
@@ -508,21 +616,29 @@ Retirement:
 
 ### 8.4 Peer VTEP tunnel resolution
 
-Each routed Member needs two resolved dependencies:
+Each routed Member needs the peer RMAC, used as the routed VXLAN inner
+destination MAC. The VXLAN tunnel to the peer VTEP is created by SONiC from
+the Member; zebra has no tunnel object to resolve. If the peer VTEP becomes
+unreachable in the underlay, bgpd nexthop tracking invalidates its RT-1
+routes and the peer loses eligibility ([Section 8.6](#86-failure-flows)).
 
-1. A VXLAN tunnel to the peer VTEP.
-2. The peer RMAC used as the routed VXLAN inner destination MAC.
+The RMAC comes from the Router's MAC Extended Community of the peer's IP A-D
+per-EVI routes, which the
+[EVPN IP Aliasing draft](https://datatracker.ietf.org/doc/html/draft-ietf-bess-evpn-ip-aliasing-04)
+requires. It arrives with the route that makes the peer eligible, so there
+is no window where a peer is eligible but its RMAC unknown. bgpd sends it in
+`ZEBRA_EVPN_BPP_PEER_ADD`; zebra does not look up RT-2/RT-5 RMAC state. A
+per-EVI route without the EC does not count for eligibility. An RMAC change
+is an in-place Member update ([Section 8.6](#86-failure-flows)).
 
-The RMAC is existing EVPN state. In L3MH the peer's SVI address for the IP-VRF
-is always advertised as an RT-5 (and hosts as RT-2), so zebra already holds the
-peer VTEP's per-L3VNI RMAC. The protection Member reuses that existing
-per-(L3VNI, VTEP) RMAC; protection does not create a second RMAC database and
-does not parse a separate RMAC from the aliasing route.
-
-Until both dependencies resolve, the Member stays pending and is not exported.
-RMAC loss and RMAC change are handled per the failure flows in
-[Section 8.6](#86-failure-flows) and the swap ordering in
-[Section 8.5](#85-object-consistency-and-safe-deletion).
+**One RMAC per peer VTEP.** SONiC programs the RMAC once on the shared
+per-peer tunnel, so a peer VTEP has exactly one protection RMAC: the latest
+RMAC received in any of its per-EVI routes for the ES. When it changes, bgpd
+re-sends `ZEBRA_EVPN_BPP_PEER_ADD` with the new value; the peer never leaves
+the Group. A peer that updates its VRFs one at a time therefore causes one
+in-place Member update on the first update and nothing on the next ones.
+Different RMACs across VRFs are not rejected; the difference is logged
+under the protection debug flag.
 
 ### 8.5 Object consistency and safe deletion
 
@@ -580,13 +696,13 @@ The local link failure and remote peer failure have different owners:
 | Event | FRR action | Invariant / guarantee |
 |---|---|---|
 | Local bridge port loses carrier | No FRR route or host-state action. SONiC selects the programmed backup according to its protection mode. | Preserve host routes, neighbors, MACs, and EVPN routes unchanged. |
-| Peer withdraws IP A-D per-EVI (RT-1) | Remove that peer's Member from the Group for this IP-VRF/L3VNI context. | The peer's other contexts and host reachability stay intact. |
-| Peer withdraws IP A-D per-ES (RT-1) | Mass-withdrawal: invalidate that peer VTEP across every per-EVI (per-VRF/L3VNI) protection context under the ES, removing it from all affected Groups. Follows existing MAC-aliasing route handling. | Invalidate the peer immediately, even while a per-EVI or RT-4 route for it still remains. |
-| Peer withdraws RT-4 | Clear only ES discovery state; leave per-EVI/per-ES-derived eligibility unchanged. RT-4 is discovery only here — its DF-election and single-active roles do not apply to all-active L3MH. | Keep the backup list driven only by the per-EVI/per-ES routes and treat RT-4 as discovery only. |
+| Peer withdraws IP A-D per-EVI (RT-1) | The peer no longer covers every IP-VRF of the ES: bgpd sends one DEL; zebra removes its Member from the ES Group. | Host reachability stays intact. |
+| Peer withdraws IP A-D per-ES (RT-1) | Mass-withdrawal: bgpd sends one DEL for the peer; zebra removes its Member from the ES Group. Follows existing MAC-aliasing route handling. | Invalidate the peer immediately, even while a per-EVI or RT-4 route for it still remains. |
+| Peer withdraws RT-4 | Update only the RT-4 debugging cross-check; leave per-EVI/per-ES-derived eligibility unchanged. RT-4's DF-election and single-active roles do not apply to all-active L3MH. | Changes to RT-4 alone never add or remove a protection peer. |
 | Host RT-2 is withdrawn | Let normal EVPN processing handle the host. | Leave the protection Group unchanged. |
-| Peer RMAC is lost | Remove the Member from the Group and hold it pending until the RMAC re-resolves. | A routed Member is never exported without a resolved RMAC. |
-| Peer VTEP tunnel becomes unreachable | Remove the Member from the Group and hold it pending until the tunnel re-resolves. | The rest of the Group stays intact; underlay reachability remains the routing system's responsibility. |
-| Peer RMAC changes | Export the new Member, update the Group, then delete the old Member when unreferenced. | Limit the change to the affected Member and leave unrelated Members untouched. |
+| Peer per-EVI loses its Router's MAC EC | That VRF no longer counts: bgpd sends one DEL; zebra removes the Member. | A routed Member is never exported without an RMAC. |
+| Peer VTEP becomes unreachable in the underlay | bgpd nexthop tracking invalidates the peer's RT-1 routes; bgpd sends `ZEBRA_EVPN_BPP_PEER_DEL` and zebra removes the Member from the Group. | No extra zebra state; the peer returns through the normal eligibility path when it is reachable again. |
+| Peer RMAC changes (in any VRF's per-EVI) | bgpd re-sends ADD with the latest RMAC. Zebra re-sends the same Member (`nh_id`) with the new RMAC and the Group with the refreshed copy. | The peer never leaves the Group; no Member delete; Bindings not resent. |
 | Group becomes empty | Delete the Binding and Group. SONiC reports that the interface has no protection path. | Keep the local primary path intact. |
 
 ### 8.7 Kernel MAC and neighbor lifecycle
@@ -606,23 +722,23 @@ objects.
 
 The peer advertisements follow the
 [EVPN IP Aliasing draft](https://datatracker.ietf.org/doc/html/draft-ietf-bess-evpn-ip-aliasing-04).
-No new route type or BGP attribute is required. The following table maps the
+No new route type or BGP attribute is required, but FRR must originate and
+classify the IP-VRF-scoped A-D routes ([Section 7.6](#76-ip-a-d-route-origination-and-import-bgpd)).
+The following table maps the
 draft procedures to FRR protection processing:
 
 | Route | Required fields for this design | Protection use | Withdrawal effect |
 |---|---|---|---|
-| IP A-D per-EVI (RT-1) | IP-VRF RD, non-zero ESI, Ethernet Tag 0, IP-VRF export RTs, L3VNI/VNI label, and Layer-2 Attributes Extended Community with `P=1` for all-active | Supplies the aliasing candidate peer | The peer is invalid for the corresponding IP-VRF/protection context |
+| IP A-D per-EVI (RT-1) | IP-VRF RD, non-zero ESI, Ethernet Tag 0, IP-VRF export RTs, L3VNI/VNI label, Layer-2 Attributes Extended Community with `P=1` for all-active, and Router's MAC Extended Community | Supplies the aliasing candidate peer and its RMAC | The peer is invalid for the corresponding IP-VRF/protection context |
 | IP A-D per-ES (RT-1) | ESI and IP-VRF RTs; multiple routes may be advertised when the RT set requires it | Supplies the fast-convergence eligibility for the ES | The corresponding peer is invalidated using the existing MAC-aliasing route handling |
-| RT-2 / RT-5 host or prefix route | Non-zero ESI when the route is using this L3MH ES, plus the IP-VRF RT | Identifies the host or prefix that can resolve through the ES aliasing set, and supplies the peer VTEP's per-L3VNI RMAC used by the routed Member; it does not define the Group itself | Host or prefix reachability changes; the Group is not changed solely because one host route is withdrawn |
-| RT-4 ES route | ES identity and the normal ES discovery attributes | Discovers and validates ES membership; it is not the backup-list source | Discovery state changes; peer eligibility follows the RT-1 routes |
+| RT-2 / RT-5 host or prefix route | Non-zero ESI when the route is using this L3MH ES, plus the IP-VRF RT | Identifies the host or prefix that can resolve through the ES aliasing set; it does not define the Group or supply the protection RMAC | Host or prefix reachability changes; the Group is not changed solely because one host route is withdrawn |
+| RT-4 ES route | ES identity and the normal ES discovery attributes | ES peer discovery and an operational cross-check for debugging; it does not gate eligibility and is not the backup-list source | Debugging cross-check changes; peer eligibility follows the RT-1 routes |
 
 FRR follows the draft's route roles and the existing MAC-aliasing state
 machine. An IP A-D per-EVI and IP A-D per-ES route must both be valid for the
 same ESI/IP-VRF/L3VNI context before a peer is exported. The peer VTEP's RMAC
-comes from existing RT-2/RT-5 EVPN state — the per-L3VNI RMAC that zebra already
-maintains. In L3MH the peer SVI is always advertised as RT-5, so this RMAC is
-always available; the per-EVI A-D route's Router's MAC Extended Community, if
-present, is not required and is not used as the RMAC source.
+comes from the Router's MAC Extended Community of its IP A-D per-EVI routes
+(a MUST in the draft); RT-2/RT-5 RMAC state is not used for protection.
 
 The per-ES A-D route may still carry the ESI Label Extended Community per
 RFC 7432, but this routed design neither requires nor consumes it: there is no
@@ -653,7 +769,7 @@ struct __attribute__((packed)) l2_nhg_member_msg {
 struct __attribute__((packed)) l2_nhg_group_msg {
   uint32_t l2ng_nhg_id;
   uint32_t l2ng_count;
-  uint32_t l2ng_nh_ids[];    /* exactly l2ng_count elements follow */
+  struct l2_nhg_member_msg l2ng_members[]; /* exactly l2ng_count, sorted by nh_id */
 };
 
 struct __attribute__((packed)) evpn_backup_nhg_msg {
@@ -665,6 +781,10 @@ struct __attribute__((packed)) evpn_backup_nhg_msg {
 The layout is a fixed, packed wire format; the shared header enforces the exact
 size and field offsets with compile-time assertions so the FRR provider and
 SONiC fpmsyncd cannot drift out of wire compatibility.
+
+The Group carries each Member in full (same layout as `l2_nhg_member_msg`),
+not only its `nh_id`. Every Group message is therefore self-contained, which
+future reconciliation needs. The Member message is still sent on its own.
 
 The corresponding message types are:
 
@@ -684,8 +804,8 @@ encoder.
 Member and Group messages use these dedicated queued dplane operations:
 
 ```text
-DPLANE_OP_L2_NHG_MEMBER_UPDATE
-DPLANE_OP_L2_NHG_GROUP_UPDATE
+DPLANE_OP_EVPN_MH_NH_UPDATE
+DPLANE_OP_EVPN_MH_NHG_UPDATE
 ```
 
 Each operation carries the complete object and an add/update or delete action.
@@ -716,34 +836,35 @@ packets manually. At minimum, show output should identify:
 - Each Member ID.
 - Peer VTEP address.
 - L3VNI per protection entry (bridge port / IP-VRF context).
-- Peer VTEP tunnel, RMAC, and tunnel-resolution state.
-- Eligible peer count and exported Member count.
+- Peer VTEP and RMAC per Member.
+- Exported Member count.
 - Member and Group export state.
-- State reason for a PENDING or DEGRADED entry (the specific missing
-  dependency).
+- State reason for a PENDING entry (the specific missing dependency).
 - Last FPM update or error.
 
-Useful operational states include:
+Why a peer is not eligible (missing VRF, no Router's MAC EC)
+is shown by bgpd in `show bgp l2vpn evpn es-vrf detail`.
 
-```text
-DISABLED       protection is not configured
-PENDING        configured, but a dependency is not yet resolved and no objects
-               are exported; the pending reason names the missing dependency
-ACTIVE         Binding, Group, and every eligible peer's Member are exported
-DEGRADED       Binding and Group are exported, but at least one eligible peer is
-               held pending, so the Group has fewer Members than the eligible
-               peer set; the degraded reason names the per-peer cause
-WITHDRAWING    delete sequence is in progress
-```
+Operational states:
 
-Each PENDING and DEGRADED entry carries a reason so the cause is visible
-in show output without a packet capture:
+| State | Meaning | Exported |
+|---|---|---|
+| `DISABLED` | protection not configured | nothing |
+| `PENDING` | configured, a dependency is missing (see reason) | nothing |
+| `ACTIVE` | Binding, Group, and every received peer's Member exported | all |
+| `WITHDRAWING` | delete sequence in progress | being removed |
 
-```text
-PENDING reason   no local ES / ES down | protection not enabled |
-                 IP-VRF or L3VNI unknown | no eligible peer
-DEGRADED reason  per peer: VTEP tunnel unresolved | RMAC unresolved
-```
+Each PENDING entry carries a reason so the cause is visible in show output
+without a packet capture:
+
+| State | Reason | When |
+|---|---|---|
+| `PENDING` | `no local ES` | `es-id` missing on the parent interface |
+| `PENDING` | `IP-VRF or L3VNI unknown` | the bridge port's SVI has no VRF, or the VRF has no L3VNI |
+| `PENDING` | `not in L3MH mode` | the bridge port's BD is not in L3MH mode |
+| `PENDING` | `no eligible peer` | bgpd has sent no peer for the ES |
+
+These reasons are reported through show output and debug logs.
 
 These are FRR control-plane states. SONiC's hardware protection state is
 reported separately through its STATE_DB interface.
@@ -835,7 +956,7 @@ keep FRR from exporting a complete protection object — missing configuration o
 context, invalid input, and FPM connection or serialization failures. It is
 distinct from [Section 8.6](#86-failure-flows), which handles external
 reachability events (link and route changes). The governing principle is
-containment: an error leaves the affected object pending or degraded and is
+containment: an error leaves the affected object pending and is
 reported through the state reason ([Section 10](#10-configuration-and-operational-visibility)); it never tears down the local
 primary path or unrelated MAC, neighbor, or EVPN route state.
 
@@ -845,6 +966,7 @@ primary path or unrelated MAC, neighbor, or EVPN route state.
 | No eligible peer | Do not export/download a Group or Binding; withdraw any existing Binding and Group. SONiC knows that the interface has no protection path. |
 | Missing L3VNI/IP-VRF context | Keep protection pending and report the missing dependency. |
 | Invalid peer VTEP address | Reject the Member and log the peer and ESI. |
+| Peer RMAC differs across protected VRFs | Use the latest RMAC received; log the difference under the protection debug flag ([Section 8.4](#84-peer-vtep-tunnel-resolution)). |
 | FPM connection failure | Retain state and replay the complete object set after reconnect. |
 | FPM serialization failure | Preserve the current object state, report the error, and retry. |
 | Unsupported forwarding object type | Do not silently fall back to a different FRR object model; report the capability mismatch. |
@@ -898,9 +1020,9 @@ enabled, memory is bounded by topology, not by hosts, MACs, or routes:
 
 | Component | State | Scales with |
 |---|---|---|
-| bgpd | Protection eligibility entry per `(ifindex, type, peer VTEP)` | Protected bridge ports × eligible peers |
+| bgpd | Route state per `(ESI, IP-VRF, peer VTEP)` and eligibility per `(ESI, type, peer VTEP)`, for protected local ESIs only | Protected ESIs × IP-VRFs × peers |
 | zebra | Protection entry per bridge port (Section 8.1) | Protected bridge ports |
-| zebra | Member per tunnel identity | Distinct `(peer VTEP, family, RMAC, type)` |
+| zebra | Member per tunnel identity | Distinct `(peer VTEP, family, type)` |
 | zebra | Group with a sorted Member ID list | Protected parent interfaces × Members per Group |
 | dplane/FPM | Queued Member (28 bytes), Group (8 + 4×N bytes), and Binding (8 bytes) payloads | Pending updates; freed after encoding |
 
@@ -924,19 +1046,25 @@ allocator is added.
 - **Route attributes and ordering:** Reject or defer an IP A-D per-EVI (RT-1)
   with an IP-VRF label/VNI mismatch; process
   IP A-D per-EVI (RT-1), IP A-D per-ES (RT-1), and ES / RT-4 arrival/withdrawal in
-  different orders; verify that RT-4 only changes discovery state.
-- **Context and peer-tunnel resolution:** Defer a Member until its peer VTEP
-  tunnel and RMAC dependencies resolve;
-  update a Member when the RMAC changes; retain a Member while another protected
-  object references the same tunnel identity; verify new Member, Group update, old
-  Member delete ordering for replacement.
+  different orders; verify that a peer is admitted without RT-4 and that RT-4
+  changes alone never add or remove a protection peer.
+- **Member RMAC:** Build each Member with the RMAC from
+  `ZEBRA_EVPN_BPP_PEER_ADD`; on a new RMAC, re-send the same `nh_id` with the
+  new value and the Group, with no Member delete; retain a Member while
+  another protected object references the same tunnel identity. In bgpd,
+  verify a per-EVI without the Router's MAC EC does not count and that a
+  different RMAC in one VRF updates the Member without a DEL.
 - **Protected bridge-port scope:** Verify that every eligible bridge port under
   the configured parent interface receives one Binding to the parent Group, and
   that an interface outside the protected parent receives no protection
   objects.
-- **ZAPI contract:** Verify exact ADD/DEL payloads for eligible-peer updates,
-  including ESI, ifindex, VRF, L3VNI, VTEP address, and family, and that bgpd
-  sends a peer only after its IP A-D per-EVI (RT-1) aliasing and IP A-D per-ES (RT-1) coverage agree.
+- **ZAPI contract:** Verify the exact `ZEBRA_LOCAL_ES_EVI_ADD/DEL` (L3VNI)
+  and `ZEBRA_EVPN_BPP_PEER_ADD/DEL` payloads (ESI, type, VTEP address,
+  family, and RMAC on ADD); that bgpd sends a peer only once its IP A-D per-EVI (RT-1) and
+  IP A-D per-ES (RT-1) are valid in every IP-VRF of the ES; that losing one
+  VRF sends one `ZEBRA_EVPN_BPP_PEER_DEL`; and that
+  `ZEBRA_REMOTE_ES_VTEP_DEL` removes only the ES-wide ES-VTEP entry, never
+  protection state.
 - **Identifier lifecycle:** Reuse Member and Group IDs for unchanged state;
   preserve EVPN identifier type bits; do not reuse an ID before delete
   completion.
@@ -963,9 +1091,10 @@ allocator is added.
 5. **ES withdrawal**: withdraw ES / RT-4 while valid IP A-D per-ES (RT-1) coverage
   remains and verify discovery context is invalidated without removing the
   Member or treating ES / RT-4 as the fast-convergence withdrawal signal.
-6. **RMAC ordering**: receive IP A-D per-EVI (RT-1) before RMAC and verify deferred Member export.
-7. **RMAC replacement**: export the new Member, update the Group, remove the old
-  Member from the Group, then delete the old Member after it is unreferenced.
+6. **RMAC source**: verify the Member RMAC equals the Router's MAC EC of the
+  peer's per-EVI routes, independent of RT-2/RT-5 timing.
+7. **RMAC update**: the same Member `nh_id` is re-sent with the new RMAC and
+  the Group is refreshed; no Member is created or deleted.
 8. **No-L2VNI operation**: verify protection works with L3VNI-only forwarding.
 9. **L2VNI coexistence**: verify existing L2 EVPN processing is unchanged.
 10. **Local link failure**: verify FRR does not withdraw valid host MAC or
@@ -996,9 +1125,11 @@ state.
 2. **Parent-interface granularity.** Protection is configured on the parent
    interface. Every eligible bridge-port sub-interface below it receives one
    Binding to the parent protection Group.
-3. **Shared RMAC assumption.** The design assumes one peer RMAC per peer VTEP,
-   shared across all of that VTEP's VRFs; only the L3VNI varies per VRF. A peer
-   VTEP that used different RMACs per VRF is not supported.
+3. **Shared RMAC per peer VTEP.** The design supports one peer RMAC per peer
+   VTEP, shared across all of that VTEP's protected VRFs; only the L3VNI varies
+   per VRF. If a peer VTEP advertises different RMACs per VRF, the latest
+   received is used for all of them ([Section 8.4](#84-peer-vtep-tunnel-resolution)). Supporting per-VRF RMACs
+   would require a per-RMAC tunnel identity in both FRR and SONiC.
 4. **Warm reboot and reconciliation.** Warm reboot, reconciliation, identifier
    persistence across a zebra restart, and protection without a gap across a
    restart are out of scope. Every new FPM session flushes and rebuilds the
