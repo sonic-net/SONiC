@@ -10,10 +10,10 @@ What this design delivers, in one list. Each item has a full section below.
 - **Fail closed after first provisioning (secure mode).** A dedicated marker file, `/var/lib/bmcweb/provisioned`, is written on the first successful staging. Once it exists, every bmcweb start is gated: with no valid staged certificate, bmcweb does not start at all, instead of falling back to a self-signed cert. No CONFIG_DB attribute is involved, and the marker survives reboot and container recreation. Recovery is automatic when valid certs reappear.
 - **Deletion behavior.** Deleting the source certificates does not tear down the running service (bmcweb keeps serving the last staged certificate), and it is not a way to revoke access: the running bmcweb keeps serving the already-loaded certificate and keeps trusting the same CA. To actually revoke, rotate the CA (clients whose certs were issued by the old CA then fail the mTLS handshake).
 - **Observability.** The watcher publishes sync status to STATE_DB (`REDFISH_CERT_STATUS|global`: `in_sync`, `last_error`, fingerprints, served serial, plus `mtls_enforced` for the enforcement state) every cycle, and every decision is logged to syslog. A rotation that fails to land is visible, not silent; monitoring must watch `in_sync`.
-- **Boot resilience preserved.** Before certificates are ever provisioned, the BMC still boots with bmcweb's self-signed certificate and the API is reachable.
-- **Configured through CONFIG_DB.** The client authentication policy, the published host port, the delivered certificate paths, and the trusted client common names all come from the `REDFISH|config` and `REDFISH|certs` tables, in the same shape the other TLS-terminating services use. Every field has a default, so an unconfigured device still boots and can still be provisioned.
+- **Boot resilience preserved.** Before `REDFISH|certs` is configured, or before the files it names are delivered, the BMC still boots with bmcweb's self-signed certificate and the API is reachable.
+- **Configured through CONFIG_DB.** The listening port, the delivered certificate paths, and the trusted client common names all come from the `REDFISH|config` and `REDFISH|certs` tables, in the same shape the other TLS-terminating services use. There is no separate Redfish certificate: the paths are expected to name the certificates the REST API server is already provisioned with. The certificate paths have no built-in defaults; with no `REDFISH|certs` entry nothing is staged and bmcweb serves its self-signed certificate. Only the port has a default, `443`.
 
-Delivery: one script in three supervisord roles (`--once` stage at container start, `--guard` gate every bmcweb start, `--watch` react to change), plus small supervisord.conf and Dockerfile changes in `dockers/docker-sonic-redfish/`.
+Delivery: one script in three supervisord roles (`--once` stage at container start, `--guard` gate every bmcweb start, `--watch` react to change), plus small supervisord.conf and Dockerfile changes in `dockers/docker-sonic-redfish/`, and a `database.service` dependency in `redfish.service` so CONFIG_DB is readable when the container starts.
 
 ## Problem Summary
 
@@ -21,17 +21,17 @@ bmcweb inside the docker redfish container serves the Redfish APIs over HTTPS. I
 
 Out of the box, bmcweb generates its own self-signed certificate so HTTPS comes up, but it is untrusted and mTLS is not enforced. Real, CA-signed certificates have to be provided to it.
 
-In production, an external certificate provisioning agent (a separate host-side tool or container) installs the real certificates on the host under `/etc/sonic/credentials/` (not inside the redfish container), with different file names and layout than bmcweb expects.
+In production, an external certificate provisioning agent (a separate host-side tool or container) installs the real certificates on the host (not inside the redfish container), at the paths configured in `REDFISH|certs`. In practice these are the REST API server's certificates under `/etc/sonic/credentials/`, with different file names and layout than bmcweb expects.
 
 The problem: bmcweb reads certificates from fixed container paths in a specific shape, only at startup, while the provisioning agent delivers them to a host directory in a different shape and only after boot. This document describes how we bridge that gap without changing bmcweb.
 
 ## Goal
 
-Make bmcweb serve real, externally provisioned certificates from `/etc/sonic/credentials/` instead of a self-signed certificate, and do so without modifying bmcweb.
+Make bmcweb serve the real, externally provisioned certificates named in `REDFISH|certs` instead of a self-signed certificate, and do so without modifying bmcweb.
 
 Concretely, the design must:
 
-- Consume the provisioned certificates from the host directory and present them to bmcweb in the exact shape and location it already expects.
+- Consume the provisioned certificates from the configured host paths and present them to bmcweb in the exact shape and location it already expects.
 - Pick up certificate rotations automatically and reload bmcweb, since bmcweb reads certificates only at startup.
 - Enforce mTLS once a CA is available.
 - Preserve boot resilience: before certificates are provisioned, bmcweb must still come up (with its self-signed cert).
@@ -41,22 +41,22 @@ The rest of this document explains why this is not a "just point bmcweb at the n
 
 ## How SONiC runs bmcweb (containers and mounts)
 
-bmcweb runs in a docker container called redfish. The container's mounts and port mapping are declared in `rules/docker-sonic-redfish.mk`:
+bmcweb runs in a docker container called redfish, on host networking like the other SONiC containers. The container's mounts are declared in `rules/docker-sonic-redfish.mk`:
 
 ```
--v /etc/sonic:/etc/sonic:ro              # delivered certs visible here, read-only
--v /var/lib/bmcweb:/var/lib/bmcweb:rw    # writable
--v /var/run/redis:/var/run/redis:rw      # redis unix socket
--p 0.0.0.0:<port>:18080                  # bmcweb listens on 18080; host port from
-                                         # CONFIG_DB REDFISH|config:port (default 443)
+-v /etc/sonic:/etc/sonic:ro                  # delivered certs visible here, read-only
+-v /host/machine.conf:/host/machine.conf:ro  # platform identification
+-v /var/lib/bmcweb:/var/lib/bmcweb:rw        # writable
+-v /var/run/redis:/var/run/redis:rw          # redis unix socket
+-v /var/run/dbus:/var/run/dbus:rw            # host D-Bus, used by sonic-dbus-bridge
 ```
 
 What each mount means for this design:
 
-- **`/etc/sonic:ro`**: the provisioning agent installs certs under `/etc/sonic`, so they are already visible inside the container wherever the configured paths point (the server pair and the CA may be in different directories). The mount is read-only, and the staged files live elsewhere regardless: the configured paths are the delivery location, and the reshaped copies bmcweb reads are kept separate from them.
+- **`/etc/sonic:ro`**: the provisioning agent installs certs under `/etc/sonic` (the REST API certificates live in `/etc/sonic/credentials`), so they are already visible inside the container wherever the configured paths point (the server pair and the CA may be in different directories). The mount is read-only, and the staged files live elsewhere regardless: the configured paths are the delivery location, and the reshaped copies bmcweb reads are kept separate from them.
 - **`/var/lib/bmcweb:rw`**: the fingerprint stamp (`.staged-credentials.stamp`) and the provisioned marker (`provisioned`) live here. Unlike files in the container's writable layer, they survive container recreation, which the boot, restart, and fail-closed behavior relies on.
 - **`/var/run/redis:rw`**: the container publishes certificate status to STATE_DB through this mounted redis socket.
-- **`-p <port>:18080`**: client requests hit the configured host port (default `443`, the standard Redfish HTTPS port) while bmcweb internally binds `18080`. The host port is read from CONFIG_DB at container create time; see "Configuration" below.
+- **Host networking, no port mapping**: bmcweb binds the configured port directly on the host (default `443`, the standard Redfish HTTPS port). bmcweb takes its listening socket from systemd socket activation and otherwise falls back to a compiled-in port, so `bmcweb-start.sh` binds the configured port through `bmcweb-activate` and hands the socket to bmcweb the way systemd would. The port is read from CONFIG_DB on every bmcweb start; see "Configuration" below.
 
 The provisioned certificates are already readable inside the container, so no new mount is needed to see them. The reshaped files bmcweb reads are kept in separate, container-local locations rather than in the provisioning directory, and the container reaches STATE_DB through the mounted redis socket. The challenge is about file format, placement, and reload, not access.
 
@@ -70,31 +70,29 @@ The Redfish service is configured through CONFIG_DB, in the same shape as the ot
         "port": "443"
     },
     "certs": {
-        "server_crt": "/etc/sonic/redfish/restapiserver.cer",
-        "server_key": "/etc/sonic/redfish/restapiserver.key",
+        "server_crt": "/etc/sonic/credentials/restapiserver.crt",
+        "server_key": "/etc/sonic/credentials/restapiserver.key",
         "ca_crt": "/etc/sonic/credentials/ROOT_CERTIFICATE.pem",
         "client_crt_cname": "bmcweb,*.example.com"
     }
 }
 ```
 
-| Field | Meaning | Default |
+| Field | Meaning | When unset |
 |---|---|---|
-| `config:port` | host port the Redfish API is published on | `443` |
-| `certs:server_crt` | delivered server certificate | `/etc/sonic/redfish/redfishserver.cer` |
-| `certs:server_key` | delivered server private key | `/etc/sonic/redfish/redfishserver.key` |
-| `certs:ca_crt` | delivered CA certificate, used to verify client certificates | `/etc/sonic/credentials/ROOT_CERTIFICATE.pem` |
-| `certs:client_crt_cname` | trusted client certificate common names, comma separated | unset, meaning every common name is refused |
+| `config:port` | port bmcweb listens on | `443`; a non-numeric or out-of-range value is also replaced by `443` |
+| `certs:server_crt` | delivered server certificate | nothing is staged |
+| `certs:server_key` | delivered server private key | nothing is staged |
+| `certs:ca_crt` | delivered CA certificate, used to verify client certificates | nothing is staged |
+| `certs:client_crt_cname` | trusted client certificate common names, comma separated | every common name is refused |
 
-Every field has a default, and an unreadable or invalid value falls back to it, so a device with no Redfish configuration still boots, still serves, and can still be provisioned, and a configuration problem never blocks container creation.
+The certificate paths have no built-in defaults: certificates are taken only from where CONFIG_DB says they are delivered. All three paths must be set; a partial entry is treated as unconfigured. With no `REDFISH|certs` entry nothing is staged: a unit that has never been provisioned serves bmcweb's self-signed certificate, and a unit provisioned before keeps serving the certificate it staged, because the guard checks the staged copy alone (see Secure mode). A CONFIG_DB read failure looks the same as unconfigured. Neither case blocks the container from starting, and an unset or invalid port never stops bmcweb from coming up.
 
 **What the `certs` paths mean here.** restapi and telemetry pass their certificate paths to the daemon as arguments, so configuration tells the daemon where to read. bmcweb's paths are compile-time and it accepts no certificate arguments, which is the reason this design exists at all: for Redfish the configured paths name where the provisioning agent *delivers* the files, and staging reshapes them into the locations bmcweb reads. The configuration surface matches the sibling services; the extra hop is internal. The server pair and the CA may be delivered into different directories, as in the example above, so the watcher derives the directories it watches from the configured paths.
 
-**Reusing the restapi certificates.** A SONiC device already has the restapi server certificate, key and CA delivered to it. Redfish, as another management REST API, can use the same files: the example above points `server_crt` and `server_key` at the restapi pair. Nothing is copied or converted; staging reads the files where they are delivered. The only requirement on any configured path is that it is under `/etc/sonic`, the host directory mounted into the redfish container.
+**Reusing the restapi certificates.** There is no separate Redfish certificate. A SONiC device already has the restapi server certificate, key and CA delivered to it (`RESTAPI|certs` names them), and Redfish, as another management REST API, uses the same files: the expected configuration points `server_crt` and `server_key` at the restapi pair, as in the example above. Nothing is copied or converted at delivery; staging reads the files where they are. The only requirement on any configured path is that it is under `/etc/sonic`, the host directory mounted into the redfish container.
 
-**When a change takes effect.** The watcher re-reads the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names; adding or removing a trusted name takes effect when `sonic-dbus-bridge` restarts. `port` is different, because docker applies port mappings only when a container is created: the generated container start script resolves it immediately before `docker create`, and a change takes effect on the next redfish service restart, which recreates the container. On start the script compares the running container's published port against CONFIG_DB and recreates on mismatch, the same pattern the start script already uses for HWSKU changes. bmcweb's internal port (18080) is compile-time and does not change; only the published host side is configurable.
-
-The recreate wipes the container's writable layer, which the certificate flow already tolerates: the oneshot re-stages before bmcweb's first start and the provisioned marker on the host mount is unaffected, so a port change on a provisioned unit comes back serving the CA-signed certificate with mTLS enforced and no self-signed window. One operational note: clients, monitoring, and tests assume 443 by default, so a non-default port must be communicated to every consumer of the API.
+**When a change takes effect.** The watcher re-reads the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names; adding or removing a trusted name takes effect when `sonic-dbus-bridge` restarts. `port` is read by `bmcweb-start.sh` on every bmcweb start, so a change takes effect when bmcweb or the redfish service is restarted; no container recreate is involved, and the certificate flow is untouched by a port change. One operational note: clients, monitoring, and tests assume 443 by default, so a non-default port must be communicated to every consumer of the API.
 
 ## How bmcweb handles certificates
 
@@ -124,13 +122,13 @@ This table is the contract the staging logic has to fulfil. Everything the solut
 
 ## The problem, stated precisely
 
-What the provisioning agent delivers and what bmcweb expects do not line up. The agent installs three files on the host, at the paths configured in `REDFISH|certs` (defaults shown):
+What the provisioning agent delivers and what bmcweb expects do not line up. The agent installs three files on the host, at the paths configured in `REDFISH|certs`:
 
-| Configured path | Content | Default |
-|---|---|---|
-| `server_crt` | server certificate | `/etc/sonic/redfish/redfishserver.cer` |
-| `server_key` | server private key | `/etc/sonic/redfish/redfishserver.key` |
-| `ca_crt` | CA certificate | `/etc/sonic/credentials/ROOT_CERTIFICATE.pem` |
+| Configured path | Content |
+|---|---|
+| `server_crt` | server certificate |
+| `server_key` | server private key |
+| `ca_crt` | CA certificate |
 
 On rotation, the provisioning agent writes new versioned files and atomically repoints these stable names (they are symlinks) to the new versions.
 
@@ -142,14 +140,14 @@ Comparing this against the contract table above, there are three mismatches:
 
 And two timing constraints:
 
-1. **certificates arrive late.** The switch boots and the redfish container starts before the provisioning agent is installed and writes the real certs. At boot, `/etc/sonic/credentials/` may be empty, and bmcweb must still come up (with its self-signed cert).
+1. **certificates arrive late.** The switch boots and the redfish container starts before the provisioning agent is installed and writes the real certs. At boot, `REDFISH|certs` may not be set yet, or the files it names may not exist yet, and bmcweb must still come up (with its self-signed cert).
 2. **bmcweb reads certs only at startup.** Whenever the certificates first appear or later rotate, something must notice and restart bmcweb, or it keeps serving the old (or self-signed) certificate indefinitely.
 
-One non-goal worth stating: `/etc/sonic/credentials/` is the provisioning directory and stays untouched. The solution never writes into it; the reshaped files are produced in the container-local locations bmcweb reads.
+One non-goal worth stating: the delivery directories (in practice `/etc/sonic/credentials/`) stay untouched. The solution never writes into them; the reshaped files are produced in the container-local locations bmcweb reads.
 
 ## Why the obvious shortcuts don't work
 
-**Shortcut 1: create a symlink at image build time, `server.pem -> /etc/sonic/credentials/...`**
+**Shortcut 1: create a symlink at image build time, `server.pem -> <configured server certificate>`**
 
 A symlink points at one file, but bmcweb needs the certificate and key concatenated into one file. A symlink cannot merge two files. On top of that, at boot the target may not exist yet (certificates arrive late), leaving a dangling link, and bmcweb would try to write its self-signed fallback through it into the provisioning directory.
 
@@ -178,11 +176,11 @@ The same script runs as three supervisord programs, each in a different mode. Sp
 | `bmcweb` | `--guard` | Gate bmcweb's startup: self-heal the staged files if needed, fail closed once provisioned, then `exec bmcweb` | wraps bmcweb itself |
 | `credentials-watcher` | `--watch` | Watch for installs and rotations; re-stage and bounce bmcweb on change | long-running daemon |
 
-**`--once` (stage on start).** Runs before bmcweb in the supervisord dependency order. If provisioned certs are already present (for example, the container restarted after the provisioning agent was provisioned), they are staged so bmcweb starts directly with the real certificate, no self-signed phase and no extra restart. If the folder is empty it is a no-op, and bmcweb falls back to its self-signed certificate. Boot is never blocked.
+**`--once` (stage on start).** Runs before bmcweb in the supervisord dependency order. If `REDFISH|certs` is set and the files it names are already present (for example, the container restarted after the provisioning agent delivered them), they are staged so bmcweb starts directly with the real certificate, no self-signed phase and no extra restart. If `REDFISH|certs` is not set, or the files are absent, it logs that and exits: on a never-provisioned unit bmcweb falls back to its self-signed certificate, on a provisioned unit the guard decides on the staged copy. Boot is never blocked.
 
 **`--guard` (gate bmcweb).** bmcweb's supervisord entry does not launch bmcweb directly; it launches the script in guard mode, which does two things and then `exec`s bmcweb (so bmcweb replaces the script in the same process, and supervisord supervises bmcweb as usual). First, self-heal: if the staged certificate is missing or invalid but valid source certs exist, it re-stages them, covering any window a restart could slip through. Second, fail closed: if the unit has been provisioned before (the `/var/lib/bmcweb/provisioned` marker exists) and no valid staged certificate exists, it refuses to start bmcweb entirely (details in the Secure mode section). Since every bmcweb start goes through the guard, these checks hold no matter who restarts bmcweb or when.
 
-**`--watch` (react to change).** The long-running watcher. It waits for filesystem events on the source directory and re-stages + bounces bmcweb when the certificates first appear or are rotated. It also wakes periodically to reconcile even without an event, and publishes the sync status to STATE_DB on every cycle (details in the Change detection and Observability sections).
+**`--watch` (react to change).** The long-running watcher. It waits for filesystem events on the directories holding the configured paths, and on the staged locations, and re-stages + bounces bmcweb when the certificates first appear, are rotated, or the staged copies are tampered with. It also wakes periodically to reconcile even without an event, and publishes the sync status to STATE_DB on every cycle (details in the Change detection and Observability sections).
 
 ### supervisord ordering
 
@@ -223,7 +221,7 @@ Two properties matter:
 
 ### Applying a change: stop, write, start
 
-bmcweb reads certificates and its persistent config only at startup, so applying a change means restarting it. The watcher does this as stop, stage, start (`apply_and_bounce`) rather than a plain restart, because bmcweb persists its auth config back to `/bmcweb_persistent_data.json` while running; writing that file while bmcweb is up risks bmcweb clobbering the change when it next persists. bmcweb is always started again afterwards, even if staging failed, so a failed stage never leaves the service down.
+bmcweb reads certificates only at startup, so applying a change means restarting it. The watcher does this as stop, stage, start (`apply_and_bounce`) rather than a plain restart, so the new files are in place before the start passes through the guard, and bmcweb never starts against a half-applied set. bmcweb is always started again afterwards, even if staging failed, so a failed stage never leaves the service down.
 
 **Impact on in-flight requests.** bmcweb does not drain connections on shutdown, so a request in flight at the instant of the stop has its connection closed without a response; the client observes a transport error (connection reset), never an HTTP error status such as 500, because no bmcweb exists to produce one. Whether the operation took effect depends on how far processing got: a request whose response was already delivered completed normally, and one that never reached bmcweb did nothing, but a mutating request (for example a POST) caught mid-processing may have been applied without its response being delivered. This ambiguity is inherent to any dropped connection (a network failure mid-request has exactly the same property, and this design does not add a new failure mode) and the standard REST discipline applies: the client may simply reissue idempotent requests, while for non-idempotent actions it should confirm the outcome by reading the resource state before reissuing. Nothing retries on the client's behalf. During the window between stop and start, new connections are refused; the window is a few file operations plus bmcweb's startup, typically a couple of seconds, occurring once per rotation and identical to any bmcweb restart. Established token sessions survive the restart, because a rotation does not rewrite the persistent auth config; mTLS clients carry no session state at all (their identity is re-derived from the client certificate on each connection), so for them the restart costs only the TCP reconnect.
 
@@ -282,14 +280,16 @@ A "valid staged certificate" (`staged_ok`) means: `server.pem` exists, parses, a
 
 The watcher must notice two kinds of change: first install and rotation. It combines an event-driven fast path with a periodic safety net.
 
-**Fast path: inotify.** The watcher blocks on `inotifywait`, watching the directories that hold the configured delivery paths (deduplicated, since the server pair and the CA may live in different directories) for create, modify, move, close-write, and delete events. A change wakes it immediately; measured on hardware, a rotation is picked up and served within a few seconds. A short settle delay after each event batch lets a multi-file drop (three files copied one after another) be handled as one change instead of three.
+**Fast path: inotify.** The watcher blocks on `inotifywait`, watching the directories that hold the configured delivery paths (deduplicated, since the server pair and the CA may live in different directories) and the two staged locations bmcweb reads, for create, modify, move, close-write, and delete events. Watching the staged locations too means tampering with `server.pem` or the truststore raises an event rather than waiting for the next reconcile. A change wakes it immediately; measured on hardware, a rotation is picked up and served within a few seconds. A short settle delay after each event batch lets a multi-file drop (three files copied one after another) be handled as one change instead of three.
 
 **Safety net: periodic reconcile.** inotify has gaps: it does not queue events for a process that is not running (a change made while the watcher was restarting is lost), a watch follows inodes so an atomic directory replace can end it, and events for host-side writes crossing the bind mount are not guaranteed on every platform. So the wait also has a timeout (60 seconds, configurable via `BMCWEB_WATCH_INTERVAL`), and the loop reconciles at the top of every wake, before blocking again:
 
 ```
-re-stage if:  certs_ready
+re-stage if:  REDFISH|certs configured AND certs_ready
               AND ( source fingerprint != stamp   OR   staged output is broken )
 ```
+
+The configuration is re-read at the top of every wake, so a change to the configured paths is picked up without a restart.
 
 Each reconcile pass is a cheap fingerprint compare, and it is idempotent: nothing happens unless there is a real discrepancy. The consequence is a hard upper bound: any change lands within one watch interval, events or no events.
 
@@ -297,7 +297,7 @@ Each reconcile pass is a cheap fingerprint compare, and it is idempotent: nothin
 
 ## Pair guard (mid-rotation consistency)
 
-When the provisioning agent rotates, it writes new versioned files and repoints the stable `server.crt` and `server.key` symlinks. Each repoint is atomic, but they are two separate operations, so there is a brief window where the certificate points at the new version while the key still points at the old one. Staged naively, that mismatched pair would make bmcweb's TLS context fail to build, breaking HTTPS.
+When the provisioning agent rotates, it writes new versioned files and repoints the stable names the configured paths refer to (the server certificate and the key). Each repoint is atomic, but they are two separate operations, so there is a brief window where the certificate points at the new version while the key still points at the old one. Staged naively, that mismatched pair would make bmcweb's TLS context fail to build, breaking HTTPS.
 
 The pair check inside `certs_ready` prevents this: staging proceeds only when the public key derived from the certificate equals the public key derived from the private key. During the mismatch window the check reports not-ready, the pass is skipped, and the next event or reconcile sees the consistent pair and applies it. bmcweb is never handed a cert and key that do not match, and it keeps serving the previous valid pair in the meantime.
 
@@ -305,7 +305,7 @@ The same guard also covers the pathological case where a rotation is left half-d
 
 ## Deletion
 
-**Source files deleted (`/etc/sonic/credentials`).** Deletion is not treated as revocation:
+**Source files deleted (at the configured paths).** Deletion is not treated as revocation:
 
 - bmcweb keeps running and keeps serving the last staged certificate (still valid, CA-signed). Deleting source files does not degrade the security of the running service.
 - The condition is immediately visible: STATE_DB reports `in_sync false` with a "credentials not ready" reason.
@@ -329,7 +329,7 @@ A rotation that silently fails to land is a security flaw: the endpoint keeps an
 | `last_update` | timestamp of the last publish (also proves the watcher is alive) |
 | `last_error` | precise reason when out of sync |
 
-`in_sync` is the single field monitoring should watch. `last_error` distinguishes the causes: source not ready (missing files, unparseable cert, or cert/key mismatch), source changed but not applied (staging pending or failing), or staged output missing/tampered/self-signed. `mtls_enforced` publishes the enforcement state: `true` means the mTLS enforcement configuration is in effect, so client-certificate authentication is required on every connection. mTLS handshakes themselves are per-connection events, so "handshake complete" has no steady-state value; `mtls_enforced` is the publishable fact that every handshake now requires and verifies a client certificate. A persistent `mtls_enforced false` is actionable in both phases: on a never-provisioned unit it means provisioning has not completed, and on a provisioned unit it means the certificate material was lost and the unit is failing closed; the guard refusal in syslog and the provisioned marker on the host distinguish the two during triage.
+`in_sync` is the single field monitoring should watch. `last_error` distinguishes the causes: `REDFISH|certs` not configured, source not ready (missing files, unparseable cert, or cert/key mismatch), source changed but not applied (staging pending or failing), or staged output missing/tampered/self-signed. `mtls_enforced` publishes the enforcement state: `true` means the mTLS enforcement configuration is in effect, so client-certificate authentication is required on every connection. mTLS handshakes themselves are per-connection events, so "handshake complete" has no steady-state value; `mtls_enforced` is the publishable fact that every handshake now requires and verifies a client certificate. A persistent `mtls_enforced false` is actionable in both phases: on a never-provisioned unit it means provisioning has not completed, and on a provisioned unit it means the certificate material was lost and the unit is failing closed; the guard refusal in syslog and the provisioned marker on the host distinguish the two during triage.
 
 Read it with:
 
@@ -341,9 +341,9 @@ sonic-db-cli STATE_DB hgetall 'REDFISH_CERT_STATUS|global'
 
 ## Walkthrough
 
-**Boot, before certificates are provisioned.** `/etc/sonic/credentials` is empty. The oneshot finds nothing and exits. The guard finds no staged cert and no source; the provisioned marker does not exist (never provisioned), so bmcweb starts and self-signs. The unauthenticated service root (`/redfish/v1`) answers over HTTPS with the self-signed cert; authenticated endpoints return 401, since the container has no local accounts and no CA is staged, so no authentication method can succeed. STATE_DB shows `in_sync false`, "credentials not ready".
+**Boot, before certificates are provisioned.** `REDFISH|certs` is not set, or the files it names do not exist yet. The oneshot finds nothing to stage and exits. The guard finds no staged cert and no source; the provisioned marker does not exist (never provisioned), so bmcweb starts and self-signs. The unauthenticated service root (`/redfish/v1`) answers over HTTPS with the self-signed cert; authenticated endpoints return 401, since the container has no local accounts and no CA is staged, so no authentication method can succeed. STATE_DB shows `in_sync false` with "REDFISH|certs not configured" or "credentials not ready".
 
-**Certificates are provisioned.** The watcher wakes (event, or within one interval), sees a ready trio with no stamp, and applies: stop bmcweb, stage the three contract items, write the stamp and the provisioned marker, start bmcweb. bmcweb comes up serving the CA-signed certificate and requires a client certificate for every resource except the unauthenticated ones; a client presenting a certificate issued by the staged CA, with a trusted common name, is authorized as an administrator. From this moment the unit is production-secured and fail-closed. STATE_DB flips to `in_sync true`.
+**Certificates are provisioned.** `REDFISH|certs` names the delivered files. The watcher wakes (event, or within one interval), sees a ready trio with no stamp, and applies: stop bmcweb, stage the three contract items, write the stamp and the provisioned marker, start bmcweb. bmcweb comes up serving the CA-signed certificate and requires a client certificate for every resource except the unauthenticated ones; a client presenting a certificate issued by the staged CA, with a trusted common name, is authorized as an administrator. From this moment the unit is production-secured and fail-closed. STATE_DB flips to `in_sync true`.
 
 **Certificate rotation.** New versioned files are written and the stable symlinks repointed. If the watcher looks mid-rotation, the pair guard skips the pass. On the consistent pair, the fingerprint differs from the stamp, so it re-stages and bounces bmcweb. The persistent config is never written, so sessions survive. The served serial changes; STATE_DB returns to `in_sync true` with the new fingerprints.
 
@@ -357,7 +357,9 @@ sonic-db-cli STATE_DB hgetall 'REDFISH_CERT_STATUS|global'
 
 | Situation | Behavior | Visible as |
 |---|---|---|
-| Boot, no certs ever | bmcweb up, self-signed, no mTLS | `in_sync false`, "not ready" |
+| Boot, `REDFISH\|certs` not set | bmcweb up, self-signed, no mTLS | `in_sync false`, "not configured" |
+| Boot, configured but files not delivered yet | bmcweb up, self-signed, no mTLS | `in_sync false`, "not ready" |
+| `REDFISH\|certs` removed on a provisioned unit | bmcweb keeps serving the staged cert; guard still fails closed if the staged copy is lost | `in_sync false`, "not configured" |
 | First install | staged + mTLS on + stamp and provisioned marker written, bmcweb bounced | `in_sync true` |
 | Rotation (both files) | re-staged, bmcweb bounced, sessions preserved | `in_sync true`, new serial |
 | Mid-rotation window | pass skipped, old cert keeps serving | transient `in_sync false`, mismatch reason |
@@ -377,7 +379,7 @@ What persists where:
 
 | State | Location | Survives bmcweb restart | Survives container recreate | Survives reboot |
 |---|---|---|---|---|
-| provisioned source certs | host `/etc/sonic/credentials` | yes | yes | yes |
+| provisioned source certs | host, at the configured paths | yes | yes | yes |
 | Staged certs | container writable layer | yes | no | yes (container is restarted, not recreated) |
 | Fingerprint stamp | host `/var/lib/bmcweb` | yes | yes | yes |
 | Provisioned marker | host `/var/lib/bmcweb` | yes | yes | yes |
@@ -397,7 +399,7 @@ The provisioned certificates are already visible inside the redfish container, b
 
 ### Test environment and common fixtures
 
-No provisioning agent is involved in these tests. All certificates are generated by the test itself and installed into `/etc/sonic/credentials` on the BMC, following the provisioning layout: versioned files plus stable symlinks (`server.crt`, `server.key`, `server_ca.crt`).
+No provisioning agent is involved in these tests. All certificates are generated by the test itself and delivered to the REST API certificate paths on the BMC, `/etc/sonic/credentials/restapiserver.crt`, `restapiserver.key` and `restapica.crt`, and the shared install fixture sets `REDFISH|certs` `server_crt`, `server_key` and `ca_crt` to those paths. The `REDFISH|certs` and `REDFISH|config` fields the suite writes are recorded before the run and put back afterwards, so a device that arrived with its own Redfish configuration leaves with it intact. Where a case rotates, it replaces the delivered files the way a provisioning agent does: new content behind the same stable names, one file at a time where the case needs a partial state.
 
 **Reused from existing sonic-mgmt code:**
 
@@ -414,9 +416,9 @@ No provisioning agent is involved in these tests. All certificates are generated
 **New fixtures needed:**
 
 - BMC shell access: run commands on the BMC host over SSH (write to `/etc/sonic/credentials`, `docker exec redfish ...`, `redis-cli` against CONFIG_DB/STATE_DB).
-- Cert install helper: place generated files into `/etc/sonic/credentials` with the versioned-file + stable-symlink layout; supports partial installs for negative cases.
+- Cert install helper: place generated files at the configured delivery paths; supports partial installs for negative cases.
 - Poll helpers: wait-until on STATE_DB `REDFISH_CERT_STATUS|global` fields (`in_sync`, fingerprints, `last_update`) and on the served certificate serial.
-- Teardown (critical, the provisioned state is one-way by design): remove test certs from `/etc/sonic/credentials`, delete the provisioned marker `/var/lib/bmcweb/provisioned` and the stamp `/var/lib/bmcweb/.staged-credentials.stamp`, remove staged files and `/bmcweb_persistent_data.json` inside the container (or recreate the redfish container), returning the BMC to the bootstrap state for other test modules.
+- Teardown (critical, the provisioned state is one-way by design): remove the delivered test certs, delete the provisioned marker `/var/lib/bmcweb/provisioned` and the stamp `/var/lib/bmcweb/.staged-credentials.stamp`, recreate the redfish container so the staged files are gone, and restore the recorded `REDFISH|certs` and `REDFISH|config` fields, returning the BMC to the state it had before the run.
 
 **Test independence:** every test case is self-contained and order-independent. Each case brings the DUT to the state its steps require (via setup/fixtures) and restores state on teardown, so no case relies on another having run first. Where a section lists a precondition (for example "a valid trio is staged"), that state is established by the case's own setup, not inherited from a previous case. A shared install fixture provides the common "v1 staged, in_sync" starting point; cases that need a different starting point (bootstrap, mismatched pair) set it up themselves.
 
@@ -428,7 +430,7 @@ No provisioning agent is involved in these tests. All certificates are generated
 
 **Precondition (skip if not met):**
 
-- This case requires the bootstrap state: `/etc/sonic/credentials` contains no `server.crt`, `server.key`, or `server_ca.crt`, and the provisioned marker `/var/lib/bmcweb/provisioned` does not exist. If either is present, the DUT is provisioned; skip this case with a clear reason rather than resetting the device.
+- This case requires the bootstrap state: `REDFISH|certs` is not set, or the files it names do not exist, and the provisioned marker `/var/lib/bmcweb/provisioned` does not exist. If the marker is present, the DUT is provisioned; skip this case with a clear reason rather than resetting the device.
 
 **Steps:**
 
@@ -441,7 +443,7 @@ No provisioning agent is involved in these tests. All certificates are generated
 2. GET `/redfish/v1` succeeds without any authentication, but only with certificate verification disabled (`curl -k`); with verification enabled the request fails, since the certificate chains to no CA.
 3. A privileged API (for example GET `/redfish/v1/UpdateService/FirmwareInventory`) returns 401: without credentials, and also with any username/password (the container has no local accounts, so password authentication cannot succeed in any phase). Only the unauthenticated discovery endpoints respond before provisioning.
 4. mTLS is not enforced: no client certificate is requested during the TLS handshake.
-5. STATE_DB `REDFISH_CERT_STATUS|global` reports `in_sync false` with `last_error` indicating credentials not ready, and `mtls_enforced` is `false`.
+5. STATE_DB `REDFISH_CERT_STATUS|global` reports `in_sync false` with `last_error` indicating `REDFISH|certs` not configured or credentials not ready, and `mtls_enforced` is `false`.
 6. The `stage-credentials` oneshot is EXITED with code 0 and `credentials-watcher` is RUNNING under supervisord.
 
 ### Section 2: First install and staged artifacts
@@ -450,13 +452,13 @@ No provisioning agent is involved in these tests. All certificates are generated
 
 **Precondition (skip if not met):**
 
-- Bootstrap state: no certs in `/etc/sonic/credentials`, no provisioned marker at `/var/lib/bmcweb/provisioned`, bmcweb serving its self-signed certificate.
+- Bootstrap state: no certificates at the delivery paths, no provisioned marker at `/var/lib/bmcweb/provisioned`, bmcweb serving its self-signed certificate.
 
 **Steps:**
 
-1. Confirm the bootstrap precondition (skip otherwise): STATE_DB `REDFISH_CERT_STATUS|global` reports `in_sync false` with a "credentials not ready" reason, and the provisioned marker does not exist.
-2. Generate a valid trio with the test cert generator: a CA, and a server cert/key whose SAN matches the BMC's Redfish endpoint (IP/hostname).
-3. Install `server.crt`, `server.key`, and `server_ca.crt` into `/etc/sonic/credentials` in the versioned-file + stable-symlink layout.
+1. Confirm the bootstrap precondition (skip otherwise): STATE_DB `REDFISH_CERT_STATUS|global` reports `in_sync false`, and the provisioned marker does not exist.
+2. Set `REDFISH|certs` `server_crt`, `server_key` and `ca_crt` to the delivery paths, and generate a valid trio with the test cert generator: a CA, and a server cert/key whose SAN matches the BMC's Redfish endpoint (IP/hostname).
+3. Deliver the server certificate, the key and the CA to the configured paths.
 4. Poll (2s interval, 90s timeout) until STATE_DB reports `in_sync true`.
 
 **Verification:**
@@ -582,7 +584,7 @@ Preconditions for this section: a valid trio (call it v1) is staged and `in_sync
 
 1. Record the current served serial and the fingerprint stamp.
 2. Generate a new server cert/key (v2) signed by the same CA, with the same SAN.
-3. Install v2 by writing the new versioned files and atomically repointing both `server.crt` and `server.key`.
+3. Install v2 by replacing the delivered server certificate and key.
 4. Poll until STATE_DB `served_serial` changes to v2's serial and `in_sync true`.
 
 **Verification:**
@@ -598,7 +600,7 @@ Preconditions for this section: a valid trio (call it v1) is staged and `in_sync
 **Steps:**
 
 1. With v1 staged, generate a new CA and a server cert/key signed by the new CA, plus a client cert signed by the new CA.
-2. Install the new `server_ca.crt`, `server.crt`, and `server.key` together (repoint all three).
+2. Deliver the new CA, server certificate and key together.
 3. Poll until STATE_DB reports `in_sync true` with the new fingerprints.
 
 **Verification:**
@@ -617,7 +619,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true`, 
 
 1. Record the current served serial.
 2. Generate a new server cert/key (v2) signed by the same CA.
-3. Repoint only `server.crt` to v2, leaving `server.key` pointed at v1, creating a mismatched pair (this simulates the transient mid-rotation window, held open deliberately).
+3. Replace only the delivered server certificate with v2, leaving the v1 key in place, creating a mismatched pair (this simulates the transient mid-rotation window, held open deliberately).
 4. Wait at least one full watch interval so at least one reconcile pass has run against the mismatched state.
 
 **Verification:**
@@ -630,8 +632,8 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true`, 
 
 **Steps:**
 
-1. Set up: from a valid v1 staged state, generate v2 signed by the same CA and repoint only `server.crt` to v2, establishing the mismatched pair. Confirm STATE_DB is `in_sync false` with the mismatch reason.
-2. Repoint `server.key` to v2 as well, so both now point at v2.
+1. Set up: from a valid v1 staged state, generate v2 signed by the same CA and replace only the delivered server certificate with v2, establishing the mismatched pair. Confirm STATE_DB is `in_sync false` with the mismatch reason.
+2. Replace the delivered key with v2 as well, so both are now v2.
 3. Poll until STATE_DB `served_serial` changes to v2 and `in_sync true`.
 
 **Verification:**
@@ -644,7 +646,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true`, 
 
 **Steps:**
 
-1. From a valid v1 staged state, repoint only `server.crt` to v2 and never repoint `server.key`.
+1. From a valid v1 staged state, replace only the delivered server certificate with v2 and never replace the key.
 2. Wait several watch intervals.
 
 **Verification:**
@@ -664,7 +666,7 @@ Note: the periodic reconcile (the watch-interval timeout) shares the same reconc
 **Steps:**
 
 1. Stop the watcher: `supervisorctl stop credentials-watcher`.
-2. While it is down, rotate to v2: generate v2 signed by the same CA, write the versioned files, and repoint both symlinks.
+2. While it is down, rotate to v2: generate v2 signed by the same CA and replace the delivered server certificate and key.
 3. Confirm no inotify event can have been acted on (the watcher process is not running).
 4. Start the watcher: `supervisorctl start credentials-watcher`, and poll until STATE_DB `served_serial` changes to v2 and `in_sync true`.
 
@@ -679,7 +681,7 @@ Note: the periodic reconcile (the watch-interval timeout) shares the same reconc
 **Steps:**
 
 1. With v1 staged and `in_sync true`, record the current bmcweb start time (or PID) and the served serial.
-2. Trigger a filesystem event in `/etc/sonic/credentials` that does not change certificate content: for example rewrite the same versioned files with identical bytes, or `touch` them.
+2. Trigger a filesystem event in the delivery directory that does not change certificate content: for example rewrite the delivered files with identical bytes, or `touch` them.
 3. Wait at least one watch interval.
 
 **Verification:**
@@ -724,7 +726,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true` (
 
 **Steps:**
 
-1. With v1 staged and source certs present in `/etc/sonic/credentials`, reboot the DUT.
+1. With v1 staged and the delivered certs present, reboot the DUT.
 2. After boot, poll until the redfish container is up and STATE_DB reports `in_sync true`.
 
 **Verification:**
@@ -742,7 +744,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true`, 
 **Steps:**
 
 1. Record the currently served serial (v1).
-2. Install only `server.crt` (a new v2 cert), leaving `server.key` and `server_ca.crt` absent or unchanged such that the trio is incomplete relative to the new cert.
+2. Deliver only a new v2 server certificate, with the key and the CA absent or unchanged such that the trio is incomplete relative to the new cert.
 3. Wait at least one watch interval.
 
 **Verification:**
@@ -755,7 +757,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true`, 
 **Steps:**
 
 1. Record the currently served serial (v1).
-2. Replace `server.crt` with a file that is not valid PEM/X.509 (corrupt bytes), keeping the other files present.
+2. Replace the delivered server certificate with a file that is not valid PEM/X.509 (corrupt bytes), keeping the other files present.
 3. Wait at least one watch interval.
 
 **Verification:**
@@ -768,7 +770,7 @@ Preconditions for this section: a valid trio (v1) is staged and `in_sync true`, 
 **Steps:**
 
 1. Record the currently served serial (v1) and bmcweb's start time.
-2. Replace `server_ca.crt` with a file that is not valid PEM/X.509, keeping `server.crt` and `server.key` valid.
+2. Replace the delivered CA with a file that is not valid PEM/X.509, keeping the server certificate and key valid.
 3. Wait several watch intervals.
 
 **Verification:**
@@ -784,7 +786,7 @@ The pair guard on a provisioned unit is covered by Section 6; this case covers t
 **Steps:**
 
 1. Start from the bootstrap state (no marker, bmcweb self-signed).
-2. As the first install, deliver a `server.crt` and `server.key` that are individually valid but do not form a pair (cert from one keypair, key from another), with a valid `server_ca.crt`.
+2. As the first install, deliver a server certificate and key that are individually valid but do not form a pair (cert from one keypair, key from another), with a valid CA.
 3. Wait at least one watch interval.
 
 **Verification:**
@@ -797,7 +799,7 @@ The pair guard on a provisioned unit is covered by Section 6; this case covers t
 
 **Steps:**
 
-1. With v1 staged and mTLS working, delete `server.crt`, `server.key`, and `server_ca.crt` from `/etc/sonic/credentials`.
+1. With v1 staged and mTLS working, delete the delivered server certificate, key and CA.
 2. Wait at least one watch interval.
 
 **Verification:**
@@ -816,7 +818,7 @@ Preconditions for this section: the unit is provisioned, i.e. the marker `/var/l
 **Steps:**
 
 1. Set up: install v1 so the provisioned marker is written and mTLS works.
-2. Remove the source trio from `/etc/sonic/credentials`, and inside the container remove the staged `server.pem` (so neither a valid source nor a valid staged cert exists), then restart bmcweb: `docker exec redfish supervisorctl restart bmcweb`.
+2. Remove the delivered trio, and inside the container remove the staged `server.pem` (so neither a valid source nor a valid staged cert exists), then restart bmcweb: `docker exec redfish supervisorctl restart bmcweb`.
 3. Wait for supervisord to finish its start attempts.
 
 **Verification:**
@@ -831,7 +833,7 @@ Preconditions for this section: the unit is provisioned, i.e. the marker `/var/l
 **Steps:**
 
 1. Set up the fail-closed condition as in TC #1 (bmcweb in FATAL, marker present).
-2. Reinstall a valid trio (v2) into `/etc/sonic/credentials`.
+2. Deliver a valid trio (v2) to the configured paths again.
 3. Poll until STATE_DB reports `in_sync true` and bmcweb is RUNNING, without issuing any manual bmcweb start.
 
 **Verification:**
@@ -897,42 +899,41 @@ Preconditions for this section: ability to read STATE_DB `REDFISH_CERT_STATUS|gl
 
 ### Section 12: CONFIG_DB configuration
 
-Preconditions for this section: a valid trio is staged and `in_sync true` (so the recreate path is exercised on a provisioned unit). Teardown restores the defaults: remove the `REDFISH|config` and `REDFISH|certs` entries from CONFIG_DB and restart the redfish service.
+Preconditions for this section: a valid trio is staged and `in_sync true`. Teardown restores the recorded `REDFISH|config` and `REDFISH|certs` fields and restarts the redfish service.
 
 **Test Case #1: Default port is 443 with no configuration**
 
 **Steps:**
 
 1. Confirm `REDFISH|config` has no `port` field (or the table is absent) in CONFIG_DB.
-2. Read the published port of the running container (`docker port redfish 18080`).
+2. Read the port bmcweb listens on from the host socket table (`ss -ltnp`, the container runs on host networking).
 
 **Verification:**
 
-1. The published host port is 443, and the mTLS request from Section 3 succeeds against `https://<bmc>` with no explicit port.
+1. bmcweb listens on 443, and the mTLS request from Section 3 succeeds against `https://<bmc>` with no explicit port.
 
-**Test Case #2: A configured port is applied by a service restart and the certificate flow survives the recreate**
+**Test Case #2: A configured port is applied by a bmcweb restart and the certificate flow is unaffected**
 
 **Steps:**
 
 1. Set the port: `sonic-db-cli CONFIG_DB hset "REDFISH|config" port 8443`.
-2. Restart the redfish service and wait for bmcweb to reach RUNNING.
-3. Record the container creation time before and after the restart.
+2. Restart bmcweb (`docker exec redfish supervisorctl restart bmcweb`) and wait for it to reach RUNNING.
 
 **Verification:**
 
-1. The container was recreated (creation time changed), and the published host port is 8443.
+1. bmcweb listens on 8443 and no longer on 443; the container was not recreated.
 2. The mTLS request succeeds on `https://<bmc>:8443` and the connection to 443 is refused.
-3. The served certificate is still the provisioned CA-signed certificate with mTLS enforced (the oneshot re-staged from source during the recreate; no self-signed window), and STATE_DB reports `in_sync true` with `mtls_enforced true`.
+3. The served certificate is still the provisioned CA-signed certificate with mTLS enforced, and STATE_DB reports `in_sync true` with `mtls_enforced true`.
 
 **Test Case #3: An invalid port value falls back to the default**
 
 **Steps:**
 
-1. Set an invalid value: `sonic-db-cli CONFIG_DB hset "REDFISH|config" port notaport`, restart the redfish service.
+1. Set an invalid value: `sonic-db-cli CONFIG_DB hset "REDFISH|config" port notaport`, restart bmcweb.
 
 **Verification:**
 
-1. The container is created successfully and publishes port 443 (the invalid value is ignored), and the API serves normally: configuration problems never block container creation.
+1. bmcweb starts and listens on 443 (the invalid value is ignored, and `bmcweb-start.sh` logs the fallback), and the API serves normally: a configuration problem never keeps the API down.
 
 **Test Case #4: Certificates are consumed from the configured paths**
 
@@ -959,14 +960,39 @@ Preconditions for this section: a valid trio is staged and `in_sync true` (so th
 2. The request in step 2 is answered with 401.
 3. bmcweb serves the provisioned CA-signed certificate in both cases.
 
-**Test Case #6: Defaults apply when the tables are absent**
+**Test Case #6: No `REDFISH|certs` entry stages nothing**
 
 **Steps:**
 
-1. Remove the `REDFISH|config` and `REDFISH|certs` entries entirely and restart the redfish container.
+1. From the bootstrap state (no marker), remove the `REDFISH|config` and `REDFISH|certs` entries entirely, deliver a valid trio to the delivery paths anyway, and restart the redfish container.
+2. Wait at least one watch interval.
 
 **Verification:**
 
-1. The container is created and bmcweb starts: a device with no Redfish configuration is still functional.
-2. The default paths are used for staging and the default port 443 is published, confirming no configuration is required for a working device.
-3. With no `client_crt_cname`, no common name is trusted: a client certificate the staged CA issued is answered with 403 on protected resources, while the service root still answers 200.
+1. The container starts and bmcweb serves its self-signed certificate on port 443: nothing is staged, no provisioned marker is written, and the delivered files are not picked up from any built-in location.
+2. STATE_DB reports `in_sync false` with `last_error` "REDFISH|certs not configured", and `mtls_enforced` is `false`.
+3. Setting `REDFISH|certs` to the delivery paths is enough: within one watch interval the trio is staged, the marker is written, and `in_sync` flips to `true`, with no container restart.
+
+**Test Case #7: A partial `REDFISH|certs` entry is treated as unconfigured**
+
+**Steps:**
+
+1. From the bootstrap state, set only `server_crt` and `server_key` (no `ca_crt`), deliver a valid trio, and wait at least one watch interval.
+
+**Verification:**
+
+1. Nothing is staged and no marker is written; STATE_DB reports `in_sync false` with "REDFISH|certs not configured".
+2. Adding `ca_crt` completes the configuration and the trio is staged within one watch interval.
+
+**Test Case #8: Removing `REDFISH|certs` from a provisioned unit does not degrade the running service**
+
+**Steps:**
+
+1. With v1 staged and `in_sync true`, remove the `REDFISH|certs` entry and wait at least one watch interval.
+2. Restart bmcweb.
+
+**Verification:**
+
+1. bmcweb keeps serving the v1 certificate with mTLS enforced, before and after the restart: the guard checks the staged copy alone, so a configuration removal never produces a self-signed window on a provisioned unit.
+2. STATE_DB reports `in_sync false` with "REDFISH|certs not configured".
+3. Removing the staged `server.pem` as well and restarting bmcweb fails closed, as in Section 10, confirming the marker, not the configuration, is what gates the start.
