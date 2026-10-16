@@ -120,7 +120,7 @@ textarea {
 button {
   overflow: visible;
 }
-button,
+button,textarea
 select {
   text-transform: none;
 }
