@@ -119,11 +119,11 @@ This approach requires following link event damping configuration:
         - link event damping algorithm is disabled. When the link event damping algorithm is disabled, link event damping functionality will be disabled.
         - Additive increase exponential decrease based damping algorithm.
 - **max-suppress-time**: Maximum time an interface can remain damped since the last link down event no matter how unstable it was prior to this period of stability. In a damped state, link events on the interface will not be advertised.
-    - This parameter is configured in seconds.
+    - This parameter is configured in milliseconds.
     - Expected value for this configuration is > 0.
     - A value of 0 indicates config is disabled.
 - **decay-half-life**: The amount of time after which an interface’s accumulated penalty is decreased by half if it were stable.
-    - This parameter is configured in seconds.
+    - This parameter is configured in milliseconds.
     - decay-half-time should not be more than max-suppress-time.
     - Expected value for this configuration is > 0.
     - A value of 0 indicates config is disabled.
@@ -163,7 +163,7 @@ These parameters are important to facilitate the link event damping functionalit
 
 **Exponential decay is defined by the following equation:**
 
-    $N_t = N_0 \times 2^\frac{-t} {t_1/2}$
+$N_t = N_0 \times 2^\frac{-t} {t_1/2}$
 
 
 Where:
@@ -176,7 +176,7 @@ $t_{1/2}$ is the decay-half-life.
 
 ##### Link Event Damping Example
 
-This example is created with *suppress-threshold = 1600, reuse-threshold=1200, decay-half-life=15sec, max-suppress-time=30sec, penalty=1000*. With this configurations and ceiling formula - ($2^\frac{max-suppress-time}{decay-half-life} \times {reuse-threshold}$),  penalty ceiling = 4800
+This example is created with *suppress-threshold = 1600, reuse-threshold=1200, decay-half-life=15000 milliseconds, max-suppress-time=30000 milliseconds, penalty=1000*. With this configurations and ceiling formula - ($2^\frac{max-suppress-time}{decay-half-life} \times {reuse-threshold}$),  penalty ceiling = 4800
 
 ![link event damping algorithm example](link_event_damping_algorithm_example.jpg)
 
@@ -314,7 +314,7 @@ typedef enum _sai_link_event_damping_algorithm_t
 typedef struct _sai_redis_link_event_damping_algo_aied_config_t
 {
 
-  /** Max link event damping suppression time. */
+  /** Max link event damping suppression time (in milliseconds). */
   sai_uint32_t max_suppress_time;
 
   /** Link event damping suppress threshold. */
@@ -323,7 +323,7 @@ typedef struct _sai_redis_link_event_damping_algo_aied_config_t
   /** Link event damping reuse threshold. */
   sai_uint32_t reuse_threshold;
 
-  /** Link event damping decay half time duration. */
+  /** Link event damping decay half time duration (in milliseconds). */
   sai_uint32_t decay_half_life;
 
   /** Link event flap penalty. */
@@ -367,10 +367,15 @@ The lack of link event damping configuration or invalid link event damping confi
 #### CLI Enhancements
 
 The CLI tool should provide the ability to configure the link event damping configurations.
-- Configure link event damping config with algorithm = aied, max suppress time = 40 secs, decay half life time = 30 secs, suppress threshold = 1500, reuse threshold = 1300, and link flap penalty = 1000:
-   ```sudo config interface link_event_damping_algorithm max-suppress-time decay-half-life suppress-threshold reuse-threshold flap-penalty Ethernet0 “aied” 40 30 1500 1300 1000```
+- Configure link event damping config with algorithm = aied, max suppress time = 40000 millisecs, decay half life time = 30000 millisecs, suppress threshold = 1500, reuse threshold = 1300, and link flap penalty = 1000:
+
+  ```sudo config interface damping algo Ethernet20 aied```
+
+   ```sudo config interface damping aied-param Ethernet20  --max-suppress-time 40000 --decay-half-life 30000 --suppress-threshold 1500 --reuse-threshold 1300 --flap-penalty 1000```
+
 - Disable link event damping algorithm:
-  ```sudo config interface link_event_damping_algorithm Ethernet0 “disabled”```
+
+  ```sudo config interface damping algo Ethernet20 disabled```
 
 
 #### YANG model Enhancements
@@ -426,13 +431,17 @@ flap_penalty                = uint32         ; flap_penalty configuration
 link_event_damping_algorithm= string         ; link_event_damping_algorithm configuration
 ```
 
-- Config DB schema with link event damping config (max suppress time = 40 seconds and flap penalty = 2000) in PORT table:
+- Config DB schema with link event damping config (max suppress time = 40000 millisecs, decay half life time = 30000 millisecs, suppress threshold = 1500, reuse threshold = 1300, and link flap penalty = 1000) and link_event_damping_algorithm = aied in PORT table:
 ```
 {
     "PORT": {
          "Ethernet0": {
-            "max_suppress_time" : "5000",
-            "flap_penalty" : "2000"
+            "max_suppress_time" : "40000",
+            "flap_penalty" : "1000",
+            "decay_half_life" : "30000",
+            "suppress_threshold" : 1500,
+            "reuse_threshold" : 1300,
+            "link_event_damping_algorithm" : "aied"
         }
     }
 }
@@ -478,3 +487,4 @@ N/A
     - [Document from Nokia](https://infocenter.nokia.com/public/7750SR217R1A/index.jsp?topic=%2Fcom.nokia.Interface_Configuration_Guide_21.7.R1%2Fexponential_por-d10e9752.html)
     - [Document from Cisco](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus3548/sw/interfaces/602_a1_1/b_N3548_Interfaces_Config_602_A1_1/b_N3548_Interfaces_Config_602_A1_1_chapter_0111.pdf)
     - [Document from Juniper](https://www.juniper.net/documentation/us/en/software/junos/interfaces-fundamentals-evo/interfaces-fundamentals/topics/topic-map/interfaces-damping-physical.html#id_hlf_p3q_rrb)
+
