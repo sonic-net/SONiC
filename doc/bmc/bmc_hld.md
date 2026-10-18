@@ -9,7 +9,7 @@ In summary, when the BMC runs OpenBMC, the Switch-Host NOS interacts with the BM
 
 When the BMC runs SONiC OS, the Switch-Host NOS interacts with the BMC through Redis over the host–BMC link (`usb0`). The host connects to the Redis instance on the BMC and reads platform data.
 
-The host selects the communication path at runtime based on `DEVICE_METADATA|bmc.os`.
+The host selects the communication path at runtime based on the BMC OS defined for the HwSKU (see [5.1 BMC OS selection](#51-bmc-os-selection)).
 
 
 ## 2. BMC flows in SONiC
@@ -25,7 +25,7 @@ For **OpenBMC**, SONiC incorporates a Redfish client as the underlying infrastru
 
 ![general flow](https://github.com/yuazhe/SONiC/blob/90aa83c07c4ae9502a78bd33ce5dc8b8e41b8b7e/images/bmc/bmc_overall_flow.png)
 
-For **SONiC BMC**, the host opens a TCP connection to the BMC Redis instance (STATE_DB, db 6), using the same `bmc_addr` from `bmc.json` / `DEVICE_METADATA|bmc`.
+For **SONiC BMC**, the host opens a TCP connection to the BMC Redis instance (STATE_DB, db 6), using the same `bmc_addr` from `bmc.json`.
 On Switch-BMC systems, Redis is bound to the BMC link IP at startup (see `dockers/docker-database/docker-database-init.sh` and `dockers/docker-database/supervisord.conf.j2`).
 
 ## 3. BMC ip address initialization
@@ -56,7 +56,7 @@ It requires a new ComponenetBMC object to be added to the component.py
 
 The `redfish_client.py` module provides the `RedfishClient` class, which facilitates BMC access via cURL requests to Redfish APIs. This class serves as a cURL wrapper for executing various Redfish commands. The class utilizes callback functions to obtain user credentials securely and supports asynchronous task monitoring to handle long-running operations like firmware updates and log dump.
 
-Used when `DEVICE_METADATA|bmc.os` is `openbmc`.
+Used when the BMC OS is `openbmc`.
 
 Key functionalities:
 1.	Session Management: Handles login and logout operations, ensuring secure sessions with the BMC. It manages tokens and session IDs, and automates re-login if tokens expire.
@@ -134,27 +134,35 @@ update_firmware(fw_image)
 
 ### 5.1 BMC OS selection
 
-The Switch-Host stores the configured BMC operating system in CONFIG_DB:
+The BMC operating system is platform data, not a runtime configuration. It is defined per HwSKU
+by a `bmc_os.json` file in the HwSKU directory on the Switch-Host:
 
-- **Table/key**: `DEVICE_METADATA|bmc`
+- **File**: `device/<vendor>/<platform>/<hwsku>/bmc_os.json`
+  (installed as `/usr/share/sonic/device/<platform>/<hwsku>/bmc_os.json`)
 - **Field**: `os`
 - **Values**: `openbmc` | `sonic`
-- **Default**: `sonic`
+- **Default**: `sonic`, when the file is missing or holds an invalid value
 
-YANG: `leaf os` under `container bmc` in `sonic-device_metadata.yang`.
+```
+{
+    "os": "openbmc"
+}
+```
 
-Runtime API: `sonic_py_common.device_info.get_bmc_os()`.
+The file is part of the image, like the other HwSKU files. A vendor adds it to every HwSKU
+whose BMC does not run SONiC. There is no CONFIG_DB entry and no config command for the BMC OS.
+To use a different BMC OS on a setup (for example, in a test environment), edit `bmc_os.json`
+in the HwSKU directory.
+
+Runtime API: `sonic_py_common.device_info.get_bmc_os()` reads the file from the HwSKU directory
+of the running HwSKU. Subsequent BMC CLI/API calls on the Switch-Host use Redfish or Redis
+according to its value.
 
 ```
 show platform bmc os
 ---------------------------
 sonic
-
-config bmc os sonic
-config bmc os openbmc
 ```
-
-`config bmc os` writes `DEVICE_METADATA|bmc.os`. Subsequent BMC CLI/API calls on the Switch-Host use Redfish or Redis according to this setting.
 
 ### 5.2 Platform BMC CLIs
 
