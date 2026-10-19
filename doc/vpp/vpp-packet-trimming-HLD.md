@@ -27,6 +27,7 @@
 | v1.1 | 2026-08-26 | Aaron Bernardino | Document disabling / opt-out behavior (§9.1) |
 | v1.2 | 2026-08-31 | Aaron Bernardino | Surface binary-admission and switch-wide-QoS limitations in summary (review: lolyu) |
 | v1.3 | 2026-10-19 | Aaron Bernardino | Correct failed-SET rollback, unbound-map defaults, trim-size validation, and recovered policy-cache behavior |
+| v1.4 | 2026-10-19 | Aaron Bernardino | Validate switch CREATE policy and modes, correlate trim SET replies, and distinguish internal ports from unresolved front-panel ports |
 
 ## 2. Scope
 
@@ -708,9 +709,22 @@ For set operations on a trim-relevant object, SAI-VPP:
 No automatic orchagent retry of a generic SAI failure is assumed. Local state
 remains consistent with metadata even when the VPP connection is unavailable.
 
-For create operations, the SAI object is created unconditionally and a trim
-re-program failure is **not** propagated (the object exists regardless); the
-subsequent set path is where a dataplane push failure is reported.
+Switch CREATE with trim attributes validates and accumulates the whole policy
+before programming it. Success commits the attributes; failure restores the
+previous attributes and policy and attempts dataplane rollback. A failed switch
+CREATE also releases the switch state and allocated ID, allowing a clean retry.
+Other object creates retain best-effort trim refresh; a later trim-relevant SET
+reports a programming failure.
+
+The three trim SET binary APIs use generation-tagged request contexts. Contexts
+are released on reply or timeout, and expired replies cannot complete a newer
+request, including a rollback.
+
+Admission and classifier refresh explicitly exclude CPU, fabric, and recycle
+ports by `SAI_PORT_ATTR_TYPE`. Logical front-panel ports use the existing
+lane-aware resolver if their registry entry is not yet present. An unresolved
+front-panel port is reported as a programming failure, not silently treated as
+an internal port.
 
 For remove operations, the generic `remove_internal` path removes only the
 virtual object state and does not invoke a trim refresh. Normal orchagent
@@ -727,7 +741,7 @@ which refreshes the VPP policy, and then remove the unreferenced object.
 | `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` | Stored globally; only `DSCP_VALUE` is advertised and honored |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE` | Symmetric DSCP value |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE` | Stored for the deferred asymmetric path; not used by the delivered trim node |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` | Accept `STATIC`; `DYNAMIC` is omitted from the advertised enum ([7.12](#712-capability-advertisement)) so orchagent never programs it. A stored `DYNAMIC` value is not honored by the datapath (an explicit set is accepted as a no-op) |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` | Accept `STATIC`; reject `DYNAMIC` on CREATE and SET before changing state or calling VPP. Only `STATIC` is advertised ([7.12](#712-capability-advertisement)) |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX` | Global static trim queue in the range 0-7; the plugin rejects an unsupported queue without changing the previous policy. The validated configuration uses queue 6 |
 
 ### 8.2 Buffer Profile and ACL
@@ -879,10 +893,10 @@ single-worker topology; per-worker buckets or atomic accounting are deferred.
 | Out-of-range scalar values reaching the vendor layer | Reject trim sizes above 65535 before modifying state or calling VPP. DSCP is masked to six bits. The plugin rejects static trim queues outside 0-7 without changing the previous policy. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
 | DSCP-to-queue table contains an unsupported queue | SAI-VPP rejects the composed table before sending it and rolls back a failed set. The plugin independently validates the entire table atomically with `INVALID_VALUE`; queues 8/9 must not alias queues 0/1 |
 | Queue is multicast or has an out-of-range unicast index | Multicast queues are skipped by `SAI_QUEUE_ATTR_TYPE` so a colliding multicast index cannot overwrite the corresponding unicast admission slot. Unicast indices at or above `SONIC_EXT_TRIM_MAX_QUEUES` (8) are skipped as SUCCESS. Every eligible lossy queue in the supported configuration is unicast and below the cap ([13.2](#132-design-limitations)) |
-| `DYNAMIC` queue-resolution mode | Omitted from the advertised enum so orchagent never programs it; a stored value is not honored by the datapath ([7.12](#712-capability-advertisement)) |
+| `DYNAMIC` queue-resolution mode | Omitted from the advertised enum and explicitly rejected on CREATE and SET without mutation or API calls ([7.12](#712-capability-advertisement)) |
 | Queue attributes or bindings are not present during replay | Skip the incomplete queue for that refresh; a later trim-relevant set triggers another full recompute |
 | QoS maps are partially or completely unbound | Recompose and push the effective table. An absent DSCP-to-TC map uses the port's `QOS_DEFAULT_TC`; an absent TC-to-queue map sends all traffic to queue 0. A complete reference-port map pair is preferred during incremental replay, followed by a remaining TC-to-queue binding |
-| VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the failure without committing its attribute or cached policy. A failed rollback remains explicitly pending; create refresh remains best effort |
+| VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the failure without committing its attribute or cached policy. A failed rollback remains explicitly pending. A switch CREATE with trim attributes reports failure and releases its state/ID; other object-create refresh remains best effort |
 | VPP binary API update fails on a set | Restore the previous attribute/cache and reprogram the previous policy, tracking a failed rollback before accepting another trim-relevant set ([7.13](#713-update-and-remove-ordering)) |
 | Asymmetric DSCP cannot be resolved at runtime (deferred `FROM_TC`) | Target design: drop the trim packet and increment a diagnostic error counter. Not reachable in this increment — only symmetric `DSCP_VALUE` is advertised and honored ([7.5](#75-dscp-resolution)) |
 | Egress metadata is missing at admission failure | Pass the packet through unpoliced on the normal `interface-output` arc rather than guessing an interface or queue; the shim adds no drop of its own |
@@ -1046,10 +1060,15 @@ logic and focused state transitions:
   partial-dataplane rollback and pending reconciliation; effective defaults after
   QoS-map unbinding; unsupported queue-map rejection; recovered policy-cache
   preservation on a DSCP-only update. VPP API calls are stubbed for these tests.
+- Switch CREATE policy accumulation, validation and partial-update rollback;
+  failed CREATE state/ID cleanup and retry; unsupported queue-resolution mode
+  rejection; lazy front-panel port resolution and explicit internal-port
+  exclusion.
 
 `TestSaiVppXlate.c` exercises the actual private counter reply handler without
 a live socket: an expired generation must not complete a newer request, while
-a valid reply populates its output before publishing completion.
+a valid reply populates its output before publishing completion. It also checks
+all three trim SET reply handlers against expired, duplicate, and valid contexts.
 
 The remaining target coverage, including deferred datapath modes and
 complete SAI counter sourcing and reboot qualification, is future work
