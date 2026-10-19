@@ -1,6 +1,6 @@
 # Ram2Disk Design
 
-## Revision
+## 1. Revision
 
 | Rev | Date | Author | Change Description |
 |---|---|---|---|
@@ -9,43 +9,43 @@
 
 ## Table of Contents
 
-- [Revision](#revision)
-- [Glossary](#glossary)
-- [Scope/Purpose](#scopepurpose)
-- [Architecture / Design](#architecture--design)
-  - [Overview](#overview)
-  - [Storage Layout on Disk](#storage-layout-on-disk)
-  - [Why Each Boot Needs a Separate Session Directory](#why-each-boot-needs-a-separate-session-directory)
-  - [Ram2Disk Modes of Operation](#ram2disk-modes-of-operation)
-    - [Periodic Sync](#periodic-sync)
-    - [Boot Restore](#boot-restore)
-    - [Orderly Pre-shutdown](#orderly-pre-shutdown)
-  - [Need for Rotation Detection and Why Plain rsync Is Not Sufficient](#need-for-rotation-detection-and-why-plain-rsync-is-not-sufficient)
-  - [Approach 1: Infer Rotation by Comparing Files](#approach-1-infer-rotation-by-comparing-files)
-  - [Approach 2: Record Rotation Events from logrotate](#approach-2-record-rotation-events-from-logrotate)
-  - [Trade-offs between the two approaches](#trade-offs-between-the-two-approaches)
-    - [Approach 1](#approach-1)
-    - [Approach 2](#approach-2)
-    - [Design Decision](#design-decision)
-- [Ram2Disk Implementation Details](#ram2disk-implementation-details)
-  - [Feature Enablement and Runtime Activation](#feature-enablement-and-runtime-activation)
-  - [File Hierarchy](#file-hierarchy)
-  - [Systemd Integration](#systemd-integration)
-  - [Producer-Consumer Flow](#producer-consumer-flow)
-  - [Reason for dpkg-divert of the original logrotate binary](#reason-for-dpkg-divert-of-the-original-logrotate-binary)
-  - [Behaviour During Unclean Power Loss](#behaviour-during-unclean-power-loss)
-  - [Behaviour During Warm/Fast Reboot](#behaviour-during-warmfast-reboot)
-- [Conclusion](#conclusion)
-- [Additional Notes](#additional-notes)
-  - [ram2disk Commands and Examples](#ram2disk-commands-and-examples)
-    - [1\] Periodic Sync](#1-periodic-sync)
-    - [2\] Boot-Time Restore](#2-boot-time-restore)
-    - [3\] Final Shutdown Sync](#3-final-shutdown-sync)
-  - [logrotate Wrapper Example](#logrotate-wrapper-example)
-  - [Rotation Counter File Example](#rotation-counter-file-example)
-  - [Note on rsync internals](#note-on-rsync-internals)
+- [1. Revision](#1-revision)
+- [2. Glossary](#2-glossary)
+- [3. Scope/Purpose](#3-scopepurpose)
+- [4. Architecture / Design](#4-architecture--design)
+  - [4.1 Overview](#41-overview)
+  - [4.2 Storage Layout on Disk](#42-storage-layout-on-disk)
+  - [4.3 Why Each Boot Needs a Separate Session Directory](#43-why-each-boot-needs-a-separate-session-directory)
+  - [4.4 Ram2Disk Modes of Operation](#44-ram2disk-modes-of-operation)
+    - [4.4.1 Periodic Sync](#441-periodic-sync)
+    - [4.4.2 Boot Restore](#442-boot-restore)
+    - [4.4.3 Orderly Pre-shutdown](#443-orderly-pre-shutdown)
+  - [4.5 Need for Rotation Detection and Why Plain rsync Is Not Sufficient](#45-need-for-rotation-detection-and-why-plain-rsync-is-not-sufficient)
+  - [4.6 Approach 1: Infer Rotation by Comparing Files](#46-approach-1-infer-rotation-by-comparing-files)
+  - [4.7 Approach 2: Record Rotation Events from logrotate](#47-approach-2-record-rotation-events-from-logrotate)
+  - [4.8 Trade-offs between the two approaches](#48-trade-offs-between-the-two-approaches)
+    - [4.8.1 Approach 1](#481-approach-1)
+    - [4.8.2 Approach 2](#482-approach-2)
+    - [4.8.3 Design Decision](#483-design-decision)
+- [5. Ram2Disk Implementation Details](#5-ram2disk-implementation-details)
+  - [5.1 Feature Enablement and Runtime Activation](#51-feature-enablement-and-runtime-activation)
+  - [5.2 File Hierarchy](#52-file-hierarchy)
+  - [5.3 Systemd Integration](#53-systemd-integration)
+  - [5.4 Producer-Consumer Flow](#54-producer-consumer-flow)
+  - [5.5 Reason for dpkg-divert of the original logrotate binary](#55-reason-for-dpkg-divert-of-the-original-logrotate-binary)
+  - [5.6 Behaviour During Unclean Power Loss](#56-behaviour-during-unclean-power-loss)
+  - [5.7 Behaviour During Warm/Fast Reboot](#57-behaviour-during-warmfast-reboot)
+- [6. Conclusion](#6-conclusion)
+- [7. Additional Notes](#7-additional-notes)
+  - [7.1 ram2disk Commands and Examples](#71-ram2disk-commands-and-examples)
+    - [7.1.1 Periodic Sync](#711-periodic-sync)
+    - [7.1.2 Boot-Time Restore](#712-boot-time-restore)
+    - [7.1.3 Final Shutdown Sync](#713-final-shutdown-sync)
+  - [7.2 logrotate Wrapper Example](#72-logrotate-wrapper-example)
+  - [7.3 Rotation Counter File Example](#73-rotation-counter-file-example)
+  - [7.4 Note on rsync internals](#74-note-on-rsync-internals)
 
-## Glossary
+## 2. Glossary
 
 | Term | Meaning |
 |---|---|
@@ -53,7 +53,7 @@
 | **tmpfs** | Temporary File System that is RAM based |
 | **rsync** | Remote synchronization utility |
 
-## Scope/Purpose
+## 3. Scope/Purpose
 
 The Ram2Disk service is designed for SONiC devices that use `tmpfs` for `/var/log` and require log persistence across system reboots, shutdowns, or unexpected power loss. Since tmpfs is volatile, logs stored only in memory are lost when the system stops running. However, retaining these logs is important for debugging, post-incident analysis and understanding failures across boot sessions.
 
@@ -72,9 +72,9 @@ Ram2Disk relies on `rsync` utility program for the purpose of backing up logs to
 
 This feature does not, by itself, migrate `/var/log` from disk to `tmpfs` on all SONiC devices. The decision to use `tmpfs` still remains platform-specific via the pre-existing `logs_inram` kernel cmdline flag. The Ram2Disk functionality is enabled selectively in the image for required platforms through a new build time flag.
 
-## Architecture / Design
+## 4. Architecture / Design
 
-### Overview
+### 4.1 Overview
 
 **ram2disk** separates active, frequently written logs from persistent historical
 storage as follows:
@@ -102,7 +102,7 @@ NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                   DIO LOG-SEC
 > disk-backed, then this is already the final copy and `/var/log.disk` will not
 > exist and work as normal.
 
-### Storage Layout on Disk
+### 4.2 Storage Layout on Disk
 
 ```bash
 /var/log.disk/
@@ -128,7 +128,7 @@ NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                   DIO LOG-SEC
   **ram2disk** to detect a new boot and is also used to derive the archived session
   timestamp.
 
-### Why Each Boot Needs a Separate Session Directory
+### 4.3 Why Each Boot Needs a Separate Session Directory
 
 Logrotate archive numbering is meaningful only within the current log history. A
 new boot starts with a fresh tmpfs-backed `/var/log` and begins creating files such
@@ -205,16 +205,16 @@ tmpfs. The new boot then starts with a fresh **`current_session/`**, while older
 sessions remain available on disk for analysis without interfering with current
 log rotation.
 
-### Ram2Disk Modes of Operation
+### 4.4 Ram2Disk Modes of Operation
 
-#### Periodic Sync
+#### 4.4.1 Periodic Sync
 
 - Determine rotations since the previous sync.
 - Replay equivalent renames in **`current_session/`**
 - Run **rsync** from `/var/log/` to **`current_session/`**
 - Remove old sessions or archives when disk usage is too high.
 
-#### Boot Restore
+#### 4.4.2 Boot Restore
 
 - Restore active, non-rotated logs from the previous **`current_session/`** into
   tmpfs.
@@ -222,12 +222,12 @@ log rotation.
   **`session_<timestamp1>/`**
 - Create a fresh **`current_session/`** for the new boot.
 
-#### Orderly Pre-shutdown
+#### 4.4.3 Orderly Pre-shutdown
 
 - Perform one final rotation replay and rsync without cleanup to sync all the logs
   to disk before shutdown
 
-### Need for Rotation Detection and Why Plain rsync Is Not Sufficient
+### 4.5 Need for Rotation Detection and Why Plain rsync Is Not Sufficient
 
 Log files are continuously appended, while logrotate periodically renames and
 compresses them:
@@ -259,7 +259,7 @@ The approaches differ only in how **ram2disk** determines the number of logrotat
 cycles that occurred since the previous sync. Both approaches use the general
 architecture, storage layout and lifecycle described above.
 
-### Approach 1: Infer Rotation by Comparing Files
+### 4.6 Approach 1: Infer Rotation by Comparing Files
 
 It maintains explicit lists of logs whose rotation behavior is known and uses a
 function called **`detect_shift`** to infer how many rotations occurred since the
@@ -282,7 +282,7 @@ persistent **`current_session/`** tree before rsync runs.
 Using two consecutive files reduces the chance that unrelated archives with the
 same size/checksum produce a false match.
 
-### Approach 2: Record Rotation Events from logrotate
+### 4.7 Approach 2: Record Rotation Events from logrotate
 
 Instead of writing our own algorithm for detecting rotation, Approach 2 obtains the
 information directly from logrotate itself. Logrotate with verbose output enabled
@@ -332,10 +332,10 @@ update or consume the counter file without corrupting it.
 
 
 
-### Trade-offs between the two approaches
+### 4.8 Trade-offs between the two approaches
 
 
-#### Approach 1 
+#### 4.8.1 Approach 1
 
 - Does not modify or wrap the system's logrotate executable contents from disk.
 - ram2disk must manually maintain the list of logs that may rotate. A new or
@@ -350,7 +350,7 @@ update or consume the counter file without corrupting it.
   categorization.
 
 
-#### Approach 2
+#### 4.8.2 Approach 2
 
 - Uses logrotate as the source of truth for which files actually rotated.
 - Removes the fixed eight-rotation detection limit.
@@ -361,7 +361,7 @@ update or consume the counter file without corrupting it.
 - Depends on the format of logrotate's verbose output. A logrotate upgrade that
   changes the `rotating log ...` diagnostic format could stop event extraction.
 
-#### Design Decision
+#### 4.8.3 Design Decision
 
 Approach 2 is selected. Approach 2 delegates rotation-count detection to the component that performs the
 rotation. By forcing logrotate verbose mode internally and recording actual
@@ -371,9 +371,9 @@ replaying those known rotations on the disk mirror and synchronizing changed dat
 
 
 
-## Ram2Disk Implementation Details
+## 5. Ram2Disk Implementation Details
 
-### Feature Enablement and Runtime Activation
+### 5.1 Feature Enablement and Runtime Activation
 
 Ram2Disk enablement is controlled through two independent mechanisms: a build-time feature flag and the runtime kernel cmdline flag. These mechanisms serve different purposes and must not be treated as interchangeable.
 
@@ -389,7 +389,7 @@ The presence of this mountpoint is a prerequisite for service execution, not the
 
 Therefore, Ram2Disk feature operations requires both flags to be enabled. If the build-time flag is disabled, logging in RAM can still operate independently, without the Ram2Disk-specific logrotate divert/wrapper and service integration.
 
-### File Hierarchy
+### 5.2 File Hierarchy
 
 Files in `ram2disk/`:
 
@@ -403,7 +403,7 @@ Files in `ram2disk/`:
 | `ram2disk-restore.service` | Runs boot-time restore before rsyslog begins writing |
 
 
-### Systemd Integration
+### 5.3 Systemd Integration
 
 - `ram2disk.timer` : Schedules `ram2disk.service` every three minutes, starting at
   minute 5.
@@ -413,7 +413,7 @@ Files in `ram2disk/`:
   after the required mounts are available and before `rsyslog.service` and
   `syslog.socket`.
 
-### Producer-Consumer Flow
+### 5.4 Producer-Consumer Flow
 
 The implementation uses the following flow:
 
@@ -496,7 +496,7 @@ The wrapper is installed in place of the stock logrotate command by using
 `dpkg-divert`. The original executable remains available as `/usr/sbin/logrotate.real`
 
 
-### Reason for dpkg-divert of the original logrotate binary
+### 5.5 Reason for dpkg-divert of the original logrotate binary
 
 I could have avoided renaming and replacing the original from `/usr/sbin/logrotate` to `/usr/sbin/logrotate.real` and using `logrotate-wrapper.sh` as `/usr/sbin/logrotate` by just replacing the executable call in the `logrotate.service` file as shown 
 
@@ -512,17 +512,17 @@ Now in this, whenever logrotate.timer would trigger the logroate.service and the
 
 We could document and suggest to use the `logrotate-wrapper.sh` moving forword from now on instead of directly using logrotate but it is difficult to always keep in mind and follow it as well as prevent any other future service/nettasks which might use logrotate directly. So in order to avoid this, no matter how `logrotate` is invoked (directly by a user or any other service/task/script in the future) should populate the `rotation_counts` file and not break ram2disk. Hence the reason for using `dpkg-divert` which will help prevent overwrites to the wrapper during upgrade of logrotate package. 
 
-### Behaviour During Unclean Power Loss
+### 5.6 Behaviour During Unclean Power Loss
 
 The log-rotation counters are maintained in `/dev/shm`, which is volatile and gets cleared during a power loss or reboot. If an unexpected power loss occurs after log rotation updates the counters but before the next periodic sync (every 3 minutes), the pre-shutdown procedure will not execute, and the latest in-memory logs may not be persisted to disk. However, this does not affect recovery or subsequent operations. On the next boot, ram2disk restores the active logs from the persisted disk state into tmpfs and logging resumes normally. Since the counters are only relevant to tracking logs currently in memory, they are no longer needed once that in-memory state is lost and recreated. <u>The only expected impact is the potential loss of log data generated since the last successful sync after a power loss. However, the device recovers and continues operating as expected after system boot.</u>
 
-### Behaviour During Warm/Fast Reboot
+### 5.7 Behaviour During Warm/Fast Reboot
 
 During a normal shutdown, the ram2disk pre-shutdown routine is triggered when `syslog.socket` stops, allowing the latest in-memory logs to be synced to disk. However, warm/fast reboot uses a direct `kexec` path that bypasses this normal shutdown sequence, so the pre-shutdown routine is not triggered automatically. As a result, log data generated since the last successful sync (up to the 3-minute sync interval) may not be persisted to `/var/log.disk/current/` before the reboot. These unsynced logs are retained in `/host/logs_before_reboot/` as part of the existing warm/fast reboot design.
 
 To ensure consistent log preservation, the warm/fast reboot scripts in the `sonic-utilities` repository will be updated to explicitly invoke the ram2disk pre-shutdown routine whenever the ram2disk feature is enabled, before executing kexec. This ensures that the latest in-memory logs are synced to persistent storage before the reboot, while preserving the existing warm/fast reboot log-retention behaviour. This change is not expected to have any noticeable performance impact on warm/fast reboot, as log copying is already part of the existing mechanism, this change only adjusts the destination directory. Additionally, the overhead of checking whether the ram2disk feature is enabled is minimal.
 
-## Conclusion
+## 6. Conclusion
 
 Normal log writes occur in tmpfs, persistent writes are batched by
 ram2disk, and logrotate's own rotation decisions are reused to keep the disk mirror
@@ -532,9 +532,9 @@ needed to infer rotation behavior.
 
 
 
-## Additional Notes
+## 7. Additional Notes
 
-### ram2disk Commands and Examples
+### 7.1 ram2disk Commands and Examples
 
 The main script accepts three operating modes :
 ```bash
@@ -542,7 +542,7 @@ The main script accepts three operating modes :
 Usage: /usr/local/bin/ram2disk.sh {sync|restore|pre-shutdown}
 ```
 
-#### 1] Periodic Sync
+#### 7.1.1 Periodic Sync
 
 ```bash
 /usr/local/bin/ram2disk.sh sync
@@ -570,7 +570,7 @@ Important options:
 - `--no-whole-file` enables rsync's delta-transfer behavior even for a local copy,
   reducing the amount of changed data written to disk.
 
-#### 2] Boot-Time Restore
+#### 7.1.2 Boot-Time Restore
 
 ```bash
 /usr/local/bin/ram2disk.sh restore
@@ -580,7 +580,7 @@ This restores active logs from the previous `current_session/` directory into tm
 archives the previous boot as `session_<timestamp>/`, creates a new `current_session/`, and
 records the new boot ID. Rotated archives are excluded from the restore.
 
-#### 3] Final Shutdown Sync
+#### 7.1.3 Final Shutdown Sync
 
 ```bash
 /usr/local/bin/ram2disk.sh pre-shutdown
@@ -590,7 +590,7 @@ This replays pending rotations and performs a final rsync before shutdown or
 reboot. It skips cleanup so shutdown is not delayed by deleting historical data.
 
 
-### logrotate Wrapper Example
+### 7.2 logrotate Wrapper Example
 
 Callers continue to invoke logrotate normally:
 
@@ -611,7 +611,7 @@ without recording rotations:
 /usr/sbin/logrotate --debug /etc/logrotate.conf
 ```
 
-### Rotation Counter File Example
+### 7.3 Rotation Counter File Example
 
 The wrapper stores one path and accumulated rotation count per line in:
 
@@ -640,7 +640,7 @@ path in `/var/log.disk/current_session/` before invoking rsync. The current impl
 then resets the consumed counters to zero.
 
 
-### Note on rsync internals
+### 7.4 Note on rsync internals
 
 ram2disk uses:
 
