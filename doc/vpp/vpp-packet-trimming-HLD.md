@@ -490,6 +490,11 @@ programming time.
 The initial implementation uses
 `SAI_PACKET_TRIM_QUEUE_RESOLUTION_MODE_STATIC`.
 
+Before mutation, a buffer chain with any shared segment is copied into private
+buffers, so truncating one multicast/replicate clone cannot change a sibling's
+data or chain links. If that allocation fails, the packet is dropped with a
+dedicated node error and increments `trim_drop`.
+
 The trim action node:
 
 1. Rewrites the packet DSCP ([7.5](#75-dscp-resolution)) and truncates it
@@ -512,6 +517,11 @@ future packet and wrongly suppress its trimming.
 ### 7.7 Physical Ports and LAGs
 
 For a physical-port egress, the trim retry uses the same physical interface.
+For VLAN/sub-interface egress, both admission lookups resolve the parent hardware
+interface, where SAI programs the queue policy. `VLIB_TX` remains unchanged so
+the VLAN rewrite and transmit path retain the original egress identity.
+Deleting an interface clears its stored trim buckets and feature-enabled latch
+so a recycled `sw_if_index` cannot inherit stale policy.
 
 For a LAG egress, VPP bond selection occurs before queue admission. The
 admission provider records the selected physical member. The trim retry uses
@@ -596,7 +606,8 @@ exposes them through `sonic_ext_trim_counters_get` and `show sonic-ext trim`:
 
 - `trim_admit_fail` — eligible original-queue admission failures.
 - `trim_sent` — shortened packets transmitted.
-- `trim_drop` — shortened packets rejected by the trim queue.
+- `trim_drop` — trim attempts dropped because the trim queue rejected the packet
+  or a shared buffer chain could not be copied safely.
 
 The **target** design adds the per-port/per-queue accounting needed to map these
 events onto the existing SAI statistics and serve them from `getStatsExt`:
@@ -702,7 +713,7 @@ which refreshes the VPP policy, and then remove the unreferenced object.
 | `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE` | Symmetric DSCP value |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE` | Stored for the deferred asymmetric path; not used by the delivered trim node |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` | Accept `STATIC`; `DYNAMIC` is omitted from the advertised enum ([7.12](#712-capability-advertisement)) so orchagent never programs it. A stored `DYNAMIC` value is not honored by the datapath (an explicit set is accepted as a no-op) |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX` | Global static trim queue; the plugin stores the low three bits (`queue & 7`). The validated configuration uses queue 6 |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX` | Global static trim queue in the range 0-7; the plugin rejects an unsupported queue without changing the previous policy. The validated configuration uses queue 6 |
 
 ### 8.2 Buffer Profile and ACL
 
@@ -844,7 +855,8 @@ single-worker topology; per-worker buckets or atomic accounting are deferred.
 
 | Error case | Handling |
 |---|---|
-| Out-of-range scalar values reaching the vendor layer | The vendor code performs no additional rejection: trim size is narrowed to `u16`, DSCP is masked to six bits by the plugin, and the static trim queue is masked to three bits. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
+| Out-of-range scalar values reaching the vendor layer | Trim size is narrowed to `u16` and DSCP is masked to six bits. The plugin rejects static trim queues outside 0-7 without changing the previous policy. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
+| DSCP-to-queue table contains an unsupported queue | Reject the entire update with `INVALID_VALUE` and preserve the previous table; queues 8/9 must not alias queues 0/1 |
 | Queue is multicast or has an out-of-range unicast index | Multicast queues are skipped by `SAI_QUEUE_ATTR_TYPE` so a colliding multicast index cannot overwrite the corresponding unicast admission slot. Unicast indices at or above `SONIC_EXT_TRIM_MAX_QUEUES` (8) are skipped as SUCCESS. Every eligible lossy queue in the supported configuration is unicast and below the cap ([13.2](#132-design-limitations)) |
 | `DYNAMIC` queue-resolution mode | Omitted from the advertised enum so orchagent never programs it; a stored value is not honored by the datapath ([7.12](#712-capability-advertisement)) |
 | Queue attributes or bindings are not present during replay | Skip the incomplete queue for that refresh; a later trim-relevant set triggers another full recompute |
@@ -854,6 +866,7 @@ single-worker topology; per-worker buckets or atomic accounting are deferred.
 | Asymmetric DSCP cannot be resolved at runtime (deferred `FROM_TC`) | Target design: drop the trim packet and increment a diagnostic error counter. Not reachable in this increment — only symmetric `DSCP_VALUE` is advertised and honored ([7.5](#75-dscp-resolution)) |
 | Egress metadata is missing at admission failure | Pass the packet through unpoliced on the normal `interface-output` arc rather than guessing an interface or queue; the shim adds no drop of its own |
 | Trim queue rejects the packet | Drop once, increment the plugin trim-drop counter, and do not retry |
+| A shared buffer chain cannot be copied before mutation | Drop without mutating the shared data, increment `trim_drop`, and report the `shared packet copy allocation failed` node error |
 | SAI trim counter read | Trim stat IDs currently delegate to the shared virtual-switch base and return zero; SAI sourcing through `getStatsExt` is deferred ([7.11](#711-counters)) |
 
 ## 13. Limitations and Future Work
@@ -906,9 +919,9 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
 
 - Dynamic trim-queue resolution is not supported in the initial implementation;
   only `STATIC` queue resolution is advertised and honored.
-- The plugin masks the configured static trim queue to the range 0–7. The
-  supported configuration uses queue 6; explicit values above 7 are not rejected
-  by the vendor path.
+- Only queues 0-7 are supported by the plugin. Unsupported static trim queues
+  and DSCP-to-queue table entries are rejected rather than wrapped into that
+  range. The supported configuration uses trim queue 6.
 - The admission shim models only the token-bucket behavior needed to produce a
   recoverable admission failure; it is not full hardware-MMU or multi-level HQoS
   emulation. Because the delivered translation is binary (always-admit vs
@@ -995,8 +1008,11 @@ framework tests and SAI-VPP unit tests:
 
 **Delivered in this enablement.** The datapath itself was validated on standalone
 VPP and on the `t1-lag` dev VM by reading the plugin state directly (`show
-sonic-ext trim`, [13.1](#131-integration-status)); no automated VPP framework
-tests are added for `sonic_ext` yet. The SAI-VPP unit tests
+sonic-ext trim`, [13.1](#131-integration-status)). The VPP framework module
+`test_sonic_ext_trim.py` covers the feature-registry defaults and force-off
+override, interface-index reuse, atomic rejection of unsupported queue maps and
+trim queues, VLAN egress admission, jumbo truncation, and shared multicast-clone
+isolation. The SAI-VPP unit tests
 (`unittest/vslib/TestSwitchVpp.cpp`, built under `USE_VPP`) cover the pure
 decision logic that gates the enablement:
 
@@ -1009,9 +1025,8 @@ decision logic that gates the enablement:
   edits.
 - `getLagMemberEgressDisableAction` — pre-existing LAG-member egress logic.
 
-The remaining target coverage (VPP framework tests and
-counter/failure-propagation/QoS-map SAI tests) is future work tracked with the
-deferred datapath modes
+The remaining target coverage, including deferred datapath modes and
+counter/failure-propagation/QoS-map SAI tests, is future work
 ([13.1](#131-integration-status)).
 
 ### 14.2 System Tests
