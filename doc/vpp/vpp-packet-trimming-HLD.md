@@ -709,8 +709,10 @@ For set operations on a trim-relevant object, SAI-VPP:
 No automatic orchagent retry of a generic SAI failure is assumed. Local state
 remains consistent with metadata even when the VPP connection is unavailable.
 
-Switch CREATE with trim attributes validates and accumulates the whole policy
-before programming it. Success commits the attributes; failure restores the
+Switch CREATE validates and accumulates the whole policy before programming it,
+including the disabled default when no trim attributes are supplied. This reset
+must succeed even after a previous failed CREATE has discarded its switch state
+and pending-rollback flag. Success commits the attributes; failure restores the
 previous attributes and policy and attempts dataplane rollback. A failed switch
 CREATE also releases the switch state and allocated ID, allowing a clean retry.
 Other object creates retain best-effort trim refresh; a later trim-relevant SET
@@ -738,7 +740,7 @@ which refreshes the VPP policy, and then remove the unreferenced object.
 | SAI attribute | VPP mapping |
 |---|---|
 | `SAI_SWITCH_ATTR_PACKET_TRIM_SIZE` | Global `trim_size` |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` | Stored globally; only `DSCP_VALUE` is advertised and honored |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` | Only `DSCP_VALUE` is advertised and accepted; `FROM_TC` is rejected on CREATE and SET before mutation or programming |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE` | Symmetric DSCP value |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE` | Stored for the deferred asymmetric path; not used by the delivered trim node |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` | Accept `STATIC`; reject `DYNAMIC` on CREATE and SET before changing state or calling VPP. Only `STATIC` is advertised ([7.12](#712-capability-advertisement)) |
@@ -896,7 +898,7 @@ single-worker topology; per-worker buckets or atomic accounting are deferred.
 | `DYNAMIC` queue-resolution mode | Omitted from the advertised enum and explicitly rejected on CREATE and SET without mutation or API calls ([7.12](#712-capability-advertisement)) |
 | Queue attributes or bindings are not present during replay | Skip the incomplete queue for that refresh; a later trim-relevant set triggers another full recompute |
 | QoS maps are partially or completely unbound | Recompose and push the effective table. An absent DSCP-to-TC map uses the port's `QOS_DEFAULT_TC`; an absent TC-to-queue map sends all traffic to queue 0. A complete reference-port map pair is preferred during incremental replay, followed by a remaining TC-to-queue binding |
-| VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the failure without committing its attribute or cached policy. A failed rollback remains explicitly pending. A switch CREATE with trim attributes reports failure and releases its state/ID; other object-create refresh remains best effort |
+| VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the failure without committing its attribute or cached policy. A failed rollback remains explicitly pending. Switch CREATE requires successful global-policy programming, including a disabled-default reset, and releases state/ID on failure; other object-create refresh remains best effort |
 | VPP binary API update fails on a set | Restore the previous attribute/cache and reprogram the previous policy, tracking a failed rollback before accepting another trim-relevant set ([7.13](#713-update-and-remove-ordering)) |
 | Asymmetric DSCP cannot be resolved at runtime (deferred `FROM_TC`) | Target design: drop the trim packet and increment a diagnostic error counter. Not reachable in this increment — only symmetric `DSCP_VALUE` is advertised and honored ([7.5](#75-dscp-resolution)) |
 | Egress metadata is missing at admission failure | Pass the packet through unpoliced on the normal `interface-output` arc rather than guessing an interface or queue; the shim adds no drop of its own |
@@ -1064,6 +1066,9 @@ logic and focused state transitions:
   failed CREATE state/ID cleanup and retry; unsupported queue-resolution mode
   rejection; lazy front-panel port resolution and explicit internal-port
   exclusion.
+- Fresh CREATE resets after discarded failed rollback; unsupported `FROM_TC`
+  rejection; binary scheduler rate/capacity values through direct binding,
+  leaf-group fallback, precedence, PIR changes, and unbinding.
 
 `TestSaiVppXlate.c` exercises the actual private counter reply handler without
 a live socket: an expired generation must not complete a newer request, while
