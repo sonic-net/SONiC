@@ -26,6 +26,7 @@
 | v1.0 | 2026-07-31 | Aaron Bernardino | Initial SONiC-VPP packet-trimming design |
 | v1.1 | 2026-08-26 | Aaron Bernardino | Document disabling / opt-out behavior (§9.1) |
 | v1.2 | 2026-08-31 | Aaron Bernardino | Surface binary-admission and switch-wide-QoS limitations in summary (review: lolyu) |
+| v1.3 | 2026-10-19 | Aaron Bernardino | Correct failed-SET rollback, unbound-map defaults, trim-size validation, and recovered policy-cache behavior |
 
 ## 2. Scope
 
@@ -61,9 +62,12 @@ runs.
 > 1. **Binary admission, not occupancy-driven.** The delivered SAI-VPP
 >    translation programs each eligible queue's token bucket as either
 >    always-admit or always-reject; there is no proportional rate or
->    buffer-occupancy modeling. An admission failure is therefore produced only
->    by an explicitly blocking scheduler (the test topology's `PIR=1`), never by
->    organic queue buildup under real traffic ([7.10](#710-scheduler-and-capacity-inputs)).
+>    buffer-occupancy modeling. Every nonzero scheduler `PIR` is treated as
+>    blocking, including the test topology's `PIR=1`. Ordinary finite-rate
+>    shaping on trim-eligible queues is therefore outside the supported test
+>    configuration; it is not distinguished from blocking and is not modeled
+>    correctly. Organic queue buildup does not trigger admission failure
+>    ([7.10](#710-scheduler-and-capacity-inputs)).
 > 2. **Switch-wide QoS classification, not per-port.** Original-queue
 >    classification uses a single switch-wide DSCP-to-queue table built from the
 >    first port that has both QoS maps. This is correct only under uniform
@@ -245,7 +249,7 @@ programs an unimplemented mode — rather than gating the switch capability off
 | REQ-9 | A packet must enter the trim path no more than once | Delivered |
 | REQ-10 | Trim attempts, successful trim transmissions, and trim-queue drops must be counted at the required SAI scopes | Plugin summary counters delivered; SAI scope attribution deferred |
 | REQ-11 | LAG traffic must remain associated with the physical member selected before original-queue admission | Delivered |
-| REQ-12 | A failed runtime VPP update must be surfaced so orchagent can retry the idempotent full policy and converge SAI and VPP state | Delivered for set; create refresh is best effort |
+| REQ-12 | A failed runtime VPP update must be surfaced without committing a failed SAI set; restore the previous policy and explicitly track an unsuccessful dataplane rollback | Delivered for set; create refresh is best effort |
 
 ### 5.2 Non-Functional Requirements
 
@@ -551,10 +555,15 @@ front-panel port that currently exists, including ports created after the first
 trim-relevant attribute was observed, and a late buffer-profile binding is picked
 up by the next recompute rather than being missed.
 
-On a trim-relevant set, SAI-VPP first commits the virtual object attribute, then
-rebuilds and pushes the complete eligibility state. A push failure is returned
-to orchagent for retry; the committed attribute is retained. On create, the
-object is committed and the trim refresh is best effort. Normal orchagent remove
+On a trim-relevant set, SAI-VPP stages the candidate attribute and policy, then
+rebuilds and pushes the complete eligibility state. Only a successful push commits
+the attribute and object relationships. On failure, SAI-VPP restores the previous
+attribute and cached policy and reprograms the previous VPP state. An unsuccessful
+rollback is logged and marked pending; the next trim-relevant set must reconcile
+that state before applying another change. This preserves metadata's
+success-only reference bookkeeping and does not assume orchagent retries a
+generic SAI failure. On create, the object is committed and the trim refresh is
+best effort. Normal orchagent remove
 sequencing first unbinds a profile or scheduler through a set (which refreshes
 eligibility), then removes the now-unreferenced object; direct object removal
 does not itself trigger a trim refresh ([7.13](#713-update-and-remove-ordering)).
@@ -576,7 +585,7 @@ only and does not change the packet action by itself. If original-queue admissio
 later fails, trim policy observes the flag and follows normal drop behavior.
 
 The target implementation must use the same explicit failure propagation and
-retry/convergence model as other trim-relevant updates.
+state-consistency model as other trim-relevant updates.
 
 ### 7.10 Scheduler and Capacity Inputs
 
@@ -684,14 +693,20 @@ For set operations on a trim-relevant object, SAI-VPP:
 
 1. Receives the metadata-validated SAI attribute and resolves available object
    references.
-2. Commits the SAI virtual object state.
-3. Rebuilds the affected VPP policy from the committed state (the global policy,
-   or the full per-`{port, queue}` admission/eligibility set) and pushes it.
-4. If the VPP push fails, returns the failure so orchagent retries the set. The
-   committed SAI state is intentionally left in place; because each push is a
-   full idempotent re-send, the retry re-pushes the same state and converges. The
-   switch-global trim attributes program VPP first and then commit, but likewise
-   surface a push failure to the caller.
+2. Validates the candidate global policy, including the trim-size range, before
+   changing state or invoking VPP.
+3. Stages the candidate attribute and cached policy, retaining the previous
+   values. Object relationships still refer to the committed state.
+4. Pushes the global policy or full per-`{port, queue}` state and classifier.
+   Success commits the attribute and relationships. Failure restores the
+   previous local values and re-sends the previous policy to undo partial VPP
+   updates before returning the original error.
+5. If that rollback also fails, logs and retains a pending-reconciliation flag.
+   The next trim-relevant set first re-sends the committed policy; it cannot
+   commit another change while reconciliation fails.
+
+No automatic orchagent retry of a generic SAI failure is assumed. Local state
+remains consistent with metadata even when the VPP connection is unavailable.
 
 For create operations, the SAI object is created unconditionally and a trim
 re-program failure is **not** propagated (the object exists regardless); the
@@ -816,7 +831,13 @@ compiled unconditionally into `sonic_ext_plugin.so`.
 Reload, warmboot, and fastboot persistence are **not validated in this
 increment**; `test_trimming_with_reload_and_reboot` is skipped on `vpp`.
 
-The expected replay behavior is that switch attributes, queue/profile bindings,
+The warm constructor rebuilds the cached global policy from recovered switch
+attributes, validating the trim size without issuing per-attribute API calls.
+A subsequent DSCP-only update therefore preserves the recovered enable state,
+size, TC, and trim queue. This cache behavior has focused unit coverage; it does
+not establish full reboot or dataplane-persistence support.
+
+The target replay behavior is that switch attributes, queue/profile bindings,
 scheduler bindings, and QoS maps trigger the same full-state programming used
 at runtime. ACL trim-disable state is deferred and therefore is not rebuilt.
 Plugin counters and token-bucket state are process-local and reset when VPP
@@ -855,14 +876,14 @@ single-worker topology; per-worker buckets or atomic accounting are deferred.
 
 | Error case | Handling |
 |---|---|
-| Out-of-range scalar values reaching the vendor layer | Trim size is narrowed to `u16` and DSCP is masked to six bits. The plugin rejects static trim queues outside 0-7 without changing the previous policy. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
-| DSCP-to-queue table contains an unsupported queue | Reject the entire update with `INVALID_VALUE` and preserve the previous table; queues 8/9 must not alias queues 0/1 |
+| Out-of-range scalar values reaching the vendor layer | Reject trim sizes above 65535 before modifying state or calling VPP. DSCP is masked to six bits. The plugin rejects static trim queues outside 0-7 without changing the previous policy. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
+| DSCP-to-queue table contains an unsupported queue | SAI-VPP rejects the composed table before sending it and rolls back a failed set. The plugin independently validates the entire table atomically with `INVALID_VALUE`; queues 8/9 must not alias queues 0/1 |
 | Queue is multicast or has an out-of-range unicast index | Multicast queues are skipped by `SAI_QUEUE_ATTR_TYPE` so a colliding multicast index cannot overwrite the corresponding unicast admission slot. Unicast indices at or above `SONIC_EXT_TRIM_MAX_QUEUES` (8) are skipped as SUCCESS. Every eligible lossy queue in the supported configuration is unicast and below the cap ([13.2](#132-design-limitations)) |
 | `DYNAMIC` queue-resolution mode | Omitted from the advertised enum so orchagent never programs it; a stored value is not honored by the datapath ([7.12](#712-capability-advertisement)) |
 | Queue attributes or bindings are not present during replay | Skip the incomplete queue for that refresh; a later trim-relevant set triggers another full recompute |
-| No front-panel port currently has both DSCP-to-TC and TC-to-queue maps | Keep the plugin's last-good switch-wide DSCP-to-queue table rather than replacing it with an all-zero table |
-| VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the VPP API failure for orchagent retry; create refresh remains best effort |
-| VPP binary API update fails on a set | Commit the SAI object state and return the failure so orchagent retries; the next retry re-pushes the same full (idempotent) policy ([7.13](#713-update-and-remove-ordering)) |
+| QoS maps are partially or completely unbound | Recompose and push the effective table. An absent DSCP-to-TC map uses the port's `QOS_DEFAULT_TC`; an absent TC-to-queue map sends all traffic to queue 0. A complete reference-port map pair is preferred during incremental replay, followed by a remaining TC-to-queue binding |
+| VPP plugin/API programming is unavailable | Capability advertisement is not dynamically probed. A set reports the failure without committing its attribute or cached policy. A failed rollback remains explicitly pending; create refresh remains best effort |
+| VPP binary API update fails on a set | Restore the previous attribute/cache and reprogram the previous policy, tracking a failed rollback before accepting another trim-relevant set ([7.13](#713-update-and-remove-ordering)) |
 | Asymmetric DSCP cannot be resolved at runtime (deferred `FROM_TC`) | Target design: drop the trim packet and increment a diagnostic error counter. Not reachable in this increment — only symmetric `DSCP_VALUE` is advertised and honored ([7.5](#75-dscp-resolution)) |
 | Egress metadata is missing at admission failure | Pass the packet through unpoliced on the normal `interface-output` arc rather than guessing an interface or queue; the shim adds no drop of its own |
 | Trim queue rejects the packet | Drop once, increment the plugin trim-drop counter, and do not retry |
@@ -959,13 +980,10 @@ pass on the `t1-lag` testbed; the out-of-scope cases above remain skipped on
   heterogeneous-QoS deployments**: a port whose QoS maps differ from the
   reference port can have its original queue misclassified (it only changes
   behavior when the misclassified queue is both trim-eligible and blocking).
-- When no front-panel port currently has both a `DSCP_TO_TC` and a `TC_TO_QUEUE`
-  map bound, SAI-VPP keeps the plugin's last-good switch-wide DSCP-to-queue table
-  rather than pushing an all-zero table (which would collapse every DSCP onto
-  queue 0). A stale mapping only changes behavior if a misclassified queue is
-  both trim-eligible and blocking, and normal orchagent sequencing removes the
-  QoS maps together with the eligibility that would make the mapping matter
-  ([12](#12-error-handling)).
+- Partial or removed map bindings use the SAI defaults, not a stale table:
+  `QOS_DEFAULT_TC` supplies an unmapped DSCP's TC and a missing TC-to-queue map
+  selects queue 0. This still uses one reference port's effective table and
+  does not add per-port QoS support ([12](#12-error-handling)).
 - The first implementation targets the DPDK virtio egress backend used by the
   supported VPP KVM topology. Additional backends (for example the AF_PACKET
   `host-interface` path used for veth ports) may reuse the same generic admission
@@ -1004,7 +1022,7 @@ framework tests and SAI-VPP unit tests:
 - SAI-VPP: capability query results; switch attribute handling and update
   ordering; buffer-profile-to-queue relationship changes; QoS map create,
   replace, and remove; ACL action create, update, and remove; VPP failure
-  propagation/retry; switch, port, and queue statistic mapping.
+  propagation and rollback; switch, port, and queue statistic mapping.
 
 **Delivered in this enablement.** The datapath itself was validated on standalone
 VPP and on the `t1-lag` dev VM by reading the plugin state directly (`show
@@ -1013,8 +1031,8 @@ sonic-ext trim`, [13.1](#131-integration-status)). The VPP framework module
 override, interface-index reuse, atomic rejection of unsupported queue maps and
 trim queues, VLAN egress admission, jumbo truncation, and shared multicast-clone
 isolation. The SAI-VPP unit tests
-(`unittest/vslib/TestSwitchVpp.cpp`, built under `USE_VPP`) cover the pure
-decision logic that gates the enablement:
+(`unittest/vslib/TestSwitchVpp.cpp`, built under `USE_VPP`) cover the decision
+logic and focused state transitions:
 
 - `getTrimEnumValuesCapability` — the trim enum-values advertisement
   ([7.12](#712-capability-advertisement)): `DSCP_VALUE` for the DSCP mode,
@@ -1024,9 +1042,17 @@ decision logic that gates the enablement:
   per-queue trim re-resolve, including the port QoS-map bindings and QoS-map
   edits.
 - `getLagMemberEgressDisableAction` — pre-existing LAG-member egress logic.
+- Trim-size boundaries; failed global updates and queue-profile rebinds;
+  partial-dataplane rollback and pending reconciliation; effective defaults after
+  QoS-map unbinding; unsupported queue-map rejection; recovered policy-cache
+  preservation on a DSCP-only update. VPP API calls are stubbed for these tests.
+
+`TestSaiVppXlate.c` exercises the actual private counter reply handler without
+a live socket: an expired generation must not complete a newer request, while
+a valid reply populates its output before publishing completion.
 
 The remaining target coverage, including deferred datapath modes and
-counter/failure-propagation/QoS-map SAI tests, is future work
+complete SAI counter sourcing and reboot qualification, is future work
 ([13.1](#131-integration-status)).
 
 ### 14.2 System Tests
