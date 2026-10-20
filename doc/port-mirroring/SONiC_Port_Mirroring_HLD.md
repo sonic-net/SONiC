@@ -247,7 +247,7 @@ The referenced `MIRROR_SESSION` contains export attributes such as `src_ip`, `ds
     admin_state    = up or down         ;Optional. Default: down.
                                        ;up requests activation; down retains a disabled binding.
     mirror_session = mirror_session_name ;Required. References an ERSPAN entry in MIRROR_SESSION.
-    sample_rate    = uint32             ;Required. Range: 1..4294967295. Sampling probability: 1/N.
+    sample_rate    = uint32             ;Required. Range: 2..4294967295. Sampling probability: 1/N.
     truncate_size  = uint32             ;Optional. Range: 64..9216 bytes. Absent: no truncation.
 
 PortChannel source bindings are stored at the logical interface level in CONFIG_DB; no separate member-port entries are generated.
@@ -662,7 +662,7 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
          +--rw direction        enumeration (rx, tx)
          +--rw admin_state?     enumeration (up, down; default down)
          +--rw mirror_session   -> /sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST/name
-         +--rw sample_rate      uint32 (1..max)
+         +--rw sample_rate      uint32 (2..max)
          +--rw truncate_size?   uint32 (64..9216)
 ```
 
@@ -1038,7 +1038,7 @@ The following test cases validate the mirror capability discovery and validation
 | 30 | Verify two ports with different rates share an export OID and use distinct compatible SamplePacket profiles |
 | 31 | Verify that the sampled-mirror capabilities are published to STATE_DB (SWITCH_CAPABILITY) |
 | 32 | Verify TX direction: SamplePacket bound via EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION, with no active ingress binding |
-| 33 | Verify explicit sample_rate=1 with truncate_size creates a truncation-only binding |
+| 33 | Verify sample_rate=1 is rejected, including when truncate_size is configured, and sample_rate=2 is accepted as the minimum valid value |
 | 34 | Verify that removing a sampled binding clears only its source-port/direction attributes |
 | 35 | Verify multiple source ports: each configured port is programmed with the sampled-mirror attributes |
 | 36 | Verify CLI both produces RX and TX attachments; equal-policy profile reuse preserves independent sampling |
