@@ -376,7 +376,7 @@ On an Event
       - SKIP if `system_leak_policy` is `disabled` in LEAK_CONTROL_POLICY [2.3.1 Config commands](#231-config-commands)
       - Read system_minor_leak_action from LEAK_CONTROL_POLICY; ==> dispatch_action(system_minor_leak_action)
 
-  - if TEST_SYSTEM_LEAK_EVENT ((device_leak_status == CRITICAL_SYSTEM_LEAK or device_leak_status == MINOR_SYSTEM_LEAK) and test_leak == Enabled in SYSTEM_LEAK_STATUS)
+  - if TEST_SYSTEM_LEAK_EVENT ((device_leak_status == CRITICAL_SYSTEM_LEAK or device_leak_status == MAJOR_SYSTEM_LEAK or device_leak_status == MINOR_SYSTEM_LEAK) and test_leak == Enabled in SYSTEM_LEAK_STATUS)
       - Syslog/audit the policy outcome that would apply to an equivalent physical leak, including either the configured action or a policy-disabled skip.
       - Do not dispatch an action and do not invoke GNOI, graceful shutdown, power-off, power-cycle, or a platform power-control API.
       - Do not change `LEAK_CONTROL_POLICY`, `system_leak_policy`, or a configured leak action for test injection. These settings are neither required nor sufficient to make a test-only event safe, because `test_leak=Enabled` prevents `device_leak_status` from becoming an enforcement input.
@@ -481,7 +481,9 @@ For a test-injected sensor fault, `thermalctld` uses the normal per-sensor fault
 
     - Additional considerations, the timers and thresholds can be configured.
        - MAX-T secs defined before which a MINOR leak escalates to MAJOR_SYSTEM_LEAK (per leak sensor profile).
-       - MIN-N is the number of concurrent Minor leaks at or above which the system is classified as MAJOR_SYSTEM_LEAK. The default is a system-wide value provided by the platform API `get_major_leak_num_min_sensors()` (LiquidCoolingBase). A user can override it by configuring `system_major_leak_num_min_sensors` in LEAK_CONTROL_POLICY. If the platform API returns 0, the platform does not support the MAJOR classification and thermalctld does not apply MAJOR_SYSTEM_LEAK.
+       - MIN-N is the number of concurrent Minor leaks at or above which the system is classified as MAJOR_SYSTEM_LEAK. The default is a system-wide value provided by the platform API `get_major_leak_num_min_sensors()` (LiquidCoolingBase). A user can override it by configuring `system_major_leak_num_min_sensors` in LEAK_CONTROL_POLICY; the user value takes precedence even if the platform API returns 0.
+       - If the effective MIN-N is 0 (platform API returns 0 and no user value), thermalctld does not generate MAJOR_SYSTEM_LEAK, neither count-based nor timer-based.
+       - Example: with MIN-N=4, two or three concurrent Minor leaks remain MINOR_SYSTEM_LEAK unless a MAX-T timer expires.
 
     - Update the system SYSTEM_LEAK_STATUS table with the severity of leak. This will be used in bmcctld process.
     - A new classification of MAJOR_SYSTEM_LEAK is introduced to identify MIN-N or more Minor leaks, or a single Minor leak persisting beyond MAX-T secs, which needs a quick action not necessarily a power off.
@@ -579,7 +581,7 @@ This base class is already defined in sonic-platform-common.
 | get_leak_sensor(index) | Y | Get per-leak-sensor status |
 | get_leak_sensor_status() | Y | Get all leak sensor status |
 | get_all_leak_sensors() | Y | Get list of all leak sensors |
-| get_major_leak_num_min_sensors() | New | Get MIN-N, the platform-defined minimum number of concurrent Minor leaks at or above which the system is classified as MAJOR_SYSTEM_LEAK. This is a system-wide value (not per sensor). Could return 0 if a platform does not support the MAJOR classification, in which case thermalctld does not apply MAJOR_SYSTEM_LEAK. A user configured `system_major_leak_num_min_sensors` in LEAK_CONTROL_POLICY overrides this value. |
+| get_major_leak_num_min_sensors() | New | Get MIN-N, the platform-defined minimum number of concurrent Minor leaks at or above which the system is classified as MAJOR_SYSTEM_LEAK. This is a system-wide value (not per sensor). Could return 0 if the platform has no default, in which case MAJOR_SYSTEM_LEAK is not generated unless the user configures a threshold. A user configured `system_major_leak_num_min_sensors` in LEAK_CONTROL_POLICY overrides this value. |
 
 
 ####  ModuleBase
@@ -832,7 +834,7 @@ SWITCH-HOST  Switch Host   online        up             ABC123   300            
 Command to show leak control policy configuration
 Applicable to (LC)
 
-**Note:** The `system_major_leak_num_min_sensors` (MIN-N) line is omitted when the platform API `get_major_leak_num_min_sensors()` returns 0, i.e. the platform does not support the MAJOR_SYSTEM_LEAK classification.
+**Note:** The `system_major_leak_num_min_sensors` (MIN-N) line shows the effective value (user-configured, else platform API). It is omitted only when the effective value is 0, i.e. MAJOR_SYSTEM_LEAK is disabled.
 
 ```
 
