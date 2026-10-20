@@ -10,7 +10,7 @@
 6. [SAI API Calls](#6-sai-api-calls)
 7. [VPP Implementation](#7-vpp-implementation)
 8. [Test Plan](#8-test-plan)
-9. [Known Issues / Open Items](#9-known-issues--open-items)
+9. [Historical bring-up findings](#9-historical-bring-up-findings)
 10. [Appendix A: File Change Summary](#appendix-a-file-change-summary)
 11. [Appendix B: VPP API Reference](#appendix-b-vpp-api-reference)
 
@@ -51,13 +51,13 @@ to run on the `t1-lag-vpp` topology.
   ingress interface equals its egress interface and the per-interface action is `DROP`.
 - Per-interface state (action = forward/drop) settable via a binary API.
 - Incrementing the existing VPP interface `tx-error` counter on each loopback drop, and adding
-  `SwitchVpp::setRifStats()` in saivpp so the SAI RIF `tx_err`
+  `SwitchVpp::getRifStatsExt()` in saivpp so the SAI RIF `tx_err`
   (`SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS`) reflects it (saivpp previously populated VPP counters
   only for ports, not RIFs; see §7.4).
 - saivpp handling of `SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION` on RIF create and set, for all
   five RIF identifiers exercised by the test (ethernet, VLAN, port-channel/LAG, sub-port, port-channel
   sub-port).
-- Advertising the attribute as supported via the SAI capability query path.
+- Advertising the attribute as supported only when the plugin's `iface-loopback` feature is enabled.
 
 **Out of scope**
 
@@ -76,7 +76,7 @@ to run on the `t1-lag-vpp` topology.
 |------|---------|
 | Hairpin / loopback | A routed packet whose resolved next-hop egresses the same RIF it ingressed on. Distinct from the RIF *type* `SAI_ROUTER_INTERFACE_TYPE_LOOPBACK`, which is a different concept. |
 | RIF identifiers | The five RIF shapes the test exercises (see §3.2). |
-| `tx-error` | VPP per-interface simple counter at `/interfaces/<name>/tx-error`; mapped to the SAI RIF `tx_err` (`SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS`) by the new `SwitchVpp::setRifStats()` via `SaiIntfStats.c` (§7.4). |
+| `tx-error` | VPP per-interface simple counter at `/interfaces/<name>/tx-error`; mapped to the SAI RIF `tx_err` (`SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS`) by `SwitchVpp::getRifStatsExt()` via `SaiIntfStats.c` (§7.4). |
 
 ### 3.2 RIF identifiers exercised by the test
 
@@ -84,7 +84,7 @@ The sonic-mgmt test labels its RIF scenarios with five names, but these are not 
 There are three SAI types involved (`PORT`, `SUB_PORT`, `VLAN`); the count reaches five because the test
 also varies the underlying interface between a physical port and a LAG (PortChannel, "PO"):
 
-| Test case | Example interface | SAI RIF type | Underlying `PORT_ID` | VPP interface (`vpp_get_rif_hwif_name`) |
+| Test case | Example interface | SAI RIF type | Underlying `PORT_ID` | VPP interface (via `VppInterfaceRegistry`) |
 |-----------|-------------------|--------------|----------------------|--------------------------------------|
 | `ETHERNET_RIF` (`ethernet`) | `Ethernet0` | `PORT` | physical port | hwif |
 | `PO_RIF` (`po`) | `PortChannel0001` | `PORT` | LAG | `BondEthernet<id>` |
@@ -96,8 +96,8 @@ also varies the underlying interface between a physical port and a LAG (PortChan
 five. Each shape resolves to a different VPP interface, and the drop node's `RX == TX` check keys on that
 identity, so the feature must handle all five. The LAG shapes (`PO_RIF`, `PO_SUB_PORT_RIF`) are the
 highest-risk because the identity must be the bond, not a member; the `VLAN_RIF` shape is distinct
-because a VLAN RIF has no `PORT_ID` and must be resolved to the bridge BVI. §7.6 introduces the unified
-`vpp_get_rif_hwif_name()` resolver that covers every shape above.
+because a VLAN RIF has no `PORT_ID` and must be resolved to the bridge BVI. §7.6 describes the
+`VppInterfaceRegistry` RIF-OID binding that covers every shape above.
 
 ### 3.3 Summary
 
@@ -247,7 +247,7 @@ End-to-end mapping:
 | orchagent | `intfsorch` sets `SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION` on the RIF |
 | ASIC_DB / syncd | RIF attribute create/set |
 | saivpp | `SwitchVppRif` -> `SaiVppXlate` (§6, §7.6) |
-| VPP | `iface_loopback_set_action { sw_if_index, action }` (§7.5) |
+| VPP | `sonic_ext_iface_loopback_set_action { sw_if_index, action }` (§7.5) |
 
 The per-interface action needs no plugin-side persistence across reboots: orchagent re-applies it from
 CONFIG_DB (cold/fast boot) or syncd replays it from ASIC_DB (warm boot), re-issuing the RIF set to
@@ -276,24 +276,24 @@ adds. (`SRC_MAC` is set only on the separate VLAN BVI create path in `SwitchVppF
 |---|---|
 | `sai_router_interface_api->create_router_interface()` -> `SwitchVpp::vpp_create_router_interface()` | If `LOOPBACK_PACKET_ACTION` is present, resolve the RIF interface and program the plugin; if absent, send nothing (the plugin default `FORWARD` stands). |
 | `sai_router_interface_api->set_router_interface_attribute()` -> `SwitchVpp::vpp_update_router_interface()` | Same, on attribute change. |
-| `sai_router_interface_api->createRouterif()` dispatch | Already routes create->create / set->update; no change beyond the attribute handler. |
+| `SwitchVpp::createRouterif()` dispatch | Program the interface, bind its RIF OID, snapshot counters, and persist the SAI object; roll back on failure (§7.6). |
 
 ### 6.3 Capability query
 
-No work is required here. `SwitchVpp::queryAttributeCapability` (`vslib/vpp/SwitchVpp.cpp`) returns
-`create_implemented = set_implemented = get_implemented = true` for every attribute, so
-`LOOPBACK_PACKET_ACTION` is already advertised as supported. The RIF create/update paths also ignore
-unrecognised attributes today (they fail only if `TYPE`/`PORT_ID` are missing), so adding the handler
-introduces no regression.
+`SwitchVpp::queryAttributeCapability` (`vslib/vpp/SwitchVpp.cpp`) handles
+`SAI_OBJECT_TYPE_ROUTER_INTERFACE` / `SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION` explicitly.
+It calls the status-returning `sonicExtFeatureEnabled("iface-loopback", enabled)` helper:
 
-> **Capability is advertised unconditionally.** `queryAttributeCapability` reports
-> `LOOPBACK_PACKET_ACTION` as supported regardless of whether the `sonic_ext` `iface-loopback` feature
-> is currently enabled in the plugin (the feature is gated by its `FEATURE.yaml` entry and ships **on
-> by default**). In the shipped image the two always agree. If a deployment disabled the
-> `iface-loopback` feature, the capability query would still report the attribute as supported while the
-> dataplane no longer enforced `DROP`. A future refinement could have `queryAttributeCapability` consult
-> the plugin's feature-enabled state and report the attribute as unsupported when the feature is off;
-> this is a follow-up, not required for the default configuration.
+| Feature query result | Capability result |
+|---|---|
+| Enabled | `SAI_STATUS_SUCCESS`; create, set, and get flags are all `true`. |
+| Disabled | `SAI_STATUS_SUCCESS`; all three flags are `false`. |
+| Query failure | `SAI_STATUS_FAILURE`; no successful capability result is reported. The failed query is not cached, so a later call can retry. |
+
+Successful feature queries are cached because the feature setting is fixed at VPP startup. The
+feature defaults to enabled; deployments can disable it in the `sonic-ext` startup stanza. Other
+objects and attributes retain their existing capability behavior. This reporting is part of the
+implementation, not a deferred follow-up.
 
 ---
 
@@ -301,18 +301,19 @@ introduces no regression.
 
 ### 7.1 Component Overview
 
-The feature lives in the existing **`sonic_ext`** plugin (`vppbld/plugins/sonic_ext/`) — the
-consolidated home for custom SONiC VPP dataplane nodes (added upstream by sonic-platform-vpp #255).
-It adds two output-arc nodes and the plugin's first binary API:
+The feature lives in the existing **`sonic_ext`** plugin (`vppbld/plugins/src/sonic_ext/`), the
+consolidated home for custom SONiC VPP dataplane nodes. It adds two output-arc nodes and extends
+the plugin's existing binary API and feature framework:
 
 ```
-vppbld/plugins/sonic_ext/
-  sonic_ext.api            (new)  define iface_loopback_set_action { sw_if_index, action }
+vppbld/plugins/src/sonic_ext/
+  sonic_ext.api            (edit) define sonic_ext_iface_loopback_set_action { sw_if_index, action }
   ip4_loopback_node.c      (new)  IPv4 output-arc node  (node "sonic-ext-ip4-loopback")
   ip6_loopback_node.c      (new)  IPv6 output-arc node  (node "sonic-ext-ip6-loopback")
-  sonic_ext.h              (edit) msg_id_base + loopback_action_by_sw_if_index vector + decls
-  sonic_ext.c              (edit) API handler, set-action fn, msg-id table, delete-reset hook
-  CMakeLists.txt           (edit) add the two nodes + API_FILES sonic_ext.api
+  sonic_ext.h              (edit) IFACE_LOOPBACK feature entry, action vector, declarations
+  sonic_ext.c              (edit) set-action function and interface delete-reset hook
+  sonic_ext_api.c          (edit) API handler using the existing message-ID table
+  CMakeLists.txt           (edit) add the two nodes
   FEATURE.yaml             (edit) add the iface-loopback feature
 ```
 
@@ -322,8 +323,8 @@ The plugin directory is auto-copied into VPP's `src/plugins/` at build time; **n
 cached VPP deb without the new nodes.
 
 > `sonic_ext` is **already** enabled in both `docker-syncd-vpp/conf/startup.conf.tmpl` and
-> `docker-sonic-vpp/conf/startup.conf.tmpl` (upstream, since #255), so **no startup.conf change is
-> needed** — the loopback nodes and the `iface_loopback_set_action` binary API load with the rest of
+> `docker-sonic-vpp/conf/startup.conf.tmpl`, so **no startup.conf change is
+> needed** — the loopback nodes and the `sonic_ext_iface_loopback_set_action` binary API load with the rest of
 > `sonic_ext`.
 
 ### 7.2 Feature arc
@@ -368,13 +369,13 @@ which is what both `VLIB_RX` and `VLIB_TX` carry on the output arc:
 
 - LAG RIF: `bond-input` rewrites `VLIB_RX` to the bond `sw_if_index` on member ingress, and egress out
   the bond sets `VLIB_TX` to the same bond index, so `RX == TX` holds at the bond. The action vector is
-  keyed on the bond index (the index saivpp resolves via `vpp_get_hwif_name`, §7.6).
+  keyed on the bond index (the interface saivpp resolves through `VppInterfaceRegistry`, §7.6).
 - Sub-port / LAG sub-port RIF: ingress classification and egress both use the sub-interface
   (`<hwif>.<vlan>` / `<bond>.<vlan>`) `sw_if_index`, so the comparison and the action key are the
   sub-interface index.
 
 This is the correctness condition for the `PO_RIF` / `PO_SUB_PORT_RIF` cases (half the t1-lag matrix) and
-is exercised by the sonic-mgmt integration test (§8.1, validated in §8.4).
+is exercised by the sonic-mgmt integration test (§8.1; validation scope is described in §8.4).
 
 > ⚠️ **Limitation — decapsulated traffic re-routed out its ingress RIF.** The `RX == TX` test relies on
 > `VLIB_TX` still carrying the RIF's own `sw_if_index` when the loopback node runs on the output arc.
@@ -398,32 +399,43 @@ errors`), and the interface counter the test reads is bumped explicitly with
 `vlib_increment_simple_counter(vnm->interface_main.sw_if_counters + VNET_INTERFACE_COUNTER_TX_ERROR,
 thread_index, tx_sw_if_index, 1)`.
 
-> ⚠️ **saivpp RIF counters must be populated from VPP (new code).** Integration testing on a
-> `t1-lag-vpp` DUT showed `show interfaces counters rif` reading `0` for *every* RIF: saivpp only wired
-> the VPP stats segment into **port** stats (`SwitchVpp::setPortStats`), while `ROUTER_INTERFACE`
-> getStats fell through to the base virtual-switch handler and returned `0`. This HLD therefore adds
-> `SwitchVpp::setRifStats()` (mirroring `setPortStats`): it resolves the RIF to its VPP hardware
-> interface — port/LAG, sub-ports via the outer VLAN id, and **VLAN RIFs to the bridge BVI
-> (`bvi<vlan-id>`)** — via the unified `vpp_get_rif_hwif_name()` resolver (§7.6), reads
-> `/interfaces/<name>/*` through `vpp_intf_stats_query` (`SaiIntfStats.c`, `#define TX_ERROR "tx-error"`),
-> and maps the counters to `SAI_ROUTER_INTERFACE_STAT_*` — in particular `tx-error` ->
-> `SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS`. It is wired into `getStatsExt` for
-> `SAI_OBJECT_TYPE_ROUTER_INTERFACE`.
->
-> **Validated end to end** (Ethernet RIF, 10 injected hairpin packets): with `DROP`, `vppctl show
-> errors` shows `10 sonic-ext-ip4-loopback hairpin packets dropped`, VPP `tx-error = 10`, and `show
-> interfaces counters rif` reports `TX_ERR = 10`; with `FORWARD`, the packets egress and `TX_ERR`
-> stays `0`.
+**SAI counter mapping.** `SwitchVpp::getRifStatsExt()` resolves the backing interface through
+`m_ifaceRegistry.resolveHwIfByRifOid()` (§7.6) and reads `/interfaces/<name>/*` through
+`queryRifStats()` / `vpp_intf_stats_query()`. RX/TX packets, bytes, and errors map to the six
+corresponding `SAI_ROUTER_INTERFACE_STAT_*` counters; `tx-error` maps to
+`SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS`. RIF types without a backing VPP interface return
+zero counters without allocating a baseline.
+
+`initializeRifStats()` snapshots these counters at RIF creation, so a new port/LAG RIF does not
+inherit traffic from an earlier RIF on the same persistent interface. READ_AND_CLEAR returns the
+delta from the previous baseline and advances only the requested counters' baselines. A detected
+VPP counter reset discards the affected baseline. Query failures return failure without changing
+the baseline or acknowledging a clear. RIF removal discards its baseline. Metadata unit-test
+counter injection and reads continue to use the base virtual-switch implementation.
+
+**Parent/sub-interface accounting limitation.** If a RIF is configured on a physical interface
+and another on one of its VLAN sub-interfaces, the physical interface's packet/byte counters
+include both untagged traffic and tagged child traffic. The child also has its own counters.
+Consequently, the parent RIF's packet/byte statistics are inclusive backing-interface totals,
+**not exclusive untagged-RIF counters**. Summing the parent and child RIF statistics double-counts
+the child traffic. RIF-specific baselines separate creation/clear epochs; they do not change
+this VPP accounting model. Exclusive per-RIF packet/byte accounting is outside this loopback-action
+change.
+
+The loopback node's own `TX_ERROR` increment is different: it explicitly targets the selected
+egress `sw_if_index`. A sub-interface hairpin drop is counted on that sub-interface, without an
+additional parent increment by this node. Packet/byte overlap should not be taken to imply that
+all error counters have the same aggregation behavior.
 
 > ⚠️ **Counter API differs from `ip_validate`.** `ip_validate` counts via a VPP **node** error counter
 > (`vlib_node_increment_counter`), which appears only in `vppctl show errors` and is **not** a
 > per-interface stat. The explicit `vlib_increment_simple_counter` on `VNET_INTERFACE_COUNTER_TX_ERROR`
-> is what `setRifStats` surfaces as RIF `tx_err`; the node-level `error-drop` count is diagnostic only.
+> is what `getRifStatsExt` surfaces as RIF `tx_err`; the node-level `error-drop` count is diagnostic only.
 
 ### 7.5 Binary API
 
 ```
-autoreply define iface_loopback_set_action
+autoreply define sonic_ext_iface_loopback_set_action
 {
   u32 client_index;
   u32 context;
@@ -444,27 +456,21 @@ Repeated same-action requests are a no-op (VPP feature enable/disable is ref-cou
 
 1. Look for the `LOOPBACK_PACKET_ACTION` attribute. If it is **absent**, send nothing — the plugin's
    default `FORWARD` applies. If present, read its `sai_packet_action_t` value and continue.
-2. **Resolve the RIF to its VPP interface.** Port-backed RIFs (`PORT` / `SUB_PORT`, over a physical
-   port or a LAG) reuse the existing `vpp_get_hwif_name(port_id, vlan_id, ifname)` helper — the same
-   helper the MTU/admin set-paths use — which returns the correct hwif **name**:
-   - LAG (`SAI_OBJECT_TYPE_LAG`) -> `BondEthernet<id>` (via `get_lag_bond_info`);
-   - port -> hwif (via `getTapNameFromPortId` + `tap_to_hwif_name`);
-   - sub-port / LAG sub-port -> appends `.<vlan_id>` to the above.
-
-   **VLAN RIFs carry no `PORT_ID`** (they are created via the separate `vpp_create_bvi_interface`
-   path and are backed by the bridge BVI), so `vpp_update_router_interface` returned early for the
-   `VLAN` type and never applied the loopback action. A unified `vpp_get_rif_hwif_name(rif_oid,
-   ifname)` resolver closes this gap: it reads the RIF `TYPE` and maps `VLAN` -> `bvi<vlan-id>` (via
-   `SAI_ROUTER_INTERFACE_ATTR_VLAN_ID` -> `SAI_VLAN_ATTR_VLAN_ID`, mirroring `vpp_create_bvi_interface`),
-   and otherwise falls back to `vpp_get_hwif_name` for the port/LAG/sub-port shapes. The VLAN loopback
-   set-path and `setRifStats` (§7.4) both use this resolver, so the node and counter operate on the
-   BVI's `sw_if_index` like any other interface (exercised by the `VLAN_RIF` case in the sonic-mgmt
-   integration, §8.1).
+2. **Resolve the RIF to its VPP interface.** CREATE uses the existing
+   `m_ifaceRegistry.resolveHwIfName(backing_oid, vlan_id)` mapping: physical port to hwif, LAG to
+   `BondEthernet<id>`, sub-port to the corresponding `.<vlan_id>` child, and VLAN to its BVI.
+   `vpp_register_router_interface()` records the RIF OID with `setRifOid()` in a separate registry
+   index; it does not replace the backing port/LAG/VLAN OID. SET, REMOVE, and statistics use
+   `resolveHwIfByRifOid()`, avoiding a second name-parsing resolver. VLAN RIF CREATE is handled by
+   `vpp_create_bvi_interface()` and binds the same BVI record.
 
    The test's "five RIF types" map to **three** SAI RIF *types* (`PORT`, `SUB_PORT`, `VLAN`); `PO_*` are
    `PORT`/`SUB_PORT` whose `PORT_ID` is a LAG. (The SAI RIF `TYPE_LOOPBACK` is a different, unrelated
    concept — see §3.1 — and is not exercised here.)
-3. Map `SAI_PACKET_ACTION_FORWARD` -> `0`, `SAI_PACKET_ACTION_DROP` -> `1`.
+3. Reject actions other than `FORWARD`/`DROP` with `SAI_STATUS_NOT_SUPPORTED`. Query
+   `sonicExtFeatureEnabled("iface-loopback", enabled)`; query errors fail the operation. If the
+   feature is explicitly disabled, skip the plugin call (capability is also false, §6.3).
+   Otherwise map `SAI_PACKET_ACTION_FORWARD` -> `0`, `SAI_PACKET_ACTION_DROP` -> `1`.
 4. Resolve the hwif name to a `sw_if_index` with the existing `get_swif_idx()` helper and send the
    message (see §7.7).
 
@@ -472,24 +478,35 @@ Repeated same-action requests are a no-op (VPP feature enable/disable is ref-cou
 `set_ip_flow_hash_v2` binding pattern:
 
 - `#include <vpp_plugins/sonic_ext/sonic_ext.api_enum.h>` and `..._types.h` (the `sonic_ext` plugin now carries
-  the `iface_loopback_set_action` message; the message name is unchanged).
-- Register the `sonic_ext` plugin's `msg_id_base` during init (looked up as `sonic_ext_%08x`).
+  the `sonic_ext_iface_loopback_set_action` message).
+- Reuse the canonical `sonic_ext` plugin message-ID base registered during init.
 - Add a reply handler and a send helper `vpp_iface_loopback_set_action(const char *hwif_name, int action)`
   that calls `get_swif_idx()` to obtain the `sw_if_index`, then issues the message via the
-  `M(IFACE_LOOPBACK_SET_ACTION, mp)` macro (balanced `VPP_LOCK()`/`VPP_UNLOCK()` on every path).
+  `M(SONIC_EXT_IFACE_LOOPBACK_SET_ACTION, mp)` macro (balanced `VPP_LOCK()`/`VPP_UNLOCK()` on every path).
 
 **Idempotency and teardown.** Create-with-attribute and a later set reach the same handler; re-sending
 the same action is a no-op (the plugin toggles the arcs only on a real transition), and `DROP` ->
 `FORWARD` disables the arcs and restores the per-interface state to `FORWARD`. On the SAI side the
 loopback action is applied symmetrically on RIF create (including VLAN RIFs, via `vpp_create_bvi_interface`)
 and cleared to `FORWARD` on RIF remove, so a recycled `sw_if_index` cannot inherit a stale `DROP`.
+Removal clears the RIF-OID binding without deleting a persistent port/LAG registry record.
+
+**Failed CREATE rollback.** `createRouterif()` commits the SAI object only after interface
+programming, RIF registration, and the initial stats snapshot succeed. `RifCreateState` tracks owned
+sub-interface/BVI, LCP, bridge, and loopback changes so a failure unwinds only resources acquired by
+that CREATE. For a persistent port/LAG, `get_interface_vrf()` reuses VPP's `sw_interface_get_table`
+query to capture the actual prior IPv4 table before rebinding. A later failure restores that
+table even if loopback programming never succeeded, and does not delete shared VRF tables.
+A successful default-VRF CREATE binds table 0 if the persistent interface is still in another
+table. VRF lookup/programming failures abort creation; rollback API failures are logged and
+reported as failures, not silently treated as successful cleanup.
 
 ### 7.7 Interface identity resolution
 
-saivpp is name-centric (`vpp_get_hwif_name` yields a name like `BondEthernet0` or `eth1.100`), while the
+saivpp's interface registry yields names like `BondEthernet0` or `eth1.100`, while the
 plugin and `vnet_feature_enable_disable` work on `sw_if_index`. The API is therefore **index-based** (the
 VPP convention), and the binding bridges the two using the existing `get_swif_idx(vam, hwif_name)` helper
-in `SaiVppXlate.c` (defined at `SaiVppXlate.c:1698`). That helper looks the name up in the
+in `SaiVppXlate.c`. That helper looks the name up in the
 `sw_if_index_by_interface_name` table saivpp already maintains from VPP interface dumps, and is the same
 resolution the other send helpers use, so no new infrastructure is needed.
 
@@ -498,7 +515,7 @@ resolution the other send helpers use, so no new infrastructure is needed.
 ```
 Control: config interface ip loopback-action -> CONFIG_DB -> orchagent (intfsorch) -> ASIC_DB -> syncd
          --[SAI API]--> saivpp (SwitchVppRif -> SaiVppXlate)
-         --[VPP binary API: iface_loopback_set_action]--> sonic_ext plugin (per-interface state + arc enable)
+         --[VPP binary API: sonic_ext_iface_loopback_set_action]--> sonic_ext plugin (per-interface state + arc enable)
 
 Data:    ingress RIF -> ip4-input -> ip4-lookup -> ip4-rewrite (next-hop OUT same if; sets VLIB_TX)
          -> ip4-output arc -> [sonic-ext-ip4-loopback node]
@@ -507,7 +524,7 @@ Data:    ingress RIF -> ip4-input -> ip4-lookup -> ip4-rewrite (next-hop OUT sam
 ```
 
 The control flow above is the detailed expansion of the §3.3 overview: the `SAI API` boundary is
-`syncd -> saivpp`, and the `VPP binary API` boundary (the `iface_loopback_set_action` message) is
+`syncd -> saivpp`, and the `VPP binary API` boundary (the `sonic_ext_iface_loopback_set_action` message) is
 `saivpp -> sonic_ext plugin`.
 
 ---
@@ -538,43 +555,32 @@ before each measurement, so absolute counter persistence is not required. `tx-er
 interface counter and behaves like the others across a port flap; after the cold reboot in
 `test_loopback_action_reload`, counters start at zero and the action is re-applied from CONFIG_DB (§5).
 
-### 8.4 Live-DUT validation results (`vms-kvm-vpp-t1-lag`)
+### 8.4 Validation evidence and remaining integration work
 
-Validated on a live `vms-kvm-vpp-t1-lag` KVM testbed (32-port, `asic_type=vpp`,
-VPP `v2606-0.4+b1sonic1`, Debian trixie):
+Early prototype testing on `vms-kvm-vpp-t1-lag` demonstrated the IPv4 basic test across all five
+RIF shapes, including FORWARD/DROP behavior and `TX_ERR` accounting. A focused IPv6 check also
+observed loopback-node drops only in DROP mode. These results predate the re-port to the current
+plugin feature framework and `VppInterfaceRegistry`; they are not a fresh full-module pass for
+the current PR revisions.
 
-- **Full module passes.** The `iface_loopback_action` module reports **`3 passed`
-  (~17 min)** — `test_loopback_action_basic`, `test_loopback_action_port_flap`, and
-  `test_loopback_action_reload`. Every RIF instance the module creates (Ethernet,
-  VLAN, PortChannel, port sub-interface and PortChannel sub-interface, across two
-  cycles) passes both the `FORWARD` and the `DROP` verification, and the drop
-  behaviour survives a port flap and a cold reboot.
-- **Plugin + control path:** `sonic_ext_plugin.so` loads with the
-  `sonic-ext-ip4-loopback`/`sonic-ext-ip6-loopback` nodes (`vppctl show node
-  sonic-ext-ip4-loopback` → `state active`), `create_switch` succeeds, and
-  `config interface ip loopback-action <rif> drop|forward` toggles the feature arcs on the
-  resolved VPP interface for every RIF shape — including the `VLAN_RIF` case, where
-  `Vlan51` resolves to `bvi51`.
-- **Data path (every RIF shape, 10 hairpin packets):** `DROP` → the loopback node
-  drops 10 + VPP `tx-error = 10` + SONiC `show interfaces counters rif` `TX_ERR = 10`;
-  `FORWARD` → the packet is looped back out the ingress RIF and `TX_ERR = 0`.
-- **RIF counters:** every RIF shape (port/LAG/sub-port and the VLAN BVI) appears in
-  `show interfaces counters rif` with live VPP counters via `vpp_get_rif_hwif_name()`.
+The current SAI changes have a native VPP-enabled build and 24 focused C++ tests passing.
+Coverage includes feature enabled/disabled/query-error handling, capability reporting, RIF-OID
+lifecycle, stats baselines/reset/error paths, metadata counter injection, and failed-CREATE
+cleanup. VRF regressions exercise port and LAG failures after table binding, restoration of a
+nonzero prior table, a subsequent default-VRF CREATE, and lookup/setter failures.
 
-Reaching this required fixing five pre-existing, feature-independent defects that each
-blocked the run at a successive RIF shape — see §9.
+A fresh image containing the SAI changes is still needed for the complete
+`iface_loopback_action` integration run, including flap and cold reboot. Native tests isolate
+VPP APIs and host networking; they do not replace that live-DUT validation.
 
 ---
 
-## 9. Resolved Pre-existing Defects (found during enablement)
+## 9. Historical bring-up findings
 
-The feature itself is validated end to end (§8.4). Getting the **full**
-`iface_loopback_action` module to pass on `vms-kvm-vpp-t1-lag` first required fixing
-**five distinct, pre-existing defects** that are independent of the loopback
-feature — four in the stock VPP SAI layer (`sonic-sairedis/vslib/vpp`) and one in
-the KVM testbed VM template (`sonic-mgmt`). Each
-of the five blockers stopped the run at a successive RIF shape; fixing one exposed the
-next. Each is summarized below.
+These observations describe the early prototype environment, not universal prerequisites for
+loopback action or sub-port forwarding. The prototype's parsing and neighbor fixes were removed
+from the current SAI PR during its re-port onto upstream interface-registry code; they are not
+additional changes shipped by this feature series.
 
 1. **`std::stoi` shutdown-wait (the actual syncd stall).** Unguarded `std::stoi`
    calls in `vslib/vpp` throw on non-numeric interface names; the exception reaches
@@ -582,36 +588,40 @@ next. Each is summarized below.
    and parks syncd. syncd then drops all requests, the in-flight orchagent op never
    completes, the critical-process watchdog restarts swss, and the config (incl. the
    test's neighbor) is torn down before it reaches `ASIC_DB` — the "Failed to add
-   neighbor" symptom. **Fix:** `vpp_safe_stoi()` guards every such call in
-   `SwitchVppRif.cpp`/`SwitchVppFdb.cpp`.
+   neighbor" symptom. The prototype guarded these conversions; the current feature uses the
+   upstream registry instead of adding another name-parsing path.
 
 2. **VLAN-RIF neighbors never programmed.** `addRemoveIpNbr` skipped RIFs without a
    PORT/LAG `PORT_ID`, so VLAN RIFs (`Vlan51`) never got their neighbor in VPP and
-   the DUT ARPed instead of forwarding. **Fix:** resolve via `vpp_get_rif_hwif_name()`
-   (VLAN → `bvi<id>`) in `SwitchVppNbr.cpp`.
+   the DUT ARPed instead of forwarding. The prototype added a manual VLAN-to-BVI resolver.
+   The current feature uses `VppInterfaceRegistry` (§7.6), not that former helper.
 
-3. **qemu virtio `ctrl_vlan` drops all tagged frames (testbed).** The DUT VM's
-   `virtio-net-pci` NICs default to `ctrl_vlan=on`; since VPP/DPDK registers no
-   VLANs, qemu drops every VLAN-tagged frame before it reaches VPP. VLAN RIFs pass
-   (untagged bridge member) but L3 sub-interfaces (need the tag) do not. **Fix:**
-   `-global virtio-net-pci.ctrl_vlan=off` in `sonic.xml.j2` for VPP DUTs. Proven by a
-   controlled tagged-vs-untagged counter test (untagged ~100 arrive, tagged ~0
-   before / ~100 after); OVS verified vlan-agnostic, DPDK vlan-strip off.
+3. **Tagged-frame loss with virtio VLAN filtering in the bring-up environment.**
+   On that QEMU/virtio/DPDK setup, tagged packets did not reach VPP while untagged
+   packets did. Disabling `ctrl_vlan` restored tagged ingress: a controlled
+   comparison observed approximately 100 untagged / 0 tagged packets before and
+   approximately 100 tagged packets after; OVS was VLAN-agnostic and DPDK
+   VLAN stripping was off. This does **not** establish that all VPP testbeds
+   require the override; existing sub-port tests can pass on other setups.
+   The VPP-DUT-only `-global virtio-net-pci.ctrl_vlan=off` override in
+   `ansible/roles/vm_set/templates/sonic.xml.j2` has already merged in
+   [sonic-net/sonic-mgmt#26035](https://github.com/sonic-net/sonic-mgmt/pull/26035).
+   It is a testbed workaround for the observed filtering behavior, not a new
+   requirement introduced by loopback action.
 
 4. **PortChannel sub-port RIF IP on the wrong interface.** The RIF-IP resolver did
    not understand SONiC's `Po<id>.<vlan>` short form, so `Po54.54`'s IP never reached
-   `BondEthernet54.54` and its FIB stayed `UNRESOLVED`. **Fix:** handle the
+   `BondEthernet54.54` and its FIB stayed `UNRESOLVED`. The prototype handled the
    `Po<id>.<vlan>`/`PortChannel<id>.<vlan>` form in `vpp_add_del_intf_ip_addr_norif`
    (`SwitchVppRif.cpp`).
 
 5. **`find_new_bond_id` misassigns `bond_id 0`.** The PO sub-interface shows as
    `Po54.54@PortChannel54`, matches `grep PortChannel`, and its garbage suffix parses
    to `bond_id 0`, which got assigned to a real LAG — so a 2nd PortChannel RIF's
-   neighbor landed on `BondEthernet0`. **Fix:** skip non-base PortChannel entries
+   neighbor landed on `BondEthernet0`. The prototype skipped non-base PortChannel entries
    (`.`/`@`/non-digit suffix) in `find_new_bond_id` (`SwitchVppFdb.cpp`).
 
-With the five blockers applied, syncd stays responsive (`RestartCount = 0`, no
-shutdown-wait, orchagent never crashes) and the test passes.
+The current validation scope, including the remaining live-DUT run, is recorded in §8.4.
 
 ---
 
@@ -621,11 +631,12 @@ shutdown-wait, orchagent never crashes) and the test passes.
 
 | File | Change | Description |
 |---|---|---|
-| `vppbld/plugins/sonic_ext/sonic_ext.api` | **New** | The plugin's first binary API: `iface_loopback_set_action { sw_if_index, action }` |
-| `vppbld/plugins/sonic_ext/ip4_loopback_node.c`, `ip6_loopback_node.c` | **New** | The `sonic-ext-ip4-loopback` / `sonic-ext-ip6-loopback` output-arc nodes |
-| `vppbld/plugins/sonic_ext/sonic_ext.c` | Modify | API handler, set-action fn (`sonic_ext_iface_loopback_set_action`), msg-id table, delete-reset hook |
-| `vppbld/plugins/sonic_ext/sonic_ext.h` | Modify | `msg_id_base` + `loopback_action_by_sw_if_index` in `sonic_ext_main_t`; node externs; action defines; set-fn decl |
-| `vppbld/plugins/sonic_ext/CMakeLists.txt`, `FEATURE.yaml` | Modify | Add the two nodes + `API_FILES sonic_ext.api`; add the `iface-loopback` feature |
+| `vppbld/plugins/src/sonic_ext/sonic_ext.api` | Modify | Add `sonic_ext_iface_loopback_set_action { sw_if_index, action }` to the existing plugin API |
+| `vppbld/plugins/src/sonic_ext/ip4_loopback_node.c`, `ip6_loopback_node.c` | **New** | The `sonic-ext-ip4-loopback` / `sonic-ext-ip6-loopback` output-arc nodes |
+| `vppbld/plugins/src/sonic_ext/sonic_ext.c`, `sonic_ext_api.c` | Modify | Set-action function, delete-reset hook, and API handler using the canonical message-ID table |
+| `vppbld/plugins/src/sonic_ext/sonic_ext.h` | Modify | `IFACE_LOOPBACK` feature entry, action vector, node declarations, and action constants |
+| `vppbld/plugins/src/sonic_ext/CMakeLists.txt`, `FEATURE.yaml` | Modify | Add the two nodes and document the `iface-loopback` feature |
+| `vppbld/plugins/tests/sonic_ext/test_sonic_ext_loopback.py` | **New** | Plugin-level forwarding/drop, toggle, idempotency, and unsupported-action tests |
 | `rules/vpp.mk` | Modify | Bump `VPP_VERSION` suffix so CI does not pull a stale cached `.deb` without the new nodes (§7.1) |
 | `doc/vpp/vpp-iface-loopback-action.md` (in sonic-net/SONiC) | **New** | This document |
 
@@ -635,26 +646,20 @@ shutdown-wait, orchagent never crashes) and the test passes.
 
 | File | Change | Description |
 |---|---|---|
-| `vslib/vpp/SwitchVppRif.cpp` | Modify | Handle `SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION` symmetrically on RIF create/set **and clear it on remove**; add unified `vpp_get_rif_hwif_name()` resolver (port/LAG/sub-port via `vpp_get_hwif_name()`, VLAN -> `bvi<vlan>`); de-duplicated setters via `vpp_apply_loopback_action()`; map `sai_packet_action_t` -> plugin action |
-| `vslib/vpp/SwitchVpp.cpp` | Modify | `setRifStats()` (RIF `tx_err` etc. from VPP, §7.4); resolve every RIF shape via `vpp_get_rif_hwif_name()` |
-| `vslib/vpp/SwitchVpp.h` | Modify | Declare `vpp_apply_loopback_action()`, `vpp_set_interface_loopback_action()`, `vpp_set_rif_loopback_action()`, `vpp_get_rif_hwif_name()`, `setRifStats()` |
-| `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | Modify | Include `sonic_ext` plugin API headers; register the `sonic_ext` `msg_id_base`; reply handler + `iface_loopback_set_action` send helper (resolves name via `get_swif_idx()`) |
-| `vslib/vpp/SwitchVppFdb.cpp` | Modify | Apply the loopback action on the **VLAN BVI create** path (`vpp_create_bvi_interface`, via `vpp_apply_loopback_action()`), so VLAN RIFs are covered like port/LAG RIFs (feature — distinct from this file's defect fixes below) |
-
-**Pre-existing-defect fixes (§9) — separable from the feature, worth their own commits/PR:**
-
-| File | Change | Description |
-|---|---|---|
-| `vslib/vpp/SwitchVppUtils.h` / `.cpp` | Modify | Shared `vpp_safe_stoi()` helper guarding previously-unguarded `std::stoi` calls (defect #1) — used by both `SwitchVppRif.cpp` and `SwitchVppFdb.cpp` |
-| `vslib/vpp/SwitchVppRif.cpp` | Modify | Route `std::stoi` calls through `vpp_safe_stoi()` (defect #1); handle the `Po<id>.<vlan>` / `PortChannel<id>.<vlan>` short form in `vpp_add_del_intf_ip_addr_norif` so PortChannel sub-port RIF IPs reach `BondEthernet<id>.<vlan>` (defect #4) |
-| `vslib/vpp/SwitchVppNbr.cpp` | Modify | `addRemoveIpNbr` resolves the interface via `vpp_get_rif_hwif_name()` so VLAN (and all) RIF neighbors are programmed into VPP (defect #2) |
-| `vslib/vpp/SwitchVppFdb.cpp` | Modify | `vpp_safe_stoi()` guard (defect #1); `find_new_bond_id` skips non-base PortChannel entries (`.`/`@`/non-digit suffix) so sub-interfaces like `Po54.54@PortChannel54` don't get mis-parsed to `bond_id 0` (defect #5) |
+| `vslib/vpp/SwitchVppRif.cpp` | Modify | Apply/clear loopback actions, bind RIF OIDs, initialize counters, and roll back failed CREATE resources and persistent-interface VRF changes |
+| `vslib/vpp/SwitchVpp.cpp` | Modify | Feature-aware capability reporting and `getRifStatsExt()` with initial/clear baselines and explicit query-error handling |
+| `vslib/vpp/SwitchVpp.h` | Modify | Declare action/counter helpers and `RifCreateState` transaction bookkeeping |
+| `vslib/vpp/VppInterfaceRegistry.h` / `.cpp` | Modify | Maintain a separate RIF-OID index and preserve backing port/LAG/VLAN identity |
+| `vslib/vpp/SwitchVppUtils.h` / `.cpp` | Modify | Status-returning feature query; cache successful results only |
+| `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | Modify | Loopback API reply/send helper using the canonical plugin message-ID base; `get_interface_vrf()` reuses the existing interface-table query |
+| `vslib/vpp/SwitchVppFdb.cpp` | Modify | Apply the action on VLAN BVI CREATE and track acquired resources for rollback |
+| `unittest/vslib/TestSwitchVpp.cpp`, `TestVppInterfaceRegistry.cpp`, `Makefile.am` | Modify | Native production-path regression tests with isolated VPP API/host-network calls |
 
 ### sonic-mgmt
 
 | File | Change | Description |
 |---|---|---|
-| `ansible/roles/vm_set/templates/sonic.xml.j2` | Modify | For `asic_type == 'vpp'` DUTs only, add `<qemu:commandline> -global virtio-net-pci.ctrl_vlan=off` (with an explanatory comment) so the virtio VLAN filter stops dropping tagged frames (defect #3). *(No resource change — a VM resource bump used during bring-up was reverted as a loaded-host workaround, not a feature requirement.)* |
+| `ansible/roles/vm_set/templates/sonic.xml.j2` | Modify (merged) | VPP-DUT-only `virtio-net-pci.ctrl_vlan=off` workaround for the observed testbed filtering issue (§9); not a universal loopback prerequisite or VM resource increase |
 | `.azure-pipelines/pr_test_scripts.yaml` | Modify | Add `iface_loopback_action/test_iface_loopback_action.py` to the `t1-lag-vpp` section (separate PR, lands last) |
 | `tests/common/plugins/conditional_mark/tests_mark_conditions.yaml` | Modify | Add `vpp` to the allowed `asic_type` for `iface_loopback_action`, with a comment naming the prerequisite PRs + issue #25788 |
 
@@ -692,13 +697,13 @@ The entire dataplane check is `RX == TX && action == DROP`.
 
 ### B.4 New plugin message
 
-Defined in `sonic_ext.api` (the `sonic_ext` plugin's first binary API message):
+Added to the existing `sonic_ext.api`:
 
 ```
-autoreply define iface_loopback_set_action {
+autoreply define sonic_ext_iface_loopback_set_action {
   u32 client_index; u32 context;
   vl_api_interface_index_t sw_if_index;   // resolved by the binding via get_swif_idx() (§7.7)
   u8 action;                              // 0 = FORWARD, 1 = DROP
 };
 ```
-Consumed by saivpp via the `M(IFACE_LOOPBACK_SET_ACTION, mp)` send macro in `SaiVppXlate.c`.
+Consumed by saivpp via the `M(SONIC_EXT_IFACE_LOOPBACK_SET_ACTION, mp)` send macro in `SaiVppXlate.c`.
