@@ -41,6 +41,7 @@
             - [2.4.7.5. Everflow](#2475-everflow)
             - [2.4.7.6. Syslog](#2476-syslog)
             - [2.4.7.7. Operational CLIs](#2477-operational-clis)
+        - [2.4.8. Extended multi-ASIC command syntax](#248-extended-multi-asic-command-syntax)
 
 <!-- markdown-toc end -->
 
@@ -934,4 +935,115 @@ Ethernet-BP112        U        2    8.99 B/s      0.00%         0         0     
 Ethernet-BP116        U        2    8.99 B/s      0.00%         0         0         0        2    8.99 B/s      0.00%         0         0         0
 Ethernet-BP120        U        2    8.99 B/s      0.00%         0         0         0        2    8.99 B/s      0.00%         0         0         0
 Ethernet-BP124        U        2    8.99 B/s      0.00%         0         0         0        2    8.99 B/s      0.00%         0         0         0
+```
+### 2.4.8. Extended multi-ASIC command syntax
+
+The commands below accept **`-n` / `--namespace`** and, where noted, **`-d` / `--display`**, following the multi-ASIC rules in [section 2.4.7.7 Operational CLIs](#2477-operational-clis).
+
+#### VLAN and FDB
+
+- `show vlan brief` and `show vlan config`: use **`-n <namespace>`** for one namespace; omit **`-n`** to show all namespaces.
+- `config vlan …`: **`-n` / `--namespace` is required** on multi-ASIC for all subcommands; optional on single-ASIC.
+
+```
+show vlan brief [-n <namespace>]
+show vlan config [-n <namespace>]
+config vlan [-n <namespace>] (add | del) <vlan_id>
+config vlan [-n <namespace>] (add | del) -m <vlan_id>
+config vlan [-n <namespace>] member add/del [-u|--untagged] <vlan_id> <member_portname>
+config vlan [-n <namespace>] member add/del [-m] [-e] <vlan_id> <member_portname>
+config vlan [-n <namespace>] proxy_arp <vlan_id> enabled|disabled
+```
+
+- `sonic-clear fdb all` clears the FDB in **all** namespaces on multi-ASIC. The **`fdbclear`** helper accepts **`-n <namespace>`** or **`-n all`** when run directly.
+
+#### ARP and NDP
+
+- `show arp` / `show ndp`: **`-n|--namespace`**, **`-d|--display all|frontend`**. Omit **`-n`** for all namespaces.
+- `sonic-clear arp` / `sonic-clear ndp`: **`-n|--namespace`**; on multi-ASIC, **`-n` is required** for clear operations.
+
+```
+show arp [-if <interface_name>] [<ip_address>] [-n|--namespace <namespace>] [-d|--display all|frontend]
+show ndp [-if|--iface <interface_name>] [<ipv6_address>] [-n|--namespace <namespace>] [-d|--display all|frontend]
+sonic-clear arp [<ip_address>] [-n|--namespace <namespace>]
+sonic-clear ndp [<ipv6_address>] [-n|--namespace <namespace>]
+```
+
+#### Static routes
+
+- `config route add` / `config route del`: **`[-n <namespace>]`** before **`add`** / **`del`**. **`-n` is required** on multi-ASIC.
+
+```
+config route [-n <namespace>] add prefix …
+config route [-n <namespace>] del prefix …
+```
+
+Example: `sudo config route -n asic0 add prefix 2.2.3.4/32 nexthop 30.0.0.9`
+
+#### ACL tables
+
+- `config acl add table …`: optional **`-n <namespace>`** (table created in that ASIC’s CONFIG_DB).
+- `config acl remove table`: **`config acl remove table <table_name> [-n <namespace>]`**
+
+```
+config acl add table … [-n <namespace>]
+config acl remove table <table_name> [-n <namespace>]
+```
+
+#### IPv6 link-local
+
+- `config ipv6`: **`-n` / `--namespace`** on the group (required on multi-ASIC). Subcommands use that namespace’s CONFIG_DB.
+- `show ipv6 link-local-mode`: **`-n`** to select a namespace; omit to cover all.
+
+```
+config ipv6 [-n <namespace>] …
+show ipv6 link-local-mode [-n <namespace>] [--verbose]
+```
+
+#### CRM resources
+
+- `crm show resources`: place **`-n` / `--namespace`** immediately after **`crm show resources`**. Without **`-n`** on multi-ASIC, output lists each ASIC (e.g. ASIC0, ASIC1) separately.
+
+```
+crm show resources [-n <namespace>] all
+crm show resources [-n <namespace>] acl {group|table}
+crm show resources [-n <namespace>] {fdb|ipmc|snat|dnat|srv6-nexthop|srv6-my-sid-entry}
+crm show resources [-n <namespace>] ipv4 {route|neighbor|nexthop}
+crm show resources [-n <namespace>] ipv6 {route|neighbor|nexthop}
+crm show resources [-n <namespace>] mpls {inseg|nexthop}
+crm show resources [-n <namespace>] nexthop group {member|object}
+```
+
+#### VXLAN and VNET
+
+- `show vxlan` / `show vnet`: optional **`[ -n <namespace> ]`** right after the group; omit **`-n`** for all namespaces (sections labeled per namespace). **`config vxlan`**: on multi-ASIC, **`-n` is required** before the subcommand; one VXLAN tunnel per namespace. **`config vnet`**: **`-n`** before subcommands (**`add`**, **`del`**, **`add-route`**, **`del-route`**). Do not use a literal **`-n all`**.
+
+```
+show vxlan [ -n <namespace> ] tunnel
+show vxlan [ -n <namespace> ] name <vxlan_name>
+config vxlan [ -n <namespace> ] add <vxlan_name> <src_ip>
+config vxlan [ -n <namespace> ] del <vxlan_name>
+show vnet [ -n <namespace> ] brief
+show vnet [ -n <namespace> ] interfaces
+show vnet [ -n <namespace> ] neighbors
+show vnet [ -n <namespace> ] routes all
+show vnet [ -n <namespace> ] routes tunnel
+config vnet [ -n <namespace> ] add <vnet-name> <vni> <vxlan-tunnel> …
+config vnet [ -n <namespace> ] del <vnet-name>
+config vnet [ -n <namespace> ] add-route <vnet-name> <prefix> <endpoint> …
+config vnet [ -n <namespace> ] del-route <vnet-name> [<prefix>]
+```
+
+Additional **`show vxlan`** / **`show vnet`** subcommands (interface, maps, remote VTEP, counters, alias, advertised routes, guid, etc.) follow the same **`[ -n <namespace> ]`** placement.
+
+#### Subinterfaces and MPLS on interfaces
+
+- `show subinterfaces status`: **`-d`**, **`-n`**; omit **`-n`** to include all namespaces (namespace column in output). **`show interfaces mpls`**: **`-d`**, **`-n`**; subinterfaces are not listed here; **`-d`** selects **all** vs **frontend** (default **frontend** on multi-ASIC).
+- `config subinterface add` / `del`: **`[-n <namespace>]`**, optional **`[-s <redis_unix_socket_path>]`**; **`-n` is required** on multi-ASIC.
+
+```
+show interfaces mpls [<interface_name>] [-d <display>] [-n <namespace>]
+show subinterfaces status [<subinterfacename>] [-d <display>] [-n <namespace>]
+config subinterface [-n <namespace>] [-s <redis_unix_socket_path>] add <subinterface_name> [<vid>]
+config subinterface [-n <namespace>] [-s <redis_unix_socket_path>] del <subinterface_name>
 ```
