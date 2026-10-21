@@ -497,6 +497,11 @@ sub-interface/BVI, LCP, bridge, and loopback changes so a failure unwinds only r
 that CREATE. For a persistent port/LAG, `get_interface_vrf()` reuses VPP's `sw_interface_get_table`
 query to capture the actual prior IPv4 table before rebinding. A later failure restores that
 table even if loopback programming never succeeded, and does not delete shared VRF tables.
+When CREATE changes persistent-interface MTU, MPLS enablement, or admin state, it first reads
+the actual VPP settings. Failure restores the previous values, including all four protocol
+MTUs, rather than assuming defaults. Query and setter errors abort creation. Deferred child
+admin-up requests are replayed only after the parent CREATE commits; deleting an owned
+sub-interface during rollback also removes its pending admin request.
 A successful default-VRF CREATE binds table 0 if the persistent interface is still in another
 table. VRF lookup/programming failures abort creation; rollback API failures are logged and
 reported as failures, not silently treated as successful cleanup.
@@ -563,15 +568,21 @@ observed loopback-node drops only in DROP mode. These results predate the re-por
 plugin feature framework and `VppInterfaceRegistry`; they are not a fresh full-module pass for
 the current PR revisions.
 
-The current SAI changes have a native VPP-enabled build and 24 focused C++ tests passing.
+The current SAI changes have a native VPP-enabled build and 35 focused C++ tests passing,
+including the six upstream deferred sub-interface admin-state tests.
 Coverage includes feature enabled/disabled/query-error handling, capability reporting, RIF-OID
 lifecycle, stats baselines/reset/error paths, metadata counter injection, and failed-CREATE
 cleanup. VRF regressions exercise port and LAG failures after table binding, restoration of a
 nonzero prior table, a subsequent default-VRF CREATE, and lookup/setter failures.
+Five additional regressions cover exact MTU/MPLS/admin restoration after failed PORT/LAG
+CREATE, query/setter errors, and deferred-admin cleanup and replay. An isolated VPP process
+also verified the real MTU/admin/MPLS query and restoration APIs, link-state compatibility,
+and invalid-interface error handling.
 
 A fresh image containing the SAI changes is still needed for the complete
-`iface_loopback_action` integration run, including flap and cold reboot. Native tests isolate
-VPP APIs and host networking; they do not replace that live-DUT validation.
+`iface_loopback_action` integration run, including flap and cold reboot. The native tests
+mock VPP APIs and RIF host operations; neither these tests nor the isolated API check
+replaces that live-DUT validation.
 
 ---
 
@@ -646,14 +657,15 @@ The current validation scope, including the remaining live-DUT run, is recorded 
 
 | File | Change | Description |
 |---|---|---|
-| `vslib/vpp/SwitchVppRif.cpp` | Modify | Apply/clear loopback actions, bind RIF OIDs, initialize counters, and roll back failed CREATE resources and persistent-interface VRF changes |
+| `vslib/vpp/SwitchVppRif.cpp` | Modify | Apply/clear loopback actions, bind RIF OIDs, initialize counters, and roll back failed CREATE resources and persistent-interface settings |
 | `vslib/vpp/SwitchVpp.cpp` | Modify | Feature-aware capability reporting and `getRifStatsExt()` with initial/clear baselines and explicit query-error handling |
 | `vslib/vpp/SwitchVpp.h` | Modify | Declare action/counter helpers and `RifCreateState` transaction bookkeeping |
 | `vslib/vpp/VppInterfaceRegistry.h` / `.cpp` | Modify | Maintain a separate RIF-OID index and preserve backing port/LAG/VLAN identity |
 | `vslib/vpp/SwitchVppUtils.h` / `.cpp` | Modify | Status-returning feature query; cache successful results only |
-| `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | Modify | Loopback API reply/send helper using the canonical plugin message-ID base; `get_interface_vrf()` reuses the existing interface-table query |
+| `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | Modify | Loopback API helper; queries for prior VRF, MTU, admin, and MPLS settings, plus exact protocol-MTU restoration |
 | `vslib/vpp/SwitchVppFdb.cpp` | Modify | Apply the action on VLAN BVI CREATE and track acquired resources for rollback |
-| `unittest/vslib/TestSwitchVpp.cpp`, `TestVppInterfaceRegistry.cpp`, `Makefile.am` | Modify | Native production-path regression tests with isolated VPP API/host-network calls |
+| `unittest/vslib/TestSwitchVpp.cpp`, `TestSwitchVppRif.cpp`, `TestVppInterfaceRegistry.cpp`, `Makefile.am` | Modify | Separate native regression suites for interface state, RIF behavior, and registry bindings |
+| `unittest/vslib/MockVppXlate.cpp` / `.h` | Add | Shared C API wrappers, resettable mock state, and testable RIF host-operation overrides without mangled C++ linker symbols |
 
 ### sonic-mgmt
 
