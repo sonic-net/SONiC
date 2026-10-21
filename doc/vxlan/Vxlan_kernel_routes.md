@@ -1,6 +1,6 @@
 # Vxlan configs for CPU traffic
 # High Level Design Document
-### Rev 1.3
+### Rev 1.0
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -31,6 +31,7 @@
 | Rev |     Date    |       Author       | Change Description                |
 |:---:|:-----------:|:------------------:|-----------------------------------|
 | 0.1 |  11/25/2025 |  Bharath Veeranna  | Initial version                   |
+| 1.0 |  10/20/2026 |  Anish Narsian     | Update Vxlan Kernel pgm model     |
 
 
 # 2 Scope
@@ -128,7 +129,7 @@ This section describes the SONiC requirements for Vxlan kernel interface and rou
 
 ### Vnet Manager:
 A new component called VnetMgr will be introduced that will handle kernel programming for `VNET_ROUTE_TUNNEL` endpoints. 
-- VnetMgr should handle vxlan interface creation and deletion for routes defined in VNET_ROUTE_TUNNEL.
+- VnetMgr should program/remove the kernel neighbor, bridge FDB, route and inner-DMAC bypass for routes defined in VNET_ROUTE_TUNNEL, using the shared per-VNET `Vxlan<vni>`/`Brvxlan<vni>` devices created by vxlanmgrd.
 - VnetMgr should install/delete kernel routes for the  VTEP endpoints.
 - VnetMgr should subscribe to CONFIG_DB changes to VNET_ROUTE_TUNNEL and update the same in APPL_DB
 
@@ -239,7 +240,7 @@ A new config manager called VnetMgr will be added which will handle kernel route
 VnetMgr is a new config manager introduced to handle the config changes for `VNET_ROUTE_TUNNEL`. VnetMgr will do the following:
 
 - Subscribe for config changes to `VNET_ROUTE_TUNNEL`
-- Handle kernel interface and route (create and delete) if the routes have `install_on_kernel` flag is set.
+- Program/remove the kernel neighbor, FDB, route and inner-DMAC bypass (into the shared per-VNET `Vxlan<vni>`/`Brvxlan<vni>` devices created by vxlanmgrd) when the route has `install_on_kernel` flag set.
 - Publish the routes to APPL_DB
 
 The diagram below shows the flow for the route creation:
@@ -266,17 +267,21 @@ VNET_ROUTE_TUNNEL_TABLE:{{vnet_name}}:{{prefix}}
     "install_on_kernel": "true"
 ```
 
-the following linux kernel interface and routes will be added by the VnetMgr:
+the following linux kernel configuration will be programmed by VnetMgr (the shared `Vxlan{{vni}}`/`Brvxlan{{vni}}` devices are created by vxlanmgrd):
 
 ```
-sudo ip link add Vxlan{{route_vni}} address {{src_mac}} type vxlan id {{route_vni}} local {{tunnel_src_ip}} remote {{endpoint_ip_address}}
-sudo ip link set Vxlan_{{vnet_name}}_{{prefix}} vrf {{vnet_name}}
-sudo ip link set Vxlan_{{vnet_name}}_{{prefix}} up
-sudo ip route add {{prefix}} dev Vxlan_{{vnet_name}}_{{prefix}} vrf {{vnet_name}}
-
-(OPTIONAL: only if the prefix is /32 IPv4 or /128 IPv6, the MAC entry will be added)
-sudo ip neigh add {{prefix}} lladdr {{overlay_dmac_address}} dev Vxlan_{{vnet_name}}_{{prefix}}
+# Vxlan{{vni}} and Brvxlan{{vni}} are created by vxlanmgrd
+ip neigh replace {{endpoint_ip_address}} lladdr {{overlay_dmac_address}} dev Brvxlan{{vni}} nud permanent
+# "vni {{route_vni}}" is added only when it differs from the VNET VNI
+bridge fdb replace {{overlay_dmac_address}} dev Vxlan{{vni}} dst {{endpoint_ip_address}} [vni {{route_vni}}]
+bridge fdb replace {{overlay_dmac_address}} dev Vxlan{{vni}} master static
+ip route replace {{prefix}} via {{endpoint_ip_address}} dev Brvxlan{{vni}} vrf {{vnet_name}} onlink
+# inner-DMAC bypass
+tc qdisc replace dev Vxlan{{vni}} clsact
+tc filter replace dev Vxlan{{vni}} ingress matchall action pedit ex munge eth dst set {{vxlan_router_mac}}
 ```
+
+On delete, the route is removed; the neighbor, FDB and tc entries are removed when no longer referenced by other routes.
 
 ## 7.4 Orch Agent
 
@@ -294,10 +299,7 @@ VnetOrchagent handles the configurations associated with the VNET and the VxLAN 
 There are no changes to VNetRouteOrch. This orch agent performs the south-bound programming of the vnet routes in the NPU. 
 
 # 8 Limitations
-- Linux kernel allows only one vxlan interface per VNI. There can be at most one `VNET_ROUTE_TUNNEL` with a given  VNI and `install_on-kernel: true`. In other words, two routes having same VNI cannot have `install_on_kernel` flag set to true.
-- Kernel interface and routes will be created for `VNET_ROUTE_TUNNEL` only if the VNI specified in the route is differnet from the VNET's VNI. This is because, when VNET is created, there is a default vxlan interface created for the VNET using the VNI specified in the VNET. Hence when the the tunnel routes are created using the same VNI as the VNET, there is no need to create another interface with the same VNI (kernel will not accept new interface since there is already an interface with the same VNI).
-- If `VNET_ROUTE_TUNNEL` has overlay dmac specified, a static mac entry will be added in the kernel only if it is a /32 IPv4 or /128 IPv6 route. 
-
+- The remote inner mac : remote endpoint ip are considered 1:1 in a given vrf
 
 # 9 Configuration and management
 
@@ -477,13 +479,13 @@ The below testcases will be executed for both IPv4 and IPv6 routes.
 
 | Step | Goal | Expected results |
 |-|-|-|
-| Create a tunnel route with a /32 IPv4 or /128 IPv6 with install_on_kernel to true, specify overlay dmac in the route| Kernel route creation with static ARP/ND entry| Kernel vxlan interface and routes should be created with nexthop as the endpoint defined in the route. Static ARP/ND entry should be added for the route with the dmac mentioned in the route.|
-| Create a tunnel route which is not /32 IPv4 or /128 IPv6 address. Set install_on_kernel to true with overlay dmac specified in the route | Kernel route creation without static ARP/ND entry | Kernel routes will be created if the install_on_kernel is true. But the ARP/ND entry will not created since the route is not for /32 IPv4 or /128 IPv6 address|
-| Create a tunnel route without the install_on_kernel flag. After the route is created, update the route with install_on_kernel = true | Route update should install the kernel routes| When the route is created initially, the kernel should not have the vxlan interface and the routes. After the route is updated with the flag, verify if the kernel routes are created|
-| Create a tunnel route with install_on_kernel = true. Update the route to set install_on_kernel = false | Route update should delete the kernel routes and interfaces when the install_on_kernel is removed from the route| When the route is created initially, kernel should have a vxlan interface and routes. After the route is updated, the kernel interface and route should be removed |
-| Create a tunnel route with same VNI as the VNET and have install_on_kernel = true | Tunnel routes with same VNI as the VNET should not have additional kernel routes | If the tunnel route is having the same VNI as the VNET, then there is no additional kernel configs required. This is because the vxlan interface for the VNET's VNI is created during VNET creation| 
-| Create multiple routes using differnet VNIs on the same VNET and all of the routes are having install_on_kernel = true. All routes will have different VNIs and also different from VNET's VNI | Kernel should support multiple vxlan interfaces in the same VNET | Verify that each route get configured on the kernel with a unique vxlan interface and all the routes are programmed on the kernel |
-| Create multiple routes with same VNI (but different from VNET's VNI). Set install_on_kernel = true on all the routes | Kernel should have only one interface per VNI | Verify that the first route that is created will have kernel routes. Subsequent routes created will not have kernel interface or routes added |
+| Create a tunnel route with a /32 IPv4 or /128 IPv6 with install_on_kernel to true, specify overlay dmac in the route| Kernel route creation with static ARP/ND entry| Kernel route should be created via the endpoint on the `Brvxlan<vni>` device. Static ARP/ND and FDB entries should be added with the dmac mentioned in the route.|
+| Create a tunnel route which is not /32 IPv4 or /128 IPv6 address. Set install_on_kernel to true with overlay dmac specified in the route | Kernel route creation for a prefix route | Kernel route, ARP/ND and FDB entries should be created the same way as for host routes.|
+| Create a tunnel route without the install_on_kernel flag. After the route is created, update the route with install_on_kernel = true | Route update should install the kernel routes| When the route is created initially, the kernel should not have the route entries. After the route is updated with the flag, verify if the kernel routes are created|
+| Create a tunnel route with install_on_kernel = true. Update the route to set install_on_kernel = false | Route update should delete the kernel routes when the install_on_kernel is removed from the route| When the route is created initially, kernel should have the routes. After the route is updated, the kernel routes should be removed |
+| Create a tunnel route with same VNI as the VNET and have install_on_kernel = true | Tunnel routes with same VNI as the VNET are programmed on the kernel | The kernel routes should be created on the VNET's `Vxlan<vni>`/`Brvxlan<vni>` devices without an explicit `vni` on the FDB entry|
+| Create multiple routes using differnet VNIs on the same VNET and all of the routes are having install_on_kernel = true. All routes will have different VNIs and also different from VNET's VNI | Kernel should support routes with different VNIs in the same VNET | Verify that all the routes are programmed on the kernel with the per-route VNI on the FDB entry |
+| Create multiple routes with same VNI (but different from VNET's VNI). Set install_on_kernel = true on all the routes | Kernel should support multiple routes per VNI | Verify that all the routes are programmed on the kernel |
 | Delete tunnel routes that were created with install_on_kernel = true | Kernel config should be cleaned up after route delete | Verify that the kernel routes are deleted when the tunnel route config are removed |
 
 
@@ -533,11 +535,13 @@ Consider a sample config for a VNET `Vnet500` having VNI 5000.
 For the above config, since the tunnel route for prefix `100.100.100.2/32` has `install_on_kernel` set to true, the following kernel routes will be installed:
 
 ```
-sudo ip link add Vxlan4000 address 12:34:56:78:9a:bc type vxlan id 4000 local 10.2.146.116 remote 10.2.146.117 dstport 4789 
-sudo ip link set Vxlan4000 vrf Vnet5000
-sudo ip link set Vxlan4000 up
-sudo ip route add 100.100.100.2/32 dev Vxlan4000 vrf Vnet5000
-sudo ip neigh add 100.100.100.2/32 lladdr 00:12:34:56:78:9a dev Vxlan4000
+# Vxlan5000 and Brvxlan5000 are created by vxlanmgrd
+ip neigh replace 10.2.146.117 lladdr 00:12:34:56:78:9a dev Brvxlan5000 nud permanent
+bridge fdb replace 00:12:34:56:78:9a dev Vxlan5000 dst 10.2.146.117 vni 4000
+bridge fdb replace 00:12:34:56:78:9a dev Vxlan5000 master static
+ip route replace 100.100.100.2/32 via 10.2.146.117 dev Brvxlan5000 vrf Vnet5000 onlink
+tc qdisc replace dev Vxlan5000 clsact
+tc filter replace dev Vxlan5000 ingress matchall action pedit ex munge eth dst set 12:34:56:78:9a:bc
 ```
 
 Output of kernel configs:
@@ -547,40 +551,31 @@ admin@sonic:~$ show vnet routes all
 vnet name    prefix            nexthop    interface
 -----------  ----------------  ---------  -----------
 Vnet5000     100.100.100.0/24  0.0.0.0    Vlan100
-Vnet5000     100.100.100.2     0.0.0.0    Vxlan4000
 
-vnet name    prefix            endpoint      mac address          vni
------------  ----------------  ------------  -----------------  -----
-Vnet5000     100.100.100.2/32  10.2.146.117  00:12:34:56:78:9a   5000
-admin@sonic:~$ 
-
-admin@sonic:~$ sudo ip link show Vxlan4000
-214: Vxlan4000: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master Vnet5000 state UNKNOWN mode DEFAULT group default qlen 1000
-    link/ether 12:34:56:78:9a:bc brd ff:ff:ff:ff:ff:ff
+vnet name    prefix            endpoint      mac address          vni  status
+-----------  ----------------  ------------  -----------------  -----  --------
+Vnet5000     100.100.100.2/32  10.2.146.117  00:12:34:56:78:9a   4000  active
 admin@sonic:~$
 
-admin@sonic:~$ sudo ifconfig Vxlan4000
-Vxlan4000: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
-        inet6 fe80::1034:56ff:fe78:9abc  prefixlen 64  scopeid 0x20<link>
-        ether 12:34:56:78:9a:bc  txqueuelen 1000  (Ethernet)
-        RX packets 10616  bytes 667730 (652.0 KiB)
-        RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 9387  bytes 603940 (589.7 KiB)
-        TX errors 591  dropped 0 overruns 0  carrier 591  collisions 0
-
+admin@sonic:~$ ip -o link show Vxlan5000
+2601: Vxlan5000: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master Brvxlan5000 state UNKNOWN
 admin@sonic:~$
 
-admin@sonic:~$ sudo arp -a 
-? (100.100.100.2) at 00:12:34:56:78:9a [ether] PERM on Vxlan4000
+admin@sonic:~$ ip -o link show Brvxlan5000
+2602: Brvxlan5000: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master Vnet5000 state UP
 admin@sonic:~$
 
-admin@sonic:~$ sudo bridge fdb show | grep -i vxlan
-00:00:00:00:00:00 dev Vxlan4000 dst 10.2.146.117 self permanent
-00:12:34:56:78:9a dev Vxlan4000 dst 10.2.146.117 self
+admin@sonic:~$ ip neigh show dev Brvxlan5000
+10.2.146.117 lladdr 00:12:34:56:78:9a PERMANENT
+admin@sonic:~$
+
+admin@sonic:~$ sudo bridge fdb show dev Vxlan5000
+00:12:34:56:78:9a master Brvxlan5000 static
+00:12:34:56:78:9a dst 10.2.146.117 vni 4000 self permanent
 admin@sonic:~$
 
 admin@sonic:~$ ip route show vrf Vnet5000
-100.100.100.0/24 dev Vlan100 proto kernel scope link src 100.100.100.1 
-100.100.100.2 dev Vxlan4000 scope link
+100.100.100.0/24 dev Vlan100 proto kernel scope link src 100.100.100.1
+100.100.100.2 via 10.2.146.117 dev Brvxlan5000 onlink
 admin@sonic:~$
 ```
