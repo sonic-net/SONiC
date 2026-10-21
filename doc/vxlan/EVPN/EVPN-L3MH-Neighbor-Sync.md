@@ -21,6 +21,11 @@
   - [8.5 ZAPI messages (bgpd ↔ zebra)](#85-zapi-messages-bgpd--zebra)
 - [9. Requirements](#9-requirements)
 - [10. Configuration and Management](#10-configuration-and-management)
+  - [10.1 FRR command](#101-frr-command)
+  - [10.2 SONiC configuration modes](#102-sonic-configuration-modes)
+  - [10.3 CONFIG_DB](#103-config_db)
+  - [10.4 YANG model](#104-yang-model)
+  - [10.5 frrcfgd and template](#105-frrcfgd-and-template)
 - [11. SAI / Data-Plane Impact](#11-sai--data-plane-impact)
 - [12. Warm Boot / Fast Boot](#12-warm-boot--fast-boot)
 - [13. Restrictions and Limitations](#13-restrictions-and-limitations)
@@ -34,6 +39,7 @@
 |---|---|---|---|
 | 0.1 | 2026-09-09 | Patrice Brissette (Cisco) | Initial HLD |
 | 0.2 | 2026-10-07 | Patrice Brissette (Cisco) | Enable knob folded into `advertise-all-vni [l3vni-neigh]`; flag carried in `ZEBRA_ADVERTISE_ALL_VNI` (review feedback) |
+| 0.3 | 2026-10-21 | Patrice Brissette (Cisco) | Added the `BGP_GLOBALS_AF` field `advertise-all-vni-l3vni-neigh` (YANG, frrcfgd, template) so the token persists in frrcfgd mode (review feedback) |
 
 ---
 
@@ -47,9 +53,11 @@ be attached to **two or more** leaves (all members of the same Ethernet
 Segment); the mechanism scales to any number of segment members.
 
 The feature is realized in **FRRouting (FRR)**, the routing stack used by SONiC.
-SONiC consumes the resulting kernel neighbor and FDB state through its existing
-synchronization pipeline; there is no new SAI object and no ASIC-programming
-change. This document explains **what** the feature does and **why**. 
+SONiC consumes the synced kernel neighbor through its existing neighbor pipeline,
+and the sync-MAC pin through the same path as EVPN MH sync MACs; there is no new
+SAI object and no ASIC-programming change. The only SONiC change is one CONFIG_DB field so the setting persists in
+frrcfgd mode (see [section 10](#10-configuration-and-management)). This document
+explains **what** the feature does and **why**. 
 
 ---
 
@@ -76,6 +84,8 @@ change. This document explains **what** the feature does and **why**.
 | [draft-ietf-bess-evpn-l3mh-proto](https://datatracker.ietf.org/doc/draft-ietf-bess-evpn-l3mh-proto/) | **EVPN Layer-3 multihoming** — ARP/ND synchronization via RT-2. The IETF basis for this feature. |
 | [RFC 7432](https://datatracker.ietf.org/doc/html/rfc7432) | BGP MPLS-Based Ethernet VPN (base EVPN). |
 | [RFC 9135](https://datatracker.ietf.org/doc/html/rfc9135) | Integrated Routing and Bridging (IRB) in EVPN. |
+| [FRRouting/frr#23304](https://github.com/FRRouting/frr/pull/23304) | FRR implementation (bgpd, zebra, lib). |
+| [sonic-net/sonic-buildimage#30221](https://github.com/sonic-net/sonic-buildimage/pull/30221) | SONiC YANG model, frrcfgd and template support for `advertise-all-vni-l3vni-neigh`. |
 
 ---
 
@@ -180,7 +190,9 @@ bonds**, it programs:
    bond in the bridge FDB. This is needed because LAG hashing can mean this leaf
    *never* sees the host's frames on its own link; without the pin, routed
    delivery would have nowhere to send the rewritten packet. The pin sends it
-   straight out the correct bond.
+   straight out the correct bond. There is one pin per (MAC, VLAN), shared by
+   all synced neighbors of a dual-stack or multi-IP host, and it stays until the
+   last of them is withdrawn.
 
 Everything Layer-2 is **suppressed**: no VXLAN/remote-MAC state, no Inclusive
 Multicast (RT-3), no flood list. If the receiver's ESI does **not** match a local
@@ -197,13 +209,16 @@ dependency between config commands or between ZAPI messages. It is a
 
 - **Transmit:** authorizes originating the `label[0]=0` RT-2 for locally learned
   neighbors on no-L2VNI VLANs.
-- **Receive:** authorizes *honoring* a received `label[0]=0` RT-2. This is
-  required for standards-correct behavior — RFC 7432 treats the MAC/IP label as
-  mandatory, so an Explicit-NULL label is a signal a receiver must be
-  **explicitly enabled** to accept.
+- **Receive:** a received `label[0]=0` RT-2 is honored only when the token is
+  set. RFC 7432 makes the MAC/IP label mandatory, so with the token off the
+  route is **invalid** and nothing is programmed from it: no neighbor, no
+  sync-MAC, and **no IP import into the VRF** (no /32 or /128 host route).
 
-With the token absent, the box neither originates nor installs these routes,
-exactly as a standard EVPN speaker would behave.
+With the token absent, a feature-capable box neither originates these routes nor
+programs any part of a received one. The route stays in the BGP EVPN table, so
+turning the token on later installs it without a route refresh. A box without
+the feature does not recognize the signal (see
+[§13](#13-restrictions-and-limitations)).
 
 ---
 
@@ -263,7 +278,10 @@ sequenceDiagram
 ```
 
 Withdrawal is symmetric: when the neighbor is deleted or ages out on leaf1, the
-RT-2 is withdrawn and leaf2 removes the synced neighbor and the sync-MAC pin.
+RT-2 is withdrawn and leaf2 removes the synced neighbor. The sync-MAC pin is
+per (MAC, VLAN) and shared by all of the host's synced neighbors (for example
+its IPv4 and IPv6 addresses), so leaf2 removes the pin only when the host's last
+synced neighbor is withdrawn.
 
 ### 8.3 Ownership model
 
@@ -272,7 +290,7 @@ RT-2 is withdrawn and leaf2 removes the synced neighbor and the sync-MAC pin.
 | **FRR — bgpd** | Originate / receive the pure-L3 RT-2; decide "is this ESI local to me?"; drive the neighbor install/withdraw toward zebra. |
 | **FRR — zebra** | Program the **kernel neighbor** (ARP/ND) and the **local-ES sync-MAC** into the bridge FDB via netlink. Suppress all Layer-2 (VXLAN/FDB-flood/RT-3) state. |
 | **Linux kernel** | Hold the neighbor and FDB entries; **answer ARP/ND** from that state (FRR has no packet-level responder). |
-| **SONiC** | Consume the kernel neighbor/FDB through the **existing** neighbor and FDB sync pipeline. **No new SAI object, no ASIC-programming change.** |
+| **SONiC** | Consume the synced kernel neighbor through the **existing** neighbor pipeline. The sync-MAC pin is the same entry EVPN MH installs for an ES-peer MAC (static, on the local ES interface) and reaches the ASIC through the same path as EVPN MH sync MACs. **No new SAI object.** |
 
 Answering ARP/ND for same-subnet hosts, when desired, remains an external kernel
 / orchestrator concern (`proxy_arp` / `proxy_ndp`), exactly as in EVPN today —
@@ -289,7 +307,7 @@ small per-VLAN cache).
 | Structure | Extension | Purpose |
 |---|---|---|
 | `zebra_evpn` (per-VNI EVPN instance) | new flag **`ZEVPN_L3_NEIGH_SYNC`** | Marks the L3VNI-keyed instance as the shared **pure-L3 neighbor-sync** container — no FDB, no flood, no VXLAN. |
-| `zebra_neigh` (synced ARP/ND entry) | new fields **`eth_tag`** (owning VLAN/ETAG) and **`sync_mac_ifindex`** (local-ES pin) | Let one shared container serve many SVIs, and track the sync-MAC pin for cleanup. |
+| `zebra_neigh` (synced ARP/ND entry) | new fields **`eth_tag`** (owning VLAN/ETAG) and **`sync_mac_ifindex`** (local-ES pin) | Let one shared container serve many SVIs, and track the sync-MAC pin for cleanup (removed with the host's last synced neighbor). |
 | `zebra_evpn_access_bd` (access VLAN/BD) | new **`l3_mac_es_table`** — hash of *host MAC → local access port* (**new table**) | On a no-L2VNI VLAN there is no MAC table; this cache records which local bond a host MAC sits behind, so the RT-2 carries the correct **ESI**. |
 | `bgp` (EVPN default VRF) and `zebra_vrf` | new **`advertise_l3vni_neigh`** flag, set alongside `advertise_all_vni` | Stores the `l3vni-neigh` token in bgpd and zebra; set and cleared together with EVPN-enable. |
 
@@ -354,9 +372,8 @@ Here `VNI` is the **L3VNI** for a pure-L3 entry, the `flags` bit `0x80`
 for the local-segment match. DEL carries no `flags`, so a withdraw is resolved by
 lookup (`VNI` + `eth_tag` pick the VLAN, `IP` is the key).
 
-Because the MAC/IP encoding grows, the ZAPI version (`ZSERV_VERSION`) is bumped;
-bgpd and zebra must run the same version, and a mismatch simply leaves the
-feature inactive.
+Because the MAC/IP encoding grows, the ZAPI version (`ZSERV_VERSION`) is bumped.
+bgpd and zebra ship in the same FRR package, so their versions always match.
 
 ---
 
@@ -376,22 +393,29 @@ feature inactive.
    entry is the local-ES sync-MAC of requirement 2).
 6. `advertise-all-vni` alone (feature knob off) behaves exactly as before — no
    regression.
+7. With `l3vni-neigh` off, a received RT-2 with `label[0]=0` is treated as
+   invalid: nothing is programmed from it — no kernel neighbor, no sync-MAC, and
+   no IP host route in the VRF.
 
 **Coexistence**
 
-7. On a VLAN that **does** have an L2VNI, the L2VNI path wins: normal L2 EVPN
+8. On a VLAN that **does** have an L2VNI, the L2VNI path wins: normal L2 EVPN
    origination is used, and a received pure-L3 RT-2 still installs the neighbor
    only (never a MAC/FDB entry from that route).
 
 **Management**
 
-8. The feature is enabled/disabled by an optional `l3vni-neigh` token on the
+9. The feature is enabled/disabled by an optional `l3vni-neigh` token on the
    existing `advertise-all-vni` command; it gates both transmit and receive, and
    EVPN-enable and L3MH-enable are applied atomically.
+10. In frrcfgd mode (`frr_mgmt_framework_config=true`), the setting is stored in
+   CONFIG_DB and survives a bgp container restart, `config reload` and reboot.
 
 ---
 
 ## 10. Configuration and Management
+
+### 10.1 FRR command
 
 Configuration is an optional token on the existing `advertise-all-vni` command:
 
@@ -416,17 +440,82 @@ router bgp <asn>
 - State is visible through the existing EVPN show commands (the token, and the
   RT-2's `Label-1: 0` / Ethernet Tag / IP-VRF RT / ESI).
 
-No new SONiC CLI, YANG model, or Config DB table is required — the token lives in
-the FRR EVPN configuration that SONiC already renders.
+### 10.2 SONiC configuration modes
+
+| Mode | Where the token is stored |
+|---|---|
+| Split (`docker_routing_config_mode=split`) | In `frr.conf`. The operator enters `advertise-all-vni l3vni-neigh` in vtysh and saves it. No SONiC change is needed. |
+| frrcfgd (`frr_mgmt_framework_config=true`) | In CONFIG_DB, in the new `BGP_GLOBALS_AF` field below. frrcfgd applies it, and the frrcfgd template renders it into `frr.conf` at startup. |
+
+In frrcfgd mode, CONFIG_DB is the source of truth. A token typed only in vtysh
+would be lost on the next restart, because `frr.conf` is regenerated from
+CONFIG_DB. The token therefore needs its own CONFIG_DB field.
+
+### 10.3 CONFIG_DB
+
+One new field in the existing `BGP_GLOBALS_AF` table. No new table.
+
+```
+BGP_GLOBALS_AF|{{vrf_name}}|l2vpn_evpn
+    "advertise-all-vni"             : {{"true"|"false"}}   ; existing
+    "advertise-all-vni-l3vni-neigh" : {{"true"|"false"}}   ; new, default "false"
+```
+
+Example:
+
+```json
+"BGP_GLOBALS_AF": {
+    "default|l2vpn_evpn": {
+        "advertise-all-vni": "true",
+        "advertise-all-vni-l3vni-neigh": "true"
+    }
+}
+```
+
+| `advertise-all-vni` | `advertise-all-vni-l3vni-neigh` | FRR command |
+|---|---|---|
+| `true` | `true` | `advertise-all-vni l3vni-neigh` |
+| `true` | `false` or absent | `advertise-all-vni` |
+| `false` or absent | `false` or absent | `no advertise-all-vni` |
+
+### 10.4 YANG model
+
+New leaf in `BGP_GLOBALS_AF_LIST` of `sonic-bgp-global.yang`:
+
+```yang
+leaf advertise-all-vni-l3vni-neigh {
+    must "current() = 'false' or (current()/../afi_safi = 'l2vpn_evpn' and current()/../advertise-all-vni = 'true')" {
+        error-message "advertise-all-vni-l3vni-neigh requires advertise-all-vni on l2vpn_evpn";
+    }
+    type boolean;
+    description "EVPN L3 multihoming: sync host ARP/ND entries to ES peers as pure-L3 RT-2 routes over the L3VNI (advertise-all-vni l3vni-neigh)";
+}
+```
+
+The `must` rule allows `true` only on `l2vpn_evpn` with `advertise-all-vni` also
+`true`, because the FRR token is an option of `advertise-all-vni`.
+
+### 10.5 frrcfgd and template
+
+- **frrcfgd:** `advertise-all-vni` and `advertise-all-vni-l3vni-neigh` are
+  handled by one handler that sends one command for the combined state (table
+  in 10.3). They are not sent as two separate commands, because a bare
+  `advertise-all-vni` turns the token off in FRR and would undo it.
+- **Template:** `bgpd.conf.db.addr_family.evpn.j2` renders
+  `advertise-all-vni l3vni-neigh` when both fields are `true`, so the token is
+  restored when `frr.conf` is generated at startup.
+
+No new SONiC CLI or SAI change is required.
 
 ---
 
 ## 11. SAI / Data-Plane Impact
 
-**None.** This is a control-plane feature. Its output is ordinary kernel neighbor
-(`RTM_NEWNEIGH`) and bridge FDB entries, which SONiC already synchronizes to the
-ASIC through the existing neighbor/FDB pipeline. No new SAI attribute or object
-is introduced.
+**None.** This is a control-plane feature. The synced kernel neighbor
+(`RTM_NEWNEIGH`) reaches the ASIC through the existing neighbor pipeline. The
+sync-MAC pin is the same entry EVPN MH installs for an ES-peer MAC (static, on
+the local ES interface) and reaches the ASIC through the same path as EVPN MH
+sync MACs. No new SAI attribute or object is introduced.
 
 ---
 
@@ -450,9 +539,22 @@ neighbor state is restored today. There is no additional persistent database.
 - **Import granularity.** Until the ES-Import RT optimization is added, RT-2s are
   imported at whole-VRF granularity and non-local ESIs are discarded after
   import — correct, but broader fan-out in large fabrics.
-- **Mixed FRR versions.** Because the RT-2/ZAPI encoding is extended, both bgpd
-  and zebra must run the feature-capable version; a version mismatch simply
-  leaves the feature inactive.
+- **Mixed fabric with leaves that lack the feature.** An FRR build without this
+  feature does not recognize `label[0]=0` and imports the RT-2 as an ordinary
+  symmetric-IRB route, installing a /32 or /128 host route toward the
+  originating VTEP:
+  - an older leaf that is not a segment member sends traffic for the host only
+    to the originating leaf, while upgraded leaves do not install the route and
+    keep using the subnet route;
+  - an older leaf that is a segment member installs a host route more specific
+    than its local subnet, so traffic hairpins through the fabric instead of
+    leaving on the local bond.
+
+  Upgrade every leaf in the VRF before enabling `advertise-all-vni l3vni-neigh`.
+- **CONFIG_DB field needs a feature-capable FRR.** If
+  `advertise-all-vni-l3vni-neigh` is `true` on an image whose FRR does not have
+  the token, FRR rejects the whole `advertise-all-vni l3vni-neigh` command, so
+  EVPN is not enabled either. Leave the field unset on such images.
 
 ---
 
@@ -460,6 +562,18 @@ neighbor state is restored today. There is no additional persistent database.
 
 Validation is done at the **control-plane and kernel-state** level in the FRR
 EVPN multihoming test suite: the ES-peer leaf installs the synced neighbor and
-sync-MAC, the non-member leaf installs nothing, and coexistence with an L2VNI
-installs the neighbor without a MAC/FDB entry. Detailed test cases and the
+sync-MAC, the non-member leaf installs nothing, a leaf with the token off
+installs nothing (no neighbor, no sync-MAC, no host route in the VRF), and
+coexistence with an L2VNI installs the neighbor without a MAC/FDB entry. Detailed test cases and the
 implementation plan are tracked outside this document.
+
+SONiC configuration (frrcfgd mode) is covered by unit tests in sonic-buildimage:
+
+- **YANG model tests:** the field accepts `true` and `false`; it rejects `true`
+  without `advertise-all-vni`, `true` on an address family other than
+  `l2vpn_evpn`, and an invalid value.
+- **frrcfgd tests:** each change to the two fields (enable, disable, toggle the
+  token, delete) sends exactly the one expected FRR command.
+- **On a switch:** set the field in CONFIG_DB and check that
+  `show running-config bgpd` shows `advertise-all-vni l3vni-neigh`. Restart the
+  bgp container and check that the line is still there.
