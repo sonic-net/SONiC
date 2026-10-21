@@ -502,6 +502,8 @@ the actual VPP settings. Failure restores the previous values, including all fou
 MTUs, rather than assuming defaults. Query and setter errors abort creation. Deferred child
 admin-up requests are replayed only after the parent CREATE commits; deleting an owned
 sub-interface during rollback also removes its pending admin request.
+MPLS requests that match the captured enabled state do not call VPP's reference-counted
+enable/disable API, avoiding extra references or a disable at zero.
 A successful default-VRF CREATE binds table 0 if the persistent interface is still in another
 table. VRF lookup/programming failures abort creation; rollback API failures are logged and
 reported as failures, not silently treated as successful cleanup.
@@ -568,16 +570,18 @@ observed loopback-node drops only in DROP mode. These results predate the re-por
 plugin feature framework and `VppInterfaceRegistry`; they are not a fresh full-module pass for
 the current PR revisions.
 
-The current SAI changes have a native VPP-enabled build and 35 focused C++ tests passing,
+The current SAI changes have a native VPP-enabled build and 36 focused C++ tests passing,
 including the six upstream deferred sub-interface admin-state tests.
 Coverage includes feature enabled/disabled/query-error handling, capability reporting, RIF-OID
 lifecycle, stats baselines/reset/error paths, metadata counter injection, and failed-CREATE
 cleanup. VRF regressions exercise port and LAG failures after table binding, restoration of a
 nonzero prior table, a subsequent default-VRF CREATE, and lookup/setter failures.
-Five additional regressions cover exact MTU/MPLS/admin restoration after failed PORT/LAG
-CREATE, query/setter errors, and deferred-admin cleanup and replay. An isolated VPP process
+Six additional regressions cover exact MTU/MPLS/admin restoration after failed PORT/LAG
+CREATE, query/setter errors, matching MPLS requests and reference counts, and deferred-admin
+cleanup and replay. An isolated VPP process
 also verified the real MTU/admin/MPLS query and restoration APIs, link-state compatibility,
-and invalid-interface error handling.
+and invalid-interface error handling. It also confirmed that repeated MPLS enables require
+matching disables, which the reference-counting test mock reproduces.
 
 A fresh image containing the SAI changes is still needed for the complete
 `iface_loopback_action` integration run, including flap and cold reboot. The native tests
@@ -664,7 +668,8 @@ The current validation scope, including the remaining live-DUT run, is recorded 
 | `vslib/vpp/SwitchVppUtils.h` / `.cpp` | Modify | Status-returning feature query; cache successful results only |
 | `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | Modify | Loopback API helper; queries for prior VRF, MTU, admin, and MPLS settings, plus exact protocol-MTU restoration |
 | `vslib/vpp/SwitchVppFdb.cpp` | Modify | Apply the action on VLAN BVI CREATE and track acquired resources for rollback |
-| `unittest/vslib/TestSwitchVpp.cpp`, `TestSwitchVppRif.cpp`, `TestVppInterfaceRegistry.cpp`, `Makefile.am` | Modify | Separate native regression suites for interface state, RIF behavior, and registry bindings |
+| `unittest/vslib/TestSwitchVpp.cpp`, `Makefile.am` | Modify | Retain upstream interface-state tests and conditionally link the split VPP test modules |
+| `unittest/vslib/TestSwitchVppRif.cpp`, `TestVppInterfaceRegistry.cpp` | Add | Separate native regression suites for RIF behavior and registry bindings |
 | `unittest/vslib/MockVppXlate.cpp` / `.h` | Add | Shared C API wrappers, resettable mock state, and testable RIF host-operation overrides without mangled C++ linker symbols |
 
 ### sonic-mgmt
