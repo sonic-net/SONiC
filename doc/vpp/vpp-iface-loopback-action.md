@@ -199,19 +199,30 @@ SONiC-specific VPP extensions in one plugin.
 
 ### 4.5 Compatibility and impact
 
-The feature is **purely additive** and opt-in per interface:
+The dataplane loopback check is additive and opt-in per interface. The accompanying saivpp
+counter and CREATE changes also affect RIFs that do not configure `DROP`:
 
 - The default action is `FORWARD`, which leaves the `sonic-ext-ip4-loopback`/`sonic-ext-ip6-loopback`
   node **disabled** on the interface's output arc. Interfaces without `loopback-action drop` pay
-  **zero** per-packet cost and see no change in forwarding or counters.
-- No existing VPP node, arc, default, or counter is modified; only two new nodes and a new binary API
-  are added to the `sonic_ext` plugin, plus a new saivpp handler. There is no ABI/CRC or
+  **zero** loopback-node per-packet cost, no forwarding change from this check, and no
+  loopback-node counter increments. This does not mean their SAI RIF counters remain zero.
+- No existing VPP node, arc, default, or counter definition is modified; two new nodes and a new
+  binary API are added to the `sonic_ext` plugin. There is no ABI/CRC or
   submodule-ordering concern beyond the `VPP_VERSION` bump (§7.1), because no existing message or core
   header changes.
 - Per-interface state is one `u8` in a vector indexed by `sw_if_index`, so there is no scaling concern
   with port/RIF count.
 - The drop decision is interface-identity based (`VLIB_RX == VLIB_TX`), independent of VRF and IP, so
   duplicate addresses across VRFs do not affect it.
+- `getRifStatsExt()` exposes real VPP-backed packet, byte, and error counters for all backed
+  PORT/LAG, SUB_PORT, and VLAN RIFs, not just those using loopback action. Counter consumers now
+  see baseline-relative values rather than the previous zero values; creation and clear epochs,
+  query failures, and parent/sub-interface overlap are described in §7.4.
+- RIF CREATE is transactional regardless of loopback action (§7.6). Interface programming,
+  registration, and the initial counter snapshot must succeed before the SAI object is committed.
+  Failures unwind newly acquired resources and restore changed persistent-interface settings
+  (IPv4 VRF, protocol MTUs, admin state, and the CREATE's own MPLS mutation). These are general
+  RIF lifecycle changes, not conditional on enabling the loopback nodes.
 
 ---
 
@@ -249,9 +260,11 @@ End-to-end mapping:
 | saivpp | `SwitchVppRif` -> `SaiVppXlate` (§6, §7.6) |
 | VPP | `sonic_ext_iface_loopback_set_action { sw_if_index, action }` (§7.5) |
 
-The per-interface action needs no plugin-side persistence across reboots: orchagent re-applies it from
-CONFIG_DB (cold/fast boot) or syncd replays it from ASIC_DB (warm boot), re-issuing the RIF set to
-saivpp. `test_loopback_action_reload` uses **cold** reboot by default (§8.1).
+The intended restoration paths need no plugin-side persistence: orchagent re-applies the action from
+CONFIG_DB (cold/fast boot), or syncd replays it from ASIC_DB (warm boot), re-issuing the RIF operation
+to saivpp. **Warm-boot replay has not been validated for this feature on VPP**; it is an expected
+restoration path, not a verified result. `test_loopback_action_reload` uses **cold** reboot by
+default (§8.1); the current validation limits are recorded in §8.4.
 
 ---
 
@@ -340,6 +353,16 @@ VNET_FEATURE_INIT (sonic_ext_ip4_loopback_feat, static) = {
 };
 ```
 
+The IPv6 registration has the same constraint on `ip6-output`. The loopback nodes require ordering
+before `interface-output`, but specify no relative priority against egress ACLs or other features
+on the same IP output arc. Their relative order follows VPP's feature graph; this design does not
+promise ACL-before-loopback or loopback-before-ACL. A packet dropped by an earlier feature never
+reaches the loopback check and does not increment its `tx-error`; a loopback drop bypasses later
+output features. In contrast, nodes on the subsequent `interface-output` arc, such as
+`sonic-ext-egress-mirror` and `sonic-ext-copp-ifout`, run after this check and cannot see packets
+dropped here. Any feature that changes the RIF identity before this check must preserve the §7.3
+identity condition or require an explicit ordering dependency.
+
 The node is enabled on an interface's `ip4-output`/`ip6-output` arcs **only while its action is
 `DROP`** (enable on the `FORWARD`→`DROP` transition, disable on `DROP`→`FORWARD`; repeated same-action
 requests are a no-op because VPP's feature enable/disable is ref-counted), so there is zero
@@ -406,6 +429,17 @@ corresponding `SAI_ROUTER_INTERFACE_STAT_*` counters; `tx-error` maps to
 `SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS`. RIF types without a backing VPP interface return
 zero counters without allocating a baseline.
 
+**Ingress-side accounting.** VPP's `error-drop` path also increments
+`/interfaces/<rx>/drops` using `VLIB_RX`, including the super-interface's `drops` for a
+sub-interface. A hairpin therefore increments both `tx-error` and `drops` on its backing
+interface, but these are two views of the same discarded packet, not two packet losses.
+`SaiIntfStats.c::handle_stat_one()` keeps `drops` and `rx-error` separate, and `queryRifStats()`
+maps only `rx-error` to `SAI_ROUTER_INTERFACE_STAT_IN_ERROR_PACKETS`; it does not map `drops`
+into a SAI RIF counter. Thus the expected loopback-drop delta is one
+`SAI_ROUTER_INTERFACE_STAT_OUT_ERROR_PACKETS` and no increment of
+`SAI_ROUTER_INTERFACE_STAT_IN_ERROR_PACKETS` from this drop. The generic ingress `drops`
+increment must not be interpreted as an additional SAI RIF RX error.
+
 `initializeRifStats()` snapshots these counters at RIF creation, so a new port/LAG RIF does not
 inherit traffic from an earlier RIF on the same persistent interface. READ_AND_CLEAR returns the
 delta from the previous baseline and advances only the requested counters' baselines. A detected
@@ -468,11 +502,20 @@ Repeated same-action requests are a no-op (VPP feature enable/disable is ref-cou
    `PORT`/`SUB_PORT` whose `PORT_ID` is a LAG. (The SAI RIF `TYPE_LOOPBACK` is a different, unrelated
    concept — see §3.1 — and is not exercised here.)
 3. Reject actions other than `FORWARD`/`DROP` with `SAI_STATUS_NOT_SUPPORTED`. Query
-   `sonicExtFeatureEnabled("iface-loopback", enabled)`; query errors fail the operation. If the
-   feature is explicitly disabled, skip the plugin call (capability is also false, §6.3).
+   `sonicExtFeatureEnabled("iface-loopback", enabled)`; query errors fail the operation.
+   With the feature explicitly disabled, neither action sends a plugin call: `FORWARD` may
+   return `SAI_STATUS_SUCCESS` as a no-op, but `DROP` must return `SAI_STATUS_NOT_SUPPORTED`,
+   without committing the requested action. Capability is also false (§6.3), but capability
+   reporting alone does not enforce this CREATE/SET contract.
    Otherwise map `SAI_PACKET_ACTION_FORWARD` -> `0`, `SAI_PACKET_ACTION_DROP` -> `1`.
 4. Resolve the hwif name to a `sw_if_index` with the existing `get_swif_idx()` helper and send the
    message (see §7.7).
+
+`vpp_apply_loopback_action()` enforces the disabled-feature status in the adapter correction in
+[sonic-net/sonic-sairedis#2144](https://github.com/sonic-net/sonic-sairedis/pull/2144).
+CREATE propagates a rejected `DROP` without committing the SAI object, and SET returns before
+updating the stored action. `FORWARD` remains a successful no-op. The merged baseline and
+follow-up validation are distinguished in §8.4.
 
 **API helper** (`vslib/vpp/vppxlate/SaiVppXlate.c` / `.h`), following the `tunterm_acl` /
 `set_ip_flow_hash_v2` binding pattern:
@@ -573,7 +616,8 @@ observed loopback-node drops only in DROP mode. These results predate the re-por
 plugin feature framework and `VppInterfaceRegistry`; they are not a fresh full-module pass for
 the current PR revisions.
 
-The current SAI changes have a native VPP-enabled build and 37 focused C++ tests passing,
+The SAI baseline merged through sonic-net/sonic-sairedis#1983 (PR head `3aece9f5`) has a native
+VPP-enabled build and 37 focused C++ tests passing,
 including the six upstream deferred sub-interface admin-state tests.
 Coverage includes feature enabled/disabled/query-error handling, capability reporting, RIF-OID
 lifecycle, stats baselines/reset/error paths, metadata counter injection, and failed-CREATE
@@ -586,10 +630,23 @@ also verified the real MTU/admin/MPLS query and restoration APIs, link-state com
 and invalid-interface error handling. It also confirmed that repeated MPLS enables require
 matching disables, which the reference-counting test mock reproduces.
 
+The follow-up in
+[sonic-net/sonic-sairedis#2144](https://github.com/sonic-net/sonic-sairedis/pull/2144)
+additionally returns the default `FORWARD` on GET when the action was omitted at CREATE, and
+rejects disabled-feature `DROP` with `SAI_STATUS_NOT_SUPPORTED` instead of the baseline's successful
+no-op. These corrections are not present in baseline `3aece9f5`. Follow-up revision `fa67bc84`,
+based on upstream `75804e2d`, passed a full native VPP-enabled build, all 39 selected VPP tests in
+shuffled order (seed 1983), and the five source checks. The disabled-feature helper regression and the new
+CREATE/SET regression both failed before the disabled-feature correction. The latter covers all
+five RIF shapes, rejected CREATE cleanup, unchanged stored attributes after rejected SET,
+explicit/omitted `FORWARD`, and no loopback API calls while disabled.
+
 A fresh image containing the SAI changes is still needed for the complete
 `iface_loopback_action` integration run, including flap and cold reboot. The native tests
 mock VPP APIs and RIF host operations; neither these tests nor the isolated API check
-replaces that live-DUT validation.
+replaces that live-DUT validation. The ingress-side counter expectations in §7.4 are derived
+from the VPP drop path and SAI mapping, not a fresh runtime measurement; a focused check should
+compare `tx-error`, `drops`, and `rx-error` deltas as well as the SAI RIF error counters.
 
 ---
 
