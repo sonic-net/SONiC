@@ -140,13 +140,7 @@ Renovate runs as the hosted GitHub App. Nothing is installed on build machines. 
 
 A repository adopts Renovate through a change that adds its `renovate.json`, reviewed like any other. Renovate's own onboarding pull request ("Configure Renovate") is never merged: it carries `config:recommended` alone, without the shared preset, the reviewers or the patched-module rules, and it leaves Dependabot running.
 
-| Installation | Behavior in a repository without a `renovate.json` |
-|--------------|-----------------------------------------------------|
-| All repositories, Silent mode (the default for that choice) | Nothing. No pull requests and no issues |
-| All repositories, Interactive mode | An onboarding pull request |
-| Selected repositories | An onboarding pull request, always |
-
-The organization therefore runs the app on all repositories in Silent mode, and switches each repository to Interactive mode in the Mend developer portal once its `renovate.json` has merged. An onboarding pull request that is already open is closed without merging.
+The app is installed on all repositories, and opens an onboarding pull request in each one without a `renovate.json`. Each onboarding pull request is closed without merging. Renovate does not reopen one that was closed unmerged, and picks a repository up on its next run once the repository's own `renovate.json` merges. A repository created later gets its own onboarding pull request, closed the same way.
 
 The repositories that are mostly Go come first: `sonic-mgmt-common` and `sonic-gnmi`. Renovate takes every manager in [7.2](#72-native-managers) in them, not only `gomod`.
 
@@ -612,14 +606,13 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 | 3 | Each repository's administrators | Leave Dependabot alerts on, and turn Dependabot security updates off. See [7.8](#78-existing-automation) |
 | 4 | `sonic-pipelines` maintainers | Merge `renovate/default.json` and the `automation-pr-scan.yml` change: the Renovate author filter, and the check evaluation in [7.6](#76-approval-and-merge). Add each Renovate repository to the robot's `repos` parameter if it is not already listed |
 | 5 | Organization administrator | Where branch protection applies to administrators, allow `mssonicbld` to bypass required pull requests on the branches Renovate targets ([7.6](#76-approval-and-merge)) |
-| 6 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts. In the Mend developer portal, set the organization to Silent mode ([7.1](#71-installation-scope)), and close any onboarding pull requests without merging |
+| 6 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)) |
 | 7 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers) |
-| 8 | Organization administrator | In the Mend developer portal, switch the repository to Interactive mode |
-| 9 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
+| 8 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
 
-Renovate opens nothing in a repository until steps 7 and 8. Steps 1 to 5 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot.
+Renovate opens nothing in a repository but its onboarding pull request until step 7. Steps 1 to 5 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot.
 
-A later repository repeats steps 2 (the team's Read access), 3, 5, 7, 8 and 9.
+A later repository repeats steps 2 (the team's Read access), 3, 5, 7 and 8, and closes its onboarding pull request if one is open.
 
 | Action | Effect |
 |--------|--------|
@@ -705,7 +698,7 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 
 | # | Item | Touches | Suggested owner |
 |---|------|---------|-----------------|
-| 1 | Run the Renovate app on all `sonic-net` repositories in Silent mode, switch each adopting repository to Interactive mode, and close onboarding pull requests unmerged | Organization settings, Mend developer portal | Organization administrators |
+| 1 | Install the Renovate app on all `sonic-net` repositories, and close its onboarding pull requests unmerged | Organization settings | Organization administrators |
 | 2 | Create the `sonic-security-wg` team, as set out in [7.7](#77-reviewers) | Organization settings | Organization administrators, Security WG |
 | 3 | Give `renovate[bot]` and `github-actions[bot]` the EasyCLA treatment `mssonicbld` has | EasyCLA configuration | SONiC Foundation EasyCLA administrators |
 | 4 | Land the merge robot check evaluation in [7.6](#76-approval-and-merge). Prerequisite for the `automerge` label | `sonic-pipelines` | `sonic-pipelines` maintainers, Security WG |
