@@ -39,7 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
-| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, and the robot commit check. |
 
 ### 2. Scope
 
@@ -166,10 +166,10 @@ Such a repository carries a workflow that runs on Renovate pull requests:
 | Step | Work |
 |------|------|
 | 1 | Check out the repository, and the replaced repository beside it at the pull request's base branch, as its CI pipeline does |
-| 2 | Run `go mod tidy`, and push any change to `go.mod` and `go.sum` to the Renovate branch as `github-actions[bot]` |
+| 2 | Run `go mod tidy`, and commit any change to `go.mod` and `go.sum` to the Renovate branch through the GitHub API, as `github-actions[bot]` |
 | 3 | Dispatch the repository's GitHub Actions checks on the new commit |
 
-A push made with `GITHUB_TOKEN` starts no workflow runs, and `workflow_dispatch` is the exception, so step 3 dispatches them. A check that also builds the replaced repository takes its branch as a dispatch input. The workflow needs no secret. `renovate.json` lists `github-actions[bot]` in `gitIgnoredAuthors`, so Renovate keeps rebasing the branch, and suppresses Renovate's artifact error comments, which every such pull request would otherwise carry.
+A commit made through the API is signed by GitHub, which the merge robot requires of every commit on a Renovate pull request ([7.6](#76-approval-and-merge)); a `git push` would leave it unsigned. A commit made with `GITHUB_TOKEN` starts no workflow runs, and `workflow_dispatch` is the exception, so step 3 dispatches them. A check that also builds the replaced repository takes its branch as a dispatch input. The workflow needs no secret. `renovate.json` lists `github-actions[bot]` in `gitIgnoredAuthors`, so Renovate keeps rebasing the branch, and suppresses Renovate's artifact error comments, which every such pull request would otherwise carry.
 
 `go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local`, and fails instead of pushing when the directive changes, so the pull request shows that the update needs a newer build container.
 
@@ -330,7 +330,7 @@ With `separateMajorMinor` and `separateMinorPatch`, Renovate also splits each gr
 
 #### 7.5 Branch policy
 
-`202611` is the first release branch in scope. Older release branches carry no Renovate rules.
+Release branches from `202611` on are in scope. One pattern matches them, so a new release branch needs no change to the preset. Older release branches carry no Renovate rules. When a release branch reaches end of life, the pattern's lower bound moves past it.
 
 | Update | `master` | Release branch |
 |--------|----------|----------------|
@@ -373,6 +373,8 @@ A security update that needs a major version opens with the `security` label alo
 
 **Release branch rules.** Before a lookup, Renovate does not yet know the update type, and a rule that disables a dependency at that stage removes it before any later rule can re-enable it. The release branch rules therefore disable every manager except `custom.regex` up front, and then disable `custom.regex` majors once the update type is known. A custom manager on the `go` datasource is disabled too, because the `go.mod` it moves with only takes security updates on a release branch. A security update overrides all three.
 
+**Release age.** The preset holds every update until its release is 7 days old, so a release that is withdrawn or compromised soon after publication is not proposed. A security update is not held, because `vulnerabilityAlerts` resets `minimumReleaseAge`.
+
 #### 7.6 Approval and merge
 
 Renovate cannot approve its own pull requests. The existing merge robot merges them.
@@ -403,11 +405,14 @@ Robot check evaluation is a prerequisite for the `automerge` label. For a Renova
 | A check that succeeded, was skipped, or was neutral | Passes |
 | A commit status (legacy status context) other than success | Not merged |
 | An empty check list | Not merged |
+| A commit not signed by GitHub, or authored by anyone but the Renovate bot or `github-actions[bot]` | Not merged |
 | A required status check of the base branch that has not reported | Not merged |
 | No SONiC build check (`Azure.sonic-*` or `sonic-net.sonic-*`) has reported | Not merged |
 | The head commit moved after the checks were read | Not merged |
 | A check named `vulnerability scan` | Evaluated |
 | A check named `OPTIONAL` | Skipped |
+
+The labels and the pull request author do not say who wrote the commits, and anyone with write access can push to a Renovate branch. The robot therefore reads every commit on the pull request. GitHub signs a commit the Renovate bot makes through its API, and a `go.sum` fixup made the same way. It does not sign a pushed commit, whatever author the commit names.
 
 The robot reads the base branch's required status checks from the branch API, so a merge never waits on a check list kept in the robot. The build check covers a branch that requires only `EasyCLA`, where the build might not yet have registered when the robot runs. The robot's evaluation of every other pull request is unchanged. The strict evaluation lands in the same `sonic-pipelines` change as the preset, so no Renovate pull request carries the label before it. Both labels are required, so a stray `automerge` label on an ordinary Renovate pull request merges nothing.
 
@@ -470,7 +475,7 @@ Three pipelines already keep parts of the tree current, all acting as `mssonicbl
 |------|---------------|--------|
 | Dependabot alerts | On | Renovate reads them for GitHub's vulnerability data |
 | Dependabot security updates | Off | Each vulnerability would get a pull request from both bots |
-| Dependabot version updates (`.github/dependabot.yml`) | Removed in the change that adds `renovate.json` | Renovate does the same work. A cooldown it set carries over as `minimumReleaseAge` |
+| Dependabot version updates (`.github/dependabot.yml`) | Removed in the change that adds `renovate.json` | Renovate does the same work. The preset's `minimumReleaseAge` replaces a cooldown it set |
 
 Open Dependabot pull requests are closed once Renovate runs; Renovate opens its own.
 
@@ -532,7 +537,7 @@ The preset:
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": "Shared Renovate preset for sonic-net repositories. See doc/security/dependency-hygiene.md in sonic-net/SONiC.",
   "extends": ["config:recommended"],
-  "baseBranchPatterns": ["master", "/^202611$/"],
+  "baseBranchPatterns": ["master", "/^(20261[12]|20(2[7-9]|[3-9][0-9])(0[1-9]|1[0-2]))$/"],
   "reviewers": ["team:sonic-security-wg"],
   "dependencyDashboard": true,
   "osvVulnerabilityAlerts": true,
@@ -548,6 +553,11 @@ The preset:
   },
   "packageRules": [
     {
+      "description": "Wait 7 days after a release before proposing it. Security updates are not delayed",
+      "matchPackageNames": ["*"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
       "description": "Group patch and minor updates per ecosystem on master",
       "matchBaseBranches": ["master"],
       "matchUpdateTypes": ["patch", "minor"],
@@ -561,20 +571,20 @@ The preset:
     },
     {
       "description": "Release branches take security updates, and hand-pinned versions, only",
-      "matchBaseBranches": ["/^202611$/"],
+      "matchBaseBranches": ["/^(20261[12]|20(2[7-9]|[3-9][0-9])(0[1-9]|1[0-2]))$/"],
       "matchManagers": ["!custom.regex"],
       "enabled": false
     },
     {
       "description": "A hand-pinned major update is not opened on a release branch",
-      "matchBaseBranches": ["/^202611$/"],
+      "matchBaseBranches": ["/^(20261[12]|20(2[7-9]|[3-9][0-9])(0[1-9]|1[0-2]))$/"],
       "matchManagers": ["custom.regex"],
       "matchUpdateTypes": ["major"],
       "enabled": false
     },
     {
       "description": "A module version a Makefile names moves with go.mod, which a release branch updates only for security",
-      "matchBaseBranches": ["/^202611$/"],
+      "matchBaseBranches": ["/^(20261[12]|20(2[7-9]|[3-9][0-9])(0[1-9]|1[0-2]))$/"],
       "matchManagers": ["custom.regex"],
       "matchDatasources": ["go"],
       "enabled": false
@@ -663,13 +673,15 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Configuration is valid | `npx --yes --package renovate -- renovate-config-validator` in CI on every change to a `renovate.json` or the preset |
 | Custom managers match the right lines | A Renovate run against a fork finds `DOCKER_VERSION`, `CONTAINERD_IO_VERSION`, `OTEL_VERSION`, `FIPS_GOLANG_VERSION` and the `rustup` toolchain, and nothing else |
 | Custom managers write the right value | In that run, each pushed branch's diff keeps the `~$IMAGE_DISTRO` suffix, `containerd.io` tracks its own package, and the new version exists in the apt index |
-| Release branch rules hold | A run against `202611` proposes security updates and hand-pinned patch and minor updates only |
+| Release branch rules hold | A run against a release branch from `202611` on proposes security updates and hand-pinned patch and minor updates only |
 | Grouping is correct | A run against `master` proposes one pull request per ecosystem per update type, and majors one per dependency |
 | A major security update is not labeled `automerge` | A run against a fork pinned to a vulnerable version whose fix needs a major bump opens a pull request with the `security` label alone |
 | A `Makefile` version moves with `go.mod` | The `Makefile` custom manager matches only the module versions the `Makefile` copies into `vendor/`, and its update lands in the same pull request as the `go.mod` one |
 | Patched modules wait for approval | The Dependency Dashboard lists each patched module under pending approval, and no pull request opens for it |
-| The `go.sum` workflow produces a tidy module | With the replaced repository checked out beside it, `go mod tidy` after a Renovate bump leaves a `go.sum` the build accepts. On a Renovate pull request, the pushed commit is followed by dispatched runs of each GitHub Actions check |
+| The `go.sum` workflow produces a tidy module | With the replaced repository checked out beside it, `go mod tidy` after a Renovate bump leaves a `go.sum` the build accepts. On a Renovate pull request, the fixup commit is signed by GitHub, and is followed by dispatched runs of each GitHub Actions check |
 | Robot check evaluation | The evaluation function, run against each case in [7.6](#76-approval-and-merge) and against the check list and required checks of a live bot pull request, passes only when every check has completed successfully, every required check has reported, and a build check is present. A list holding only `EasyCLA` does not pass |
+| Robot commit check | The robot declines a Renovate pull request carrying a pushed commit, including one that names the Renovate bot as its author, and merges one whose commits are all GitHub-signed commits from the Renovate bot and `github-actions[bot]` |
+| Release age | An ordinary update younger than 7 days is not proposed. A security update of the same age is |
 | Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request |
 | The `go` directive is never raised | A `go.sum` workflow run on a bump that needs a newer Go fails, and pushes nothing |
 
