@@ -21,7 +21,7 @@
 ### Revision
 | Rev | Date       | Author           | Change Description |
 |:---:|:----------:|:-----------------|:--------------------|
-| 1.0 | 09/29/2025 | Shiyan Wang (bingwang-ms) | Initial revision |
+| 1.0 | 09/29/2026 | Shiyan Wang (bingwang-ms) | Initial revision |
 
 ## About this Manual
 This document describes a mechanism to inject arbitrary SAI profile
