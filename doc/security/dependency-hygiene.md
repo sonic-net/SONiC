@@ -39,6 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. |
 
 ### 2. Scope
 
@@ -48,6 +49,7 @@ In scope:
 
 - Dependencies declared in a checked-in manifest: `go.mod`, `Cargo.toml`, `requirements.txt`, `setup.py`, GitHub Actions workflows, Dockerfiles.
 - Versions SONiC pins by hand in its own build scripts, such as Docker and the OpenTelemetry Collector.
+- Modules a repository patches at build time. Their ordinary updates wait for approval on the Dependency Dashboard. See [7.3](#73-hand-pinned-versions).
 - Which updates open a pull request, how those pull requests are grouped, and which ones merge without a person.
 
 Out of scope:
@@ -57,7 +59,8 @@ Out of scope:
 | The Linux kernel | Each bump needs a config refresh and out-of-tree module rebuilds on every platform |
 | Stock Debian packages | The nightly version freeze pipeline moves them. See [7.8](#78-existing-automation) |
 | Debian packages SONiC rebuilds from pinned sources | Re-pinning a git commit or a FIPS build is a judgment call. SBOM-driven triage covers them |
-| Locally patched components | A version bump conflicts with the patch series |
+| Components SONiC builds from source with a local patch series | A version bump conflicts with the patch series |
+| The Go version | The build container sets it. See [7.2](#72-native-managers) |
 | Removing unused dependencies | Owned by the [202611 EOL and deprecation plan](../eol-planning/202611-eol-and-deprecation.md) |
 
 The design changes no runtime code.
@@ -92,6 +95,7 @@ Each source of third party code has one owner:
 | Submodule commits | `sonic-buildimage` submodule pointers | Submodule update pipeline |
 | Debian packages SONiC rebuilds | `rules/*.mk`, `src/` | SBOM-driven triage |
 | The Linux kernel | `sonic-linux-kernel` | People |
+| The Go version | The build container, and the `go` directive in each `go.mod` | The build container's owners |
 
 Hand-pinned versions sit in no file Renovate reads by default. Each one has a custom manager (R9).
 
@@ -99,7 +103,7 @@ Hand-pinned versions sit in no file Renovate reads by default. Each one has a cu
 
 | # | Requirement |
 |---|-------------|
-| R1 | Renovate is authorized across the `sonic-net` organization, with one configuration file per repository |
+| R1 | Renovate acts only in the `sonic-net` repositories that adopt it, each through one reviewed configuration file |
 | R2 | A security update opens a pull request without anyone asking |
 | R3 | A security update that is not a major version bump, and that passes every check, merges without a person |
 | R4 | A major version bump never merges without a person, including a security update |
@@ -134,7 +138,17 @@ Renovate runs as the hosted GitHub App. Nothing is installed on build machines. 
 | Submodules owned by `sonic-net` | Yes |
 | Third party submodules (FRR, scapy, supervisor, vendor platform repositories) | No. Their dependencies arrive through the pinned submodule commit |
 
-The app is authorized on the whole organization. A repository without a `renovate.json` is ignored.
+A repository adopts Renovate through a change that adds its `renovate.json`, reviewed like any other. Renovate's own onboarding pull request ("Configure Renovate") is never merged: it carries `config:recommended` alone, without the shared preset, the reviewers or the patched-module rules, and it leaves Dependabot running.
+
+| Installation | Behavior in a repository without a `renovate.json` |
+|--------------|-----------------------------------------------------|
+| All repositories, Silent mode (the default for that choice) | Nothing. No pull requests and no issues |
+| All repositories, Interactive mode | An onboarding pull request |
+| Selected repositories | An onboarding pull request, always |
+
+The organization therefore runs the app on all repositories in Silent mode, and switches each repository to Interactive mode in the Mend developer portal once its `renovate.json` has merged. An onboarding pull request that is already open is closed without merging.
+
+The repositories that are mostly Go come first: `sonic-mgmt-common` and `sonic-gnmi`. Renovate takes every manager in [7.2](#72-native-managers) in them, not only `gomod`.
 
 #### 7.2 Native managers
 
@@ -147,6 +161,26 @@ The app is authorized on the whole organization. A repository without a `renovat
 | `pip_requirements`, `setup-py` | `requirements.txt`, `setup.py` | No, until the pip constraint seam is resolved. See [7.8](#78-existing-automation) |
 | `git-submodules` | `.gitmodules` | No. The submodule update pipeline owns submodule pointers |
 
+`gomod` runs `go mod tidy` after each update, and rewrites import paths on a major bump.
+
+**The `go` directive.** Each Go repository lists `go` in `ignoreDeps`. A standard library vulnerability makes Renovate propose raising the `go` directive, and a security update overrides every package rule, so only `ignoreDeps` stops it. The directive cannot move ahead of the Go in the build container, and a standard library fix reaches SONiC through that toolchain.
+
+**Local `replace` directives.** To update `go.sum`, Renovate runs `go get` in a checkout of the one repository. A `replace` that points outside that repository, such as `sonic-gnmi` replacing `sonic-mgmt-common` with `../sonic-mgmt-common`, makes `go get` fail, and `go.sum` is left behind. Renovate's `gomodMassage` option comments out the whole `replace` block, which also drops the pins that patched modules depend on, so it is not used.
+
+Such a repository carries a workflow that runs on Renovate pull requests:
+
+| Step | Work |
+|------|------|
+| 1 | Check out the repository, and the replaced repository beside it at the pull request's base branch, as its CI pipeline does |
+| 2 | Run `go mod tidy`, and push any change to `go.mod` and `go.sum` to the Renovate branch as `github-actions[bot]` |
+| 3 | Dispatch the repository's GitHub Actions checks on the new commit |
+
+A push made with `GITHUB_TOKEN` starts no workflow runs, and `workflow_dispatch` is the exception, so step 3 dispatches them. A check that also builds the replaced repository takes its branch as a dispatch input. The workflow needs no secret. `renovate.json` lists `github-actions[bot]` in `gitIgnoredAuthors`, so Renovate keeps rebasing the branch, and suppresses Renovate's artifact error comments, which every such pull request would otherwise carry.
+
+`go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local`, and fails instead of pushing when the directive changes, so the pull request shows that the update needs a newer build container.
+
+Step 2 also brings in any drift between the two repositories' `go.mod` files. The CI pipeline's own `go mod tidy` applies the same change on every build.
+
 #### 7.3 Hand-pinned versions
 
 A version a person pins in a build script has a custom manager entry beside it.
@@ -158,6 +192,7 @@ A version a person pins in a build script has a custom manager entry beside it.
 | `OTEL_VERSION` | `dockers/docker-sonic-otel/Dockerfile.j2` | `github-releases` | Reviewer |
 | Rust toolchain | `sonic-slave-trixie/Dockerfile.j2` | `github-releases` | Reviewer |
 | `FIPS_GOLANG_VERSION` | `rules/sonic-fips.mk` | `golang-version` | Dashboard only |
+| Go modules a `Makefile` copies into `vendor/` by version | That repository's `Makefile` | `go` | Same pull request as `go.mod` |
 
 **Docker and containerd.** Each package has its own entry, because each is a separate package in the apt repository. The pin omits the distribution suffix, and the build appends `~$IMAGE_DISTRO`. The apt index carries the suffix, so `extractVersionTemplate` strips it before comparison and before the new value is written:
 
@@ -233,16 +268,69 @@ The `suite` parameter and the stripped suffix both name the image distribution, 
 }
 ```
 
+The FIPS Go entry names its dependency `go`, so `ignoreDeps` for the `go` directive ([7.2](#72-native-managers)) is set in each Go repository rather than in the shared preset.
+
+**Go module versions in a `Makefile`.** A `Makefile` that copies files from a module into `vendor/` names the module's version itself, outside `go.mod`. A custom manager reads it with the `go` datasource, and the grouping in [7.4](#74-pull-request-grouping) puts it in the same pull request as the `go.mod` update. Without it, a bump that `go.mod` alone carries fails the build:
+
+```json
+{
+  "customType": "regex",
+  "managerFilePatterns": ["/^Makefile$/"],
+  "matchStrings": ["(?<depName>golang\\.org/x/(?:crypto|term))@(?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+  "datasourceTemplate": "go"
+}
+```
+
+**Patched modules.** Some repositories patch the vendored source of a module at build time, or have a build script copy a module into `vendor/` by a version it names itself. A bump usually needs the patch or the script refreshed by hand, so an ordinary update to such a module opens only on Dependency Dashboard approval, in a pull request of its own:
+
+```json
+{
+  "matchManagers": ["gomod"],
+  "matchPackageNames": ["github.com/openconfig/ygot", "github.com/openconfig/goyang"],
+  "groupName": null,
+  "dependencyDashboardApproval": true
+}
+```
+
+`groupName: null` matters. Renovate holds a whole group for approval when any one update in it needs approval, so a patched module left in the ecosystem group would hold back every ordinary update in that ecosystem.
+
+A security update to a patched module still opens, because `vulnerabilityAlerts` overrides `dependencyDashboardApproval`, and the build shows whether the patch still applies. It opens on its own, so a patch that no longer applies holds back only that fix. The repository's `vulnerabilityAlerts.groupName` names the same modules:
+
+```json
+{
+  "vulnerabilityAlerts": {
+    "groupName": "{{{datasource}}} security updates{{#if (or isMajor (includes (split 'github.com/openconfig/ygot github.com/openconfig/goyang' ' ') depName))}} for {{{depName}}}{{/if}}"
+  }
+}
+```
+
+The two lists sit in the same file and change together.
+
 #### 7.4 Pull request grouping
 
 | Base branch | Update type | Grouping |
 |-------------|-------------|----------|
-| Any | Security | One pull request per ecosystem |
+| Any | Security, patch or minor | One pull request per ecosystem per update type |
+| Any | Security, major | One pull request per dependency |
 | `master` | Patch | One pull request per ecosystem |
 | `master` | Minor | One pull request per ecosystem |
 | `master` | Major | One pull request per dependency |
 
 A major bump is the update most likely to break, and an isolated failure names its cause.
+
+An ecosystem is a datasource. Grouping by datasource rather than by manager puts a custom manager that reads `go` in the same pull request as `gomod`.
+
+`vulnerabilityAlerts` overrides every package rule, including `groupName`, and its default `groupName` is `null`. Left alone, every security update would get its own pull request. The grouping is therefore set inside `vulnerabilityAlerts`, and names a major update by its dependency:
+
+```json
+{
+  "vulnerabilityAlerts": {
+    "groupName": "{{{datasource}}} security updates{{#if isMajor}} for {{{depName}}}{{/if}}"
+  }
+}
+```
+
+With `separateMajorMinor` and `separateMinorPatch`, Renovate also splits each group by update type, so a major update never shares a pull request, or its labels, with a patch or minor one.
 
 `prConcurrentLimit` and `prHourlyLimit` bound the volume of ordinary updates. Security updates ignore both. `vulnerabilityAlerts.prConcurrentLimit` bounds them separately. The first run clears the accumulated backlog and is the largest.
 
@@ -264,13 +352,14 @@ A major bump is the update most likely to break, and an isolated failure names i
 | Lane | Datasource | Classified as security |
 |------|------------|------------------------|
 | `gomod`, `cargo`, `pip` | Ecosystem registry | Yes |
+| A custom manager on an ecosystem datasource, such as `go` in a `Makefile` | Ecosystem registry | Yes |
 | Docker, containerd | `deb` | No |
 | OpenTelemetry Collector, Rust | `github-releases` | No |
 | FIPS Go | `golang-version` | No |
 
-A custom manager has no advisory feed behind it. A release branch therefore enables hand-pinned updates by name, and a reviewer decides whether each one is needed.
+A custom manager on any other datasource has no advisory feed behind it. A release branch therefore enables hand-pinned updates by name, and a reviewer decides whether each one is needed.
 
-**The `automerge` label.** Renovate applies the `vulnerabilityAlerts` object to every security update with precedence over all package rules. That object sets only the `security` label. A package rule adds `automerge` to security updates that are patch or minor:
+**The `automerge` label.** Renovate applies the `vulnerabilityAlerts` object to every security update with precedence over all package rules. That object sets the `security` label and the grouping in [7.4](#74-pull-request-grouping), and never `automerge`. A package rule adds `automerge` to security updates that are patch or minor:
 
 ```json
 {
@@ -286,7 +375,9 @@ A custom manager has no advisory feed behind it. A release branch therefore enab
 }
 ```
 
-A security update that needs a major version opens with the `security` label alone and waits for a reviewer.
+A security update that needs a major version opens with the `security` label alone and waits for a reviewer. Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
+
+**Release branch rules.** Before a lookup, Renovate does not yet know the update type, and a rule that disables a dependency at that stage removes it before any later rule can re-enable it. The release branch rules therefore disable every manager except `custom.regex` up front, and then disable `custom.regex` majors once the update type is known. A custom manager on the `go` datasource is disabled too, because the `go.mod` it moves with only takes security updates on a release branch. A security update overrides all three.
 
 #### 7.6 Approval and merge
 
@@ -295,25 +386,40 @@ Renovate cannot approve its own pull requests. The existing merge robot merges t
 | | |
 |---|---|
 | `renovate.json` | Applies the `automerge` label as set out in [7.5](#75-branch-policy). Renovate's own `automerge` setting stays off |
-| Merge robot | Lists Renovate pull requests carrying the `automerge` label, evaluates their checks, merges the ones that pass with `gh pr merge --admin`, and escalates the ones that fail to the release branch owner |
-| Branch protection | `--admin` bypasses the review requirement. GitHub still enforces every required status check |
+| Merge robot | Lists Renovate pull requests carrying both the `automerge` and `security` labels, evaluates their checks, and merges the ones that pass with `gh pr merge --admin`, pinned to the head commit it evaluated. One that fails is left for its reviewers, without the cherry-pick retry or escalation |
+| Branch protection | Depends on whether the branch's protection applies to administrators. See below |
 
-Which pull requests merge is decided in `renovate.json`, by the label. Whether a labeled pull request merges is decided by the required checks and by the robot.
+Which pull requests merge is decided in `renovate.json`, by the label. Whether a labeled pull request merges is decided by the robot, and by branch protection where it applies to administrators.
 
-Robot check evaluation is a prerequisite for the `automerge` label. Before any Renovate pull request carries the label, the robot merges only when every check it reads has completed successfully:
+`--admin` bypasses what an administrator may bypass on that branch:
+
+| Protection applies to administrators | Review requirement | Required status checks |
+|--------------------------------------|--------------------|------------------------|
+| No | Bypassed | Bypassed |
+| Yes | Enforced, unless `mssonicbld` is allowed to bypass required pull requests | Enforced |
+
+The robot therefore enforces the checks itself, whatever the branch setting. Where protection applies to administrators, `mssonicbld` needs the pull request bypass on that branch, or the robot cannot merge there.
+
+Robot check evaluation is a prerequisite for the `automerge` label. For a Renovate pull request, the robot merges only when every check it reads has completed successfully:
 
 | Case | Required behavior |
 |------|-------------------|
 | A check still in progress | Not merged |
 | A check that timed out, needs action, or failed to start | Not merged |
-| A commit status (legacy status context) in failure or error | Not merged |
+| A check that succeeded, was skipped, or was neutral | Passes |
+| A commit status (legacy status context) other than success | Not merged |
 | An empty check list | Not merged |
+| A required status check of the base branch that has not reported | Not merged |
+| No SONiC build check (`Azure.sonic-*` or `sonic-net.sonic-*`) has reported | Not merged |
+| The head commit moved after the checks were read | Not merged |
 | A check named `vulnerability scan` | Evaluated |
 | A check named `OPTIONAL` | Skipped |
 
-Until that lands, Renovate opens every pull request without the `automerge` label.
+The robot reads the base branch's required status checks from the branch API, so a merge never waits on a check list kept in the robot. The build check covers a branch that requires only `EasyCLA`, where the build might not yet have registered when the robot runs. The robot's evaluation of every other pull request is unchanged. The strict evaluation lands in the same `sonic-pipelines` change as the preset, so no Renovate pull request carries the label before it. Both labels are required, so a stray `automerge` label on an ordinary Renovate pull request merges nothing.
 
-`EasyCLA` is a required check, and a pull request from the Renovate bot clears it the same way one from `mssonicbld` does.
+`EasyCLA` is a required check, and is a commit status. A pull request from the Renovate bot clears it the same way one from `mssonicbld` does. So does a commit from `github-actions[bot]`, which authors the `go.sum` fixups in [7.2](#72-native-managers).
+
+Repositories that require DCO sign-off reject unsigned commits, so the preset sets `commitBody` to a `Signed-off-by` line for the Renovate bot.
 
 Alternatives considered:
 
@@ -337,8 +443,19 @@ Renovate assigns reviewers from an explicit list. `CODEOWNERS` is not used, beca
 |------|--------|
 | The reviewer is the `@sonic-net/sonic-security-wg` team | One place to edit when membership changes |
 | The team holds the public Working Group membership | It is a new team, created for this |
-| `sonic-private-security-group` is never a reviewer | It handles embargoed vulnerabilities. These pull requests are public |
-| A release branch adds its owner through `additionalReviewers` | The owner is listed in `azure-pipelines/release-owners_github_account.json` in `sonic-pipelines`, which the merge robot also reads |
+| The team is visible, and has no parent team | A secret team's name would show on public review requests while its membership stayed hidden. A child team inherits its parent's access |
+| The team has Read on each repository Renovate runs in | A review can only be requested from a team with access to the repository |
+| `sonic-private-security-group` is never a reviewer, or a parent of the team | It handles embargoed vulnerabilities. These pull requests are public and carry fixes that are already published |
+| A release branch adds its release manager team through `additionalReviewers` | Each release branch already has a `release-manager-<branch>` team |
+
+The release manager rule is added to the preset with the branch, once its `release-manager-<branch>` team exists:
+
+```json
+{
+  "matchBaseBranches": ["/^202611$/"],
+  "additionalReviewers": ["team:release-manager-202611"]
+}
+```
 
 Renovate sets reviewers when it opens a pull request and does not revisit them.
 
@@ -353,6 +470,16 @@ Three pipelines already keep parts of the tree current, all acting as `mssonicbl
 | Merge robot | Merging labeled bot pull requests | `sonic-pipelines`, `azure-pipelines/automation-pr-scan.yml` |
 | Renovate | What manifests declare, and hand-pinned versions | Each repository's `renovate.json` |
 
+**Dependabot.** Dependabot has three parts, and each is handled when a repository adopts Renovate:
+
+| Part | With Renovate | Reason |
+|------|---------------|--------|
+| Dependabot alerts | On | Renovate reads them for GitHub's vulnerability data |
+| Dependabot security updates | Off | Each vulnerability would get a pull request from both bots |
+| Dependabot version updates (`.github/dependabot.yml`) | Removed in the change that adds `renovate.json` | Renovate does the same work. A cooldown it set carries over as `minimumReleaseAge` |
+
+Open Dependabot pull requests are closed once Renovate runs; Renovate opens its own.
+
 **The pip seam.** The pip build hook in `src/sonic-build-hooks/scripts/buildinfo_base.sh` passes the frozen `versions-py3` file to every `pip install` as a constraint file. It releases a package from the constraint only when an exact version appears on the command line, and it does not read `-r requirements.txt`. A Renovate bump to a `requirements.txt` therefore conflicts with the frozen constraint until the next freeze.
 
 | Resolution | Effect |
@@ -365,12 +492,14 @@ Three pipelines already keep parts of the tree current, all acting as `mssonicbl
 
 | Phase | Work |
 |-------|------|
-| 1 | Docker, containerd and OpenTelemetry custom managers in `sonic-buildimage`, on `master` |
-| 2 | Native managers on `master` in `sonic-buildimage` and the owned repositories holding `go.mod` or `Cargo.toml` |
-| 3 | Rust and FIPS Go custom managers |
-| 4 | Remaining owned repositories, and the `202611` branch |
-| 5 | The `automerge` label on security updates, once the robot check evaluation in [7.6](#76-approval-and-merge) has landed and the earlier phases have run under review for one release cycle |
+| 1 | The shared preset and the robot check evaluation in [7.6](#76-approval-and-merge). `sonic-mgmt-common` and `sonic-gnmi` on `master`, including the `automerge` label on security updates |
+| 2 | Docker, containerd and OpenTelemetry custom managers in `sonic-buildimage`, on `master` |
+| 3 | Native managers on `master` in `sonic-buildimage` and the remaining owned repositories holding `go.mod` or `Cargo.toml` |
+| 4 | Rust and FIPS Go custom managers |
+| 5 | Remaining owned repositories, and the `202611` branch |
 | 6 | A resolution for the pip seam |
+
+The Go repositories come first because they need no custom manager beyond a `Makefile` entry, and because the robot check evaluation is a small, contained change to land beside them.
 
 ### 8. SAI API
 
@@ -407,24 +536,28 @@ The preset:
 ```json
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate preset for sonic-net repositories. See doc/security/dependency-hygiene.md in sonic-net/SONiC.",
   "extends": ["config:recommended"],
-  "baseBranchPatterns": ["master", "202611"],
+  "baseBranchPatterns": ["master", "/^202611$/"],
   "reviewers": ["team:sonic-security-wg"],
   "dependencyDashboard": true,
   "osvVulnerabilityAlerts": true,
   "separateMajorMinor": true,
   "separateMinorPatch": true,
+  "commitBody": "Signed-off-by: {{{gitAuthor}}}",
   "enabledManagers": ["gomod", "cargo", "github-actions", "dockerfile", "custom.regex"],
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security"]
+    "labels": ["security"],
+    "groupName": "{{{datasource}}} security updates{{#if isMajor}} for {{{depName}}}{{/if}}"
   },
   "packageRules": [
     {
       "description": "Group patch and minor updates per ecosystem on master",
       "matchBaseBranches": ["master"],
       "matchUpdateTypes": ["patch", "minor"],
-      "groupName": "{{manager}} {{updateType}} updates"
+      "groupName": "{{{datasource}}} {{{updateType}}} updates"
     },
     {
       "description": "Major updates get their own pull request",
@@ -433,22 +566,24 @@ The preset:
       "groupName": null
     },
     {
-      "description": "Release branches take security updates only",
-      "matchBaseBranches": ["202611"],
-      "matchPackageNames": ["*"],
+      "description": "Release branches take security updates, and hand-pinned versions, only",
+      "matchBaseBranches": ["/^202611$/"],
+      "matchManagers": ["!custom.regex"],
       "enabled": false
     },
     {
-      "description": "Release branches also take patch and minor updates to hand-pinned versions",
-      "matchBaseBranches": ["202611"],
+      "description": "A hand-pinned major update is not opened on a release branch",
+      "matchBaseBranches": ["/^202611$/"],
       "matchManagers": ["custom.regex"],
-      "matchUpdateTypes": ["patch", "minor"],
-      "enabled": true
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     },
     {
-      "description": "Release branch owner reviews release branch pull requests",
-      "matchBaseBranches": ["202611"],
-      "additionalReviewers": ["<202611 release owner>"]
+      "description": "A module version a Makefile names moves with go.mod, which a release branch updates only for security",
+      "matchBaseBranches": ["/^202611$/"],
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["go"],
+      "enabled": false
     },
     {
       "description": "Security updates below a major version merge unattended",
@@ -466,25 +601,30 @@ The preset:
 }
 ```
 
-The `automerge` rule is added in rollout phase 5 and is absent before it.
+This is the file committed to `sonic-pipelines`. Its `description` names this document. Each Go repository adds `ignoreDeps` for the `go` directive, and a rule and a `vulnerabilityAlerts.groupName` for its patched modules ([7.3](#73-hand-pinned-versions)). A repository with a local `replace` also adds `gitIgnoredAuthors`, `suppressNotifications` and the workflow in [7.2](#72-native-managers).
 
 #### 9.5 Setup steps
 
 | Step | Who | Work |
 |------|-----|------|
-| 1 | Organization administrator | At <https://github.com/apps/renovate>, select **Configure**, choose `sonic-net`, grant access to all repositories, and grant read access to Dependabot alerts |
-| 2 | Organization administrator, Security WG | Create the `sonic-security-wg` team with the public Working Group membership |
-| 3 | SONiC Foundation EasyCLA administrators | Give the Renovate bot the same EasyCLA treatment as `mssonicbld` |
-| 4 | `sonic-pipelines` maintainers | In `automation-pr-scan.yml`, add the Renovate bot to the author filter, add every Renovate repository to the `repos` parameter, and fix the check evaluation in [7.6](#76-approval-and-merge) |
-| 5 | `sonic-pipelines` maintainers | Add `renovate/default.json` |
-| 6 | Each repository's owners | Add a `renovate.json` extending the preset |
+| 1 | SONiC Foundation EasyCLA administrators | Add `renovate[bot]` and `github-actions[bot]` to the EasyCLA approved list, as `mssonicbld` is |
+| 2 | Organization administrator, Security WG | Create the `sonic-security-wg` team as set out in [7.7](#77-reviewers): visible, no parent team, the public Working Group membership with at least one member as team maintainer, and Read on each repository Renovate runs in |
+| 3 | Each repository's administrators | Leave Dependabot alerts on, and turn Dependabot security updates off. See [7.8](#78-existing-automation) |
+| 4 | `sonic-pipelines` maintainers | Merge `renovate/default.json` and the `automation-pr-scan.yml` change: the Renovate author filter, and the check evaluation in [7.6](#76-approval-and-merge). Add each Renovate repository to the robot's `repos` parameter if it is not already listed |
+| 5 | Organization administrator | Where branch protection applies to administrators, allow `mssonicbld` to bypass required pull requests on the branches Renovate targets ([7.6](#76-approval-and-merge)) |
+| 6 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts. In the Mend developer portal, set the organization to Silent mode ([7.1](#71-installation-scope)), and close any onboarding pull requests without merging |
+| 7 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers) |
+| 8 | Organization administrator | In the Mend developer portal, switch the repository to Interactive mode |
+| 9 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
 
-Renovate does nothing in a repository until step 6. Dependabot alerts must also be enabled on each repository for GitHub vulnerability alerts to reach Renovate.
+Renovate opens nothing in a repository until steps 7 and 8. Steps 1 to 5 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot.
+
+A later repository repeats steps 2 (the team's Read access), 3, 5, 7, 8 and 9.
 
 | Action | Effect |
 |--------|--------|
 | Remove the `automerge` rule from the preset | Nothing merges unattended |
-| Remove a repository's `renovate.json` | Renovate ignores that repository |
+| Remove a repository's `renovate.json`, or remove the repository from the installation | Renovate ignores that repository |
 | Uninstall the app | Renovate stops everywhere |
 
 ### 10. Warmboot and Fastboot Design Impact
@@ -506,14 +646,17 @@ No change. Nothing is added to the image.
 
 | Limitation | Effect |
 |------------|--------|
-| Hand-pinned versions are never classified as security updates | No advisory feed sits behind a custom manager. They are enabled by name and merged by a reviewer. See [7.5](#75-branch-policy) |
-| The merge robot bypasses the review requirement | Required status checks are still enforced by GitHub. Other checks are enforced by the robot. See [7.6](#76-approval-and-merge) |
+| Hand-pinned versions outside an ecosystem datasource are never classified as security updates | No advisory feed sits behind them. They are enabled by name and merged by a reviewer. See [7.5](#75-branch-policy) |
+| Renovate cannot update `go.sum` past a `replace` that points outside the repository | A workflow in that repository tidies it and re-dispatches its checks. See [7.2](#72-native-managers) |
+| The `go` directive is not updated | A standard library fix reaches SONiC through the build container's toolchain |
+| The merge robot merges without a review | Where branch protection does not apply to administrators it also bypasses the required checks, so the robot evaluates them itself. See [7.6](#76-approval-and-merge) |
+| A security fix to a v0 Go module can change its API | Go treats a v0 minor bump as compatible, and labels it accordingly. Security updates take the lowest fixed version, and the build and tests gate the merge |
 | The FIPS Go pin depends on a SONiC FIPS build | Renovate lists the upstream release on the dashboard. The bump lands after SONiC publishes the package |
 | Renovate reads only what a manifest declares | Versions resolved at build time belong to the version freeze pipeline |
 | npm lockfiles inside Debian's Go and Ruby packages are not reached | They are part of Debian's packages and are not SONiC dependencies |
 | Findings with no published fix are not addressed | Nothing can update to a fix that does not exist. Shipping less is the [EOL plan](../eol-planning/202611-eol-and-deprecation.md)'s remit |
 | SONiC's Debian rebuilds are not covered | SBOM-driven triage covers them |
-| A bump can conflict with a local patch | Locally patched components are out of scope |
+| A bump can conflict with a local patch | Components built from source with a patch series are out of scope. Ordinary updates to patched modules wait for dashboard approval, and a security update to one opens on its own and fails its build if the patch no longer applies. See [7.3](#73-hand-pinned-versions) |
 | Python is excluded | See the pip seam in [7.8](#78-existing-automation) |
 
 ### 13. Testing Requirements/Design
@@ -530,6 +673,12 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Release branch rules hold | A run against `202611` proposes security updates and hand-pinned patch and minor updates only |
 | Grouping is correct | A run against `master` proposes one pull request per ecosystem per update type, and majors one per dependency |
 | A major security update is not labeled `automerge` | A run against a fork pinned to a vulnerable version whose fix needs a major bump opens a pull request with the `security` label alone |
+| A `Makefile` version moves with `go.mod` | The `Makefile` custom manager matches only the module versions the `Makefile` copies into `vendor/`, and its update lands in the same pull request as the `go.mod` one |
+| Patched modules wait for approval | The Dependency Dashboard lists each patched module under pending approval, and no pull request opens for it |
+| The `go.sum` workflow produces a tidy module | With the replaced repository checked out beside it, `go mod tidy` after a Renovate bump leaves a `go.sum` the build accepts. On a Renovate pull request, the pushed commit is followed by dispatched runs of each GitHub Actions check |
+| Robot check evaluation | The evaluation function, run against each case in [7.6](#76-approval-and-merge) and against the check list and required checks of a live bot pull request, passes only when every check has completed successfully, every required check has reported, and a build check is present. A list holding only `EasyCLA` does not pass |
+| Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request |
+| The `go` directive is never raised | A `go.sum` workflow run on a bump that needs a newer Go fails, and pushes nothing |
 
 #### 13.2 System Test cases
 
@@ -556,13 +705,13 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 
 | # | Item | Touches | Suggested owner |
 |---|------|---------|-----------------|
-| 1 | Authorize the Renovate app on the `sonic-net` organization | Organization settings | Organization administrators |
-| 2 | Create the `sonic-security-wg` team | Organization settings | Organization administrators, Security WG |
-| 3 | Give the Renovate bot the EasyCLA treatment `mssonicbld` has | EasyCLA configuration | SONiC Foundation EasyCLA administrators |
-| 4 | Fix the merge robot check evaluation in [7.6](#76-approval-and-merge). Prerequisite for the `automerge` label | `sonic-pipelines` | `sonic-pipelines` maintainers, Security WG |
-| 5 | Add the Renovate bot to the merge robot author filter, and each Renovate repository to its `repos` parameter | `sonic-pipelines` | `sonic-pipelines` maintainers |
-| 6 | Add the shared preset at `renovate/default.json` | `sonic-pipelines` | `sonic-pipelines` maintainers |
-| 7 | Add a `202611` entry to `release-owners_github_account.json` | `sonic-pipelines` | 202611 release manager |
+| 1 | Run the Renovate app on all `sonic-net` repositories in Silent mode, switch each adopting repository to Interactive mode, and close onboarding pull requests unmerged | Organization settings, Mend developer portal | Organization administrators |
+| 2 | Create the `sonic-security-wg` team, as set out in [7.7](#77-reviewers) | Organization settings | Organization administrators, Security WG |
+| 3 | Give `renovate[bot]` and `github-actions[bot]` the EasyCLA treatment `mssonicbld` has | EasyCLA configuration | SONiC Foundation EasyCLA administrators |
+| 4 | Land the merge robot check evaluation in [7.6](#76-approval-and-merge). Prerequisite for the `automerge` label | `sonic-pipelines` | `sonic-pipelines` maintainers, Security WG |
+| 5 | Land the Renovate author filter in the merge robot, and keep each Renovate repository in its `repos` parameter | `sonic-pipelines` | `sonic-pipelines` maintainers |
+| 6 | Land the shared preset at `renovate/default.json` | `sonic-pipelines` | `sonic-pipelines` maintainers |
+| 7 | Add the release manager reviewer rule in [7.7](#77-reviewers) once the `release-manager-202611` team exists | `renovate/default.json` | Security WG, 202611 release manager |
 | 8 | Choose a resolution for the pip seam | `src/sonic-build-hooks/` | `@sonic-net/sonic-build` |
 | 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | `src/sonic-fips/`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build` |
 | 10 | Stand up SBOM-driven triage for the Debian packages SONiC rebuilds | — | Security WG |
