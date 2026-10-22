@@ -458,7 +458,6 @@ The feature adds one logical VRF record, existing tunnel-map entries, and normal
 
 ## 14. References
 
-- [SONiC HLD template](https://github.com/sonic-net/SONiC/blob/master/doc/guidelines/hld_template.md)
 - [FRR PR #22343: EVPN default-VRF L3VNI functional coverage](https://github.com/FRRouting/frr/pull/22343)
 - [SONiC Unified FRR Management Interface HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md)
 - [SONiC VXLAN documentation](https://github.com/sonic-net/SONiC/tree/master/doc/vxlan)
