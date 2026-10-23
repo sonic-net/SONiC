@@ -43,9 +43,7 @@
 | Rev | Date | Author | Change Description |
 | --- | --- | --- | --- |
 | 0.1 | 2026-08-12 | William Tsai | Initial version |
-| 0.2 | 2026-10-01 | William Tsai | Align provisioning, timing and operation handling with the implementation |
-| 0.3 | 2026-10-08 | William Tsai | Document that the switch-host pre-shutdown path does not run the platform pre-reboot hook |
-| 0.4 | 2026-10-15 | William Tsai | Join identical actions before displacement, tighten the repeat guard to a recorded power-off, drop a startup raise behind an admitted removal, skip the firmware auto-update handler |
+| 0.2 | 2026-10-23 | William Tsai | Align the design with the implementation: provisioning and credentials (profile, reuse of existing files, PKI owner), timing bounds and their owner, operation handling (join before displacement, repeat guard after a recorded power-off, startup raise behind an admitted removal), and the host pre-shutdown path (no pre-reboot hook, no firmware auto-update handler) |
 
 ### 2. Scope
 
@@ -691,7 +689,9 @@ gNMI server, and a CACL rule that limits the gNMI port to the BMC-link address.
 
 Deployment installs the certificate files, gNMI authorization and complete CACL policy. The image
 does not seed these DB rows or ship private keys. BMC client paths are configurable in
-`BMC_GNOI|certs`; switch-host server paths use the existing `GNMI|certs` configuration (§9.3).
+`BMC_GNOI|certs`; switch-host server paths use the existing `GNMI|certs` configuration (§9.3). The
+certificate profile, what a reused certificate has to satisfy, and the owner of issuance, rotation and
+revocation are stated in [§9.3](#93-config-db-enhancements).
 
 One gap gates enablement, and it is wider than per-module. Authorization is not per module: nearly every call
 site authorizes against a **single `gnoi` target** with the role matched by prefix and a read-only,
@@ -709,7 +709,10 @@ issued for it would also unlock.
 
 Either a security review accepts that breadth for the BMC-link CA, or per-RPC authorization lands in
 `sonic-gnmi` — a larger change than "per module" would have implied, because the granularity has to be
-introduced rather than narrowed. Until then, deployment must explicitly keep the graceful timeout at 0.
+introduced rather than narrowed. Until then the graceful leg stays off: a deployment that has not installed
+the link credentials is held at `not_qualified` by the daemon itself ([§7.11](#711-serviceability)), and one
+that installs them before this decision must also set `graceful_shutdown_timeout` to 0 explicitly, because
+the daemon's 120-second default is not an enablement approval ([§7.9](#79-platform-requirements)).
 
 #### 7.11. Serviceability
 
@@ -774,7 +777,26 @@ Not applicable. This is a built-in feature, not an Application Extension.
 No new command. `config chassis modules shutdown|startup` is already the entry point and
 `config chassis modules shutdown-timeout` keeps accepting nonnegative integers without an upper bound.
 The default is 120 seconds; 0 requests forced-only behavior. Accepting a value does not establish that
-it meets the platform's watchdog and backend timing budgets ([§7.4](#74-timing)).
+it meets the platform's timing budgets: the command runs on the BMC, cannot read the host's
+`switch_host_halt_services_timeout` ([§9.3](#93-config-db-enhancements)) or its measured pre-shutdown
+duration, and therefore performs no cross-check and prints no warning. The bounds a selected value has to
+meet are those of [§7.4](#74-timing), restated here with the host key named:
+
+```
+request + pre-shutdown + poll allowance + polling                        <  graceful_shutdown_timeout   ; a completed teardown stays graceful
+request + pre-shutdown + switch_host_halt_services_timeout + polling     <  graceful_shutdown_timeout   ; a failed check keeps its own reason
+graceful_shutdown_timeout                                                <  260 s
+graceful_shutdown_timeout + polling + power-off latency + margin         <  effective watchdog timeout (readback >= 180 s)
+```
+
+A value below the first bound records every shutdown as `SUCCESS_FORCED` with reason `deadline` even when
+the host completed its teardown; a value between the first two keeps completed teardowns graceful but
+records `deadline` where the host would have reported `check_failed`. The platform owner qualifies
+`graceful_shutdown_timeout` and `switch_host_halt_services_timeout` as a pair at release time, and a change
+to either requires both to be requalified ([§14](#14-openaction-items), item 1). The run-time record of
+what happened is `op_result` and `op_reason` in `HOST_STATE|switch-host` and the `OP_DONE` event-log line
+([§7.11](#711-serviceability)).
+
 `show chassis modules status` on the BMC gains `RESULT` and `REQUEST-ID` columns;
 existing columns and their order do not change.
 
@@ -831,6 +853,27 @@ These are absolute paths, not certificate contents; files must be visible inside
 field uses its default; an explicitly invalid path or a missing/empty file causes forced-only operation, without
 trying another credential. Paths are read once per operation, so changes apply to the next operation
 without a daemon restart. Deployment installs the files and persists any configured paths.
+
+The files do not have to come from a production or publicly trusted PKI. A private CA dedicated to this
+link is sufficient, and preferable, because the host trusts that CA for the whole gNOI surface
+([§7.10](#710-security)). Whichever PKI issues them, the link needs:
+
+- a host server certificate that carries `switch-host.bmc-link.sonic` as a DNS SAN and is issued by a CA in
+  the BMC's `ca_crt`. `bmcctld` verifies the host against that fixed name, not against the link-local address
+  or a hostname, so every pair can follow one issuing rule;
+- a BMC client certificate issued by a CA in the host's `GNMI|certs` `ca_crt`, usable for TLS client
+  authentication (an extended key usage that includes `clientAuth`, or none), whose subject CN the host maps
+  in `GNMI_CLIENT_CERT` to a role that covers `System.Reboot` and `System.RebootStatus`;
+- the three files readable inside PMON.
+
+Because the fields are paths, a deployment may point them at certificate files it already manages instead of
+a dedicated set, when those files meet the conditions above. The daemon never selects another credential
+source on its own: that keeps an unprovisioned link at `not_qualified` rather than attempting a handshake with
+a certificate that was not issued for it. A device's existing telemetry certificate usually does not qualify;
+it names the device rather than the link and may carry a server-only key usage. The deployment's PKI owner
+issues, rotates and revokes these credentials. Rotation needs no daemon restart, since the paths are read once
+per operation; revocation is enforced on the host by removing the client's `GNMI_CLIENT_CERT` row, as no
+CRL or OCSP check is part of this design.
 
 The switch-host `platform.json` gains one optional key:
 
@@ -905,7 +948,9 @@ resumable work is retained. When the feature is unused, memory consumption is un
    is resumed on the next start — a recorded state other than a power-off is kept until a power call confirms a stable one or the host reads online. A host that had
    armed its watchdog can return through it; acceptance alone does not guarantee recovery. Persisting an accepted
    intent across a restart is out of scope ([§2](#2-scope)).
-6. Certificate provisioning policy is defined elsewhere and gates enablement.
+6. Certificate provisioning belongs to the deployment. The profile the files have to meet and the owner of
+   their lifecycle are stated in [§9.3](#93-config-db-enhancements); the issuing policy itself is defined
+   elsewhere, and together with the authorization decision of [§14](#14-openaction-items) it gates enablement.
 7. Each BMC serialises one operation at a time, and `graceful_shutdown_timeout` bounds only the host
    handshake inside it: the oper-status verification that follows a power call adds to it (rule 3 of
    [§7.4](#74-timing)), and a restart adds its pause and its power-on leg. Fan-out across a rack is the
@@ -980,9 +1025,10 @@ sequences remain unchanged apart from the documented pre-check fixes and result-
 
 | # | Item |
 | --- | --- |
-| 1 | **Timing decisions closed.** BMC default/fallback 120 s; explicit 0 preserved; no CLI upper bound. Host residual timeout defaults to 60 s. Restart pause 10 s. Per-platform timing qualification remains required |
+| 1 | **Timing decisions closed.** BMC default/fallback 120 s; explicit 0 preserved; no CLI upper bound. Host residual timeout defaults to 60 s. Restart pause 10 s. Per-platform timing qualification remains required: the platform owner qualifies `graceful_shutdown_timeout` and `switch_host_halt_services_timeout` as a pair, and deployment tooling requalifies both when either changes ([§9.2](#92-cliyang-model-enhancements)) |
 | 2 | **Watchdog decision closed.** Request and verify at least 180 s on switch-host pre-shutdown. No additional platform setting or protocol field |
 | 3 | **gNOI authorization granularity** ([§7.10](#710-security)). Either a security review accepts the current role for the BMC-link CA, or per-RPC authorization lands in `sonic-gnmi`. This gates enablement and needs an owner |
+| 4 | **Credential ownership closed.** The deployment's PKI owner issues, rotates and revokes the link credentials against the profile in [§9.3](#93-config-db-enhancements); the image ships none. A deployment may point `BMC_GNOI\|certs` at certificate files it already manages when they meet that profile |
 
 ### 15. References
 
