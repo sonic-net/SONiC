@@ -34,6 +34,7 @@
 |  | sonic-platform-daemons-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
 |  | sonic-platform-daemons-maintainer | Junchao Chen (Nvidia) | Junchao-Mellanox | Request on 08/25/2026 |
 |  | sonic-platform-daemons-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
+|  | sonic-platform-daemons-maintainer | Marty Lok (Nokia) | mlok-nokia | Request on 10/21/2026 |
 | sonic-platform-pdk-pde | sonic-platform-pdk-pde-maintainer | Geans Pin (BRCM) | geans-pin | enabled |
 | sonic-py-swsssdk | sonic-py-swsssdk-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
 | sonic-restapi | sonic-restapi-maintainer | Lawrence Lee (Microsoft) | theasianpianist | enabled |
@@ -62,6 +63,7 @@
 |  | sonic-gnmi-maintainer | Seifert, Eric (DELL) | seiferteric | enabled |
 |  | sonic-gnmi-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
 | sonic-utilities | sonic-utilities-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
+|  | sonic-utilities-maintainer | Marty Lok (Nokia) | mlok-nokia | Requested on 10/21/2026 | 
 | sonic-wpa-supplicant | sonic-wpa-supplicant-maintainer | Ze Gan (Microsoft) | Pterosaur | enabled |
 | sonic-buildimage | sonic-buildimage-maintainer | Guohan Lu (Microsoft) | lguohan | enabled |
 |  | sonic-buildimage-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
@@ -72,6 +74,7 @@
 |  | sonic-buildimage-maintainer | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
 |  | sonic-buildimage-maintainer | Anand Mehra (Cisco) | anamehra | Requested on 09/28/2026 |
 |  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
+|  | sonic-buildimage-maintainer | Marty Lok (Nexthop) | mlok-nokia | Request on 10/21/2026 |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
