@@ -5,6 +5,7 @@
 | Date | Author | Description |
 |---|---|---|
 | 2026-10-19 | taran9999 | Initial version. |
+| 2026-10-22 | taran9999 | Review feedback: egress PN exhaustion (§4.6), `interface-output` feature constraints (§4.3.3), `esp_encrypt` buffer-handling parity (§4.2.2). |
 
 ---
 
@@ -464,7 +465,12 @@ for each buffer b:
     sa  = sc->sa_index[sc->encoding_an]
     if sa == ~0                              -> drop, bump NO_SA error
 
+    if b->flags & VLIB_BUFFER_NEXT_PRESENT   -> drop, bump CHAINED      /* §4.9 */
+    if headroom(b) < sectag_len              -> drop, bump NO_HEADROOM
+    if tailroom(b) < 16                      -> drop, bump NO_TAILROOM
+
     xpn = clib_atomic_fetch_add(&sa->next_xpn, 1)
+    if !sa->xpn_en && xpn > 0xffffffff       -> drop, bump PN_EXHAUSTED  /* §4.6 */
     build SecTAG (TCI/AN, SL, PN = xpn & 0xffffffff, [SCI])
     build IV  (see Appendix B)
     build AAD = DA || SA || SecTAG   (+ user data if integrity-only)
@@ -475,15 +481,45 @@ for each buffer b:
     op.src = secure_data; op.dst = secure_data (in place)
     op.aad = aad; op.aad_len; op.iv = iv
     op.auth = tail; op.auth_len = 16
-    vnet_crypto_process_ops(vm, &op, 0, 1)
-    b->current_length += 16                  /* ICV */
+    op.user_data = bi                        /* map the result back to b  */
+    accumulate op
 
-    bump OUT_PKTS_ENCRYPTED / OCTETS_ENCRYPTED (or *_PROTECTED)
+once per frame:
+    vnet_crypto_process_ops(vm, ops, n_ops)
+    for each op:
+        if op.status != VNET_CRYPTO_OP_STATUS_COMPLETED
+                                             -> drop, bump CRYPTO_FAILED
+        b->current_length += 16              /* ICV */
+        bump OUT_PKTS_ENCRYPTED / OCTETS_ENCRYPTED (or *_PROTECTED)
 ```
 
-For batching, ops are accumulated per frame and a single
-`vnet_crypto_process_ops()` call is issued at the end of the node — matching
-how `ipsec` esp_encrypt does it.
+Ops are accumulated per frame and a single `vnet_crypto_process_ops()` call is
+issued at the end of the node, with `op.user_data` carrying the buffer index so
+results can be matched back — the same structure `ipsec`'s `esp_encrypt` uses.
+
+**Buffer-handling parity with `esp_encrypt`.** Prepending the SecTAG and
+appending the ICV is the same class of operation as ESP's header/trailer
+insertion, so the node inherits ESP's checks rather than assuming the common
+case:
+
+| Concern | `esp_encrypt` reference | MACsec node |
+|---|---|---|
+| ICV does not fit in the last segment's tailroom | `esp_add_footer_and_icv()` allocates and chains a fresh buffer | Phase 1 drops and counts; Phase 3 chains (§4.9) |
+| Frame already spans multiple buffers | `esp_encrypt_chain_crypto()` builds `vnet_crypto_op_chunk_t` and sets `VNET_CRYPTO_OP_FLAG_CHAINED_BUFFERS` | Phase 1 rejects `VLIB_BUFFER_NEXT_PRESENT`; Phase 3 adds chunked ops (§4.9) |
+| Length bookkeeping across a chain | `total_length_not_including_first_buffer` and `VLIB_BUFFER_TOTAL_LENGTH_VALID` maintained | Same, once chaining lands. `b->current_length` on its own is only correct for single-segment frames |
+| Headroom for the prepended header | buffers allocated with sufficient headroom | `VLIB_BUFFER_PRE_DATA_SIZE` is ample but is checked per buffer, not assumed (§4.9) |
+| Crypto failure | op status checked, buffer dropped | `CRYPTO_FAILED` counter |
+
+Two places where MACsec deliberately diverges from ESP:
+
+- **No padding.** ESP pads the plaintext to block alignment and carries the pad
+  length in its footer. MACsec does not pad — secure data shorter than 48 bytes
+  is signalled by the SecTAG `SL` field instead. Only ESP's tailroom and
+  chaining logic carries over, not its padding logic.
+- **Synchronous crypto only.** Phase 1 uses `vnet_crypto_process_ops()`. ESP
+  additionally supports the async path (`vnet_crypto_async_add_to_frame()`);
+  adopting it for MACsec is possible later but is not required for a software
+  test dataplane and is out of scope here.
 
 #### 4.2.3 Ingress node — `sonic-ext-macsec-decrypt`
 
@@ -611,10 +647,37 @@ of a protected port shows the pre-MACsec frame:
 VNET_FEATURE_INIT (sonic_ext_macsec_encrypt, static) = {
   .arc_name    = "interface-output",
   .node_name   = "sonic-ext-macsec-encrypt",
-  .runs_after  = VNET_FEATURES ("ip4-rewrite", "ip6-rewrite",
-                                "sonic-ext-egress-mirror"),
-  .runs_before = VNET_FEATURES ("interface-output-end"),
+  .runs_after  = VNET_FEATURES ("sonic-ext-egress-mirror",
+                                "sonic-ext-copp-ifout",
+                                "sonic-ext-aggr-tap-redirect"),
+  .runs_before = VNET_FEATURES ("interface-output-arc-end"),
 };
+```
+
+`runs_before` / `runs_after` order features **within a single arc**; a node that
+is not registered as a feature on that arc cannot be ordered against. Ordering
+against `ip4-rewrite` / `ip6-rewrite` is therefore not expressible here, and is
+also unnecessary — those are nodes on the IP forwarding path and have already
+built the L2 header by the time the arc is entered, so the encrypt node always
+sees a complete frame.
+
+`sonic_ext` already registers three features on `interface-output`, and the
+encrypt node must follow all of them:
+
+| Existing feature | Why MACsec must run after it |
+|---|---|
+| `sonic-ext-egress-mirror` | Clones the wire form for Everflow. Running it first keeps the SPAN copy pre-MACsec, which is what makes a mirrored session readable. |
+| `sonic-ext-copp-ifout` | Classifies egress control-plane traffic **by ethertype**. Once the SecTAG is applied every frame reads as `0x88E5` and the classification collapses. |
+| `sonic-ext-aggr-tap-redirect` | May rewrite `VLIB_TX` and re-enter the arc. The encrypt node keys off `sw_if_index[VLIB_TX]`, so running first would both encrypt against the pre-redirect port and risk a second encapsulation on the re-entry pass. |
+
+`interface-output-arc-end` is the arc's `last_in_arc` node — the same terminator
+`sonic-ext-egress-mirror` already orders against — which is what makes the
+registration above mean "run last".
+
+Confirm the resolved order on a running image rather than assuming it:
+
+```
+docker exec syncd vppctl show features verbose
 ```
 
 ### 4.4 SAI APIs to implement in vslib/vpp
@@ -704,6 +767,48 @@ skipped but `highest_seen` is still tracked so XPN recovery keeps working.
 > that PTF-injected packets are never seen as late. The implementation must
 > tolerate large forward PN jumps without resetting state.
 
+**PN exhaustion.** The egress PN counter must never wrap. For the non-XPN
+ciphers the PN is 32 bits and the IV is `SCI || PN` (§3.2), so a wrap reuses an
+IV under the same SAK — which in GCM is not a degradation but a break: it
+discloses the XOR of two plaintexts and exposes the GHASH authentication
+subkey, permitting forgery. 802.1AE therefore requires the SecY to stop rather
+than repeat a PN.
+
+Exhaustion is resolved by rekeying, and the rekey is driven by MKA rather than
+by the dataplane. `wpa_supplicant`'s `ieee802_1x_kay.c` carries a per-cipher
+threshold, selected through `cipher_suite_tbl[].pn_exhaustion`:
+
+| Cipher suite | Threshold | Constant |
+|---|---|---|
+| `GCM-AES-128`, `GCM-AES-256` | `0xC0000000` (75% of 2^32) | `PENDING_PN_EXHAUSTION` |
+| `GCM-AES-XPN-128`, `GCM-AES-XPN-256` | `0xC000000000000000` (75% of 2^64) | `PENDING_XPN_EXHAUSTION` |
+
+Only the **Key Server** acts on it, and it does so in two places: against its
+own lowest PN while building an MKPDU (`"KaY: My LLPN exhaustion"` /
+`"My OLPN exhaustion"`), and against the peer's, learned from the LLPN/OLPN
+fields of a received MKPDU (`"KaY: Peer LPN exhaustion"`). Either sets
+`participant->new_sak`, and the resulting SA becomes active through the ordinary
+`SAI_MACSEC_SC_ATTR_ACTIVE_EGRESS_SA_ID` path described above. The
+non-key-server side contributes its PN through the MKPDU and waits.
+
+The value compared is the lowest acceptable PN, derived from the transmit SA's
+next PN sampled on the previous `mka_hello_time` tick (`lpn = txsa->next_pn - 1`).
+`ieee802_1x_kay.c` notes that this derivation assumes `mka_hello_time` is 2 s.
+
+The dataplane keeps a backstop: if a rekey has not landed by the time a non-XPN
+SA reaches `0xFFFFFFFF`, the encrypt node stops transmitting on that SA and
+drops with a `PN_EXHAUSTED` counter instead of wrapping.
+
+For the XPN ciphers the 64-bit threshold is not reachable in practice. The
+32-bit value **on the wire** still wraps every 2^32 frames, but that is a
+receive-side concern handled by `macsec_recover_xpn()` (Appendix B), which
+reconstructs the upper 32 bits; it does not address the egress case above.
+
+`clib_atomic_fetch_add` guarantees that each worker thread draws a distinct PN,
+but not that frames leave the interface in PN order. Receivers must tolerate
+modest reordering, which sets a lower bound on the replay window configured
+above.
+
 ### 4.7 Counters, XPN and stat segment
 
 Each SA gets a stat-segment entry under `/macsec/sa/<index>/`:
@@ -729,6 +834,33 @@ Each SA gets a stat-segment entry under `/macsec/sa/<index>/`:
 `SwitchVpp::refresh_macsec_sa_stat()` replaces the base-class kernel scrape and
 reads `current-xpn` from the stat segment into the SA object's attribute cache,
 so that `SwitchStateBase::refresh_read_only()` keeps working unchanged.
+
+`current-xpn` is not only consumed by `show macsec`. SONiC's MKA reads it back
+to drive PN-exhaustion rekey (§4.6), and the path terminates in this exact
+COUNTERS_DB field — from `wpa_supplicant`'s `driver_macsec_sonic.c`:
+
+```c
+static int macsec_sonic_get_transmit_next_pn(void *priv, struct transmit_sa *sa)
+{
+    ...
+    int ret = sonic_db_get_counter(drv->sonic_manager, COUNTERS_TABLE, key,
+                                   "SAI_MACSEC_SA_ATTR_CURRENT_XPN", &pn);
+    if (ret == SONIC_DB_SUCCESS)
+        sa->next_pn = pn;
+    return ret;
+}
+```
+
+The full loop is therefore `refresh_macsec_sa_stat()` → SA attribute cache →
+syncd FlexCounter → COUNTERS_DB → `macsec_sonic_get_transmit_next_pn()` →
+`txsa->next_pn` → the `ieee802_1x_kay.c` threshold comparison → rekey.
+
+Note the failure mode. When the counter is absent the driver returns
+non-success and leaves `sa->next_pn` **unchanged**, so the LPN never advances
+and exhaustion is never detected. A placeholder implementation that reports a
+fixed value has the same effect: it silently disables PN-exhaustion rekey.
+Any interim stub used to unblock the control-plane tests is therefore a Phase 3
+gap to close, not a solution.
 
 `clear_stats` on a `MACSEC_SA` zeroes the `SAI_MACSEC_SA_STAT_*` entries but
 **not** `current-xpn` — `test_clear_counters` asserts exactly this
@@ -987,6 +1119,7 @@ docker exec syncd vppctl show macsec
 docker exec syncd vppctl show macsec interface <hwif>
 docker exec syncd vppctl show macsec sa
 docker exec syncd vppctl show lcp ethertype
+docker exec syncd vppctl show features verbose    # arc membership and order
 ```
 
 ### 6.3 Confirm MKA converged
