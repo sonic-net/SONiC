@@ -398,7 +398,7 @@ The global configuration contains:
 | Field | Meaning |
 |---|---|
 | `trim_size` | Maximum number of bytes retained |
-| `dscp_mode` | Stored DSCP mode; only direct `DSCP_VALUE` is honored |
+| `dscp_mode` | Only symmetric `DSCP_VALUE` (wire value 0) is accepted |
 | `dscp_value` | Symmetric DSCP value |
 | `trim_tc` | Stored TC for the deferred asymmetric egress-map lookup |
 | `trim_queue` | Queue index used for the shortened packet |
@@ -694,8 +694,8 @@ For set operations on a trim-relevant object, SAI-VPP:
 
 1. Receives the metadata-validated SAI attribute and resolves available object
    references.
-2. Validates the candidate global policy, including the trim-size range, before
-   changing state or invoking VPP.
+2. Validates the candidate global policy, including the trim-size and six-bit
+   DSCP ranges, before changing state or invoking VPP.
 3. Stages the candidate attribute and cached policy, retaining the previous
    values. Object relationships still refer to the committed state.
 4. Pushes the global policy or full per-`{port, queue}` state and classifier.
@@ -741,7 +741,7 @@ which refreshes the VPP policy, and then remove the unreferenced object.
 |---|---|
 | `SAI_SWITCH_ATTR_PACKET_TRIM_SIZE` | Global `trim_size` |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_RESOLUTION_MODE` | Only `DSCP_VALUE` is advertised and accepted; `FROM_TC` is rejected on CREATE and SET before mutation or programming |
-| `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE` | Symmetric DSCP value |
+| `SAI_SWITCH_ATTR_PACKET_TRIM_DSCP_VALUE` | Symmetric DSCP value in the range 0-63; invalid values are rejected on CREATE and SET before mutation or programming |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_TC_VALUE` | Stored for the deferred asymmetric path; not used by the delivered trim node |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_RESOLUTION_MODE` | Accept `STATIC`; reject `DYNAMIC` on CREATE and SET before changing state or calling VPP. Only `STATIC` is advertised ([7.12](#712-capability-advertisement)) |
 | `SAI_SWITCH_ATTR_PACKET_TRIM_QUEUE_INDEX` | Global static trim queue in the range 0-7; the plugin rejects an unsupported queue without changing the previous policy. The validated configuration uses queue 6 |
@@ -892,7 +892,7 @@ single-worker topology; per-worker buckets or atomic accounting are deferred.
 
 | Error case | Handling |
 |---|---|
-| Out-of-range scalar values reaching the vendor layer | Reject trim sizes above 65535 before modifying state or calling VPP. DSCP is masked to six bits. The plugin rejects static trim queues outside 0-7 without changing the previous policy. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
+| Out-of-range scalar values reaching the vendor layer | SAI-VPP rejects trim sizes above 65535 and DSCP values above 63 before modifying state or calling VPP. The plugin independently rejects DSCP values above 63, unsupported DSCP modes, and static trim queues outside 0-7. The debug CLI also rejects size and TC values outside their respective 16-bit and 8-bit ranges. Validation is atomic; no field of the previous policy changes on rejection. Explicit disable requests ignore the other fields. The supported control path programs valid values (size 256/4084, DSCP 48, queue 6) |
 | DSCP-to-queue table contains an unsupported queue | SAI-VPP rejects the composed table before sending it and rolls back a failed set. The plugin independently validates the entire table atomically with `INVALID_VALUE`; queues 8/9 must not alias queues 0/1 |
 | Queue is multicast or has an out-of-range unicast index | Multicast queues are skipped by `SAI_QUEUE_ATTR_TYPE` so a colliding multicast index cannot overwrite the corresponding unicast admission slot. Unicast indices at or above `SONIC_EXT_TRIM_MAX_QUEUES` (8) are skipped as SUCCESS. Every eligible lossy queue in the supported configuration is unicast and below the cap ([13.2](#132-design-limitations)) |
 | `DYNAMIC` queue-resolution mode | Omitted from the advertised enum and explicitly rejected on CREATE and SET without mutation or API calls ([7.12](#712-capability-advertisement)) |
