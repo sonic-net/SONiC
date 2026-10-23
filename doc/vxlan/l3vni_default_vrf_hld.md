@@ -384,9 +384,10 @@ The feature adds one logical VRF record, existing tunnel-map entries, and normal
 
 ### 13.1 Management and YANG tests
 
-1. Validate `VRF|default` with a valid nonzero VNI against `sonic-vrf.yang` and reject misspelled or otherwise invalid reserved names.
-2. Save and reload a configuration containing `VRF|default`; verify YANG validation succeeds and the mapping is restored without aborting reload.
-3. Verify the existing named-VRF key constraints, valid VNI range, and rejection behavior remain unchanged.
+1. Validate `VRF|default` with a valid nonzero VNI against `sonic-vrf.yang` and reject case variants, suffixed names, and otherwise invalid uses of the reserved name.
+2. Translate a CONFIG_DB `VRF|default` entry to RFC 7951 YANG data and back to CONFIG_DB; verify the reserved key and VNI are preserved exactly.
+3. Save and reload a configuration containing `VRF|default`; verify YANG validation succeeds and the mapping is restored without aborting reload.
+4. Verify the existing named-VRF key constraints, valid VNI range, and rejection behavior remain unchanged. Verify named-VRF mapping deletion retains its VRF entry with the existing `vni=0` removal indication; default-VRF mapping deletion removes its logical `VRF|default` entry.
 
 ### 13.2 `vrfmgrd` tests
 
