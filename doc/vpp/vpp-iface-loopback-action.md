@@ -32,7 +32,7 @@ SONiC VPP dataplane. The feature implements the SAI attribute
 ingresses on a router interface (RIF) and, after routing, resolves to a next-hop that egresses on
 **that same RIF** (a "hairpin"). The action is either `FORWARD` (default) or `DROP`.
 
-The feature implementation spans two repositories (a third, `sonic-mgmt`, carries only test enablement
+The feature implementation spans three repositories (`sonic-mgmt` additionally carries test enablement
 and a testbed VM fix — see §8.2 and §9):
 
 - **`sonic-platform-vpp`**: two new loopback nodes and a binary API added to the existing consolidated
@@ -40,6 +40,8 @@ and a testbed VM fix — see §8.2 and §9):
   interface `tx-error` counter on drop.
 - **`sonic-sairedis`**: the VPP-backed SAI implementation (`vslib/vpp`), which translates the SAI RIF
   attribute into a call to the `sonic_ext` plugin's binary API.
+- **`sonic-swss`**: an `IntfsOrch` capability guard that preserves RIF creation when the optional
+  loopback action is known to be unsupported, without claiming that the requested action was applied.
 
 It enables the existing sonic-mgmt test
 [`iface_loopback_action`](https://github.com/sonic-net/sonic-mgmt/tree/master/tests/iface_loopback_action)
@@ -58,13 +60,18 @@ to run on the `t1-lag-vpp` topology.
   five RIF identifiers exercised by the test (ethernet, VLAN, port-channel/LAG, sub-port, port-channel
   sub-port).
 - Advertising the attribute as supported only when the plugin's `iface-loopback` feature is enabled.
+- Checking CREATE and SET capability separately in `IntfsOrch`, including the SET following initial
+  RIF creation and later configuration updates (§5.1).
 
 **Out of scope**
 
 - Any loopback-action behaviour beyond `FORWARD`/`DROP` (e.g. trap/copy to CPU).
-- Orchagent, SONiC CLI, or CONFIG_DB schema changes (these already exist upstream; see §5).
+- SONiC CLI or CONFIG_DB schema changes (these already exist upstream; see §5).
+- A general policy for reconciling CONFIG_DB intent with `sonic-ext` feature toggles or other
+  optional SAI attributes.
 - Multicast hairpin handling (already covered by upstream VPP; see §3.4).
-- Non-VPP ASIC behaviour and the sonic-mgmt test logic itself (only test enablement, in a separate PR).
+- Non-VPP dataplane implementations and the sonic-mgmt test logic itself (only test enablement, in a
+  separate PR). The SWSS capability guard is platform-independent.
 
 ---
 
@@ -114,10 +121,11 @@ CONFIG_DB -> orchagent (intfsorch) -> ASIC_DB -> syncd -> SAI API
           -> saivpp (vslib/vpp) -> VPP binary API -> sonic_ext plugin (loopback nodes) -> drop / forward
 ```
 
-This design implements the attribute in the last two stages: saivpp translates the SAI attribute into a
+This design implements the dataplane attribute in the last two stages: saivpp translates the SAI attribute into a
 **VPP binary API** call, and the **`sonic_ext` plugin's loopback nodes** enforce it. The two integration
 boundaries it crosses are the **SAI API** (syncd to saivpp) and the **VPP binary API** (saivpp to the
-`sonic_ext` plugin), as labelled in the diagram above.
+`sonic_ext` plugin), as labelled in the diagram above. `IntfsOrch` also checks capability before
+programming the optional attribute through SAI (§5.1).
 
 ### 3.4 Why this is net-new on VPP
 
@@ -228,14 +236,15 @@ counter and CREATE changes also affect RIFs that do not configure `DROP`:
 
 ## 5. SONiC Configuration
 
-**No SONiC control-plane changes are required.** The CLI, CONFIG_DB/APPL_DB schema, and orchagent
-handling already exist upstream; this section documents the top-to-bottom mapping for reference.
+The CLI and CONFIG_DB/APPL_DB schema already exist upstream. A companion **SWSS control-plane
+change is required** to gate the existing orchagent programming on operation-specific SAI capability;
+otherwise a configured `DROP` can prevent RIF creation when the VPP feature is disabled.
 
 Operator commands:
 
 ```
 config interface ip loopback-action <interface> <forward|drop>
-show ip interfaces loopback-action          # read back
+show ip interfaces loopback-action
 ```
 
 CONFIG_DB representation (the `loopback_action` field is set on whichever `*_INTERFACE` table owns the
@@ -255,14 +264,39 @@ End-to-end mapping:
 | CLI | `config interface ip loopback-action <intf> drop` |
 | CONFIG_DB | `*_INTERFACE` table, `loopback_action = drop` |
 | APPL_DB | `INTF_TABLE:<intf>` `loopback_action` (propagated by intfmgrd) |
-| orchagent | `intfsorch` sets `SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION` on the RIF |
+| orchagent | `intfsorch` checks CREATE/SET capability before programming `SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION` |
 | ASIC_DB / syncd | RIF attribute create/set |
 | saivpp | `SwitchVppRif` -> `SaiVppXlate` (§6, §7.6) |
 | VPP | `sonic_ext_iface_loopback_set_action { sw_if_index, action }` (§7.5) |
 
-The intended restoration paths need no plugin-side persistence: orchagent re-applies the action from
-CONFIG_DB (cold/fast boot), or syncd replays it from ASIC_DB (warm boot), re-issuing the RIF operation
-to saivpp. **Warm-boot replay has not been validated for this feature on VPP**; it is an expected
+### 5.1 Capability-aware programming
+
+When a valid `loopback_action` is configured, `IntfsOrch` queries
+`sai_query_attribute_capability()` for `SAI_OBJECT_TYPE_ROUTER_INTERFACE` /
+`SAI_ROUTER_INTERFACE_ATTR_LOOPBACK_PACKET_ACTION`. It caches only successful query results for
+the lifetime of the orchestrator and uses the two operation flags independently:
+
+| Capability result | CREATE behavior | SET behavior |
+|---|---|---|
+| Query succeeds; corresponding operation flag is `true` | Include the requested action. | Program the requested action. |
+| Query succeeds; corresponding operation flag is `false` | Omit the optional attribute, retaining the initial default `FORWARD`; warn with the interface and requested action. | Skip the SAI call and consume the task; warn that SET was skipped and the existing action is unchanged. |
+| Query fails, including an unavailable query API | Log the failure and retain normal SAI programming and error handling. Do not cache the failed answer. | Same; unknown capability is not treated as unsupported. |
+
+The initial interface task performs both CREATE and SET, so guarding CREATE alone is insufficient.
+SET gating applies to both that initial SET and later explicit updates. For example, a platform
+supporting CREATE but not SET can create a RIF with `DROP`; a later requested `FORWARD` is skipped
+and the applied `DROP` remains unchanged.
+
+CONFIG_DB retains the requested intent. Skipping an unsupported action does not record it as
+successfully applied or emit the normal SET-success message. This guard avoids a known unsupported
+optional policy blocking L3 creation or repeatedly failing the same task; it does not hide failures
+from SAI operations that are actually attempted. Capability-query failure alone does not defer the
+task indefinitely. Broader feature-toggle reconciliation remains separate work.
+
+The intended restoration paths need no plugin-side persistence: orchagent reprocesses CONFIG_DB
+intent through the same guard (cold/fast boot), or syncd replays applied attributes from ASIC_DB
+(warm boot), re-issuing the RIF operation to saivpp.
+**Warm-boot replay has not been validated for this feature on VPP**; it is an expected
 restoration path, not a verified result. `test_loopback_action_reload` uses **cold** reboot by
 default (§8.1); the current validation limits are recorded in §8.4.
 
@@ -517,6 +551,11 @@ CREATE propagates a rejected `DROP` without committing the SAI object, and SET r
 updating the stored action. `FORWARD` remains a successful no-op. The merged baseline and
 follow-up validation are distinguished in §8.4.
 
+A direct SAI client still receives `SAI_STATUS_NOT_SUPPORTED` for disabled-feature `DROP`.
+Without the SWSS guard in §5.1, that status can fail the entire RIF CREATE, and a subsequent SET
+can fail as well. The companion guard omits known-unsupported optional programming; it does not
+weaken this SAI contract.
+
 **API helper** (`vslib/vpp/vppxlate/SaiVppXlate.c` / `.h`), following the `tunterm_acl` /
 `set_ip_flow_hash_v2` binding pattern:
 
@@ -597,6 +636,12 @@ The `iface_loopback_action` module (`pytest.mark.topology('any')`, so t1-lag is 
 
 ### 8.2 Enablement
 
+The SWSS capability guard in
+[sonic-net/sonic-swss#5052](https://github.com/sonic-net/sonic-swss/pull/5052)
+must reach release images **before or together with**
+sonic-net/sonic-sairedis#2144's strict disabled-feature behavior. The integration candidate must
+contain both that guard and the SAI follow-up's LAG/subinterface setup fixes.
+
 A **separate sonic-mgmt PR**, to land **last**, adds `iface_loopback_action` to the `t1-lag-vpp` section
 of `.azure-pipelines/pr_test_scripts.yaml`. Gate any unavoidable skips on `asic_type in ['vpp']` (not
 `topo_name`).
@@ -641,10 +686,26 @@ CREATE/SET regression both failed before the disabled-feature correction. The la
 five RIF shapes, rejected CREATE cleanup, unchanged stored attributes after rejected SET,
 explicit/omitted `FORWARD`, and no loopback API calls while disabled.
 
-A fresh image containing the SAI changes is still needed for the complete
+Revision `aa049294` additionally fixes the observed LAG subinterface kernel-name mismatch and
+throwing parent-LAG discovery. Its full native VPP-enabled build, 44 selected VPP tests
+(shuffled, seed 2144), and the five source checks passed. Both valid long
+`PortChannel<N>.<VID>` names and compressed `Po<N>.<VID>` names are covered.
+
+Companion SWSS mock coverage exercises the complete initial interface task, all four combinations
+of CREATE/SET capability, subsequent updates that preserve applied state when unsupported, and
+query failures that fall through to normal programming without being cached. Existing SET retry
+and invalid-action handling remain intact. At SWSS revision `7ff91813`, the production
+`IntfsOrch` object and complete mock-test binary compiled with the repository's compiler flags,
+and all 11 interface tests passed in shuffled order (seed 2144). All five new cases failed
+against the original production code before applying the guard.
+
+A fresh image containing **both the SAI changes and SWSS guard** is still needed for the complete
 `iface_loopback_action` integration run, including flap and cold reboot. The native tests
 mock VPP APIs and RIF host operations; neither these tests nor the isolated API check
-replaces that live-DUT validation. The ingress-side counter expectations in §7.4 are derived
+replaces that live-DUT validation. Also validate a separate disabled-feature boot: configured
+`DROP` must not prevent RIF creation, the effective action must remain `FORWARD`, and initial and
+later unsupported SETs must be warned about without repeated SAI failures. CONFIG_DB must retain
+the requested intent. The ingress-side counter expectations in §7.4 are derived
 from the VPP drop path and SAI mapping, not a fresh runtime measurement; a focused check should
 compare `tx-error`, `drops`, and `rx-error` deltas as well as the SAI RIF error counters.
 
@@ -731,6 +792,13 @@ The current validation scope, including the remaining live-DUT run, is recorded 
 | `unittest/vslib/TestSwitchVpp.cpp`, `Makefile.am` | Modify | Retain upstream interface-state tests and conditionally link the split VPP test modules |
 | `unittest/vslib/TestSwitchVppRif.cpp`, `TestVppInterfaceRegistry.cpp` | Add | Separate native regression suites for RIF behavior and registry bindings |
 | `unittest/vslib/MockVppXlate.cpp` / `.h` | Add | Shared C API wrappers, resettable mock state, and testable RIF host-operation overrides without mangled C++ linker symbols |
+
+### sonic-swss
+
+| File | Change | Description |
+|---|---|---|
+| `orchagent/intfsorch.cpp` / `.h` | Modify | Cache successful loopback capability queries and gate CREATE/SET independently, with truthful warnings and normal error handling on unknown capability |
+| `tests/mock_tests/intfsorch_ut.cpp` | Modify | Exercise complete interface tasks, independent operation flags, unchanged applied state after skipped updates, and uncached query failures |
 
 ### sonic-mgmt
 
