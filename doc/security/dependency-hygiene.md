@@ -39,7 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
-| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, and no unattended merge for modules pinned in `vendor/`. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, and no unattended merge for patched modules. |
 
 ### 2. Scope
 
@@ -188,7 +188,6 @@ A version a person pins in a build script has a custom manager entry beside it.
 | `OTEL_VERSION` | `dockers/docker-sonic-otel/Dockerfile.j2` | `github-releases` | Reviewer |
 | Rust toolchain | `sonic-slave-trixie/Dockerfile.j2` | `github-releases` | Reviewer |
 | `FIPS_GOLANG_VERSION` | `rules/sonic-fips.mk` | `golang-version` | Dashboard only |
-| Go modules a `Makefile` copies into `vendor/` by version | That repository's `Makefile` | `go` | Same pull request as `go.mod` |
 
 **Docker and containerd.** Each package has its own entry, because each is a separate package in the apt repository. The pin omits the distribution suffix, and the build appends `~$IMAGE_DISTRO`. The apt index carries the suffix, so `extractVersionTemplate` strips it before comparison and before the new value is written:
 
@@ -266,18 +265,15 @@ The `suite` parameter and the stripped suffix both name the image distribution, 
 
 The FIPS Go entry names its dependency `go`, so `ignoreDeps` for the `go` directive ([7.2](#72-native-managers)) is set in each Go repository rather than in the shared preset.
 
-**Go module versions in a `Makefile`.** A `Makefile` that copies files from a module into `vendor/` names the module's version itself, outside `go.mod`. A custom manager reads it with the `go` datasource, and the grouping in [7.4](#74-pull-request-grouping) puts it in the same pull request as the `go.mod` update. Without it, a bump that `go.mod` alone carries fails the build:
+**Go module copies into `vendor/`.** `go mod vendor` leaves out packages nothing imports, so some builds copy files from a module into `vendor/` themselves, such as the `sonic-gnmi` `Makefile` and the `sonic-mgmt-common` `patches/apply.sh`. A copy never names a module version. It takes the module's directory from `go list -m`, which follows `go.mod` and its `replace` directives:
 
-```json
-{
-  "customType": "regex",
-  "managerFilePatterns": ["/^Makefile$/"],
-  "matchStrings": ["(?<depName>golang\\.org/x/(?:crypto|term))@(?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
-  "datasourceTemplate": "go"
-}
+```make
+MOD_DIR = $$($(GO) list -mod=mod -m -f '{{.Dir}}' $(1))
 ```
 
-**Patched modules.** Some repositories patch the vendored source of a module at build time, or have a build script copy a module into `vendor/` by a version it names itself. A bump usually needs the patch or the script refreshed by hand, so an ordinary update to such a module opens only on Dependency Dashboard approval, in a pull request of its own:
+A version named in the build instead stays behind when `go.mod` moves: the build passes, and ships the old code. A version that follows `go.mod` needs no custom manager, and moves in the same pull request as `go.mod`.
+
+**Patched modules.** Some repositories patch the vendored source of a module at build time. A bump usually needs the patch refreshed by hand, so an ordinary update to such a module opens only on Dependency Dashboard approval, in a pull request of its own:
 
 ```json
 {
@@ -286,8 +282,8 @@ The FIPS Go entry names its dependency `go`, so `ignoreDeps` for the `go` direct
   "groupName": null,
   "minimumReleaseAge": "7 days",
   "dependencyDashboardApproval": true,
-  "addLabels": ["vendor-pin"],
-  "prBodyNotes": ["This module is also copied into `vendor/` at a pinned version, or patched there. Move that pin, and refresh any patch, with this update."]
+  "addLabels": ["patched-module"],
+  "prBodyNotes": ["`patches/apply.sh` patches this module in `vendor/`. A patch that still applies may no longer be correct for the new version, so check each one against it. This update is never labeled `automerge`."]
 }
 ```
 
@@ -295,7 +291,7 @@ The FIPS Go entry names its dependency `go`, so `ignoreDeps` for the `go` direct
 
 `groupName: null` matters. Renovate holds a whole group for approval when any one update in it needs approval, so a patched module left in the ecosystem group would hold back every ordinary update in that ecosystem.
 
-A security update to a patched module still opens, because `vulnerabilityAlerts` overrides `dependencyDashboardApproval`. It never merges unattended. The build shows whether a patch still applies, but not whether the build still copies the module's old version into `vendor/` over the updated one, so a passing build does not show that the fix shipped. The `vendor-pin` label marks these modules. The preset's `automerge` rule ([7.5](#75-branch-policy)) skips an update carrying it, and the note in the pull request body tells the reviewer to move the pin. Each one opens on its own, so a pin or patch that needs work holds back only that fix. The repository's `vulnerabilityAlerts.groupName` names the same modules:
+A security update to a patched module still opens, because `vulnerabilityAlerts` overrides `dependencyDashboardApproval`. It never merges unattended. The build shows whether a patch still applies, but not whether it is still correct against the new version. The `patched-module` label marks these modules. The preset's `automerge` rule ([7.5](#75-branch-policy)) skips an update carrying it, and the note in the pull request body asks the reviewer to check each patch. Each one opens on its own, so a patch that needs work holds back only that fix. The repository's `vulnerabilityAlerts.groupName` names the same modules:
 
 ```json
 {
@@ -353,7 +349,7 @@ Release branches from `202611` on are in scope. One pattern matches them, so a n
 | Lane | Datasource | Classified as security |
 |------|------------|------------------------|
 | `gomod`, `cargo`, `pip` | Ecosystem registry | Yes |
-| A custom manager on an ecosystem datasource, such as `go` in a `Makefile` | Ecosystem registry | Yes |
+| A custom manager on an ecosystem datasource | Ecosystem registry | Yes |
 | Docker, containerd | `deb` | No |
 | OpenTelemetry Collector, Rust | `github-releases` | No |
 | FIPS Go | `golang-version` | No |
@@ -367,8 +363,8 @@ A custom manager on any other datasource has no advisory feed behind it. A relea
   "vulnerabilityAlerts": { "enabled": true, "labels": ["security"] },
   "packageRules": [
     {
-      "description": "Security updates below a major version merge unattended, unless a repository marks the module vendor-pin",
-      "matchJsonata": ["isVulnerabilityAlert = true and $not('vendor-pin' in addLabels)"],
+      "description": "Security updates below a major version merge unattended, unless a repository marks the module patched-module",
+      "matchJsonata": ["isVulnerabilityAlert = true and $not('patched-module' in addLabels)"],
       "matchUpdateTypes": ["patch", "minor"],
       "addLabels": ["automerge"]
     }
@@ -376,9 +372,9 @@ A custom manager on any other datasource has no advisory feed behind it. A relea
 }
 ```
 
-A security update that needs a major version opens with the `security` label alone and waits for a reviewer. So does one to a module a repository marks `vendor-pin` ([7.3](#73-hand-pinned-versions)). Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
+A security update that needs a major version opens with the `security` label alone and waits for a reviewer. So does one to a module a repository marks `patched-module` ([7.3](#73-hand-pinned-versions)). Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
 
-**Release branch rules.** Before a lookup, Renovate does not yet know the update type, and a rule that disables a dependency at that stage removes it before any later rule can re-enable it. The release branch rules therefore disable every manager except `custom.regex` up front, and then disable `custom.regex` majors once the update type is known. A custom manager on the `go` datasource is disabled too, because the `go.mod` it moves with only takes security updates on a release branch. A security update overrides all three.
+**Release branch rules.** Before a lookup, Renovate does not yet know the update type, and a rule that disables a dependency at that stage removes it before any later rule can re-enable it. The release branch rules therefore disable every manager except `custom.regex` up front, and then disable `custom.regex` majors once the update type is known. A security update overrides both.
 
 **Release age.** The preset holds every update until its release is 7 days old, so a release that is withdrawn or compromised soon after publication is not proposed. A security update is not held, because `vulnerabilityAlerts` resets `minimumReleaseAge`.
 
@@ -505,7 +501,7 @@ Open Dependabot pull requests are closed once Renovate runs; Renovate opens its 
 | 5 | Remaining owned repositories, and the `202611` branch |
 | 6 | A resolution for the pip seam |
 
-The Go repositories come first because they need no custom manager beyond a `Makefile` entry, and because the robot check evaluation is a small, contained change to land beside them.
+The Go repositories come first because they need no custom manager, and because the robot check evaluation is a small, contained change to land beside them.
 
 ### 8. SAI API
 
@@ -590,15 +586,8 @@ The preset:
       "enabled": false
     },
     {
-      "description": "A module version a Makefile names moves with go.mod, which a release branch updates only for security",
-      "matchBaseBranches": ["/^(20261[12]|20(2[7-9]|[3-9][0-9])(0[1-9]|1[0-2]))$/"],
-      "matchManagers": ["custom.regex"],
-      "matchDatasources": ["go"],
-      "enabled": false
-    },
-    {
-      "description": "Security updates below a major version merge unattended, unless a repository marks the module vendor-pin",
-      "matchJsonata": ["isVulnerabilityAlert = true and $not('vendor-pin' in addLabels)"],
+      "description": "Security updates below a major version merge unattended, unless a repository marks the module patched-module",
+      "matchJsonata": ["isVulnerabilityAlert = true and $not('patched-module' in addLabels)"],
       "matchUpdateTypes": ["patch", "minor"],
       "addLabels": ["automerge"]
     },
@@ -666,7 +655,7 @@ No change. Nothing is added to the image.
 | npm lockfiles inside Debian's Go and Ruby packages are not reached | They are part of Debian's packages and are not SONiC dependencies |
 | Findings with no published fix are not addressed | Nothing can update to a fix that does not exist. Shipping less is the [EOL plan](../eol-planning/202611-eol-and-deprecation.md)'s remit |
 | SONiC's Debian rebuilds are not covered | SBOM-driven triage covers them |
-| A bump can conflict with a local patch, or be overridden by a pinned copy in `vendor/` | Components built from source with a patch series are out of scope. Ordinary updates to patched modules wait for dashboard approval. A security update to one opens on its own, with the `vendor-pin` label and no `automerge`, so a reviewer moves the pin. See [7.3](#73-hand-pinned-versions) |
+| A bump can conflict with a local patch | Components built from source with a patch series are out of scope. Ordinary updates to patched modules wait for dashboard approval. A security update to one opens on its own, with the `patched-module` label and no `automerge`, so a reviewer checks each patch. See [7.3](#73-hand-pinned-versions) |
 | Python is excluded | See the pip seam in [7.8](#78-existing-automation) |
 
 ### 13. Testing Requirements/Design
@@ -683,13 +672,13 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Release branch rules hold | A run against a release branch from `202611` on proposes security updates and hand-pinned patch and minor updates only |
 | Grouping is correct | A run against `master` proposes one pull request per ecosystem per update type, and majors one per dependency |
 | A major security update is not labeled `automerge` | A run against a fork pinned to a vulnerable version whose fix needs a major bump opens a pull request with the `security` label alone |
-| A `Makefile` version moves with `go.mod` | The `Makefile` custom manager matches only the module versions the `Makefile` copies into `vendor/`, and its update lands in the same pull request as the `go.mod` one |
+| A copy into `vendor/` moves with `go.mod` | Vendoring before and after the change gives an identical tree. After a `go.mod` bump to a module the build copies, the copied files match the new version |
 | Patched modules wait for approval | The Dependency Dashboard lists each patched module under pending approval, and no pull request opens for it |
 | The `go.sum` workflow produces a tidy module | With the replaced repository checked out beside it, `go mod tidy` after a Renovate bump leaves a `go.sum` the build accepts. On a Renovate pull request, the fixup commit is signed by GitHub, and is followed by dispatched runs of each GitHub Actions check |
 | Robot check evaluation | The evaluation function, run against each case in [7.6](#76-approval-and-merge) and against the check list and required checks of a live bot pull request, passes only when every check has completed successfully, every required check has reported, and a build check is present. A list holding only `EasyCLA` does not pass |
 | Robot commit check | The robot declines a Renovate pull request carrying a pushed commit, including one that names the Renovate bot as its author, and merges one whose commits are all GitHub-signed commits from the Renovate bot and `github-actions[bot]` |
 | Release age | An ordinary update younger than 7 days is not proposed. A security update of the same age is |
-| Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request, labeled `security` and `vendor-pin`, without `automerge` |
+| Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request, labeled `security` and `patched-module`, without `automerge` |
 | The `go` directive is never raised | A `go.sum` workflow run on a bump that needs a newer Go fails, and pushes nothing |
 
 #### 13.2 System Test cases
