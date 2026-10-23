@@ -845,7 +845,9 @@ compiled unconditionally into `sonic_ext_plugin.so`.
 ## 10. Warmboot and Fastboot
 
 Reload, warmboot, and fastboot persistence are **not validated in this
-increment**; `test_trimming_with_reload_and_reboot` is skipped on `vpp`.
+increment**; `test_trimming_with_reload_and_reboot` and
+`test_trimming_during_warm_reboot` are skipped on `vpp`. The latter requires
+uninterrupted trimming during warm reboot, which the VPP platform does not support.
 
 The warm constructor rebuilds the cached global policy from recovered switch
 attributes, validating the trim size without issuing per-attribute API calls.
@@ -1176,7 +1178,7 @@ rule is updated so exactly the three in-scope symmetric cases run on VPP:
   and the symmetric `test_acl_action_with_trimming`, `test_trimming_with_srv6`,
   `test_stability_during_feature_toggles`,
   `test_trimming_during_port_admin_toggle`,
-  `test_trimming_with_reload_and_reboot`, `test_trimming_counters`,
+  `test_trimming_during_warm_reboot`, `test_trimming_with_reload_and_reboot`, `test_trimming_counters`,
   `test_trimming_counters_with_feature_toggle`, and
   `test_port_mirror_with_trimming` cases. Each carries a reason pointing at the
   deferral in [13.1](#131-integration-status) and the tracking issue.
