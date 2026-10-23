@@ -39,7 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
-| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, and no unattended merge for patched modules. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, and branch protection on Renovate branches. |
 
 ### 2. Scope
 
@@ -174,6 +174,8 @@ A commit made through the API is signed by GitHub, which the merge robot require
 `go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local`, and fails instead of committing when the directive changes, so the pull request shows that the update needs a newer build container.
 
 Step 3 also runs when the branch is already tidy and its head is a fixup commit, so rerunning a job that committed but failed before dispatching still starts the checks.
+
+**Branch protection on Renovate branches.** Step 2 needs to add a commit to an existing Renovate branch. A branch protection rule that matches every branch, rather than only the default and release branches, rejects that commit when it requires a pull request or status checks: the commit is not a pull request, and a new commit cannot have passed the required checks. Such a rule does not block branch creation, so Renovate's own branches still appear, but nothing can be added to them afterwards. Exempting `github-actions[bot]` from the pull request requirement is not enough, because the required checks still apply. In such a repository the protection is moved to a branch ruleset that includes all branches and excludes `renovate/**`, with the same rules and the repository admin role as its bypass, and the wildcard rule is deleted ([9.5](#95-setup-steps)). Write access to `renovate/**` opens no merge path, because the merge robot requires every commit on a Renovate pull request to be signed and authored by `renovate[bot]` or `github-actions[bot]` ([7.6](#76-approval-and-merge)), and the default branch keeps its own protection.
 
 Step 2 also brings in any drift between the two repositories' `go.mod` files. The CI pipeline's own `go mod tidy` applies the same change on every build.
 
@@ -612,13 +614,14 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 | 3 | Each repository's administrators | Leave Dependabot alerts on, and turn Dependabot security updates off. See [7.8](#78-existing-automation) |
 | 4 | `sonic-pipelines` maintainers | Merge `renovate/default.json` and the `automation-pr-scan.yml` change: the Renovate author filter, and the check evaluation in [7.6](#76-approval-and-merge). Add each Renovate repository to the robot's `repos` parameter if it is not already listed |
 | 5 | Organization administrator | Where branch protection applies to administrators, allow `mssonicbld` to bypass required pull requests on the branches Renovate targets ([7.6](#76-approval-and-merge)) |
-| 6 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)) |
-| 7 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers) |
-| 8 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
+| 6 | Each repository's administrators | Where a repository carries a workflow from [7.2](#72-native-managers) and a branch protection rule matches every branch, replace that rule with a branch ruleset that includes all branches, excludes `renovate/**`, keeps the same rules, and lets the repository admin role bypass, so the workflow can commit to Renovate branches |
+| 7 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)) |
+| 8 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers) |
+| 9 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
 
-Renovate opens nothing in a repository but its onboarding pull request until step 7. Steps 1 to 5 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot.
+Renovate opens nothing in a repository but its onboarding pull request until step 8. Steps 1 to 6 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot.
 
-A later repository repeats steps 2 (the team's Read access), 3, 5, 7 and 8, and closes its onboarding pull request if one is open.
+A later repository repeats steps 2 (the team's Read access), 3, 5, 6, 8 and 9, and closes its onboarding pull request if one is open.
 
 | Action | Effect |
 |--------|--------|
