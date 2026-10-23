@@ -39,7 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
-| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, and the robot commit check. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, and no unattended merge for modules pinned in `vendor/`. |
 
 ### 2. Scope
 
@@ -171,7 +171,9 @@ Such a repository carries a workflow that runs on Renovate pull requests:
 
 A commit made through the API is signed by GitHub, which the merge robot requires of every commit on a Renovate pull request ([7.6](#76-approval-and-merge)); a `git push` would leave it unsigned. A commit made with `GITHUB_TOKEN` starts no workflow runs, and `workflow_dispatch` is the exception, so step 3 dispatches them. A check that also builds the replaced repository takes its branch as a dispatch input. The workflow needs no secret. `renovate.json` lists `github-actions[bot]` in `gitIgnoredAuthors`, so Renovate keeps rebasing the branch, and suppresses Renovate's artifact error comments, which every such pull request would otherwise carry.
 
-`go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local`, and fails instead of pushing when the directive changes, so the pull request shows that the update needs a newer build container.
+`go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local`, and fails instead of committing when the directive changes, so the pull request shows that the update needs a newer build container.
+
+Step 3 also runs when the branch is already tidy and its head is a fixup commit, so rerunning a job that committed but failed before dispatching still starts the checks.
 
 Step 2 also brings in any drift between the two repositories' `go.mod` files. The CI pipeline's own `go mod tidy` applies the same change on every build.
 
@@ -282,13 +284,18 @@ The FIPS Go entry names its dependency `go`, so `ignoreDeps` for the `go` direct
   "matchManagers": ["gomod"],
   "matchPackageNames": ["github.com/openconfig/ygot", "github.com/openconfig/goyang"],
   "groupName": null,
-  "dependencyDashboardApproval": true
+  "minimumReleaseAge": "7 days",
+  "dependencyDashboardApproval": true,
+  "addLabels": ["vendor-pin"],
+  "prBodyNotes": ["This module is also copied into `vendor/` at a pinned version, or patched there. Move that pin, and refresh any patch, with this update."]
 }
 ```
 
+`minimumReleaseAge` repeats the preset's: Semgrep's `renovate-missing-minimum-release-age` rule asks it of every rule that names packages.
+
 `groupName: null` matters. Renovate holds a whole group for approval when any one update in it needs approval, so a patched module left in the ecosystem group would hold back every ordinary update in that ecosystem.
 
-A security update to a patched module still opens, because `vulnerabilityAlerts` overrides `dependencyDashboardApproval`, and the build shows whether the patch still applies. It opens on its own, so a patch that no longer applies holds back only that fix. The repository's `vulnerabilityAlerts.groupName` names the same modules:
+A security update to a patched module still opens, because `vulnerabilityAlerts` overrides `dependencyDashboardApproval`. It never merges unattended. The build shows whether a patch still applies, but not whether the build still copies the module's old version into `vendor/` over the updated one, so a passing build does not show that the fix shipped. The `vendor-pin` label marks these modules. The preset's `automerge` rule ([7.5](#75-branch-policy)) skips an update carrying it, and the note in the pull request body tells the reviewer to move the pin. Each one opens on its own, so a pin or patch that needs work holds back only that fix. The repository's `vulnerabilityAlerts.groupName` names the same modules:
 
 ```json
 {
@@ -360,8 +367,8 @@ A custom manager on any other datasource has no advisory feed behind it. A relea
   "vulnerabilityAlerts": { "enabled": true, "labels": ["security"] },
   "packageRules": [
     {
-      "description": "Security updates below a major version merge unattended",
-      "matchJsonata": ["isVulnerabilityAlert = true"],
+      "description": "Security updates below a major version merge unattended, unless a repository marks the module vendor-pin",
+      "matchJsonata": ["isVulnerabilityAlert = true and $not('vendor-pin' in addLabels)"],
       "matchUpdateTypes": ["patch", "minor"],
       "addLabels": ["automerge"]
     }
@@ -369,7 +376,7 @@ A custom manager on any other datasource has no advisory feed behind it. A relea
 }
 ```
 
-A security update that needs a major version opens with the `security` label alone and waits for a reviewer. Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
+A security update that needs a major version opens with the `security` label alone and waits for a reviewer. So does one to a module a repository marks `vendor-pin` ([7.3](#73-hand-pinned-versions)). Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
 
 **Release branch rules.** Before a lookup, Renovate does not yet know the update type, and a rule that disables a dependency at that stage removes it before any later rule can re-enable it. The release branch rules therefore disable every manager except `custom.regex` up front, and then disable `custom.regex` majors once the update type is known. A custom manager on the `go` datasource is disabled too, because the `go.mod` it moves with only takes security updates on a release branch. A security update overrides all three.
 
@@ -590,8 +597,8 @@ The preset:
       "enabled": false
     },
     {
-      "description": "Security updates below a major version merge unattended",
-      "matchJsonata": ["isVulnerabilityAlert = true"],
+      "description": "Security updates below a major version merge unattended, unless a repository marks the module vendor-pin",
+      "matchJsonata": ["isVulnerabilityAlert = true and $not('vendor-pin' in addLabels)"],
       "matchUpdateTypes": ["patch", "minor"],
       "addLabels": ["automerge"]
     },
@@ -659,7 +666,7 @@ No change. Nothing is added to the image.
 | npm lockfiles inside Debian's Go and Ruby packages are not reached | They are part of Debian's packages and are not SONiC dependencies |
 | Findings with no published fix are not addressed | Nothing can update to a fix that does not exist. Shipping less is the [EOL plan](../eol-planning/202611-eol-and-deprecation.md)'s remit |
 | SONiC's Debian rebuilds are not covered | SBOM-driven triage covers them |
-| A bump can conflict with a local patch | Components built from source with a patch series are out of scope. Ordinary updates to patched modules wait for dashboard approval, and a security update to one opens on its own and fails its build if the patch no longer applies. See [7.3](#73-hand-pinned-versions) |
+| A bump can conflict with a local patch, or be overridden by a pinned copy in `vendor/` | Components built from source with a patch series are out of scope. Ordinary updates to patched modules wait for dashboard approval. A security update to one opens on its own, with the `vendor-pin` label and no `automerge`, so a reviewer moves the pin. See [7.3](#73-hand-pinned-versions) |
 | Python is excluded | See the pip seam in [7.8](#78-existing-automation) |
 
 ### 13. Testing Requirements/Design
@@ -682,7 +689,7 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Robot check evaluation | The evaluation function, run against each case in [7.6](#76-approval-and-merge) and against the check list and required checks of a live bot pull request, passes only when every check has completed successfully, every required check has reported, and a build check is present. A list holding only `EasyCLA` does not pass |
 | Robot commit check | The robot declines a Renovate pull request carrying a pushed commit, including one that names the Renovate bot as its author, and merges one whose commits are all GitHub-signed commits from the Renovate bot and `github-actions[bot]` |
 | Release age | An ordinary update younger than 7 days is not proposed. A security update of the same age is |
-| Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request |
+| Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request, labeled `security` and `vendor-pin`, without `automerge` |
 | The `go` directive is never raised | A `go.sum` workflow run on a bump that needs a newer Go fails, and pushes nothing |
 
 #### 13.2 System Test cases
