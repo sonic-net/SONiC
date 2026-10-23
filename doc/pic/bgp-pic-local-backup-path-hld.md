@@ -39,6 +39,7 @@
 | 0.5 | 2026-09-30 | Venkit Kasiviswanathan                         | §7.1.1: update flag definitions to the values in FRRouting/frr#21814 after its rebase onto upstream master: `af_flags` widened to `uint32_t`; `BGP_CONFIG_BACKUP_PATH` / `_ECMP` / `_FLUSH` moved to bits 16–18; `BGP_PATH_BACKUP` / `BGP_PATH_BACKUP_CHG` moved to bits 24–25 (bits 22–23 are now `BGP_PATH_UPA` / `BGP_PATH_UPA_DROP`). §7.2.2: `NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN` moved from `1 << 11` to `1 << 12` (bit 11 is now `NEXTHOP_GROUP_STALE_FDB`). |
 | 0.6 | 2026-09-30 | Venkit Kasiviswanathan                         | Cross-reference the companion work: the bgpd/zebra design (§2, §6, §7.1) now points to [FRRouting/frr#21814](https://github.com/FRRouting/frr/pull/21814); the orchagent sections (§2, §4, §5, §6, §7.5, §9, §12) now point to the Protection NHG orchagent HLD [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327) instead of "TBD". Drop the two orchagent/SAI items from §14, since they are owned by that HLD; renumber the rest. |
 | 0.7 | 2026-09-30 | Venkit Kasiviswanathan                         | §7.3.2: show the full `struct rtnexthop` header (`rtnh_len`, `rtnh_flags`, `rtnh_hops`, `rtnh_ifindex`) on every entry of the example, including the second primary and the backup, and state that backups carry `rtnh_hops` (weight) like primaries. |
+| 0.8 | 2026-10-23 | Venkit Kasiviswanathan                         | Add the `install backup-path [ecmp] tunnel-only` variant: §7.1.6 selection-time gate (`BGP_CONFIG_BACKUP_PATH_TUNNEL_ONLY`, `bgp_path_backup_is_tunnel_resolved()`, all-legs semantics, NHT-driven re-evaluation, show-command surface), §5 requirements 14–15, §8.1 CLI. Sync §7.3 to the implemented backup wire format (SRv6 encap nest, SID-list dedup, RFC 5549 `RTA_VIA`) — the earlier "regular IP nexthops only" wording was stale — and state the expressibility rule: a backup leg is never emitted stripped of the encapsulation it resolved with; legs whose encapsulation the wire format cannot express (MPLS, VXLAN) are dropped. Zebra stays policy-free (§7.1.6). Update §12, §13.1, §14 accordingly. |
 
 ---
 
@@ -160,6 +161,8 @@ In such cases programming a backup (which tunnels the traffic by encapsulating, 
 11. When the feature is disabled, backup paths SHALL be flushed and Zebra SHALL be notified to remove them from the FIB.
 12. Orchestrator support for hardware programming of backup paths is out of scope for this HLD; it is specified in [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327).
 13. The Zebra nexthop-group support is also **TBD** (out of scope for this HLD)
+14. When `install backup-path [ecmp] tunnel-only` is configured, BGP SHALL select only backup candidates whose nexthops are resolved over tunnels — a path that carries its own encapsulation (SRv6-VPN SID, VPN/labeled-unicast label stack, EVPN-imported route), or a path **all** of whose resolved nexthop legs carry an encapsulation (MPLS label stack, SRv6 SID list, VXLAN encap) or egress a tunnel-type interface. Without the keyword, selection is unchanged: regular (plain-IP) nexthops remain eligible (§7.1.6).
+15. The FPM feed SHALL never emit a backup nexthop stripped of the encapsulation it resolved with. A backup leg whose encapsulation the backup wire format cannot express is omitted from `FPM_RTA_BACKUP_NH`, not emitted as a bare gateway (§7.3.1).
 
 ---
 
@@ -252,6 +255,7 @@ uint32_t af_flags[AFI_MAX][SAFI_MAX];   /* was uint16_t */
 #define BGP_CONFIG_BACKUP_PATH          (1 << 16)   // install backup-path
 #define BGP_CONFIG_BACKUP_PATH_ECMP     (1 << 17)   // install backup-path ecmp
 #define BGP_CONFIG_BACKUP_PATH_FLUSH    (1 << 18)   // flush backup paths (transient)
+#define BGP_CONFIG_BACKUP_PATH_TUNNEL_ONLY (1 << 19) // install backup-path ... tunnel-only
 ```
 
 And two new per-path flags (`BGP_PATH_BACKUP`, `BGP_PATH_BACKUP_CHG`) are added to `bgp_path_info` (`bgpd/bgp_route.h`), after the existing `BGP_PATH_UPA` / `BGP_PATH_UPA_DROP` bits:
@@ -367,6 +371,85 @@ When the user runs `no install backup-path`:
 4. For each prefix, `bgp_clear_backup_paths()` clears all `BGP_PATH_BACKUP` flags and sets `BGP_PATH_BACKUP_CHG` if any were cleared.
 5. Zebra receives an updated route with no backup nexthops.
 6. Once the work queue drains, `BGP_CONFIG_BACKUP_PATH_FLUSH` is cleared via a completion callback.
+
+#### 7.1.6 Tunnel-Only Backup Selection (`tunnel-only`)
+
+A plain-IP backup is not always safe to engage. In the §4.1 DCI topology, the
+backup points at another leaf reachable over the fabric: if the backup is
+installed as a plain IP nexthop, the alternate leaf's own best path toward the
+destination may be the very link that just failed, so engaging the backup
+loops traffic back — only an **encapsulating** backup (one that tunnels the
+traffic to the alternate exit) is loop-safe there. The
+`install backup-path [ecmp] tunnel-only` variant restricts backup selection
+accordingly. Without the keyword, selection is unchanged and plain-IP
+candidates remain eligible.
+
+**Definition.** A candidate path is *tunnel-resolved* when either:
+
+- the path carries its own encapsulation, applied by this router — an
+  SRv6-VPN SID (`bgp_attr_get_srv6_l3service()` / `bgp_attr_get_srv6_vpn()`),
+  a valid VPN / labeled-unicast label stack, or an EVPN-imported route (VNI +
+  router MAC); such a path only needs plain nexthop reachability; or
+- **every** resolved leg of its nexthop (the `bgp_nexthop_cache` chain
+  delivered by zebra's NHT) carries an MPLS label stack, an SRv6 SID list, a
+  VXLAN encapsulation (`NET_VXLAN`), or egresses a tunnel-type interface
+  (GRE/IP6GRE/GRETAP/IP6GRETAP/VXLAN).
+
+The all-legs rule is deliberate and differs from `BGP_NEXTHOP_LABELED_VALID`,
+which is satisfied by *any* labeled leg: if the nexthop resolves over an ECMP
+set with one plain leg, part of the backup traffic would leave unencapsulated
+and the loop hazard returns.
+
+**Placement.** The check is one more eligibility test in
+`is_path_valid_candidate_for_backup()` (§7.1.2), applied only when
+`BGP_CONFIG_BACKUP_PATH_TUNNEL_ONLY` is set. Because selection walks the
+preference-ordered path list and takes the first eligible candidate, a
+tunnel-resolved path is preferred over a better-ranked plain-IP one — the
+route gets a *usable* backup instead of none. The predicate lives in
+`bgpd/bgp_nht.c` (`bgp_path_backup_is_tunnel_resolved()`, with the per-bnc
+leg walk in `bgp_nht_bnc_is_tunnel_resolved()`), beside the existing
+resolved-over-tunnel precedents `bgp_isvalid_nexthop_for_mpls()` /
+`bgp_isvalid_nexthop_for_l3vpn()`.
+
+**Dynamics.** No new trigger plumbing is needed. The bnc change detection
+compares resolved nexthops with `nexthop_same()` → `nexthop_cmp()`, which
+includes the label and SRv6 compares, so a resolution change that only adds
+or removes encapsulation marks the bnc changed; `evaluate_paths()` →
+`bgp_process()` re-runs backup computation and `BGP_PATH_BACKUP_CHG`
+re-announces the route when the backup set changed (§7.1.4). Enabling,
+disabling, or changing the keyword triggers
+`bgp_recalculate_afi_safi_bestpaths()`, exactly like the `ecmp` keyword;
+`no install backup-path` clears the flag and flushes as before (§7.1.5).
+
+**Zebra is policy-free.** Enforcement is selection-time only: zebra resolves
+whatever backup pool bgpd announces and the FPM path publishes the resolved
+legs with their encapsulation (§7.3). No ZAPI bit, NHE flag, or dplane field
+carries the keyword. Accepted residual: if a selected backup's resolution
+degrades from tunnel to plain, zebra re-installs the plain-resolved leg for
+the short interval until the NHT update re-runs selection and the route is
+re-announced without it — self-correcting, and harmful only if every primary
+fails inside that window. (The wire-format expressibility rule in §7.3.1 is
+orthogonal: it is about never *stripping* encapsulation, not about enforcing
+this policy.)
+
+**Operational visibility.**
+
+- `show ip bgp <prefix>`: a backup path selected under `tunnel-only` renders
+  `, backup (tunnel-resolved)`; the JSON path object carries
+  `"tunnelResolved": true` next to `"backup": true`.
+- `show bgp [ipv4|ipv6] nexthop [<ip>] [json]`: each valid nexthop reports
+  `Tunnel-resolved: yes (srv6|mpls|vxlan|tunnel-if|mixed)` or
+  `Tunnel-resolved: no` (JSON: `tunnelResolved`, `tunnelKind`) — the direct
+  answer to "why was this candidate rejected".
+- `debug bgp bestpath` logs the rejection
+  (`backup candidate from peer X rejected: nexthop not tunnel-resolved`).
+
+**EVPN note.** The §8.1 AFI restriction (ipv4/ipv6 unicast only) is about
+where `install backup-path` can be configured. EVPN type-5 routes *imported
+into* a VRF's ipv4/ipv6 unicast table are ordinary unicast paths there and
+are legitimate backup candidates; they count as tunnel-resolved by
+construction (VNI + router MAC), and the backup announce path already
+handles `ZAPI_NEXTHOP_FLAG_EVPN`.
 
 ---
 
@@ -588,10 +671,25 @@ Backup nexthops travel on the FPM wire as a **SONiC-private netlink RTA**, disti
  * for-byte by the decoder side in
  * sonic-swss/fpmsyncd/fpm/fpm_backup_nh.h.
  *
- * Carries regular IP nexthops only (gateway + ifindex + weight + onlink).
+ * Carries the regular IP nexthop fields (gateway / RTA_VIA + ifindex +
+ * weight + onlink); an SRv6 backup leg additionally carries a nested
+ * RTA_ENCAP_TYPE=SRv6 block (encap source + SID stack).
  */
 #define FPM_RTA_BACKUP_NH 200
 ```
+
+**Expressibility rule.** The attribute carries a backup leg together with the
+encapsulation zebra resolved it with — never without it. A leg whose
+encapsulation the format cannot express — an MPLS label stack or a VXLAN
+encap today (the format has an SRv6 encap nest only) — is **dropped** from
+the attribute rather than emitted as a bare gateway: stripping the
+encapsulation would forward engaged backup traffic unencapsulated, which is
+precisely the failure mode backup paths exist to avoid. Plain-resolved legs
+are faithfully expressible and are emitted as before. (This is a
+wire-correctness rule, independent of the `tunnel-only` selection policy in
+§7.1.6; extending the format with a VXLAN encap nest — reusing the
+`FPM_NH_ENCAP_VXLAN` convention the primary wire already uses — is a §14
+follow-up.)
 
 The encoder lives entirely inside `dplane_fpm_sonic` (the SONiC FPM plugin), so no patch to upstream `zebra/rt_netlink.c` is needed.
 
@@ -643,20 +741,29 @@ The encoder helpers live in `dplane_fpm_sonic/dplane_fpm_sonic.c`:
 
 ```c
 /*
- * Emit one nexthop as a struct rtnexthop entry. Scope: regular IP
- * nexthops only (gateway + ifindex + weight + onlink).
+ * Emit one nexthop as a struct rtnexthop entry: the regular IP fields
+ * (gateway or cross-family RTA_VIA for RFC 5549, ifindex, weight,
+ * onlink), plus a nested RTA_ENCAP_TYPE=SRv6 block (encap source + SID
+ * stack) when the leg carries an SRv6 SID list.
  */
 static bool fpm_route_build_rtnh(struct nlmsghdr *nlmsg, size_t buflen,
-                                 const struct nexthop *nexthop);
+                                 int route_family,
+                                 const struct nexthop *nexthop, uint32_t weight);
 
 /*
  * Append a top-level FPM_RTA_BACKUP_NH attribute to a route message.
- * No-ops on NULL/empty backup_ng AND when every backup is recursive or
- * inactive (in which case the wire-format contract is "attribute
- * absent" rather than "present-and-empty"). Rolls back on partial-
- * write or empty-result so the caller's buffer is structurally clean.
+ * Walks the RESOLVED, active backup legs (recursive parents skipped).
+ * Legs sharing an identical SRv6 SID list are deduplicated with their
+ * weights summed, like the primary SRv6 encoder. Legs carrying an
+ * encapsulation the format cannot express (MPLS label stack, VXLAN
+ * encap) are dropped, never emitted stripped (see the expressibility
+ * rule in 7.3.1). No-ops on NULL/empty backup_ng AND when no emittable
+ * leg remains (the wire-format contract is "attribute absent" rather
+ * than "present-and-empty"). Rolls back on partial-write or
+ * empty-result so the caller's buffer is structurally clean.
  */
 static ssize_t fpm_append_backup_nexthops(struct nlmsghdr *nlmsg, size_t buflen,
+                                          int route_family,
                                           const struct nexthop_group *backup_ng);
 ```
 
@@ -824,15 +931,30 @@ PIC Local is enabled via FRR CLI commands in the BGP address-family context:
 ```
 router bgp <ASN>
   address-family ipv4 unicast
-    install backup-path          ! Enable single backup path (PIC local)
-    install backup-path ecmp     ! Enable ECMP backup paths (PIC local with ECMP)
-    no install backup-path       ! Disable backup path (clears and flushes)
+    install backup-path                   ! Enable single backup path (PIC local)
+    install backup-path ecmp              ! Enable ECMP backup paths (PIC local with ECMP)
+    install backup-path tunnel-only       ! Single backup, tunnel-resolved candidates only (§7.1.6)
+    install backup-path ecmp tunnel-only  ! ECMP backups, tunnel-resolved candidates only
+    no install backup-path                ! Disable backup path (clears and flushes, all variants)
   exit-address-family
   !
   address-family ipv6 unicast
     install backup-path
   exit-address-family
 ```
+
+The two keywords are independent and the command is a single
+`install backup-path [ecmp] [tunnel-only]`; adding or removing either
+keyword triggers a full best-path recomputation for the address family (the
+same mechanism as enabling the feature), so the backup sets converge to the
+new variant without a flush. `no install backup-path` behaves exactly as
+before — all three config flags are cleared and the flush of §7.1.5 runs.
+Without `tunnel-only`, backup selection is unchanged from earlier revisions
+of this document: regular (plain-IP) nexthops remain eligible.
+
+**CONFIG_DB / YANG:** the `install_backup_path` models in §8.2/§8.3 do not
+yet expose `tunnel-only`; extending them (and bgpcfgd) is follow-up work
+(§14). Until then the keyword is available through FRR configuration.
 
 **Supported AFIs:** `ipv4 unicast`, `ipv6 unicast`
 **Not supported:** `l2vpn evpn`, `ipv4 multicast`, `ipv6 multicast`
@@ -1308,6 +1430,9 @@ PIC Local does not affect the critical fastboot path. BGP backup path computatio
 6. **Orchagent backup programming**: Currently orchagent only programs primary nexthops. Backup programming and hardware-based failover via Protection NHG are specified in [sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327).
 7. **Route-level backup does not propagate through recursive resolution**: If route A is PIC-Local with backup pool `{B0, B1, ...}` and route X resolves recursively through A, X does **not** inherit A's pool. Each route's backup is whatever its own producer (bgpd) computed. The recursive resolver only ever inherits per-NH (TI-LFA-style) backup info, never route-level pools. This is acceptable for the in-tree use case — bgpd computes a pool per route and PIC-Local resolvers are typically static / IGP routes without backups — but it leaves a semantic gap if a future deployment stacks two PIC-Local routes (see §14).
 8. **Soft failures**: This feature protects against local link failures detected at the hardware level. BGP/BFD session failures (soft failures) do not benefit from data-plane fast failover with the current implementation.
+9. **Backup wire format expresses SRv6 encapsulation only**: a backup leg resolved over an MPLS label stack or a VXLAN encapsulation passes the `tunnel-only` selection gate (§7.1.6) but is dropped at the FPM boundary by the expressibility rule (§7.3.1) until the wire format grows the corresponding encap nests (§14). In an SRv6 deployment this is moot; it matters for MPLS/VXLAN-tunneled backups.
+10. **`tunnel-only` is enforced at selection time only**: zebra carries no tunnel-only awareness. If a selected backup's resolution degrades from tunnel to plain, the plain-resolved leg can be installed for the short interval until the NHT update re-runs selection (§7.1.6); this transient is accepted by design.
+11. **`tunnel-only` has no CONFIG_DB/YANG surface yet** (§8.1); it is configured through FRR until the models and bgpcfgd are extended (§14).
 
 ---
 
@@ -1320,6 +1445,8 @@ Topotest coverage in `tests/topotests/`:
 - `bgp_backup/` — 4-router topology covering single-backup selection, BGP table and routing-table rendering (text + JSON), and dynamic backup re-selection on interface state change under `install backup-path`.
 - `bgp_backup_ecmp/` — 7-router topology covering ECMP backup paths under `install backup-path ecmp`, the ECMP→non-ECMP transition, and feature disablement via `no install backup-path` (flush behaviour).
 - `bgp_backup_recursive/` — 5-router pure-iBGP topology where R1 has loopback-to-loopback sessions to two PE routers (R4 primary, R5 backup) reachable only through separate transit hops. Both BGP next-hops require recursive resolution through static underlay routes, exercising the path zebra takes to merge backup info from a resolver into a recursively-resolved nexthop (and the guard that prevents that merge from clobbering a route-level pool).
+- `bgp_backup_tunnel/` — 4-router topology for `install backup-path [ecmp] tunnel-only` (§7.1.6): a weighted primary (R2), a plain-IP backup candidate (R3, eBGP) and a tunnel-resolved candidate (R4, iBGP, nexthop resolved over a static SRv6 seg6 route). Covers: plain variant still selects the plain-IP candidate; `tunnel-only` skips it for the SRv6-resolved one (text, JSON `tunnelResolved`, `show bgp nexthop` verdict, RIB `backupNexthops`); resolution degradation to a plain static route drops the backup and restoration brings it back; an MPLS-resolved leg (labeled static route, `tunnelKind: mpls`) and a GRE tunnel-interface leg (`tunnelKind: tunnel-if`) each qualify; variant transitions (`ecmp tunnel-only` ↔ plain ↔ disable) including running-config round-trip.
+- `bgp_backup_tunnel_vpn/` — the RFC 9252 variant of the above: a VPNv4-over-SRv6 route (SRv6 service SID in the BGP Prefix-SID attribute) imported into a VRF competes with a plain-IP CE candidate; `tunnel-only` selects the VPN-imported path (tunnel-by-construction, §7.1.6 definition bullet 1) and the VRF RIB carries the backup; disable flushes.
 
 Cases exercised:
 
@@ -1362,3 +1489,6 @@ Cases exercised:
 | 1 | **Zebra nexthop-group support**: Backup nexthops are currently expressed as a separate group on each route entry rather than as kernel-style NHGs; integration with zebra's NHG model is left for follow-up. | TBD | Open |
 | 2 | **Route-level backup through recursive resolution**: Route-level pools (`NEXTHOP_GROUP_BACKUP_ALL_PRIMARIES_DOWN`) do **not** propagate through `resolve_backup_nexthops()` — only per-NH (TI-LFA-style) backup info does. Acceptable for the in-tree use case (bgpd computes a pool per route, PIC-Local resolvers are typically static / IGP without backups), but leaves a semantic gap if a future deployment stacks two PIC-Local routes (e.g. a more-specific BGP route resolving through a less-specific PIC-Local route) and expects "all primaries down" to cascade. Closing this would require extending `resolve_backup_nexthops()` (or adding a parallel route-level path) to copy a resolver's pool plus the flag into a resolved NHE that has no pool of its own, with conflict resolution against any existing per-route pool. | TBD | Open |
 | 3 | **Warmboot validation**: Validate that backup nexthops are correctly reconciled after warm restart without creating ASIC inconsistencies | TBD | Open |
+| 4 | **VXLAN / MPLS backup wire support**: extend `FPM_RTA_BACKUP_NH` with a VXLAN encap nest (VNI + router MAC, reusing the primary wire's `FPM_NH_ENCAP_VXLAN` convention) and an MPLS label nest, plus the fpmsyncd decode into the backup slots' `vni_label` / `router_mac` / `mpls_nh` columns, so tunnel-resolved VXLAN/MPLS backups survive the §7.3.1 expressibility rule. | Venkit | Open |
+| 5 | **CONFIG_DB / YANG / bgpcfgd surface for `tunnel-only`** (§8.1 note): extend `BGP_DEVICE_GLOBAL_AF` / `BGP_GLOBALS_AF` (e.g. a separate `install_backup_path_tunnel_only` boolean leaf) and the bgpcfgd/frrcfgd translation. | Venkit | Open |
+| 6 | **Orchagent tunnel-standby install**: the Protection NHG HLD ([sonic-net/SONiC#2327](https://github.com/sonic-net/SONiC/pull/2327)) currently scopes protection members to plain underlay nexthops; installing SRv6/VXLAN-encapped standbys requires lifting that restriction for the standby subset (amendment to that HLD). | TBD | Open |
