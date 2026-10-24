@@ -32,6 +32,7 @@
 | sonic-platform-daemons | sonic-platform-daemons-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-daemons-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-daemons-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
+|  | sonic-platform-daemons-maintainer | Junchao Chen (Nvidia) | Junchao-Mellanox | Request on 08/25/2026 |
 |  | sonic-platform-daemons-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
 | sonic-platform-pdk-pde | sonic-platform-pdk-pde-maintainer | Geans Pin (BRCM) | geans-pin | enabled |
 | sonic-py-swsssdk | sonic-py-swsssdk-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
@@ -49,7 +50,9 @@
 |  | sonic-swss-maintainer | Stephen Wang(Google) | StephenWangGoogle | enabled |
 |  | sonic-swss-maintainer | Laveen Thamilchelvam (BRCM) | LaveenBrcm | Approved on 5/3/2023 and enabled |
 |  | sonic-swss-maintainer | Rajesh Sankaran (BRCM) | srj102 | Approved on 5/3/2023 and enabled |
+|  | sonic-swss-maintainer | Stephen Sun (Nvidia) | stephenxs | Request on 08/25/2026 |
 |  | sonic-swss-maintainer | Sudharsan Dhamal Gopalarathnam (Nvidia) | dgsudharsan | Request on 08/25/2026 |
+|  | sonic-swss-maintainer | Prabhat Aravind (Microsoft) | prabhataravind  | Request on 10/22/2026 |
 | sonic-swss-common | sonic-swss-common-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 |  | sonic-swss-common-maintainer | Myron Sosyak (Intel) | msosyak | enabled |
 |  | sonic-swss-common-maintainer | Marian Pritsak (Nvidia) | marian-pritsak | enabled |
@@ -68,9 +71,10 @@
 |  | sonic-buildimage-maintainer | Yilan Ji (Google) | baxia-lan | enabled |
 |  | sonic-buildimage-maintainer | Praveen Elagala (BRCM) | Praveen-Brcm | Approved on 5/3/2023 and enabled |
 |  | sonic-buildimage-maintainer | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
+|  | sonic-buildimage-maintainer | Anand Mehra (Cisco) | anamehra | Requested on 09/28/2026 |
+|  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
 |  | sonic-cisco-maintainer | Madhava Reddy Siddareddygari (Cisco) | msiddare | Requested on 9/29/2026 |
 |  | sonic-cisco-maintainer | Anand Mehra (Cisco) | anamehra | Requested on 9/29/2026 |
-|  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
