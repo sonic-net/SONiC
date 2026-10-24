@@ -39,7 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
-| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, branch protection on Renovate branches, and no fixup that undoes the update. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, branch protection on Renovate branches, no fixup that undoes the update, and the `go` directive and held-module checks. |
 
 ### 2. Scope
 
@@ -158,6 +158,8 @@ The repositories that are mostly Go come first: `sonic-mgmt-common` and `sonic-g
 `gomod` runs `go mod tidy` after each update, and rewrites import paths on a major bump.
 
 **The `go` directive.** Each Go repository lists `go` in `ignoreDeps`. A standard library vulnerability makes Renovate propose raising the `go` directive, and a security update overrides every package rule, so only `ignoreDeps` stops it. The directive cannot move ahead of the Go in the build container, and a standard library fix reaches SONiC through that toolchain.
+
+`ignoreDeps` does not stop `go get` from raising the directive. Renovate runs `go get` with the newest Go the directive allows, and raises the directive when an update needs a newer Go. CI downloads whatever toolchain `go.mod` names, so it passes. Each Go repository therefore checks its Renovate pull requests: where Renovate updates `go.sum` itself, a check fails a pull request whose `go` directive differs from the merge base; where the `go.sum` workflow runs, the workflow fails instead (see below).
 
 **Local `replace` directives.** To update `go.sum`, Renovate runs `go get` in a checkout of the one repository. A `replace` that points outside that repository, such as `sonic-gnmi` replacing `sonic-mgmt-common` with `../sonic-mgmt-common`, makes `go get` fail, and `go.sum` is left behind. Renovate's `gomodMassage` option comments out the whole `replace` block, which also drops the pins that patched modules depend on, so it is not used.
 
@@ -306,6 +308,8 @@ A security update to a patched module still opens, because `vulnerabilityAlerts`
 ```
 
 The two lists sit in the same file and change together.
+
+A patched module's version can also move without its own update. `go get` raises any module the update needs a newer version of, so a module whose newer releases require newer patched modules is held for approval too, even when it is not patched itself. `sonic-mgmt-common` holds `openconfig/gnmi` because its newer versions require newer `goyang` and `ygot`. Where Renovate updates `go.sum` itself, a check on each Renovate pull request fails it when a held module changes version and the pull request is not that module's own update; the module's own pull request names it in its title. The check reads the held modules from the rule that adds the `patched-module` label, so it never needs its own list. Where the `go.sum` workflow in [7.2](#72-native-managers) runs instead, the build shows whether the patches still apply.
 
 #### 7.4 Pull request grouping
 
@@ -605,7 +609,7 @@ The preset:
 }
 ```
 
-This is the file committed to `sonic-pipelines`. Its `description` names this document. Each Go repository adds `ignoreDeps` for the `go` directive, and a rule and a `vulnerabilityAlerts.groupName` for its patched modules ([7.3](#73-hand-pinned-versions)). A repository with a local `replace` also adds `gitIgnoredAuthors`, `suppressNotifications` and the workflow in [7.2](#72-native-managers).
+This is the file committed to `sonic-pipelines`. Its `description` names this document. Each Go repository adds `ignoreDeps` for the `go` directive, and a rule and a `vulnerabilityAlerts.groupName` for its patched modules ([7.3](#73-hand-pinned-versions)). A repository with a local `replace` also adds `gitIgnoredAuthors`, `suppressNotifications` and the workflow in [7.2](#72-native-managers). Any other Go repository adds the `go.mod` check in [7.2](#72-native-managers) and [7.3](#73-hand-pinned-versions).
 
 #### 9.5 Setup steps
 
