@@ -110,7 +110,7 @@ This document describes the functionality and high level design of the Console s
 
 | Term | Meaning
 |---|---|
-| SSH | **S**ecure **S**hell |
+| SSH | **S**ecure **Sh**ell |
 | CLI | **C**ommand **L**ine **I**nterface |
 | OS | **O**perating **S**ystem |
 | USB | **U**niversal **S**erial **B**us |
