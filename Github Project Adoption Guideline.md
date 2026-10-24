@@ -7,7 +7,7 @@ Please follow below steps:
 ### How to propose new features?
  
 1. For people who have NO edit permission to this project but want to contribute, please follow the “Call for participation” message, e.g Re: Call for participation for SONiC 202305 release (sonicfoundation.dev). <br>
-2. For people who can edit github project, if you want to propose a new feature from scratch, please follow below steps: <br>
+2. For people who can edit github project (Each company can assign up to two community leads. Please email the GitHub ID(s) of the assigned lead(s) to sonic-tsc@lists.sonicfoundation.dev using the subject: Community Leads Assignment from <Company Name>.), if you want to propose a new feature from scratch, please follow below steps: <br>
 	- On the "Table View" of project, click Control + Space and provide the Title
 	- Click “Enter” button to create a new work item. You can create new item from other views, but steps may be slightly different.
 	- fulfill the fields in the ticket (click "Show all fields" to display all fields)
