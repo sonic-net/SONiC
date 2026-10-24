@@ -1,50 +1,44 @@
 # HLD Secure Boot #
 
-##  1. <a name='TableofContent'></a>Table of Content
-<!-- vscode-markdown-toc -->
-* 1. [Table of Content](#TableofContent)
-    * 1.1. [Revision](#Revision)
-    * 1.2. [Scope](#Scope)
-    * 1.3. [Definitions/Abbreviations](#DefinitionsAbbreviations)
-    * 1.4. [Overview](#Overview)
-    * 1.5. [Requirements](#Requirements)
-    * 1.6. [Architecture Design](#ArchitectureDesign)
-    * 1.7. [High-Level Design](#High-LevelDesign)
-        * 1.7.1. [Flow diagram](#Flowdiagram)
-        * 1.7.2. [Module Elements Breakdown](#ModuleElementsBreakdown)
-        * 1.7.3. [Sign Flow diagram description:](#SignFlowdiagramdescription:)
-        * 1.7.4. [Runtime SB Verification FLOW:](#RuntimeSBVerificationFLOW:)
-    * 1.8. [SAI API](#SAIAPI)
-    * 1.9. [Configuration and management](#Configurationandmanagement)
-        * 1.9.1. [CLI/YANG model Enhancements](#CLIYANGmodelEnhancements)
-        * 1.9.2. [Config DB Enhancements](#ConfigDBEnhancements)
-    * 1.10. [Warmboot and Fastboot Design Impact](#WarmbootandFastbootDesignImpact)
-    * 1.11. [Restrictions/Limitations](#RestrictionsLimitations)
-    * 1.12. [Testing Requirements/Design](#TestingRequirementsDesign)
-        * 1.12.1. [Unit Test cases](#UnitTestcases)
-        * 1.12.2. [System Test cases](#SystemTestcases)
-    * 1.13. [Open/Action items - if any](#OpenActionitems-ifany)
+#  1. <a name='TableofContent'></a>Table of Content
 
-<!-- vscode-markdown-toc-config
-    numbering=true
-    autoSave=true
-    /vscode-markdown-toc-config -->
-<!-- /vscode-markdown-toc -->
+* 1.1. [Revision](#Revision)
+* 1.2. [Scope](#Scope)
+* 1.3. [Definitions/Abbreviations](#DefinitionsAbbreviations)
+* 1.4. [Overview](#Overview)
+* 1.5. [Requirements](#Requirements)
+* 1.6. [Architecture Design](#ArchitectureDesign)
+* 1.7. [High-Level Design](#High-LevelDesign)
+    * 1.7.1. [Flow diagram](#Flowdiagram)
+    * 1.7.2. [Module Elements Breakdown](#ModuleElementsBreakdown)
+    * 1.7.3. [Sign Flow diagram description:](#SignFlowdiagramdescription:)
+    * 1.7.4. [Runtime SB Verification FLOW:](#RuntimeSBVerificationFLOW:)
+* 1.8. [SAI API](#SAIAPI)
+* 1.9. [Configuration and management](#Configurationandmanagement)
+    * 1.9.1. [CLI/YANG model Enhancements](#CLIYANGmodelEnhancements)
+    * 1.9.2. [Config DB Enhancements](#ConfigDBEnhancements)
+* 1.10. [Warmboot and Fastboot Design Impact](#WarmbootandFastbootDesignImpact)
+* 1.11. [Restrictions/Limitations](#RestrictionsLimitations)
+* 1.12. [Testing Requirements/Design](#TestingRequirementsDesign)
+    * 1.12.1. [Unit Test cases](#UnitTestcases)
+    * 1.12.2. [System Test cases](#SystemTestcases)
+* 1.13. [Open/Action items - if any](#OpenActionitems-ifany)
 
-###  1.1. <a name='Revision'></a>Revision
+##  1.1. <a name='Revision'></a>Revision
 |  Rev  |  Date   |      Author      | Change Description |
 | :---: | :-----: | :--------------: | ------------------ |
 |  0.1  | 06/2022 |   David Pilnik   | Phase 1 Design     |
-###  1.2. <a name='Scope'></a>Scope
+##  1.2. <a name='Scope'></a>Scope
 
 This secure boot HLD doc described the requirements, architecture, and configuration details of the secure boot feature in switches SONiC OS based.
 
-###  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
-    SB - Secure Boot
-    KO - Kernel Objects
+##  1.3. <a name='DefinitionsAbbreviations'></a>Definitions/Abbreviations
+
+* SB - Secure Boot
+* KO - Kernel Objects
 
 
-###  1.4. <a name='Overview'></a>Overview
+##  1.4. <a name='Overview'></a>Overview
 
 Secure Boot is a feature found in the startup software for your computer that's designed to ensure your computer starts safely and securely by preventing unauthorized software like malware from taking control of your Device at boot-up.
 
@@ -53,20 +47,20 @@ The entire point is the "chain of trust" it creates. If I have a piece of softwa
 What Secure boot provides is an anchor for that first "trusted program". It allows the hardware on the computer to assert "No one has modified this bootloader and it will behave exactly as the original programmers programmed". The boot-loader can then check "No one has modified this OS and it will behave exactly like the original programmers programmed".(Chain of trust described below)
 
 
-###  1.5. <a name='Requirements'></a>Requirements
+##  1.5. <a name='Requirements'></a>Requirements
 
-Secure boot flow & Linux Kernel:
-Sign Shim loader.
-Sign Grub Loader.
-Sign Linux Kernel (vmlinux).
-Sign Kernel Modules.
-Support runtime verification of Shim, Grub, Linux Kernel, and Kernel Modules.
+* Secure boot flow & Linux Kernel:
+* Sign Shim loader.
+* Sign Grub Loader.
+* Sign Linux Kernel (vmlinux).
+* Sign Kernel Modules.
+* Support runtime verification of Shim, Grub, Linux Kernel, and Kernel Modules.
 
 The feature has a signing process and a verification process. Both processes are required to be supported by the scenarios such as development and production.
 The feature will contain the relevant code to sign with development keys only.
 Production flow code should be supplied by the Vendor.
 
-###  1.6. <a name='ArchitectureDesign'></a>Architecture Design
+##  1.6. <a name='ArchitectureDesign'></a>Architecture Design
 
 Arc design diagram\
 ![secure_boot_system_sign](secure_boot_system_sign.jpg)
@@ -94,52 +88,51 @@ Boot components = shim, grub, vmlinuz, and kernel modules
 
 (runtime verification description in the chapter below)
 
-###  1.7. <a name='High-LevelDesign'></a>High-Level Design
+##  1.7. <a name='High-LevelDesign'></a>High-Level Design
 
 This section covers the high-level design of the Secure Boot feature.
 
-####  1.7.1. <a name='Flowdiagram'></a>Flow diagram
+###  1.7.1. <a name='Flowdiagram'></a>Flow diagram
 
-##### Sign flow diagram
+#### Sign flow diagram
 ![secure boot flow](secure_boot_flow.jpg)
 
-##### Run-time verification flow diagram with BIOS as the first instance of trust
+#### Run-time verification flow diagram with BIOS as the first instance of trust
 ![secure_boot_verification_flow](secure_boot_verification_flow.jpg)
 
-##### Run-time verification flow diagram with HW root of trust
+#### Run-time verification flow diagram with HW root of trust
 ![secure_boot_verification_flow](secure_boot_hw_verification_flow.jpg)
 
-####  1.7.2. <a name='ModuleElementsBreakdown'></a>Module Elements Breakdown
+###  1.7.2. <a name='ModuleElementsBreakdown'></a>Module Elements Breakdown
 
-##### Shim Role
+#### Shim Role
 Shim is a simple software package that is designed to work as a first-stage bootloader on UEFI systems. Shim It was developed by a group of Linux developers, so, by using shim we can support secure boot using our custom keys, and not more enforcing to use Microsoft keys.
 
 shim (Debian link)
 
-##### Grub Role
+#### Grub Role
 Grub is a bootloader, that differs from Shim by having the ability to run the kernel and allow us to choose the kernel (i.e: Onie/SONiC) that will be used by using a menu.
 
-##### Vmlinuz Role
+#### Vmlinuz Role
 vmlinuz is the name of the Linux kernel executable. vmlinuz is a compressed Linux kernel, and it is capable of loading the operating system into memory so that the computer becomes usable and application programs can be run.
-##### Kernel modules Role
+#### Kernel modules Role
 Kernel modules or KO are pieces of code that can be loaded and unloaded into the kernel upon demand. They extend the functionality of the kernel without the need to reboot the system.
-##### Grub.cfg, initrd
+#### Grub.cfg, initrd
 Initrd - The initial RAM disk (initrd) is an initial root file system that is mounted prior to when the real rootfile system is available. The initrd is bound to the kernel and loaded as part of the kernel boot procedure. The kernel then mounts this initrd as part of the two-stage boot process to load the modules to make the real file systems available and get at the real root file system.
 
 The initrd contains a minimal set of directories and executables to achieve this, such as the insmod tool to install kernel modules into the kernel.
-Regarding SONiC:
 
 In general, the system can boot also without using the initrd (required to build the kernel with some specifics modification), some users comment that in runtime the boot time will be better but others comment the opposite.
 
 SONiC is using the initrd, so we will remain it as in the original repo unsigned. (In order to sign it is required to use a gpg key, but there is not really a use case for that. (Probably future work.)
 
-Grub.cfg - The grub.cfg file is the GRUB configuration file. It is generated by the grub2-mkconfig program using a set of primary configuration files and the grub default file as a source for user configuration specifications. The /boot/grub2/grub.cfg file is first generated during Linux installation and regenerated when a new kernel is installed.
+Grub.cfg - The grub.cfg file is the GRUB configuration file. It is generated by the grub2-mkconfig program using a set of primary configuration files and the grub default file as a source for user configuration specifications. The `/boot/grub/grub.cfg` file is first generated during Linux installation and regenerated when a new kernel is installed.
 
-The grub.cfg file contains Bash-like code and a list of installed kernels in an array ordered by sequence of installation. For example, if you have four installed kernels, the most recent kernel will be at index 0, the previous kernel will be at index 1, and the oldest kernel will be at index 3.
+The grub.cfg file contains Bash-like code and a list of installed kernels in an array ordered by sequence of installation. For example, if you have four installed kernels, the most recent kernel will be at index 0, the previous kernel will be at index 1, and the oldest kernel will be at index 2.
 
 (Not modification required)
 
-##### First instance of trust
+#### First instance of trust
 SB chain of trust has different options for this first instance of trust.
 This HLD show 2 options:
 1.  BIOS/UEFI as the first instance of trust, vendors can store their public keys in the UEFI DB, by doing that, they enforce to boot images that were only signed with a private key that matches the vendor's public key.
@@ -157,7 +150,7 @@ An example of HW root of trust can be the intel boot guard, pls see the info in 
 - https://edk2-docs.gitbook.io/understanding-the-uefi-secure-boot-chain/secure_boot_chain_in_uefi/intel_boot_guard
 
 
-####  1.7.3. <a name='SignFlowdiagramdescription:'></a>Sign Flow diagram description:
+###  1.7.3. <a name='SignFlowdiagramdescription:'></a>Sign Flow diagram description:
 Sign flow occurs when building the SONiC image.
 In the Build process, we need to sign the components shown in the Design Diagram chapter (shim, grub, vmlinuz, kernel modules) and do some modifications in the Linux kernel, that in order to pass the runtime secure boot verification.
 
@@ -165,30 +158,16 @@ This chapter will be described which SONiC modification is required.
 
 Compilation Flag added:
 - SECURE_UPGRADE_MODE – have 3 options
-  - no_sign  (default)
-
-    Description:
-
-    This means that the component will be not signed, in other words, the flow will be like the feature not exists.
-  - dev
-
-    Description:
-
-    This means that the build will sign the boot components with a development key using the keys stored in the path from the build flags below.
-  - prod
-
-    Description:
-  
-    This means that the build will sign the components with a production key.
-    
-    production public key: should be set the path where the key is stored in the flag: SECURE_UPGRADE_DEV_SIGNING_CERT
-
-    production private key: the key will be stored according to vendor flow and could be saved in an external sign server, and the connection and logic will be coded in file sonic-buildimage/scripts/signing_secure_boot_prod.sh that build_debian.sh will trigger when the mode is "prod".
-
+  - no_sign (default): This means that the component will be not signed, in other words, the flow will be like the feature not exists.
+  - dev: This means that the build will sign the boot components with a development key using the keys stored at the path specified by `SECURE_UPGRADE_DEV_SIGNING_KEY` and `SECURE_UPGRADE_DEV_SIGNING_CERT`.
+  - prod: This means that the build will sign the components with a production key, with the key stored at `SECURE_UPGRADE_DEV_SIGNING_CERT`. The signing is then done by calling `SECURE_UPGRADE_PROD_SIGNING_TOOL` with `SECURE_UPGRADE_PROD_TOOL_ARGS` (along with the file to be signed).
 - SECURE_UPGRADE_DEV_SIGNING_KEY – have the path where dev private efi key stored
 - SECURE_UPGRADE_DEV_SIGNING_CERT - have the path where dev/prod certificate/public-key stored
+- SECURE_UPGRADE_PROD_SIGNING_TOOL - the script to call to sign a binary
+- SECURE_UPGRADE_PROD_TOOL_ARGS - arguments to call `SECURE_UPGRADE_PROD_SIGNING_TOOL` with
+- SECURE_BOOT_DB_CERT - path to the auth file that can be used to enroll the signing certificate (`SECURE_UPGRADE_DEV_SIGNING_CERT`). If specified, then on image installation, this will be installed into the db database, which means the auth file must be signed by one of the certificates in the KEK on the device.
 
-These 4 flags will be saved in this file: SONiC/rules/config
+These flags are specified in `rules/config`.
 
 ##### Sign keys
 The signing algorithm is RSA, which is an asymmetric algorithm, so the sign flow is signing with private keys, and the verification flow is verifying with public keys.
@@ -197,7 +176,7 @@ The are 2 kinds of keys, development keys and production keys.
 The production keys will be stored according to the design of the signing server
 The development keys will be not stored in Git, instead will be a variables named SECURE_BOOT_DEV_KEY_PATH, SECURE_BOOT_DEV_CERT_PATH in compilation time, and the developer will set the location of his private keys.
 
-##### How to sign the components
+#### How to sign the components
 Signing Script: we need to sign shim, grub, vmlinuz, and KO, to do that it will be added a signing script in the SONiC repo in the /script folder named "signing_secure_boot_dev.py".
 
 This script will sign all the components described before by using the following tools and keys in the table below:
@@ -229,7 +208,7 @@ In general, the build flow when it is used in production will send the shim, gru
 
 The build flow will know which sign script to choose by reading the SB_BUILD flag value as explained in chapter 2.
 
-##### Shim SONiC modification
+#### Shim SONiC modification
 Currently, there is no Shim installed. So, it's required to get Shim from the external Debian repo & sign it with the development/production private key depending on the flow.
 
 In the SONiC repo will be added a new /src folder named shim, in this folder will be a Makefile that will download & extract the unsigned Debian shim pkg, then, call the secure_boot_sign.py script and sign the file shimX64.efi or arm version as well.
@@ -244,7 +223,7 @@ So It is required to mount this created partition with this name /boot/efi/EFI a
 - So, when the boot process starts, UEFI will look for the shim file in this location to verify it and then continue with the boot flow.
 - There is a possibility to download shim already signed by Microsoft, but then, if we need to do some modifications, or choose another Shim version in the future we will depend on having a version that Microsoft supports as well.
 
-##### GRUB SONiC modification
+#### GRUB SONiC modification
 Currently, the Grub file is created when installing a SONiC image, the code is in the prefix of the SONiC image that contained the script install.sh and by using the tool:
     
     grub-install
@@ -259,40 +238,31 @@ The output of this installation is the file grubx64.efi, after the creation, it 
 
 Note: In case the build is without SB the grub flow will not be changed as the original.
 
-##### Vmlinuz SONiC modification
+#### Vmlinuz SONiC modification
 In SONiC the submodule name sonic-linux-kernel contained the Linux kernel.
 
 We need to do the following modification to support SB:
-- We need to integrate the pub key that will be used to verify kernel modules, to do that, we need the following modification in the Linux kernel configuration:
+- We need to integrate the pub key that will be used to verify kernel modules, to do that, we need to set `CONFIG_MODULE_SIG_FORCE=y` in the Linux kernel configuration to enforce checking the signature of KO.
 
-- CONFIG_MODULE_SIG_FORCE=y
-
-enforce to check the signature of KO.
-
-- CONFIG_MODULE_SIG_KEY=""
+    CONFIG_MODULE_SIG_KEY=""
 
  this is a configuration to enforce vmlinuz to sign kernel modules, but we will do that differently, so it will be empty (see explanation in Kernel Modules verification).
 
-- CONFIG_SYSTEM_TRUSTED_KEYS=< custom_vendor_certificates_path > (Format file=pem)
+- `CONFIG_SYSTEM_TRUSTED_KEYS=< custom_vendor_certificates_path >` (Format file=pem): this variable is saying where the public key is. This key will verify the kernel modules, this path should be custom chosen by the user. So, we will add a build variable where the developer can set the key location in his environment.
 
-this variable is saying where the public key is. This key will verify the kernel modules, this path should be custom chosen by the user.
-
-So, we will add a build variable where the developer can set the key location in his environment.
-
-- CONFIG_KEXEC_VERIFY_SIG=y
-Details in Warmboot chapter.
+- `CONFIG_KEXEC_VERIFY_SIG=y`: Details in Warmboot chapter.
 
 Finally, after the configuration changes, we need to sign the file vmlinuz.efi (similar like we sign shim, grub with the sign script)
 
 Note: Same as other modifications if the SB_BUILD flag is “no sign” those modifications will not happen and the kernel will remain the same as before the feature was implemented
-##### Kernel Module SONiC modification
-Most of the kernel modules are in sonic-linux-kernel repo, but there are more KO like Ofed & SDK.
+#### Kernel Module SONiC modification
+Most of the kernel modules are in sonic-linux-kernel repo, but there are out-of-tree KO for some platforms.
 
 The secure_boot_sign.py script wrapper the sign-file tool as well and will sign all the KO.
 
 All the KO can be found in fsroot-vendor_name/ directory and will be signed at the end of the build.
 
-####  1.7.4. <a name='RuntimeSBVerificationFLOW:'></a>Runtime SB Verification FLOW:
+###  1.7.4. <a name='RuntimeSBVerificationFLOW:'></a>Runtime SB Verification FLOW:
 As appear in the verification chart, the first step is the storage of the pub keys in the BIOS/UEFI.
 The public key type is DB in the UEFI DB to verify the shim, grub, and vmlinuz, regarding kernel modules they will be verified with the key that was saved inside vmlinuz in the signing process that was described before.
 
@@ -306,34 +276,47 @@ Note: The verification flow is basically supported in the device that supports S
 
 set SB flag to enable in BIOS, save shim, grub in this location: /boot/efi/EFI, and sign all the components as was explained in the prev flow.
 
-####  Enable/disable the feature in runtime:
+###  Enable/disable the feature in runtime:
 Once you install a secure image in a secure device, is possible to disable the security verification of secure boot, but it's partially.
 How to disable the secure boot flow, is by setting in the BIOS "secure boot" to disable.
 As a result of that, the shim, and the grub will be not verified anymore, but still, the KO and warmboot(kexec) feature will remain secured, that because the modification to support KO and kexec was done in kernel in the build process and cannot be modified in runtime.
 So, this is the reason why secure boot in runtime can be disabled, but just partially.
 Technical details of the kernel build flag can be found in the building chapter.
 
-##### the modules and sub-modules that are modified for this design
+#### the modules and sub-modules that are modified for this design
 
-- Repo where the code will be added: https://github.com/Azure/sonic-buildimage
+- Repo where the code will be added: [sonic-buildimage](https://github.com/sonic-net/sonic-buildimage)
 - Modules/Submodules that will be changed:
-  - Sonic-linux-kernel submodule: https://github.com/Azure/sonic-linux-kernel
-  - SONiC install module. https://github.com/Azure/sonic-buildimage/blob/master/installer/x86_64/install.sh
+  - [sonic-linux-kernel](https://github.com/sonic-net/sonic-linux-kernel)
+  - [sonic-utilities](https://github.com/sonic-net/sonic-utilities)
+  - [SONiC install module](https://github.com/sonic-net/sonic-buildimage/blob/master/installer/x86_64/install.sh)
 
-###  1.8. <a name='SAIAPI'></a>SAI API
+### Image installation on secure-boot-enabled system
+
+When a secure-boot-supported image is installed on a secure-boot-enabled image, if, during the image build, `SECURE_BOOT_DB_CERT` was set, then the auth file specified by that variable will be enrolled into the db database at image installation time. This is to support scenarios where the db certificate may be very short-lived and/or can change frequently, and to not need a separate certificate enrollment step. If this enrollment fails, then the image installation fails. This auth file is saved on disk under `/host/db-auth` for use when there are no images installed referring to that certificate, and can be removed from the db database.
+
+In addition, on the ESP (EFI system partition), the shim and grub bootloaders may be updated to the latest version packaged as part of the SONiC installation file. This update is done only if the SBAT in the shim in the SONiC installation file is higher/newer than the SBAT on the ESP. This SBAT version is saved as a protected UEFI variable, and is checked by the shim to make sure that older shim binaries (with security vulnerabilities that were fixed in newer versions) do not get booted after booting with a newer shim binary for the first time (thus preventing rollback/downgrade attacks). This conditional installation is so that downgrading to an older SONiC version is still possible while keeping the newer shim and grub.
+
+### Cleaning up the db database
+
+As images get installed and removed on a system, the UEFI db database may grow to have many certificates, and may potentially fill up the UEFI firmware storage space. For that purpose, when removing an image, the db database will also get cleaned up. This is done by scanning the vmlinuz kernel binary of all installed SONiC images and the bootloader installed on the system, comparing it to the certificates that are installed, and determining which certificates need to be present.
+
+This is done by looking at the auth files under `/host/db-auth/`. Because of the limitations of the UEFI variable APIs (in that variables can be only set or appended to, but not partially removed), one of these auth files must be one that removes all db certificates. The auth files that correspond to certificates that are required are collected and then applied (after applying the `noDb.auth` file that removes all db certificates).
+
+#  1.8. <a name='SAIAPI'></a>SAI API
 N/A
 
-###  1.9. <a name='Configurationandmanagement'></a>Configuration and management
+##  1.9. <a name='Configurationandmanagement'></a>Configuration and management
 N/A
 
-####  1.9.1. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
+###  1.9.1. <a name='CLIYANGmodelEnhancements'></a>CLI/YANG model Enhancements
 N/A
 
-####  1.9.2. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
+###  1.9.2. <a name='ConfigDBEnhancements'></a>Config DB Enhancements
 N/A
 
 
-###  1.10. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
+##  1.10. <a name='WarmbootandFastbootDesignImpact'></a>Warmboot and Fastboot Design Impact
 
 Secure Boot feature support warmboot, but in order to save the system secured when doing warmboot is necessary to add a few additions.
 
@@ -353,16 +336,16 @@ Note: key that will verify the signature will be embedded in build time in Vmlin
 
 
 
-###  1.11. <a name='RestrictionsLimitations'></a>Restrictions/Limitations
+##  1.11. <a name='RestrictionsLimitations'></a>Restrictions/Limitations
 The switch (device) should support UEFI and ONIE OS installed.
 
-###  1.12. <a name='TestingRequirementsDesign'></a>Testing Requirements/Design
+##  1.12. <a name='TestingRequirementsDesign'></a>Testing Requirements/Design
 Explain what kind of unit testing, system testing, regression testing, warmboot/fastboot testing, etc.,
 Ensure that the existing warmboot/fastboot requirements are met. For example, if the current warmboot feature expects a maximum of 1 second or zero second data disruption, the same should be met even after the new feature/enhancement is implemented. Explain the same here.
 
 Example sub-sections for unit test cases and system test cases are given below.
 
-####  1.12.1. <a name='UnitTestcases'></a>Unit Test cases
+###  1.12.1. <a name='UnitTestcases'></a>Unit Test cases
 
 The test will verify the signed boot components with dev keys when building the SONiC image.
 
@@ -374,7 +357,7 @@ It is possible to verify the boot component one by one without the BIOS runtime 
 
 In case any of the unitest will failed, the SONiC Image will be not created.
 
-####  1.12.2. <a name='SystemTestcases'></a>System Test cases
+###  1.12.2. <a name='SystemTestcases'></a>System Test cases
 Positive test:
 - Verify runtime secure boot with a signed SONiC image installed.
 - warmboot: install a new sign kernel using warmboot.
@@ -393,7 +376,7 @@ Negative test:
 
 - Test Warmboot: install a new unsign kernel with warmboot and expect to fail.
 
-###  1.13. <a name='OpenActionitems-ifany'></a>Open/Action items - if any
+##  1.13. <a name='OpenActionitems-ifany'></a>Open/Action items - if any
 
 
 NOTE: All the sections and sub-sections given above are mandatory in the design document. Users can add additional sections/sub-sections if required.
