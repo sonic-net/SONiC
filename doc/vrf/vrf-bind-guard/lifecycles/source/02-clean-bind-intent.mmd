@@ -1,0 +1,46 @@
+sequenceDiagram
+    participant M as IntfMgr
+    participant O as IntfsOrch
+    participant D as Dependency owners
+    Note over M,D: Start: Linux interface detached#59; no old RIF.<br/>VrfBlue exists. Guard inactive.
+    Note over M,D: CLI returns after saving the configuration.<br/>The old recorded interface state is already absent.
+    loop While interface or VrfBlue state is not ready
+    M->>M: Check interface and VrfBlue state readiness
+    end
+    M->>O: Ask IntfsOrch to activate the guard
+    O->>O: Set the guard active for this request
+    O-->>M: Confirm the guard is active
+    M->>M: Attach the Linux interface to VrfBlue
+    M->>O: Request creation of the new interface
+    M->>O: Report that the Linux binding changed
+    M->>M: Record the new interface state
+    opt New interface work runs while the guard is active
+    O->>O: Keep work queued for retry
+    end
+    opt Queued dependency work runs while the guard is active
+    D->>O: Try to use the RIF
+    O-->>D: RIF is not ready
+    D->>D: Keep work queued for retry
+    end
+    loop While ports are not ready
+    O->>O: Check and retire any old interface
+    O->>O: Keep retirement queued for retry
+    end
+    opt Ports ready and no old interface or RIF remains
+    O->>O: Check and retire any old interface
+    O->>O: Release the guard
+    loop While ports or VrfBlue are not ready
+    O->>O: Check that ports and VrfBlue are ready
+    end
+    opt Port available and new RIF creation succeeds
+    O->>O: Create the new RIF
+    Note over M,D: BIND complete: Linux interface and recorded interface state use VrfBlue.<br/>Guard released#59; new RIF ready.
+    opt Independently supplied eligible neighbor work succeeds
+    Note over O,D: Eligible neighbor: IP and usable MAC.<br/>Address setup / learning as needed<br/>is independently supplied.
+    D->>O: Try to use the RIF
+    O-->>D: Use the new RIF
+    D->>D: Create the neighbor and next hop
+    Note over O,D: Optional neighbor and next hop ready.
+    end
+    end
+    end
