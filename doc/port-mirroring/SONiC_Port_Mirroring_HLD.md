@@ -828,29 +828,37 @@ sequenceDiagram
      end
      participant asic as ASIC
      Note over config_db,asic: === Create Export Session ===
-     config_db ->> mirror_orch: SET MIRROR_SESSION|session1<br/>{type: ERSPAN, src_ip, dst_ip, ...}<br/>No src_port
-     mirror_orch ->> mirror_orch: Resolve destination and manage export object<br/>Bindings wait until export is ready
+     config_db ->> mirror_orch: SET MIRROR_SESSION
+     mirror_orch ->> mirror_orch: Resolve export destination
+     opt Export destination ready
+         mirror_orch ->> syncd: Create ERSPAN mirror session
+         syncd ->> asic: Program export session
+     end
      Note over config_db,asic: === Activate Sampled Binding ===
-     config_db ->> mirror_orch: SET PORT_MIRROR_SAMPLE|Ethernet0|rx<br/>{admin_state: up, mirror_session: session1,<br/>sample_rate: 5000, truncate_size: 128}
-     mirror_orch ->> state_db: Query SWITCH_CAPABILITY
-     state_db -->> mirror_orch: capabilities
+     config_db ->> mirror_orch: SET PORT_MIRROR_SAMPLE
+     mirror_orch ->> mirror_orch: Check capabilities via SwitchOrch
      alt Dependencies ready, supported, and resources available
-         mirror_orch ->> mirror_orch: Acquire reference to shared ERSPAN export OID
-         mirror_orch ->> syncd: create_samplepacket<br/>(SAMPLE_RATE, TYPE=MIRROR_SESSION,<br/>optional: TRUNCATE_ENABLE, TRUNCATE_SIZE)
+         mirror_orch ->> mirror_orch: Acquire export reference
+         mirror_orch ->> syncd: Create SamplePacket<br/>Rate and optional truncation
          Note over mirror_orch,syncd: rx → ingress attribute pair<br/>tx → egress attribute pair
-         mirror_orch ->> syncd: Bind SamplePacket and export OID to source port/direction
+         mirror_orch ->> syncd: Attach SamplePacket and mirror session<br/>to source port/direction
          syncd ->> asic: Program sampled attachment
      else Sampled mirroring or truncation not supported
-         mirror_orch ->> mirror_orch: Log error; do not activate binding
+         mirror_orch ->> mirror_orch: Log error and leave inactive
      else Dependencies pending or conflicting resources still owned
-         mirror_orch ->> mirror_orch: Do not overwrite existing bindings<br/>Reconcile when eligible
+         mirror_orch ->> mirror_orch: Wait and retry<br/>Do not overwrite attachments
      end
      Note over config_db,asic: === Remove or Disable Binding ===
-     config_db ->> mirror_orch: DEL PORT_MIRROR_SAMPLE|Ethernet0|rx<br/>or admin_state=down
-     mirror_orch ->> syncd: Clear owned sampled-mirror destination binding<br/>then SamplePacket binding
-     mirror_orch ->> syncd: Remove SamplePacket if no remaining references
-     mirror_orch ->> mirror_orch: Release export reference; retain export configuration
-     syncd ->> asic: Remove sampled attachment
+     config_db ->> mirror_orch: DEL PORT_MIRROR_SAMPLE<br/>or SET admin_state = down
+     mirror_orch ->> syncd: Clear owned sampled-mirror attachment
+     syncd ->> asic: Clear sampled-mirror port attribute
+     mirror_orch ->> syncd: Clear SamplePacket attachment
+     syncd ->> asic: Clear SamplePacket port attribute
+     opt SamplePacket no longer referenced
+         mirror_orch ->> syncd: Remove SamplePacket
+         syncd ->> asic: Delete SamplePacket object
+     end
+     mirror_orch ->> mirror_orch: Release export reference<br/>Keep export configuration
      Note over config_db,asic: Export deletion is separate and requires references to be released
 ```
 
