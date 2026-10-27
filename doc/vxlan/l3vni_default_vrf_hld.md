@@ -276,26 +276,7 @@ The default VRF contains both overlay service routes and the routes used to reac
 - Routes imported from EVPN are not advertised to underlay unicast peers. Outbound policy toward those peers permits only the intended underlay routes or otherwise rejects EVPN-learned overlay reachability.
 - BGP resolution of VTEP nexthops remains underlay-only. Routes imported from EVPN are assigned a deployment-specific route tag by the inbound EVPN route map using `set tag <evpn-import-tag>`. Zebra nexthop tracking applies an NHT route map using `ip nht bgp route-map <nht-policy>` and, when IPv6 VTEPs are used, `ipv6 nht bgp route-map <nht-policy>`. The NHT route map denies routes carrying the EVPN-import tag and explicitly permits eligible native underlay routes. Therefore, an EVPN-imported route, including a less-specific route covering a VTEP address, is not eligible to resolve a BGP VTEP nexthop. If native underlay reachability is lost, the affected nexthop becomes unresolved rather than recursively resolving through EVPN.
 
-The following example illustrates the nexthop-resolution policy. Route-map names and the tag value are deployment-specific. If an inbound EVPN route map already exists, the tag action is incorporated into that policy.
-
-```text
-route-map EVPN-IN permit 10
- set tag <evpn-import-tag>
-!
-route-map BGP-NHT deny 10
- match tag <evpn-import-tag>
-!
-route-map BGP-NHT permit 100
-!
-router bgp <asn>
- address-family l2vpn evpn
-  neighbor <evpn-peer-or-group> route-map EVPN-IN in
- exit-address-family
-!
-ip nht bgp route-map BGP-NHT
-```
-
-The final permit entry is required so that routes not carrying the EVPN-import tag remain eligible for nexthop resolution. For IPv6 VTEPs, `ipv6 nht bgp route-map BGP-NHT` applies the equivalent policy. These policies use existing FRR functionality and are not generated automatically by the default-VRF L3VNI mapping. The required outcomes apply in both split and `frrcfgd` configuration modes.
+Route-map names, tag values, and configuration delivery are deployment-specific. The commands named above describe the current FRR realization of the required behavior; an equivalent FRR mechanism may be used if the configuration interface changes, provided EVPN-imported routes remain ineligible for BGP VTEP nexthop resolution while eligible native underlay routes remain usable. This policy uses existing FRR functionality and is not generated automatically by the default-VRF L3VNI mapping. The required outcomes apply in both split and `frrcfgd` configuration modes.
 
 ### 7.6 Delete and re-add flow
 
