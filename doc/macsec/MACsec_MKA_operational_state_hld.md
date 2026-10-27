@@ -81,7 +81,7 @@ MACsecOrch, SAI, or vendor SDK behavior.
    STATE_DB tables retain their dataplane meaning.
 2. CONFIG_DB is authoritative desired state. Each owned runtime session tracks
    its exact applied and pending state independently.
-3. `config macsec profile update` replaces one `old_ckn`-selected CA per
+3. `config macsec profile update_cak` replaces one `old_ckn`-selected CA per
    invocation and requires an existing complete primary/fallback profile.
    The configured alternate is an operator-facing structural precondition, not
    a runtime liveness guarantee. Primary-only replacement uses a new profile
@@ -351,7 +351,7 @@ length, salt-index, cipher-suite, and uniqueness validation.
 Replacement:
 
 ```text
-sudo config macsec profile update <profile> \
+sudo config macsec profile update_cak <profile> \
   --old_ckn <current-primary-or-fallback-ckn> \
   --new_ckn <replacement-ckn> \
   --new_cak <replacement-encoded-cak>
