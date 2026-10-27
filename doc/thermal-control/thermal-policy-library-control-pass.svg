@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" width="1000" height="300" role="img" aria-label="Control pass: sensors are grouped by domain, each domain's largest error feeds its PID, the highest demand is clamped and applied to all system fans">
+  <style>
+    .bg { fill: #ffffff; }
+    .box { fill: #ffffff; stroke: #c9d4e3; stroke-width: 1.5; }
+    .box-blue { fill: #edf3fc; stroke: #1764c0; stroke-width: 1.5; }
+    .box-strong { fill: #1764c0; stroke: #1764c0; }
+    .t { fill: #1c2633; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 17px; }
+    .t-s { fill: #5d6878; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; }
+    .t-w { fill: #ffffff; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 600; }
+    .t-h { fill: #0e3f7d; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
+    .t-b { fill: #0e3f7d; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 600; }
+    .ln { stroke: #5d6878; stroke-width: 1.5; fill: none; }
+    .ln-blue { stroke: #1764c0; stroke-width: 2; fill: none; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#5d6878" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#1764c0" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1000" height="300"/>
+
+  <text class="t-h" x="20" y="22">SENSORS</text>
+  <text class="t-h" x="300" y="22">ERROR PER DOMAIN</text>
+  <text class="t-h" x="530" y="22">PID PER DOMAIN</text>
+  <text class="t-h" x="700" y="22">ARBITRATION</text>
+  <text class="t-h" x="860" y="22">ACTUATION</text>
+
+  <rect class="box" x="20" y="40" width="230" height="46" rx="4"/>
+  <text class="t" x="34" y="60">ASIC diode 1</text><text class="t-s" x="34" y="78">82 °C, setpoint 85 °C</text>
+  <rect class="box" x="20" y="96" width="230" height="46" rx="4"/>
+  <text class="t" x="34" y="116">ASIC diode 0</text><text class="t-s" x="34" y="134">80 °C, setpoint 85 °C</text>
+  <rect class="box" x="20" y="176" width="230" height="46" rx="4"/>
+  <text class="t" x="34" y="196">Board inlet</text><text class="t-s" x="34" y="214">62 °C, setpoint 70 °C</text>
+  <rect class="box" x="20" y="232" width="230" height="46" rx="4"/>
+  <text class="t" x="34" y="252">Board exhaust</text><text class="t-s" x="34" y="270">66 °C, setpoint 70 °C</text>
+
+  <path class="ln" d="M250,63 H272 V119 H250"/>
+  <line class="ln" x1="272" y1="91" x2="298" y2="91" marker-end="url(#a)"/>
+  <path class="ln" d="M250,199 H272 V255 H250"/>
+  <line class="ln" x1="272" y1="227" x2="298" y2="227" marker-end="url(#a)"/>
+
+  <rect class="box" x="300" y="63" width="190" height="56" rx="4"/>
+  <text class="t" x="395" y="87" text-anchor="middle">asic</text>
+  <text class="t-s" x="395" y="107" text-anchor="middle">max error −3 °C</text>
+  <rect class="box" x="300" y="199" width="190" height="56" rx="4"/>
+  <text class="t" x="395" y="223" text-anchor="middle">board</text>
+  <text class="t-s" x="395" y="243" text-anchor="middle">max error −4 °C</text>
+
+  <line class="ln" x1="490" y1="91" x2="528" y2="91" marker-end="url(#a)"/>
+  <line class="ln" x1="490" y1="227" x2="528" y2="227" marker-end="url(#a)"/>
+
+  <rect class="box-blue" x="530" y="63" width="130" height="56" rx="4"/>
+  <text class="t-b" x="595" y="87" text-anchor="middle">PID asic</text>
+  <text class="t-s" x="595" y="107" text-anchor="middle">fan demand</text>
+  <rect class="box-blue" x="530" y="199" width="130" height="56" rx="4"/>
+  <text class="t-b" x="595" y="223" text-anchor="middle">PID board</text>
+  <text class="t-s" x="595" y="243" text-anchor="middle">fan demand</text>
+
+  <path class="ln-blue" d="M660,91 H680 V227 H660"/>
+  <line class="ln-blue" x1="680" y1="159" x2="698" y2="159" marker-end="url(#ab)"/>
+
+  <rect class="box-strong" x="700" y="131" width="130" height="56" rx="4"/>
+  <text class="t-w" x="765" y="165" text-anchor="middle">max demand</text>
+  <text class="t-s" x="765" y="214" text-anchor="middle">clamped to</text>
+  <text class="t-s" x="765" y="232" text-anchor="middle">[fan_limits.min,</text>
+  <text class="t-s" x="765" y="250" text-anchor="middle">max_speed]</text>
+
+  <line class="ln-blue" x1="830" y1="159" x2="858" y2="159" marker-end="url(#ab)"/>
+  <rect class="box" x="860" y="131" width="120" height="56" rx="4"/>
+  <text class="t" x="920" y="155" text-anchor="middle">all system</text>
+  <text class="t" x="920" y="175" text-anchor="middle">fans</text>
+</svg>
