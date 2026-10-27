@@ -274,9 +274,28 @@ The default VRF contains both overlay service routes and the routes used to reac
 
 - RT-5 origination permits only explicitly intended overlay service prefixes. It excludes local and remote VTEP addresses, underlay link and BGP transport prefixes, management prefixes, and other infrastructure reachability.
 - Routes imported from EVPN are not advertised to underlay unicast peers. Outbound policy toward those peers permits only the intended underlay routes or otherwise rejects EVPN-learned overlay reachability.
-- VTEP and underlay endpoint resolution remains underlay-only. An imported EVPN route must not become the selected route for a VTEP address, including a less-specific imported prefix that would cover the VTEP after a more-specific underlay route is withdrawn. If native underlay reachability is lost, affected EVPN nexthops become unresolved rather than recursively resolving through the overlay.
+- BGP resolution of VTEP nexthops remains underlay-only. Routes imported from EVPN are assigned a deployment-specific route tag by the inbound EVPN route map using `set tag <evpn-import-tag>`. Zebra nexthop tracking applies an NHT route map using `ip nht bgp route-map <nht-policy>` and, when IPv6 VTEPs are used, `ipv6 nht bgp route-map <nht-policy>`. The NHT route map denies routes carrying the EVPN-import tag and explicitly permits eligible native underlay routes. Therefore, an EVPN-imported route, including a less-specific route covering a VTEP address, is not eligible to resolve a BGP VTEP nexthop. If native underlay reachability is lost, the affected nexthop becomes unresolved rather than recursively resolving through EVPN.
 
-This design does not prescribe a new route-map syntax or automatically generate policy. The required outcomes are implemented with the deployment's existing FRR prefix lists, route maps, communities, and neighbor policy. They apply in both split and `frrcfgd` configuration modes.
+The following example illustrates the nexthop-resolution policy. Route-map names and the tag value are deployment-specific. If an inbound EVPN route map already exists, the tag action is incorporated into that policy.
+
+```text
+route-map EVPN-IN permit 10
+ set tag <evpn-import-tag>
+!
+route-map BGP-NHT deny 10
+ match tag <evpn-import-tag>
+!
+route-map BGP-NHT permit 100
+!
+router bgp <asn>
+ address-family l2vpn evpn
+  neighbor <evpn-peer-or-group> route-map EVPN-IN in
+ exit-address-family
+!
+ip nht bgp route-map BGP-NHT
+```
+
+The final permit entry is required so that routes not carrying the EVPN-import tag remain eligible for nexthop resolution. For IPv6 VTEPs, `ipv6 nht bgp route-map BGP-NHT` applies the equivalent policy. These policies use existing FRR functionality and are not generated automatically by the default-VRF L3VNI mapping. The required outcomes apply in both split and `frrcfgd` configuration modes.
 
 ### 7.6 Delete and re-add flow
 
@@ -454,7 +473,7 @@ The feature adds one logical VRF record, existing tunnel-map entries, and normal
 13. Configure an existing supported route-leaking policy between a named VRF and the GRT while the default-VRF L3VNI is active. Verify that explicitly leaked routes are installed in the intended routing table, follow the existing FRR EVPN advertisement policy, and forward without regressing route isolation for non-leaked prefixes.
 14. Apply an RT-5 export allow-list and verify that intended IPv4 and IPv6 service prefixes are advertised while VTEP loopbacks, underlay links and peer-transport prefixes, management prefixes, and other infrastructure routes are not advertised as RT-5.
 15. Import IPv4 and IPv6 EVPN routes into the GRT and verify they are not advertised to underlay unicast peers, while native underlay routes continue to be advertised according to existing policy.
-16. Install an imported EVPN prefix that could cover a VTEP address, then withdraw the more-specific native underlay route to that VTEP. Verify the VTEP does not resolve recursively through EVPN, dependent overlay nexthops become unresolved or withdraw, no forwarding loop occurs, and normal forwarding recovers when native underlay reachability returns.
+16. Configure the inbound EVPN route map to tag imported routes and configure the Zebra BGP NHT route map to deny that tag while permitting eligible underlay routes. Install a tagged EVPN prefix that covers a VTEP address and verify that the prefix is present in the GRT. Withdraw the more-specific native underlay route to that VTEP and verify that the covering EVPN route is not used for BGP nexthop resolution, the VTEP nexthop becomes unresolved, dependent overlay routes withdraw or become inactive, no forwarding loop occurs, and forwarding recovers when native underlay reachability returns.
 17. Save and reload a configuration containing `VRF|default`; verify YANG validation, SWSS/SAI mapping restoration, FRR restoration for the selected configuration mode, and traffic recovery.
 
 ## 14. References
