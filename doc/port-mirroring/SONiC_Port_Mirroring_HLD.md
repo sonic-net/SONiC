@@ -284,7 +284,7 @@ SWITCH_CAPABILITY|switch
   SAMPLEPACKET_TRUNCATION_CAPABLE: "true"
 ```
 
-This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions. The platform also supports ingress sampled port mirroring and packet truncation on sampled sessions. The actual values depend on the platform and vendor SAI implementation. MirrorOrch checks these capabilities at runtime and gracefully falls back when a capability is not supported.
+This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions. The platform also supports ingress sampled port mirroring and packet truncation on sampled sessions. The actual values depend on the platform and vendor SAI implementation. MirrorOrch checks the required capabilities before activating a sampled binding. If a required capability is unsupported, it logs an error and does not activate the binding.
 
 ### 3.2.4 ASIC_DB
 No changes are introduced in ASIC_DB.·
@@ -305,23 +305,23 @@ Mirror Orchestration agent is modified to support this feature:
 
 #### Sampled Port Mirroring Extension
 
-MirrorOrch consumes `MIRROR_SESSION` for export configuration and `PORT_MIRROR_SAMPLE` for sampled source bindings. Enabled bindings use their own sampling policies and reference the shared export-session OID; disabled bindings retain configuration without active port attachments.
+MirrorOrch consumes `MIRROR_SESSION` for export configuration and `PORT_MIRROR_SAMPLE` for sampled source bindings. Each enabled binding applies its sampling policy and references the corresponding export session's SAI object. Disabled bindings retain their configuration without active sampling attachments.
 
 An enabled binding creates or acquires a compatible SamplePacket profile. Its direction selects the following port attributes:
 
 - **rx**: `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION`.
 - **tx**: `SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION`.
-- CLI **both**: two independent configuration entries request the two attribute pairs. Equal policies may reuse an `EXCLUSIVE` SamplePacket profile with reference counting; different rates require different profiles. Profile reuse must preserve independent sampling per attachment.
+- **Both directions**: MirrorOrch programs the ingress and egress attribute pairs independently for the corresponding `rx` and `tx` bindings.
 
 Bindings wait for the referenced session and its destination to be ready. Removing one binding releases only its attachment and unused sampling resources, not a still-referenced export session.
 
-For a PortChannel source, MirrorOrch expands the binding to its physical member ports for SAI programming and updates the attachments as members join or leave. Each member uses the configured sampling policy. Binding ownership must prevent overlapping PortChannel and direct member-port bindings from overwriting or clearing each other's attachments on the same physical port and direction.
+For a PortChannel source, MirrorOrch expands the binding to its physical member ports for SAI programming and updates the attachments as members join or leave. Each member uses the configured sampling policy.
 
 See Section 3.1.1 for the architecture overview and Section 4 for the detailed workflow.
 
 **Configuration semantics:**
 
-- **Duplicate session names are rejected; no in-place export update.** Existing export-session handling is retained. The sampled CLI rejects duplicate port/direction keys; changing a binding's policy requires removing and re-adding the binding, not the shared export session.
+- **Duplicate session names are rejected; in-place export-session updates are not supported.** The sampled CLI also rejects duplicate port/direction keys. To change a binding's policy, remove and recreate the binding. The referenced export session does not need to be recreated.
 - **Unsupported platforms are rejected, not silently downgraded.** MirrorOrch checks the required per-direction sampling and truncation capabilities before activation.
 
 ## 3.4 Mirror Capability Discovery
@@ -446,7 +446,7 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
     SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
 ```
 ### 3.5.2 Sampled Port Mirroring SAI APIs
-Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation. The ingress pair (INGRESS_SAMPLEPACKET_ENABLE + INGRESS_SAMPLE_MIRROR_SESSION) carries an `rx` binding; the egress pair (EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION) carries a `tx` binding. CLI `both` creates two entries. The export session's SAI object remains shared and does not carry these bindings' sampling/truncation policy.
+Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation. The ingress pair (INGRESS_SAMPLEPACKET_ENABLE + INGRESS_SAMPLE_MIRROR_SESSION) carries an `rx` binding; the egress pair (EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION) carries a `tx` binding. CLI `both` creates two entries. The export session's SAI object carries export configuration, while the SamplePacket object carries sampling and truncation settings.
 
 #### SamplePacket Attributes
 
@@ -556,17 +556,19 @@ More details about the [Port SAI API](https://github.com/opencomputeproject/SAI/
 
 **Activate a sampled source binding:**
  
- 1. Resolve the referenced export session; create its ERSPAN mirror object with encapsulation attributes if not already available. Do not create another export object solely because a binding has a different sampling rate.
- 2. `sai_samplepacket_api->create_samplepacket()` — Create/acquire a profile with `SAMPLE_RATE`, `TYPE=SAI_SAMPLEPACKET_TYPE_MIRROR_SESSION`, `MODE=SAI_SAMPLEPACKET_MODE_EXCLUSIVE`, and optionally `TRUNCATE_ENABLE` + `TRUNCATE_SIZE`.
- 3. `sai_port_api->set_port_attribute(...)` — Bind the SamplePacket to the source port: `INGRESS_SAMPLEPACKET_ENABLE` for `rx`, `EGRESS_SAMPLEPACKET_ENABLE` for `tx`.
- 4. `sai_port_api->set_port_attribute(...)` — Bind the referenced mirror session using `INGRESS_SAMPLE_MIRROR_SESSION` for `rx` or `EGRESS_SAMPLE_MIRROR_SESSION` for `tx`.
+ 1. Resolve the referenced export session and wait until it is active and its ERSPAN mirror SAI object is available.
+ 2. `sai_samplepacket_api->create_samplepacket()` — Create a SamplePacket object for the binding with `SAMPLE_RATE`, `TYPE=SAI_SAMPLEPACKET_TYPE_MIRROR_SESSION`, and optionally `TRUNCATE_ENABLE` and `TRUNCATE_SIZE`. The implementation relies on the default SAI `EXCLUSIVE` mode.
+ 3. `sai_port_api->set_port_attribute(...)` — Attach the SamplePacket object to the source port using `INGRESS_SAMPLEPACKET_ENABLE` for `rx` or `EGRESS_SAMPLEPACKET_ENABLE` for `tx`.
+ 4. `sai_port_api->set_port_attribute(...)` — Attach the referenced mirror session using `INGRESS_SAMPLE_MIRROR_SESSION` for `rx` or `EGRESS_SAMPLE_MIRROR_SESSION` for `tx`.
 
-**Disable or remove a sampled binding (reverse order):**
+For a PortChannel binding, the port-attribute operations apply to its physical member ports.
+
+**Remove a sampled binding:**
  
- 1. `sai_port_api->set_port_attribute(...)` — Clear the mirror session binding (`INGRESS_SAMPLE_MIRROR_SESSION` and/or `EGRESS_SAMPLE_MIRROR_SESSION`)
- 2. `sai_port_api->set_port_attribute(...)` — Clear the SamplePacket binding (`INGRESS_SAMPLEPACKET_ENABLE` and/or `EGRESS_SAMPLEPACKET_ENABLE`)
- 3. `sai_samplepacket_api->remove_samplepacket()` — Remove the SamplePacket object only when no bindings reference it.
- 4. Release the binding's export reference. The `MIRROR_SESSION` configuration remains; remove its SAI object according to the export lifecycle, not merely because one sampled source was deleted. Export deletion must respect remaining sampled and ACL references.
+ 1. `sai_port_api->set_port_attribute(...)` — Clear the binding's directional sampled-mirror attachment by setting the mirror-session list to empty.
+ 2. `sai_port_api->set_port_attribute(...)` — Clear the corresponding SamplePacket attachment by setting its OID to `SAI_NULL_OBJECT_ID`.
+ 3. `sai_samplepacket_api->remove_samplepacket()` — Remove the binding's SamplePacket object after all its port attachments have been successfully cleared.
+ 4. Release the binding's reference to the export session. The `MIRROR_SESSION` configuration remains; export-session deletion is a separate operation and must respect remaining sampled and ACL references.
 
 **SAI Header References:**
 - saisamplepacket.h: https://github.com/opencomputeproject/SAI/blob/master/inc/saisamplepacket.h
@@ -652,10 +654,10 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
 ```
 #### YANG Model (Sampled Port Mirroring)
 
-`sonic-mirror-session` describes export sessions and unsampled source bindings. `sonic-port-mirror-sample.yang` describes sampled bindings:
+`PORT_MIRROR_SAMPLE` is defined alongside `MIRROR_SESSION` in `sonic-mirror-session.yang`. The following tree shows the sampled-binding table:
 
 ```text
-+--rw sonic-port-mirror-sample
++--rw sonic-mirror-session
    +--rw PORT_MIRROR_SAMPLE
       +--rw PORT_MIRROR_SAMPLE_LIST* [port direction]
          +--rw port             union (PORT or PORTCHANNEL reference)
@@ -666,7 +668,7 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
          +--rw truncate_size?   uint32 (64..9216)
 ```
 
-The `port` key is a union of leafrefs to `PORT/PORT_LIST/name` and `PORTCHANNEL/PORTCHANNEL_LIST/name` in their respective YANG modules. YANG validates source-port and mirror-session references, mandatory fields, and value ranges for both enabled and disabled bindings. A mirror session referenced by `PORT_MIRROR_SAMPLE` must have type `ERSPAN` and must not contain `src_port`.
+The `port` key is a union of leafrefs to `PORT/PORT_LIST/name` and `PORTCHANNEL/PORTCHANNEL_LIST/name` in their respective YANG modules. YANG validates source-port and mirror-session references, mandatory fields, and value ranges for both enabled and disabled bindings. A mirror session referenced by `PORT_MIRROR_SAMPLE` must have type `ERSPAN`. Each sampled binding specifies its source interface and direction through the `port` and `direction` keys. The referenced `MIRROR_SESSION` entry must not configure `src_port`.
 
 **Configuration exclusivity:** Explicit `SFLOW|global` configuration and `PORT_MIRROR_SAMPLE` entries are mutually exclusive system-wide. GCU/YANG validation rejects any candidate configuration containing both, regardless of port, direction, or administrative state. Unsampled SPAN/ERSPAN is not subject to this restriction.
 
@@ -712,18 +714,18 @@ This writes export attributes without `src_port` or an explicitly supplied direc
 **2. Add the sampling policy and export reference for each source port:**
 
 ```text
-config mirror_session sample add <session_name> <port> <rx|tx|both> \
-    --sample-rate <N> [--truncate-size <bytes>] [--disabled]
+config mirror_session sample add <session_name> <src_port> <rx|tx|both> \
+    --sample_rate <N> [--truncate_size <bytes>] [--disabled]
 ```
 
-`sample add` creates a `PORT_MIRROR_SAMPLE` entry referencing the export session without modifying it. It explicitly writes `admin_state=up`; `--disabled` writes `down`. Omitted truncation leaves `truncate_size` absent.
+`src_port` accepts a physical port or PortChannel, or a comma-separated list of source interfaces. `sample add` creates a `PORT_MIRROR_SAMPLE` entry for each source and direction, referencing the export session without modifying it. It explicitly writes `admin_state=up`; `--disabled` writes `down`. Omitted truncation leaves `truncate_size` absent.
 
 For `both`, the CLI creates separate `rx` and `tx` entries with the same policy and session reference. Validate both before any write and reject duplicate keys rather than overwriting them.
 
 **3. Remove sampled source bindings:**
 
 ```text
-config mirror_session sample remove <session_name> <port> <rx|tx|both>
+config mirror_session sample remove <session_name> <src_port> <rx|tx|both>
 ```
 
 Removal deletes the selected bindings, not the export session. Verify session references before deleting any entries. For `both`, remove all matching directional entries; reject a mismatched reference before any deletion. Report an error if no matching binding exists.
@@ -848,8 +850,8 @@ sequenceDiagram
      else Dependencies pending or conflicting resources still owned
          mirror_orch ->> mirror_orch: Wait and retry<br/>Do not overwrite attachments
      end
-     Note over config_db,asic: === Remove or Disable Binding ===
-     config_db ->> mirror_orch: DEL PORT_MIRROR_SAMPLE<br/>or SET admin_state = down
+     Note over config_db,asic: === Remove Binding ===
+     config_db ->> mirror_orch: DEL PORT_MIRROR_SAMPLE
      mirror_orch ->> syncd: Clear owned sampled-mirror attachment
      syncd ->> asic: Clear sampled-mirror port attribute
      mirror_orch ->> syncd: Clear SamplePacket attachment
@@ -859,7 +861,6 @@ sequenceDiagram
          syncd ->> asic: Delete SamplePacket object
      end
      mirror_orch ->> mirror_orch: Release export reference<br/>Keep export configuration
-     Note over config_db,asic: Export deletion is separate and requires references to be released
 ```
 
 # 5 Error Handling
@@ -1051,7 +1052,7 @@ The following test cases validate the mirror capability discovery and validation
 | 35 | Verify multiple source ports: each configured port is programmed with the sampled-mirror attributes |
 | 36 | Verify CLI both produces RX and TX attachments; equal-policy profile reuse preserves independent sampling |
 | 37 | Verify binding remove/add changes policy without disrupting other users of the shared export session |
-| 38 | Verify disabled bindings create no active sampled attachment and administrative updates reconcile correctly |
+| 38 | Verify disabled bindings create no active sampled attachment and enabling a binding requires removal and recreation. |
 | 39 | Verify bypassed validation cannot overwrite conflicting sFlow resources; cleanup failure blocks activation |
 | 40 | Verify a PortChannel binding remains a logical CONFIG_DB entry, programs its physical members, follows member additions/removals, and does not overwrite overlapping direct member-port bindings |
 | 41 | Verify that a binding whose export destination is unresolved has no active sampled source attachment |
@@ -1061,12 +1062,11 @@ The following test cases validate the mirror capability discovery and validation
 
 | S.No | Test Case Synopsis |
 |------|-------------------|
-| 43 | Verify destination-only export creation followed by sample add with --sample-rate and optional --truncate-size |
+| 43 | Verify destination-only export creation followed by sample add with --sample_rate and optional --truncate_size |
 | 44 | Verify sample add --disabled stores down, duplicate add is rejected, and remove preserves the export session |
 | 45 | Verify that mirrored traffic rate matches expected sampling ratio (1:N) |
 | 46 | Verify that mirrored packets are truncated to configured size |
-| 47 | Verify backward compatibility: unsampled source bindings and ACL mirror-session use retain their existing behavior |
-| 48 | Verify that a sampled mirror session is rejected when the platform does not support sampled mirroring or truncation |
+| 47 | Verify that a sampled mirror session is rejected when the platform does not support sampled mirroring or truncation |
 
 Additional configuration tests cover new-table field/reference validation, CLI `both` prevalidation, and rejection of explicit `SFLOW|global` plus sampled-binding entries in either configuration order, including disabled entries. A rejected request must leave CONFIG_DB unchanged.
 
