@@ -9,7 +9,7 @@ What this design delivers, in one list. Each item has a full section below.
 - **mTLS enforcement, without local users.** Once the CA is staged, every resource except the unauthenticated ones DSP0266 exempts (the service root, `/redfish`, `$metadata` and `odata`) requires a client certificate signed by it and valid for client authentication. bmcweb's authentication settings are left at their defaults, `TLS` on and `TLSStrict` off, which request a client certificate without requiring one at the handshake, so the service root stays reachable unauthenticated. The certificate's common name is then checked against the trusted names configured in CONFIG_DB (`REDFISH|certs` field `client_crt_cname`), which accepts exact entries and wildcards such as `*.example.com`. There are no local users or passwords in the container: an accepted client is authorized as an administrator, and the common name is also what appears in sessions and logs.
 - **Fail closed after first provisioning (secure mode).** A dedicated marker file, `/var/lib/bmcweb/provisioned`, is written on the first successful staging. Once it exists, every bmcweb start is gated: with no valid staged certificate, bmcweb does not start at all, instead of falling back to a self-signed cert. No CONFIG_DB attribute is involved, and the marker survives reboot and container recreation. Recovery is automatic when valid certs reappear.
 - **Deletion behavior.** Deleting the source certificates does not tear down the running service (bmcweb keeps serving the last staged certificate), and it is not a way to revoke access: the running bmcweb keeps serving the already-loaded certificate and keeps trusting the same CA. To actually revoke, rotate the CA (clients whose certs were issued by the old CA then fail the mTLS handshake).
-- **Observability.** The watcher publishes sync status to STATE_DB (`REDFISH_CERT_STATUS|global`: `in_sync`, `last_error`, fingerprints, served serial, plus `mtls_enforced` for the enforcement state) every cycle, and every decision is logged to syslog. A rotation that fails to land is visible, not silent; monitoring must watch `in_sync`.
+- **Observability.** The watcher publishes sync status to STATE_DB (`REDFISH_CERT_STATUS|global`: `in_sync`, `last_error`, fingerprints, served serial, plus `mtls_enforced` for the enforcement state) every cycle, and every decision is logged to syslog. A rotation that fails to land is visible, not silent; monitoring must watch `in_sync` together with bmcweb being RUNNING, since the status describes the staged files.
 - **Boot resilience preserved.** Before `REDFISH|certs` is configured, or before the files it names are delivered, the BMC still boots with bmcweb's self-signed certificate and the API is reachable.
 - **Configured through CONFIG_DB.** The listening port, the delivered certificate paths, and the trusted client common names all come from the `REDFISH|config` and `REDFISH|certs` tables, in the same shape the other TLS-terminating services use. There is no separate Redfish certificate: the paths are expected to name the certificates the REST API server is already provisioned with. The certificate paths have no built-in defaults; with no `REDFISH|certs` entry nothing is staged and bmcweb serves its self-signed certificate. Only the port has a default, `443`.
 
@@ -92,7 +92,7 @@ The certificate paths have no built-in defaults: certificates are taken only fro
 
 **Reusing the restapi certificates.** There is no separate Redfish certificate. A SONiC device already has the restapi server certificate, key and CA delivered to it (`RESTAPI|certs` names them), and Redfish, as another management REST API, uses the same files: the expected configuration points `server_crt` and `server_key` at the restapi pair, as in the example above. Nothing is copied or converted at delivery; staging reads the files where they are. The only requirement on any configured path is that it is under `/etc/sonic`, the host directory mounted into the redfish container.
 
-**When a change takes effect.** The watcher re-reads the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names; adding or removing a trusted name takes effect when `sonic-dbus-bridge` restarts. `port` is read by `bmcweb-start.sh` on every bmcweb start, so a change takes effect when bmcweb or the redfish service is restarted; no container recreate is involved, and the certificate flow is untouched by a port change. One operational note: clients, monitoring, and tests assume 443 by default, so a non-default port must be communicated to every consumer of the API.
+**When a change takes effect.** The watcher re-reads the `certs` paths on every wake, so a change is picked up within one watch interval, and a change that alters what bmcweb must load bounces bmcweb. `client_crt_cname` is read by `sonic-dbus-bridge` on every request that needs a privilege, so adding or removing a trusted name takes effect on the next request, with no restart of `sonic-dbus-bridge`, bmcweb or the container. `port` is read by `bmcweb-start.sh` on every bmcweb start, so a change takes effect when bmcweb or the redfish service is restarted; no container recreate is involved, and the certificate flow is untouched by a port change. One operational note: clients, monitoring, and tests assume 443 by default, so a non-default port must be communicated to every consumer of the API.
 
 ## How bmcweb handles certificates
 
@@ -200,7 +200,7 @@ rsyslogd
 
 Staging is the `stage_certs` step of the script. It runs on the first install and on every rotation, and produces the contract items from the table above:
 
-1. Concatenate the configured `server_crt` + `server_key` into `server.pem`, written to a temporary file and moved into place, so bmcweb can never observe a half-written file.
+1. Concatenate the configured `server_crt` + `server_key` into `server.pem`. The concatenation is written to `server.pem.tmp` in the same directory under `umask 077`, so the file holding the private key is mode 0600, owned by root (the user bmcweb runs as), from the moment it is created. A leftover temporary file is removed first, since the umask applies only when a file is created. The temporary file is then renamed over `server.pem`, an atomic rename within one directory, so bmcweb never observes a half-written file. If the write fails, the temporary file is removed and staging fails.
 2. Copy the configured `ca_crt` to `/etc/ssl/certs/authority/CA-cert.pem`.
 3. Compute the CA's subject hash with `openssl x509 -hash` and create the `<hash>.0` symlink next to it.
 
@@ -209,6 +209,8 @@ Staging only runs when the input is complete and consistent. The readiness check
 - All three source files exist (a partial upload stages nothing).
 - The server certificate and the CA certificate both parse as X.509.
 - The certificate and the private key actually belong together: the public key is derived independently from each, and staging proceeds only if the two are identical. This works for both RSA and EC keys, and it is what protects the mid-rotation window (see the Pair guard section).
+
+The private key is never logged: log lines name file paths only. The only value derived from the key that leaves the script is the source fingerprint (sha256 over the server certificate, key and CA together), published to STATE_DB.
 
 ### The fingerprint stamp
 
@@ -249,7 +251,7 @@ One bmcweb condition must hold: bmcweb requests a client certificate only when n
 - An entry of the form `*.example.com` matches any name ending in the remaining suffix, so it accepts `one.example.com` and `two.one.example.com`, but not `example.com` itself and not `example.com.edu`. A wildcard may only appear at the start of an entry. This is the same matching the SONiC REST API server performs for its client certificates.
 - When the list is unset or empty, every common name is refused, as the SONiC REST API server does: being issued by the staged CA is not enough on its own.
 
-The list is read once, when `sonic-dbus-bridge` starts, and held for the life of the process, as the REST API server does with its own trusted names. Adding or removing a trusted name therefore takes effect when `sonic-dbus-bridge` restarts; bmcweb does not need a bounce. A failed read of the list is not held: it refuses, and is retried on the next request.
+The list is read from CONFIG_DB on every request that needs a privilege: bmcweb asks `sonic-dbus-bridge` (`GetUserInfo`) before each such request, and the bridge reads `client_crt_cname` each time. Adding or removing a trusted name therefore takes effect on the next request, with no restart. This includes a client that is already connected: its next request is checked against the new list, and a removed name is answered with 403. The exception is the event stream (`/redfish/v1/EventService/SSE`), whose privilege is checked once when it is opened: a stream opened before a name was removed stays open until it is closed, and restarting bmcweb closes it. A failed read of the list refuses that request and is retried on the next.
 
 A client whose common name matches nothing is refused even though its certificate is trusted. It has been authenticated, so it is answered with 403 on any resource that needs a privilege, while the unauthenticated service root still answers 200. A client with no certificate, or with one the staged CA did not issue, has no session at all and is answered with 401.
 
@@ -311,7 +313,12 @@ The same guard also covers the pathological case where a rotation is left half-d
 - The condition is immediately visible: STATE_DB reports `in_sync false` with a "credentials not ready" reason.
 - If bmcweb restarts while the source is gone, the guard decides: the staged certificate is still present and valid, so bmcweb starts normally even on a provisioned unit. Only if the staged certificate is also gone does the unit fail closed.
 
-Revocation is done by rotating the CA (clients trusting the old CA stop being accepted), not by deleting files.
+**Revocation.** Deleting files is not revocation. Access is revoked in one of two ways:
+
+- **Remove the common name** from `REDFISH|certs` `client_crt_cname`. This takes effect on the next request, with no restart, including for a client that is already connected (see Common name validation). An SSE event stream opened before the change stays open until it is closed; restarting bmcweb closes it. The finest grain is an entry in the list: removing an exact name refuses every certificate with that name, and a name covered by a wildcard entry cannot be refused on its own without narrowing that entry. The list is Redfish's own, so this does not change who the REST API server trusts.
+- **Rotate the CA.** Once the watcher stages the new CA and bounces bmcweb (within one watch interval), clients holding certificates from the old CA are no longer accepted. In the expected configuration `ca_crt` and the server pair are the REST API server's files (see Reusing the restapi certificates), so rotating them changes the REST API server's trust as well, and every REST API client also needs a certificate from the new CA.
+
+There is no per-certificate revocation: bmcweb checks neither CRLs nor OCSP, so a single certificate cannot be revoked while other certificates with the same common name, issued by the same CA, stay valid.
 
 ## Observability
 
@@ -323,13 +330,15 @@ A rotation that silently fails to land is a security flaw: the endpoint keeps an
 |---|---|
 | `source_fingerprint` | sha256 over the current source trio |
 | `applied_fingerprint` | the stamp: last successfully applied trio |
-| `served_serial` | serial number of the certificate currently in `server.pem` |
-| `in_sync` | `true` when the source is ready, matches what was applied, and the staged output is valid |
+| `served_serial` | serial number of the certificate in the staged `server.pem`, which bmcweb serves once it has started on the staged files |
+| `in_sync` | `true` when the source is ready, matches what was applied, and the staged output is valid (a statement about the staged files, not the live listener) |
 | `mtls_enforced` | `true` when a valid CA-signed certificate and its CA are staged, i.e. every resource except the unauthenticated ones requires a client certificate |
 | `last_update` | timestamp of the last publish (also proves the watcher is alive) |
 | `last_error` | precise reason when out of sync |
 
-`in_sync` is the single field monitoring should watch. `last_error` distinguishes the causes: `REDFISH|certs` not configured, source not ready (missing files, unparseable cert, or cert/key mismatch), source changed but not applied (staging pending or failing), or staged output missing/tampered/self-signed. `mtls_enforced` publishes the enforcement state: `true` means the mTLS enforcement configuration is in effect, so client-certificate authentication is required on every connection. mTLS handshakes themselves are per-connection events, so "handshake complete" has no steady-state value; `mtls_enforced` is the publishable fact that every handshake now requires and verifies a client certificate. A persistent `mtls_enforced false` is actionable in both phases: on a never-provisioned unit it means provisioning has not completed, and on a provisioned unit it means the certificate material was lost and the unit is failing closed; the guard refusal in syslog and the provisioned marker on the host distinguish the two during triage.
+`in_sync`, `served_serial` and `mtls_enforced` describe the staged files, not what the live listener presents. bmcweb reads its certificates only at startup, so they match what is served only once bmcweb has restarted on those files. If the bounce after staging does not complete (bmcweb fails to stop and keeps serving the previous certificate, or fails to start again), `in_sync` can be `true` while the listener presents the previous certificate or nothing at all. Monitoring therefore watches `in_sync` together with bmcweb being RUNNING (`docker exec redfish supervisorctl status bmcweb`); for an end-to-end check, the serial presented on the Redfish port (for example from `openssl s_client`) is compared with `served_serial`. The watcher also starts bmcweb itself when supervisord has marked it FATAL and a valid staged certificate exists, so a failed start recovers within one watch interval. The field keeps the name `served_serial`, which existing tests read; it is the serial of the staged certificate.
+
+`last_error` distinguishes the causes: `REDFISH|certs` not configured, source not ready (missing files, unparseable cert, or cert/key mismatch), source changed but not applied (staging pending or failing), or staged output missing/tampered/self-signed. `mtls_enforced` publishes the enforcement state: `true` means the mTLS enforcement configuration is in effect, so client-certificate authentication is required on every connection. mTLS handshakes themselves are per-connection events, so "handshake complete" has no steady-state value; `mtls_enforced` is the publishable fact that every handshake now requires and verifies a client certificate. A persistent `mtls_enforced false` is actionable in both phases: on a never-provisioned unit it means provisioning has not completed, and on a provisioned unit it means the certificate material was lost and the unit is failing closed; the guard refusal in syslog and the provisioned marker on the host distinguish the two during triage.
 
 Read it with:
 
@@ -539,7 +548,7 @@ Preconditions for this section: a valid trio is staged and `in_sync true`. This 
 
 **Steps:**
 
-1. Remove `client_crt_cname` from CONFIG_DB and restart `sonic-dbus-bridge`.
+1. Remove `client_crt_cname` from CONFIG_DB.
 2. Send a request to a privileged resource with a client cert from the trusted CA with an arbitrary CN.
 
 **Verification:**
@@ -548,19 +557,18 @@ Preconditions for this section: a valid trio is staged and `in_sync true`. This 
 2. The service root still answers 200 for the same client, since it needs no privilege.
 3. A client cert from a different CA is refused with 401, confirming CA trust is checked first.
 
-**Test Case #4: A common name change takes effect when sonic-dbus-bridge restarts**
+**Test Case #4: A common name change takes effect on the next request**
 
 **Steps:**
 
-1. Set `client_crt_cname` to `bmcweb`, restart `sonic-dbus-bridge`, and confirm a `ghost` cert is refused with 403.
+1. Set `client_crt_cname` to `bmcweb` and confirm a `ghost` cert is refused with 403.
 2. Change `client_crt_cname` to `bmcweb,ghost` and repeat the `ghost` request.
-3. Restart `sonic-dbus-bridge` and repeat the `ghost` request.
+3. Change `client_crt_cname` back to `bmcweb` and repeat the `ghost` request on the same keep-alive connection.
 
 **Verification:**
 
-1. After step 2 the `ghost` request is still refused, confirming the list is held from startup.
-2. After step 3 the `ghost` request succeeds, with no bmcweb restart and no container restart.
-3. Removing `ghost` and restarting `sonic-dbus-bridge` makes the request fail again.
+1. After step 2 the `ghost` request succeeds, with no restart of `sonic-dbus-bridge`, bmcweb or the container.
+2. After step 3 the `ghost` request is refused with 403, confirming that a client already connected is checked against the new list on its next request.
 
 **Test Case #5: A trusted client cert without a common name is rejected**
 
