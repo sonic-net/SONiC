@@ -39,7 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
-| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, branch protection on Renovate branches, no fixup that undoes the update, the `go` directive and held-module checks, and rebasing only on a conflict outside the `automerge` rule. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, branch protection on Renovate branches, no fixup that undoes the update or that Renovate keeps replacing, the `go` directive and held-module checks, and rebasing only on a conflict outside the `automerge` rule. |
 
 ### 2. Scope
 
@@ -176,6 +176,8 @@ A commit made through the API is signed by GitHub, which the merge robot require
 `go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local`, and fails instead of committing when the directive changes, so the pull request shows that the update needs a newer build container.
 
 Renovate cannot rewrite import paths in such a repository either, so a major update that changes the module path only changes `go.mod`. `go mod tidy` then drops the new requirement, which nothing imports, and requires the old module again. Committing that would undo the update, and Renovate would push it again, in a loop. Step 2 therefore compares `go.mod` at the merge base, at the head and after tidy, and fails instead of committing when tidy removes a requirement the update changed or requires again a module the update removed. The pull request then shows that the code has to change with the update.
+
+Renovate also rebuilds its branch from the base branch whenever it cannot apply its update to the branch as it stands. It finds each dependency it updates by its line number in the base branch's `go.mod`, so when the base branch's `go.mod` is not tidy, and tidy moves lines, Renovate rebuilds the branch on every run. Each rebuild starts the workflow again, and each fixup starts Renovate again. Step 2 therefore fails instead of committing when the last two force-pushes each replaced a fixup commit with the content that fixup was made on. A single replacement can be a rebase someone asked for. The failed check shows that the base branch's `go.mod` needs tidying; after that, ticking the rebase box on the pull request recreates the branch.
 
 Step 3 also runs when the branch is already tidy and its head is a fixup commit, so rerunning a job that committed but failed before dispatching still starts the checks.
 
