@@ -200,21 +200,29 @@ rsyslogd
 
 Staging is the `stage_certs` step of the script. It runs on the first install and on every rotation, and produces the contract items from the table above:
 
-1. Concatenate the configured `server_crt` + `server_key` into `server.pem`. The concatenation is written to `server.pem.tmp` in the same directory under `umask 077`, so the file holding the private key is mode 0600, owned by root (the user bmcweb runs as), from the moment it is created. A leftover temporary file is removed first, since the umask applies only when a file is created. The temporary file is then renamed over `server.pem`, an atomic rename within one directory, so bmcweb never observes a half-written file. If the write fails, the temporary file is removed and staging fails.
-2. Copy the configured `ca_crt` to `/etc/ssl/certs/authority/CA-cert.pem`.
-3. Compute the CA's subject hash with `openssl x509 -hash` and create the `<hash>.0` symlink next to it.
+1. Read the sources once, into temporary files next to their destinations: the configured `server_crt` + `server_key` are concatenated into `server.pem.tmp`, and `ca_crt` is copied to `CA-cert.pem.tmp`. `server.pem.tmp` is written under `umask 077`, so the file holding the private key is mode 0600, owned by root (the user bmcweb runs as), from the moment it is created. Leftover temporary files are removed first, since the umask applies only when a file is created. If either write fails, both temporary files are removed and staging fails.
+2. Validate the temporary files, not the sources again: the certificate and key in `server.pem.tmp` must pass the same checks as the readiness check (current certificate, consistent key, the two correspond), and the CA's subject hash must compute. A rotation that repointed the source symlinks between the readiness check and the copy shows up here as a mismatched pair; nothing is installed, the temporary files are removed, and the next reconcile stages the settled pair. The fingerprint that will go into the stamp is computed from these same bytes.
+3. Rename `server.pem.tmp` over `server.pem` and `CA-cert.pem.tmp` over `/etc/ssl/certs/authority/CA-cert.pem`, each an atomic rename within one directory, so bmcweb never observes a half-written file. Create the `<hash>.0` symlink next to the CA (computed with `openssl x509 -hash`). Only then write the stamp.
+
+**Outcome contract.** Whatever the timing of a rotation or of a failure, staging guarantees:
+
+- What is installed is exactly what was validated, taken from a single read of the sources. A certificate and key from different rotation versions are never installed.
+- A failure before the renames (unreadable source, validation failure) leaves the previous staged set untouched and no temporary file behind. bmcweb keeps serving what it had.
+- The two renames cannot be made atomic together. A failure between them can leave the new `server.pem` beside the old CA; the stamp is not advanced in that case, so the next reconcile, within one watch interval, re-stages the whole set, and `in_sync` is false until it does.
+- The stamp, and so `in_sync true`, describes a complete set that is in place, never a pending or partial one.
 
 Staging only runs when the input is complete and consistent. The readiness check (`certs_ready`) requires:
 
 - All three source files exist (a partial upload stages nothing).
-- The server certificate and the CA certificate both parse as X.509.
+- The server certificate and the CA certificate both parse as X.509, and the server certificate is inside its validity window (not expired, not yet valid), so an expired source certificate is never staged.
+- The private key passes OpenSSL's key consistency check, the same check bmcweb runs on it at startup.
 - The certificate and the private key actually belong together: the public key is derived independently from each, and staging proceeds only if the two are identical. This works for both RSA and EC keys, and it is what protects the mid-rotation window (see the Pair guard section).
 
 The private key is never logged: log lines name file paths only. The only value derived from the key that leaves the script is the source fingerprint (sha256 over the server certificate, key and CA together), published to STATE_DB.
 
 ### The fingerprint stamp
 
-After a successful stage, the script records a combined sha256 fingerprint of the three source files in `/var/lib/bmcweb/.staged-credentials.stamp`. The stamp answers one question: which source set was last applied. On every wake, the watcher compares the current source fingerprint against the stamp and re-stages only when they differ (or when the staged output itself is broken). This makes the whole pipeline idempotent: repeated events for the same content cause no redundant bmcweb restarts.
+After a successful stage, the script records in `/var/lib/bmcweb/.staged-credentials.stamp` a combined sha256 fingerprint of the bytes it installed (the same value as the fingerprint of the three source files it read, computed over the same bytes in the same order). It is taken from the installed bytes rather than from a fresh read of the sources, so a rotation that lands right after the copy cannot mark itself as applied. The stamp answers one question: which source set was last applied. On every wake, the watcher compares the current source fingerprint against the stamp and re-stages only when they differ (or when the staged output itself is broken). This makes the whole pipeline idempotent: repeated events for the same content cause no redundant bmcweb restarts.
 
 Two properties matter:
 
@@ -223,7 +231,7 @@ Two properties matter:
 
 ### Applying a change: stop, write, start
 
-bmcweb reads certificates only at startup, so applying a change means restarting it. The watcher does this as stop, stage, start (`apply_and_bounce`) rather than a plain restart, so the new files are in place before the start passes through the guard, and bmcweb never starts against a half-applied set. bmcweb is always started again afterwards, even if staging failed, so a failed stage never leaves the service down.
+bmcweb reads certificates only at startup, so applying a change means restarting it. The watcher does this as stop, stage, start (`apply_and_bounce`) rather than a plain restart, so the new files are in place before the start passes through the guard, and bmcweb never starts against a set that is still being written (what a failure part-way through staging leaves behind is covered by the outcome contract above). bmcweb is always started again afterwards, even if staging failed, so a failed stage never leaves the service down.
 
 **Impact on in-flight requests.** bmcweb does not drain connections on shutdown, so a request in flight at the instant of the stop has its connection closed without a response; the client observes a transport error (connection reset), never an HTTP error status such as 500, because no bmcweb exists to produce one. Whether the operation took effect depends on how far processing got: a request whose response was already delivered completed normally, and one that never reached bmcweb did nothing, but a mutating request (for example a POST) caught mid-processing may have been applied without its response being delivered. This ambiguity is inherent to any dropped connection (a network failure mid-request has exactly the same property, and this design does not add a new failure mode) and the standard REST discipline applies: the client may simply reissue idempotent requests, while for non-idempotent actions it should confirm the outcome by reading the resource state before reissuing. Nothing retries on the client's behalf. During the window between stop and start, new connections are refused; the window is a few file operations plus bmcweb's startup, typically a couple of seconds, occurring once per rotation and identical to any bmcweb restart. Established token sessions survive the restart, because a rotation does not rewrite the persistent auth config; mTLS clients carry no session state at all (their identity is re-derived from the client certificate on each connection), so for them the restart costs only the TCP reconnect.
 
@@ -270,7 +278,11 @@ The features so far preserve bmcweb's self-signed fallback: useful during bootst
 1. If the staged certificate is missing or invalid but valid source certs exist, re-stage them (self-heal), so an otherwise healthy unit never fails the gate spuriously.
 2. If the provisioned marker exists and there is still no valid staged certificate, log the refusal and exit without starting bmcweb. supervisord will retry and eventually mark bmcweb FATAL; the endpoint stays down.
 
-A "valid staged certificate" (`staged_ok`) means: `server.pem` exists, parses, and is not self-signed (issuer differs from subject), and the CA truststore with its hash symlink is in place. Checked on the destination only, so the gate holds even if the source directory is momentarily unavailable.
+A "valid staged certificate" (`staged_ok`) means: `server.pem` holds a certificate and a private key that bmcweb will accept as they are (the certificate parses and is inside its validity window, the key passes OpenSSL's key consistency check, and the same public key is derived from both), the certificate is not self-signed (issuer differs from subject), and the CA truststore with its hash symlink is in place. Checked on the destination only, so the gate holds even if the source directory is momentarily unavailable.
+
+The key and date checks are what make the gate hold. At startup bmcweb checks the key in `server.pem` and the certificate's validity dates, and when either fails it writes a self-signed certificate over `server.pem` and starts anyway; it knows nothing of the provisioned marker. A gate that checked less than bmcweb would let bmcweb start on a file it then replaces, so the guard accepts only what bmcweb accepts. A damaged staged key, or a staged certificate that has expired, therefore fails closed when there is no valid source to re-stage from, instead of becoming a self-signed fallback.
+
+**An expired certificate fails closed.** On a provisioned unit, a certificate that has expired, or is not yet valid because the BMC clock is behind, is treated like a missing one: the guard refuses to start bmcweb until a current certificate is provisioned or the clock is corrected.
 
 **One-way by construction.** The marker is written only on successful staging and is never removed by anything in the container, so enforcement engages automatically at first provisioning, with no manual step and no window where a provisioned unit still allows fallback, and nothing in the container ever turns it off. The marker must outlive the certificates it guards, which is why it lives on the host mount: a container recreate wipes the staged files and the persistent data, but not the marker, and without it bmcweb could not distinguish "never provisioned" (self-signed is correct) from "provisioned, then wiped" (must fail closed): the two states look identical on inspection.
 
@@ -372,12 +384,15 @@ sonic-db-cli STATE_DB hgetall 'REDFISH_CERT_STATUS|global'
 | First install | staged + mTLS on + stamp and provisioned marker written, bmcweb bounced | `in_sync true` |
 | Rotation (both files) | re-staged, bmcweb bounced, sessions preserved | `in_sync true`, new serial |
 | Mid-rotation window | pass skipped, old cert keeps serving | transient `in_sync false`, mismatch reason |
+| Rotation lands mid-pass (after the readiness check) | temporary files fail validation, nothing installed, old cert keeps serving; next reconcile stages the settled pair | transient `in_sync false` |
 | Half rotation left permanent | nothing staged, old cert keeps serving | persistent `in_sync false`, mismatch reason |
 | Partial upload (missing file) | nothing staged | `in_sync false`, "not ready" |
 | Corrupt source cert | nothing staged | `in_sync false`, "not ready" |
+| Expired or not yet valid source cert | nothing staged | `in_sync false`, "not ready" |
 | Source deleted | bmcweb keeps serving last staged cert | `in_sync false`, "not ready" |
 | Source deleted + bmcweb restart | guard: staged cert still valid, starts normally | unchanged |
 | Provisioned (marker present) + no valid cert anywhere + restart | bmcweb refuses to start (fail closed) | bmcweb FATAL, guard refusal in syslog |
+| Provisioned + staged cert expired or staged key damaged + no valid source + restart | bmcweb refuses to start (fail closed); never self-signs | bmcweb FATAL, guard refusal in syslog |
 | Valid certs reappear after fail-closed | watcher stages and starts bmcweb automatically | `in_sync true`, bmcweb RUNNING |
 | Watcher down during a change | reconcile applies it on watcher restart | applied within seconds of restart |
 | No events crossing the bind mount | periodic reconcile applies within one interval | applied within 60s |
@@ -427,7 +442,7 @@ No provisioning agent is involved in these tests. All certificates are generated
 - BMC shell access: run commands on the BMC host over SSH (write to `/etc/sonic/credentials`, `docker exec redfish ...`, `redis-cli` against CONFIG_DB/STATE_DB).
 - Cert install helper: place generated files at the configured delivery paths; supports partial installs for negative cases.
 - Poll helpers: wait-until on STATE_DB `REDFISH_CERT_STATUS|global` fields (`in_sync`, fingerprints, `last_update`) and on the served certificate serial.
-- Teardown (critical, the provisioned state is one-way by design): remove the delivered test certs, delete the provisioned marker `/var/lib/bmcweb/provisioned` and the stamp `/var/lib/bmcweb/.staged-credentials.stamp`, recreate the redfish container so the staged files are gone, and restore the recorded `REDFISH|certs` and `REDFISH|config` fields, returning the BMC to the state it had before the run.
+- Backup and teardown (critical, the provisioned state is one-way by design): the delivery paths are the shared REST API certificate paths, and the marker and stamp record the device's provisioning state, so the suite preserves whatever the device had before touching it. Before any setup step, every file the suite will overwrite is copied aside (`<path>.sonic-mgmt.bak`): the three delivered files, the provisioned marker `/var/lib/bmcweb/provisioned` and the stamp `/var/lib/bmcweb/.staged-credentials.stamp`; the `REDFISH|certs` and `REDFISH|config` fields are recorded. The restore is registered before the device is modified, so it also runs when setup fails. On teardown the suite removes its own versions of those files, moves the backups back, restores the recorded CONFIG_DB fields, and recreates the redfish container so the staged files and bmcweb's persistent configuration are gone. A device that was provisioned before the run therefore comes back provisioned with its own certificates, and a device that was not comes back unprovisioned; the tests are not restricted to disposable devices.
 
 **Test independence:** every test case is self-contained and order-independent. Each case brings the DUT to the state its steps require (via setup/fixtures) and restores state on teardown, so no case relies on another having run first. Where a section lists a precondition (for example "a valid trio is staged"), that state is established by the case's own setup, not inherited from a previous case. A shared install fixture provides the common "v1 staged, in_sync" starting point; cases that need a different starting point (bootstrap, mismatched pair) set it up themselves.
 
@@ -816,6 +831,19 @@ The pair guard on a provisioned unit is covered by Section 6; this case covers t
 2. STATE_DB reports `in_sync false` with a credentials-not-ready reason.
 3. Deletion is not treated as revocation: the running service is unaffected, and the staged cert is still served until a restart or a real rotation.
 
+**Test Case #6: An expired server certificate is not staged**
+
+**Steps:**
+
+1. Record the currently served serial (v1) and bmcweb's start time.
+2. Deliver a v2 server certificate and its matching key, signed by the staged CA but already expired (`notAfter` in the past), with a valid CA.
+3. Wait at least one watch interval. Repeat with a v2 certificate that is not yet valid (`notBefore` in the future).
+
+**Verification:**
+
+1. Nothing is staged in either variant: the served serial is unchanged (still v1) and bmcweb is not bounced.
+2. STATE_DB reports `in_sync false` with a credentials-not-ready reason.
+
 
 ### Section 10: Secure mode (fail closed)
 
@@ -863,6 +891,22 @@ Preconditions for this section: the unit is provisioned, i.e. the marker `/var/l
 1. bmcweb comes up serving the v1 provisioned cert: the guard re-staged from the valid source before starting, so the missing staged cert did not trigger fail-closed.
 2. mTLS is enforced (valid client cert returns HTTP 200; no client cert is rejected).
 3. STATE_DB `in_sync true`.
+
+**Test Case #4: Guard fails closed on a staged certificate bmcweb would reject**
+
+bmcweb replaces a `server.pem` it rejects with a self-signed certificate, so the guard must refuse such a file before bmcweb starts.
+
+**Steps:**
+
+1. Set up: install v1 (unit provisioned), then remove the delivered trio so there is no valid source to re-stage from.
+2. Inside the container, replace the staged `server.pem` with the v1 certificate followed by a truncated copy of its key, then restart bmcweb: `docker exec redfish supervisorctl restart bmcweb`.
+3. Wait for supervisord to finish its start attempts. Repeat with a staged `server.pem` holding a CA-signed certificate and matching key that have expired.
+
+**Verification:**
+
+1. In both variants bmcweb does not reach RUNNING (BACKOFF/FATAL), and the guard logged the fail-closed refusal.
+2. The staged `server.pem` was not overwritten: its issuer still differs from its subject, so bmcweb never ran and never wrote a self-signed certificate.
+3. An unauthenticated `curl -k` GET `/redfish/v1` fails at the connection level, not with a self-signed TLS handshake.
 
 ### Section 11: Observability
 
