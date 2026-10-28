@@ -39,7 +39,7 @@
 |-----|------|--------|--------|
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
-| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, branch protection on Renovate branches, no fixup that undoes the update, and the `go` directive and held-module checks. |
+| 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, branch protection on Renovate branches, no fixup that undoes the update, the `go` directive and held-module checks, and rebasing only on a conflict outside the `automerge` rule. |
 
 ### 2. Scope
 
@@ -371,16 +371,19 @@ A custom manager on any other datasource has no advisory feed behind it. A relea
   "vulnerabilityAlerts": { "enabled": true, "labels": ["security"] },
   "packageRules": [
     {
-      "description": "Security updates below a major version merge unattended, unless a repository marks the module patched-module",
+      "description": "Security updates below a major version merge unattended, unless a repository marks the module patched-module. They are kept up to date with the base branch so the merge robot can merge them; every other update is rebased only on a conflict, or when someone asks for it on the pull request or the dependency dashboard",
       "matchJsonata": ["isVulnerabilityAlert = true and $not('patched-module' in addLabels)"],
       "matchUpdateTypes": ["patch", "minor"],
-      "addLabels": ["automerge"]
+      "addLabels": ["automerge"],
+      "rebaseWhen": "behind-base-branch"
     }
   ]
 }
 ```
 
 A security update that needs a major version opens with the `security` label alone and waits for a reviewer. So does one to a module a repository marks `patched-module` ([7.3](#73-hand-pinned-versions)). Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
+
+**Rebasing.** A base branch that requires branches to be up to date before merging makes Renovate's default, `rebaseWhen: auto`, rebase every open pull request each time the base branch moves. Each rebase is a new push, with its own build, review requests and notifications, and on a repository with the `go.sum` workflow ([7.2](#72-native-managers)) a second push for the fixup. The preset sets `rebaseWhen: conflicted`, so an update is rebased only when it conflicts with the base branch, or when a reviewer ticks the rebase box on the pull request or the Dependency Dashboard before merging it. The `automerge` rule sets `behind-base-branch`, so an update the robot merges is always current when it is evaluated.
 
 **Release branch rules.** Before a lookup, Renovate does not yet know the update type, and a rule that disables a dependency at that stage removes it before any later rule can re-enable it. The release branch rules therefore disable every manager except `custom.regex` up front, and then disable `custom.regex` majors once the update type is known. A security update overrides both.
 
@@ -554,6 +557,7 @@ The preset:
   "osvVulnerabilityAlerts": true,
   "separateMajorMinor": true,
   "separateMinorPatch": true,
+  "rebaseWhen": "conflicted",
   "commitBody": "Signed-off-by: {{{gitAuthor}}}",
   "enabledManagers": ["gomod", "cargo", "github-actions", "dockerfile", "custom.regex"],
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
@@ -594,10 +598,11 @@ The preset:
       "enabled": false
     },
     {
-      "description": "Security updates below a major version merge unattended, unless a repository marks the module patched-module",
+      "description": "Security updates below a major version merge unattended, unless a repository marks the module patched-module. They are kept up to date with the base branch so the merge robot can merge them; every other update is rebased only on a conflict, or when someone asks for it on the pull request or the dependency dashboard",
       "matchJsonata": ["isVulnerabilityAlert = true and $not('patched-module' in addLabels)"],
       "matchUpdateTypes": ["patch", "minor"],
-      "addLabels": ["automerge"]
+      "addLabels": ["automerge"],
+      "rebaseWhen": "behind-base-branch"
     },
     {
       "description": "FIPS Go is published by SONiC; open only on dashboard approval",
@@ -688,6 +693,7 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Robot commit check | The robot declines a Renovate pull request carrying a pushed commit, including one that names the Renovate bot as its author, and merges one whose commits are all GitHub-signed commits from the Renovate bot and `github-actions[bot]` |
 | Release age | An ordinary update younger than 7 days is not proposed. A security update of the same age is |
 | Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request, labeled `security` and `patched-module`, without `automerge` |
+| Rebasing is limited to `automerge` updates | After a merge to `master`, a run rebases only the pull requests labeled `automerge` that are behind it, and any pull request that conflicts |
 | The `go` directive is never raised | A `go.sum` workflow run on a bump that needs a newer Go fails, and pushes nothing |
 
 #### 13.2 System Test cases
