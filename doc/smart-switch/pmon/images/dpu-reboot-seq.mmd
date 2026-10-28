@@ -1,0 +1,56 @@
+%%{init: {
+  "theme": "default",
+  "themeVariables": {
+    "actorBkg": "#eaeaea",
+    "actorBorder": "#666",
+    "actorTextColor": "#333",
+    "actorLineColor": "#999",
+    "signalColor": "#333",
+    "signalTextColor": "#333",
+    "labelBoxBkgColor": "#eaeaea",
+    "labelBoxBorderColor": "#666",
+    "labelTextColor": "#333",
+    "loopTextColor": "#333",
+    "activationBkgColor": "#f4f4f4",
+    "activationBorderColor": "#666",
+    "noteBkgColor": "#fff5ad",
+    "noteBorderColor": "#aaaa33",
+    "noteTextColor": "#333"
+  }
+}}%%
+
+sequenceDiagram
+    actor User
+    participant HostService as NPU: host-service
+    participant StateDB as NPU: stateDB
+    participant DpuChassisd as DPU: chassisd
+    participant ChassisStateDB as NPU: chassisStateDB
+    participant Chassisd as NPU: chassisd
+    participant PlatformAPI as NPU: platform API
+
+    User->>HostService: Input: PowerOn or Reboot config or CLI
+    HostService->>HostService: determine-reboot-cause
+    HostService->>HostService: update-reboot-cause
+    activate HostService
+    HostService->>StateDB: update-reboot-cause
+    HostService->>ChassisStateDB: update-reboot-cause
+    HostService->>HostService: end processing
+    deactivate HostService
+
+    DpuChassisd->>ChassisStateDB: publish current boot_id when reachable
+    ChassisStateDB-->>Chassisd: boot_id appears or changes
+    activate Chassisd
+    Chassisd->>Chassisd: compare with persisted boot_id
+
+    alt boot_id differs or no valid baseline exists
+        Chassisd->>PlatformAPI: get-reboot-cause
+        activate PlatformAPI
+        PlatformAPI-->>Chassisd: reboot-cause
+        deactivate PlatformAPI
+        Chassisd->>Chassisd: persist history record with boot_id
+        Chassisd->>ChassisStateDB: refresh REBOOT_CAUSE entries
+    else boot_id is unchanged
+        Chassisd->>Chassisd: no new record
+    end
+
+    deactivate Chassisd

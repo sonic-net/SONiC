@@ -36,6 +36,7 @@ CMIS Application Initialization
   * [Table 2: References](#table-2-references)
   * [Table 3: Port Table Name Mappings](#table-3-port-table-name-mappings)
   * [Table 4: CMIS State Table](#table-4-cmis-state-table)
+  * [Table 5: CMIS State Machine Timeouts](#table-5-cmis-state-machine-timeouts)
 
 # Revision
 | Rev |     Date    |       Author        | Change Description                        |
@@ -263,6 +264,34 @@ to support multiple CMIS transceivers in one single thread.
       state transitioned to **READY**
   - The CMIS state transition diagram  
   ![](images/001.png)
+
+  ### Table 5 CMIS State Machine Timeouts
+
+  Each transition that waits on a hardware/datapath condition is bounded by a per-port
+  expiration timer (`cmis_expired`, armed via `update_cmis_state_expiration_time()`).
+  When the timer expires before the desired condition is observed, the state machine
+  invokes `force_cmis_reinit(retries + 1)` which resets the port back to **INSERTED**
+  and advances the retry counter. After `CMIS_MAX_RETRIES` is exceeded, the port is
+  moved to **FAILED**.
+
+  | Start state (timer armed) | End state (timer checked) | Desired condition | Timeout value | On timeout |
+  |:---|:---|:---|:---|:---|
+  | `DP_DEINIT` | `AP_CONF` | `ModuleReady` | `max(modulePwrUpDuration, dpDeinitDuration)` | `force_cmis_reinit(retries + 1)` |
+  | `DP_DEINIT` | `AP_CONF` | `DataPathDeactivated` | `max(modulePwrUpDuration, dpDeinitDuration)` (same timer, reused) | `force_cmis_reinit(retries + 1)` |
+  | `DP_DEINIT` | `DP_INIT` | `ConfigSuccess` | `max(modulePwrUpDuration, dpDeinitDuration)` (inherited; `AP_CONF` does not re-arm before transitioning to `DP_INIT`) | `force_cmis_reinit(retries + 1)` |
+  | `DP_INIT` | `DP_TXON` | `DataPathInitialized` | `dpInitDuration` | `force_cmis_reinit(retries + 1)` |
+  | `DP_TXON` | `DP_ACTIVATE` | `DataPathActivated` | `max(dpInitDuration, dpTxTurnOnDuration)` | `force_cmis_reinit(retries + 1)` |
+
+  Notes:
+  - "Start state" = the state whose handler arms the timer (right before transitioning out).
+    "End state" = the state where the timer is checked.
+  - **AP_CONF** does not re-arm the timer; the budget armed in **DP_DEINIT** is reused
+    across three sequential checks (ModuleReady -> DataPathDeactivated -> ConfigSuccess),
+    so a slow `ModuleReady` consumes part of the budget available for the later checks.
+  - All durations are derived from the CMIS module's advertised timing fields
+    (`get_cmis_dp_deinit_duration_secs()`, `get_cmis_dp_init_duration_secs()`,
+    `get_cmis_dp_tx_turnon_duration_secs()`, `get_cmis_module_power_up_duration_secs()`)
+    plus a fixed `CMIS_EXPIRATION_BUFFER_MS` slack applied by `update_cmis_state_expiration_time()`.
 
   ### Conditions for Datapath init
 

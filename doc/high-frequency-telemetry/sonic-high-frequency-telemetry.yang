@@ -1,0 +1,95 @@
+module sonic-high-frequency-telemetry {
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-high-frequency-telemetry";
+
+    prefix sonic-high-frequency-telemetry;
+
+    import sonic-port {
+        prefix port;
+    }
+
+    import sonic-buffer-pool {
+        prefix bpl;
+    }
+
+    import sonic-buffer-pg {
+        prefix bpg;
+    }
+
+    import sonic-buffer-queue {
+        prefix bql;
+    }
+
+    container sonic-high-frequency-telemetry {
+        container HIGH_FREQUENCY_TELEMETRY_PROFILE {
+            description "HIGH_FREQUENCY_TELEMETRY_PROFILE part of config_db.json";
+            list HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST {
+
+                key "name";
+
+                leaf name {
+                    type string {
+                        length 1..128;
+                    }
+                }
+
+                leaf stream_state {
+                    mandatory true;
+                    type string {
+                        pattern "enabled|disabled";
+                    }
+                }
+
+                leaf poll_interval {
+                    mandatory true;
+                    description "The interval to poll counter, unit milliseconds.";
+                    type uint32;
+                }
+
+            }
+        }
+
+        container HIGH_FREQUENCY_TELEMETRY_GROUP {
+            description "HIGH_FREQUENCY_TELEMETRY_GROUP part of config_db.json";
+            list HIGH_FREQUENCY_TELEMETRY_GROUP_LIST {
+                key "profile_name group_name";
+
+                leaf profile_name {
+                    type leafref {
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_PROFILE/HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST/name";
+                    }
+                }
+
+                // The table name of config db
+                leaf group_name {
+                    type enumeration {
+                        enum PORT;
+                        enum BUFFER_POOL;
+                        enum QUEUE;
+                        enum INGRESS_PRIORITY_GROUP;
+                    }
+                }
+
+                leaf-list object_names {
+                   type string;
+                   must "( ../group_name = 'PORT' and current() = /port:sonic-port/port:PORT/port:PORT_LIST/port:name )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and current() = /bpl:sonic-buffer-pool/bpl:BUFFER_POOL/bpl:BUFFER_POOL_LIST/bpl:name )"
+                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and substring-before(current(), '|') = /bpg:sonic-buffer-pg/bpg:BUFFER_PG/bpg:BUFFER_PG_LIST/bpg:port and re-match(substring-after(current(), '|'), '[0-9]+') )"
+                        + " or ( ../group_name = 'QUEUE' and substring-before(current(), '|') = /bql:sonic-buffer-queue/bql:BUFFER_QUEUE/bql:BUFFER_QUEUE_LIST/bql:port and re-match(substring-after(current(), '|'), '[0-9]+') )";
+                }
+
+                must "count(object_names) > 0";
+
+                leaf-list object_counters {
+                    type string;
+                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )"
+                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
+                        + " or ( ../group_name = 'QUEUE' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )";
+                }
+
+            }
+        }
+    }
+}

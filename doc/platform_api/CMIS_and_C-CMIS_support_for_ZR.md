@@ -106,6 +106,8 @@ New Transceiver info table and transceiver DOM sensor table adapted to 400G-ZR m
     supported_min_tx_power       = FLOAT                            ; support minimum tx power
     supported_max_laser_freq     = FLOAT                            ; support maximum laser frequency
     supported_min_laser_freq     = FLOAT                            ; support minimum laser frequency
+    vdm_support                  = BOOLEAN                          ; VDM support status
+    vdm_fine_interval_length     = INTEGER                          ; VDM fine interval length
 
 ##### 2.1.2 Transceiver DOM sensor Table #####
 

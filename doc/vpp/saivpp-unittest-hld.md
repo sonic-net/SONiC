@@ -1,0 +1,702 @@
+# HLD: VPP SAI Unit Test Framework
+Rev v0.1
+
+## Table of Contents
+
+1. [Objectives](#1-objectives)
+2. [Scope](#2-scope)
+3. [Overview](#3-overview)
+4. [Feature Description](#4-feature-description)
+5. [Phases](#5-phases)
+7. [Future Plan](#7-future-plan)
+
+## 1. Objectives
+
+- Provide a lightweight, self-contained unit test framework for validating VPP SAI API implementations
+- Reuse the existing SAI PTF test infrastructure (sai_test + Thrift) to maximize test coverage with minimal new code
+- Enable fast feedback during VPP SAI development by testing SAI APIs directly against VPP's data plane
+- Establish a VPP SAI compliance matrix to track feature implementation progress
+- Integrate into CI pipelines for automated regression testing
+
+## 2. Scope
+
+### In Scope
+- Single-container test environment running VPP + saiserver + PTF
+- 32-port veth+AF_PACKET topology matching standard T0 test assumptions
+- Reuse of existing `sai_test` PTF test suite (L2/L3: port, RIF, route, neighbor, ECMP, VLAN, FDB, LAG)
+- Build integration for saiserver with VPP platform support
+- CI integration into sonic-sairedis pipeline
+- Data-plane packet verification via PTF (inject/capture on veth peers)
+
+### Out of Scope
+- Full SONiC stack testing (orchagent, syncd, bgpd) — covered by existing sonic-vpp integration tests
+- Hardware/DPDK testing — this framework uses AF_PACKET (software datapath only)
+- Performance/throughput benchmarking
+- Control-plane protocol testing (BGP, OSPF)
+
+## 3. Overview
+
+The VPP SAI Unit Test Framework validates the SAI API implementation in `libsaivs.so` (VPP backend) by exercising SAI operations through a Thrift RPC interface and verifying data-plane behavior via packet injection/capture on veth pairs.
+
+The framework leverages:
+- **Existing `saiserver`** binary — a thin Thrift-to-SAI shim that exposes all SAI APIs over RPC
+- **Existing `sai_test`** PTF test suite — comprehensive SAI test cases covering L2/L3 functionality
+- **Existing `docker-sonic-vpp`** container — provides VPP runtime, libraries, and startup infrastructure
+- **VPP AF_PACKET plugin** — attaches VPP to veth interfaces without requiring DPDK or kernel bypass
+
+The only new code required is:
+- Makefile modification for VPP platform linking
+- Container Dockerfile
+- Entrypoint script for test orchestration
+- Configuration files (sai.profile, port maps)
+
+## 4. Feature Description
+
+### 4.1 High-Level Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  docker-sai-test-vpp (single container, --privileged)                │
+│                                                                      │
+│  ┌─────────────┐      ┌─────────────────┐      ┌──────────────────┐ │
+│  │ VPP Process │      │ saiserver       │      │ PTF Test Runner  │ │
+│  │             │      │                 │      │                  │ │
+│  │ af_packet   │◄────►│ libsaivs.so     │      │ sai_test/*.py    │ │
+│  │ linux_cp    │ VPP  │ (VPP backend)   │◄────►│ sai_thrift       │ │
+│  │ acl         │ API  │                 │Thrift│ adapter (gen'd)  │ │
+│  │             │      │ sai_api_query() │:9092 │                  │ │
+│  └──────┬──────┘      └─────────────────┘      └────────┬─────────┘ │
+│         │                                                │           │
+│         │ AF_PACKET                          raw socket (AF_PACKET)  │
+│         │                                                │           │
+│   OEthernet0 ◄═══════ veth pair ═══════════► OEthernet0_peer ┘      │
+│   OEthernet1 ◄═══════ veth pair ═══════════► OEthernet1_peer        │
+│   ...                  (32 pairs)                                    │
+│   OEthernet31 ◄══════ veth pair ═══════════► OEthernet31_peer       │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+Legend:
+  ═══════  veth pair (kernel, L2 pipe)
+  ◄──────► IPC (shared memory API / Thrift TCP)
+  EXISTING: VPP, libsaivs.so, sai_test, sai_thrift, PTF, af_packet plugin
+  NEW:      Dockerfile, run_test.sh, sai.profile, port-map.ini, Makefile patch
+```
+OEthernetX represents an out-facing interface. It is where vpp receives and sends packet to the wire.
+There are also EthernetX interfaces. They are the inside interfaces facing SONiC control
+plane. Packets sent to SONiC control plane, such as ARP or BGP packets, are received from OEthernetX. vpp redirects such packets and sends them to SONiC through the corresponding
+EthernetX interface.
+### 4.2 Component Breakdown
+
+| Component | Source | Status | Role |
+|-----------|--------|--------|------|
+| VPP process | VPP packages in docker-sonic-vpp | **Existing** | Data-plane forwarding engine |
+| libsaivs.so (VPP) | src/sonic-sairedis/vslib/ | **Existing** | SAI API → VPP translation |
+| saiserver | src/sonic-sairedis/SAI/test/saithriftv2/ | **Existing** (needs VPP link) | Thrift RPC → SAI API bridge |
+| sai_thrift adapter | Auto-generated by SAI/meta/gensairpc.pl | **Existing** | Python client for SAI Thrift |
+| sai_test suite | src/sonic-sairedis/SAI/test/sai_test/ | **Existing** | PTF test cases |
+| PTF framework | p4lang/ptf | **Existing** | Test execution + packet I/O |
+| AF_PACKET plugin | VPP plugin (af_packet_plugin.so) | **Existing** | VPP ↔ veth attachment |
+| Dockerfile | .azure-pipelines/docker-sai-test-vpp/ | **NEW** | Container image definition |
+| run_test.sh | .azure-pipelines/docker-sai-test-vpp/ | **NEW** | Orchestration script |
+| sai.profile + maps | .azure-pipelines/docker-sai-test-vpp/ | **NEW** | VPP SAI CI configuration |
+| Makefile VPP case | SAI/test/saithriftv2/Makefile | **NEW** (1 block) | Link saiserver with VPP libs |
+
+### 4.3 Data Flow
+
+1. **Test setup**: PTF calls `sai_thrift_create_*()` → Thrift RPC → saiserver → `sai_create_*()` → libsaivs.so → VPP API (creates interfaces, routes, neighbors in VPP)
+2. **Packet inject**: PTF sends raw L2 frame via scapy on `OEthernet_peer` → kernel delivers to `OEthernet` → VPP's AF_PACKET reads frame → enters VPP forwarding graph
+3. **Forwarding**: VPP processes packet (L2/L3 lookup, TTL decrement, MAC rewrite) → outputs to destination AF_PACKET interface
+4. **Packet capture**: VPP writes frame to egress `OEthernet` → kernel delivers to `OEthernet_peer` → PTF captures and verifies
+
+### 4.4 Usage
+
+```bash
+# Build the test container
+make test-vpp-sai-build
+
+# Run all tests
+docker run --privileged docker-sai-test-vpp
+
+# Run specific test
+docker run --privileged docker-sai-test-vpp sai_route_test.RouteRifTest
+
+# Run with debug (keep container alive after test)
+docker run --privileged -it docker-sai-test-vpp bash
+# Inside container:
+./run_test.sh --debug sai_route_test.RouteRifTest
+# Use vppctl for debugging:
+vppctl show interface
+vppctl show ip fib
+```
+
+### 4.5 CI Integration
+
+Integrated into the existing sonic-sairedis Azure Pipeline as two new parallel stages:
+
+```
+                    ┌─ BuildSwss → BuildDocker → Test (existing VS stack tests)
+Build (existing) ───┤
+                    └─ BuildSaiTestVpp → TestSaiVpp (NEW — VPP SAI PTF)
+```
+
+**How it works:**
+1. `Build` stage (existing): compiles sonic-sairedis, produces `libsaivs_1.0.0_amd64.deb` and other .debs
+2. `BuildSaiTestVpp` (new): downloads sairedis .debs + VPP packages → builds saiserver (platform=vpp) → builds docker image with VPP + saiserver + PTF + sai_test baked in → publishes `docker-sai-test-vpp.gz`
+3. `TestSaiVpp` (new): loads docker image → runs test container with `--privileged` → publishes test results XML + logs
+
+**Trigger**: Runs on every PR and merge to master (same trigger as existing pipeline).
+
+**Artifact chain:**
+```
+sonic-net.sonic-platform-vpp (external) ──→ VPP .debs ──┐
+Build stage (same pipeline) ──→ sairedis .debs ─────────┼──→ BuildSaiTestVpp ──→ docker-sai-test-vpp.gz ──→ TestSaiVpp
+SAI/test/sai_test/ (same checkout) ─────────────────────┘
+```
+
+**New Stage: BuildSaiTestVpp**
+- Depends on: `Build` (needs libsaivs, libsaimetadata, libsaimeta .debs)
+- Template: `.azure-pipelines/build-docker-sai-test-vpp-template.yml`
+- Steps:
+  1. Download artifacts: sairedis .debs from Build stage
+  2. Download VPP packages from `sonic-net.sonic-platform-vpp` pipeline
+  3. Build saiserver: `make -C SAI/test/saithriftv2 platform=vpp`
+  4. Build sai_thrift client: `make -C SAI/test/saithriftv2 clientlib`
+  5. Docker build:
+     - Install VPP debs (libvppinfra, vpp, vpp-plugin-core, vpp-plugin-dpdk)
+     - Install libsaivs, libsaimetadata, libsaimeta .debs
+     - Install saiserver binary, Thrift libs
+     - Install PTF, sai_thrift client package
+     - Copy sai_test/ tests, sai.profile, port-map.ini, lanemap.ini, run_test.sh
+  6. `docker save docker-sai-test-vpp:{tag} | gzip > docker-sai-test-vpp.gz`
+  7. Publish artifact
+
+**New Stage: TestSaiVpp**
+- Depends on: `BuildSaiTestVpp`
+- Template: `.azure-pipelines/test-sai-vpp-template.yml`
+- Pool: `sonictest` (bare metal, same as existing Test stage)
+- Steps:
+  1. Download and load docker image
+  2. Run tests (privileged, per test file):
+     ```bash
+     for test in sai_sanity_test sai_route_test sai_rif_test sai_neighbor_test sai_ecmp_test; do
+       sudo docker run --privileged --rm \
+         docker-sai-test-vpp:{tag} $test \
+         > results/$test.log 2>&1 || true
+     done
+     ```
+  3. Publish test results XML and logs as pipeline artifacts
+
+**azure-pipelines.yml addition:**
+```yaml
+- stage: BuildSaiTestVpp
+  dependsOn: Build
+  condition: succeeded('Build')
+  jobs:
+  - template: .azure-pipelines/build-docker-sai-test-vpp-template.yml
+    parameters:
+      sairedis_artifact_name: sonic-sairedis-${{ parameters.debian_version }}
+      artifact_name: docker-sai-test-vpp
+
+- stage: TestSaiVpp
+  dependsOn: BuildSaiTestVpp
+  condition: succeeded('BuildSaiTestVpp')
+  jobs:
+  - template: .azure-pipelines/test-sai-vpp-template.yml
+    parameters:
+      log_artifact_name: log-sai-vpp
+```
+
+### 4.6 Test Result Reporting
+
+The pipeline needs two independent signals: a process **exit code** (so the
+CI step turns red on failure) and a **JUnit-XML report** (so individual test
+cases are visible in the Azure Pipelines test tab).
+
+#### Exit code contract
+
+`run_test.sh` is the container entrypoint and must propagate PTF's exit
+code through teardown:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+start_vpp                      # fails → exit ≥2 before any test runs
+start_saiserver
+wait_for_saiserver_ready       # times out → exit ≥2
+
+# Run PTF; capture its rc without aborting the script
+set +e
+ptf --test-dir /sai_test \
+    --interface 0@OEthernet0_peer \
+    --interface 1@OEthernet1_peer \
+    ...                                    \
+    --xunit --xunit-dir /test-results       \
+    "${TEST_FILTER:-}"
+TEST_RC=$?
+set -e
+
+stop_saiserver
+stop_vpp
+exit $TEST_RC
+```
+
+Exit-code categories:
+
+| Code   | Meaning                                            | CI behavior |
+|--------|----------------------------------------------------|-------------|
+| `0`    | All PTF tests passed                               | step green  |
+| `1`    | One or more PTF failures or errors                 | step red, per-case results in JUnit |
+| `≥2`   | Setup failure (VPP/saiserver didn't come up)       | step red, no JUnit (logs artifact only) |
+| other  | Container/infra error                              | reported by the agent itself |
+
+`docker run` forwards the container exit code to the Azure Pipelines agent,
+which fails the step on any non-zero value. `set -euo pipefail` ensures
+setup errors propagate immediately; the explicit `set +e`/`TEST_RC=$?`
+block ensures teardown always runs without masking the test result.
+
+#### JUnit XML output
+
+PTF is invoked with `--xunit --xunit-dir /test-results`, producing one
+JUnit-XML file per test module. The `/test-results` directory is bind-
+mounted from the CI agent so the XML survives container exit.
+
+#### Azure Pipelines wiring
+
+```yaml
+# .azure-pipelines/test-sai-vpp-template.yml
+steps:
+- script: |
+    mkdir -p $(Build.ArtifactStagingDirectory)/test-results
+    docker run --privileged \
+      -v $(Build.ArtifactStagingDirectory)/test-results:/test-results \
+      docker-sai-test-vpp
+  displayName: Run VPP SAI PTF tests
+  # Note: do NOT add `|| true` — we want the step to fail on non-zero exit.
+
+- task: PublishTestResults@2
+  condition: always()           # publish even when previous step failed
+  inputs:
+    testResultsFormat: JUnit
+    testResultsFiles: '$(Build.ArtifactStagingDirectory)/test-results/*.xml'
+    testRunTitle: 'VPP SAI PTF'
+    failTaskOnFailedTests: true # belt-and-suspenders; primary signal is exit code
+
+- task: PublishBuildArtifacts@1
+  condition: always()
+  inputs:
+    pathToPublish: '$(Build.ArtifactStagingDirectory)/test-results'
+    artifactName: ${{ parameters.log_artifact_name }}
+```
+
+`condition: always()` on both publish tasks is required — without it a
+non-zero exit short-circuits the job before the XML and logs are uploaded,
+and reviewers cannot see which cases failed.
+
+## 5. Phases
+
+### Phase 1: Foundation (MVP)
+**Goal**: Get a single SAI test passing end-to-end against VPP in a container.
+
+- Add `platform=vpp` to saithriftv2 Makefile (link VPP libraries)
+- Create sai.profile, lanemap.ini, port-map.ini for 32 ports (use the existing ones from sonic-vpp installation)
+- Create Dockerfile (base: debian + VPP + Thrift + PTF + sai_thrift + sai_test)
+- Create run_test.sh (OEthernet veth setup → VPP start → saiserver start → PTF run)
+- Validate: `sai_sanity_test` passes (switch create/destroy)
+
+**Deliverables**: Working container, basic test pass
+
+### Phase 2: L3 Validation
+**Goal**: Verify VPP SAI L3 forwarding with packet verification.
+
+- Run `sai_route_test`, `sai_rif_test`, `sai_neighbor_test`
+- Debug and fix any VPP SAI issues found
+- Document which tests pass/fail (compatibility matrix)
+- Run `sai_ecmp_test` for multi-path verification
+
+**Deliverables**: L3 compatibility matrix, bug fixes to VPP SAI
+
+### Phase 3: CI Integration
+**Goal**: Automated regression testing on every PR in sonic-sairedis.
+
+- Add `BuildSaiTestVpp` and `TestSaiVpp` stages to `azure-pipelines.yml`
+- Create pipeline templates (build-docker-sai-test-vpp-template.yml, test-sai-vpp-template.yml)
+- Publish test results as pipeline artifacts
+- Set up gating rules (no regressions on passing tests)
+
+**Deliverables**: CI pipeline templates, automated test execution, published results
+
+### Phase 4: Event Notification Verification
+**Goal**: Verify VPP SAI asynchronous event notifications (port state, BFD).
+
+VPP SAI implements an event pipeline:
+```
+VPP async event → C handler → event queue → polling thread (2s) → SAI notification callback → Thrift → PTF
+```
+
+Supported events:
+
+| Event | VPP API | SAI Notification Attribute |
+|-------|---------|---------------------------|
+| Port link up/down | `sw_interface_event` | `SAI_SWITCH_ATTR_PORT_STATE_CHANGE_NOTIFY` |
+| BFD session state | `bfd_udp_session_event` | `SAI_SWITCH_ATTR_BFD_SESSION_STATE_CHANGE_NOTIFY` |
+
+Test cases to implement:
+- **Port state change**: Create host-interface, bring OEthernet peer down via `ip link set down` → verify `PORT_STATE_CHANGE` notification arrives with `SAI_PORT_OPER_STATUS_DOWN`
+- **Port state recovery**: Bring OEthernet peer back up → verify notification with `SAI_PORT_OPER_STATUS_UP`
+- **BFD session up**: Create BFD session between two ports, establish connectivity → verify `BFD_SESSION_STATE_UP` notification
+- **BFD session down**: Break path (bring OEthernet down) → verify `BFD_SESSION_STATE_DOWN` notification within detection timeout
+- **BFD multihop**: Create multihop BFD session, verify state transitions
+
+Implementation notes:
+- Notifications have up to ~2s latency due to polling interval in `vppProcessEvents()`
+- Tests must use retry/wait loops (recommend 5s timeout with 0.5s poll)
+- Requires registering notification callbacks at switch creation time (saiserver does this via Thrift notification handler)
+- New PTF test file: `sai_notification_test.py`
+
+**Deliverables**: Notification test cases, verified event pipeline
+
+### Phase 5: Control Plane Packet Verification
+**Goal**: Verify packets punted to/from the control plane via VPP LCP TAP interfaces.
+
+VPP's Linux Control Plane (linux-cp) plugin creates TAP interfaces paired to VPP hardware interfaces. When `sai_create_hostif(SAI_HOSTIF_TYPE_NETDEV, port, "Ethernet0")` is called, VPP SAI invokes `lcp_itf_pair_add_del` to create a TAP device. Punted packets appear on the TAP; packets written to the TAP enter VPP's dataplane.
+
+#### Packet Flow
+
+```
+Wire side (OEthernet_peer)           Control plane side (TAP)
+        │                                      │
+   AF_PACKET                              "Ethernet0"
+        │                                      │
+   VPP datapath ──── punt (ARP/LLDP/IP-to-me) ────►  TAP
+        │                                      │
+   VPP datapath ◄──── inject (from host) ──────  TAP
+```
+
+#### Punt Protocols (enabled at VPP init)
+
+| Protocol | Ethertype | Punt Mechanism |
+|----------|-----------|----------------|
+| ARP | 0x0806 | `vpp_lcp_ethertype_enable()` |
+| LLDP | 0x88cc | `vpp_lcp_ethertype_enable()` |
+| LACP | 0x8809 | `vpp_lcp_ethertype_enable()` |
+| BGP/OSPF/DHCP | IP | VPP FIB "ip-to-me" → linux-cp TAP delivery |
+
+#### PTF Port Mapping vs. Dynamic Hostif TAPs
+
+Only the **wire-side** veth peers are pre-created in `run_test.sh` and
+bound to PTF port ids at startup:
+
+```
+--interface 0@OEthernet0_peer   # wire side port 0 (inject/capture forwarded traffic)
+--interface 1@OEthernet1_peer   # wire side port 1
+...
+```
+
+The **control-plane TAPs** (`Ethernet0`, `Ethernet1`, ...) do **not**
+exist until a test calls `sai_thrift_create_hostif(name="EthernetN")`,
+which happens *after* PTF is already running. PTF's port table is fixed
+at startup, so these TAPs cannot be registered as additional PTF ports.
+
+Hostif TAPs are therefore accessed via the **scapy helpers** described
+in Phase 6 (`wait_for_netdev`, `scapy_send`, `scapy_verify_packet`,
+`scapy_verify_no_packet`). A typical test sends on a PTF wire port and
+captures on the hostif TAP through scapy:
+
+```python
+def test_arp_punt(self):
+    sai_thrift_create_hostif(self.client, type=NETDEV,
+                             obj_id=port0, name="Ethernet0")
+    wait_for_netdev("Ethernet0")
+
+    self.send_packet(0, arp_request_pkt)          # wire side via PTF
+    self.scapy_verify_packet("Ethernet0",          # TAP via scapy
+                             Mask(arp_request_pkt),
+                             timeout=2.0)
+```
+
+#### Test Cases
+
+- **ARP punt**: Send ARP request on wire side → verify it arrives on TAP (control plane)
+- **LLDP punt**: Send LLDP frame on wire side → verify punt to TAP
+- **LACP punt**: Send LACP PDU on wire side → verify punt to TAP
+- **IP-to-me punt**: Configure RIF with IP, send IP packet destined to RIF IP on wire side → verify punt
+- **Control plane inject**: Write ARP reply to TAP → verify it egresses on wire side
+- **Trap action DROP**: Set trap action to DROP → verify packet is NOT punted
+- **Trap action FORWARD**: Set trap action to FORWARD → verify packet is forwarded, not punted
+- **Hostif table match**: Create hostif table entry matching specific trap → verify correct TAP receives punt
+
+#### Implementation Notes
+
+- Hostif TAPs are created dynamically by `sai_create_hostif()` Thrift
+  calls; they cannot be pre-registered with PTF. Tests use the scapy
+  mixin (see Phase 6) for inject/capture on these TAPs.
+- `run_test.sh` only pre-creates the wire-side `OEthernetN`/
+  `OEthernetN_peer` veth pairs and starts VPP + saiserver. It does
+  **not** create any `Ethernet*` TAPs — those are owned by the test.
+- Each test must `wait_for_netdev("EthernetN")` after `create_hostif`
+  to handle the linux-cp async TAP creation, and must delete the hostif
+  in `tearDown` so stale TAPs do not accumulate across tests.
+- Tests require privileged mode (raw sockets on veth peers and TAPs).
+- New PTF test file: `sai_hostif_punt_test.py`.
+
+**Deliverables**: Control-plane punt/inject test cases using the scapy
+hostif mixin from Phase 6.
+
+### Phase 6: Dynamic Control-Plane Interfaces (Hostif TAPs and Pseudo Interfaces)
+**Goal**: Verify control-plane punt/inject for **any** interface whose
+kernel netdev is created mid-test by SAI. This covers:
+
+- Per-port hostif TAPs (`Ethernet0`, `Ethernet1`, …) created by
+  `sai_create_hostif(SAI_HOSTIF_TYPE_NETDEV)` (Phase 5 test cases).
+- Pseudo (logical) interfaces are created by SONiC based on config. Tests
+  should simulate the same behavior. When tests call `sai_create_lag()`
+  (`PortChannel1`), `sai_create_router_interface(type=VLAN)` (`Vlan10`),
+  loopback RIFs, etc, lcp creates tap interface with _tap suffix, such as
+  PortChannel1_tap. saivpp use linux TC to connect the tap interface to the
+  corresponding pseduo interface.
+All of these share the same constraint and use the same helper layer.
+
+#### Problem: PTF's port table is fixed at startup
+
+`ptf --interface N@dev` resolves device names to AF_PACKET sockets when
+the PTF process starts; the port table is immutable for the life of the
+run. Any netdev that SAI creates later — a hostif TAP, a LAG carrier,
+a VLAN SVI — cannot be added to PTF's port table afterward.
+
+For LAG/VLAN, linux-cp creates an internal tap (e.g.,
+`PortChannel1_tap`, `Vlan10_tap`) and tc-links it to the
+user-visible `PortChannel1` / `Vlan10` netdev. The user-facing name is
+what tests bind to.
+
+#### Approach: bypass the PTF port table with raw scapy
+
+For every dynamically-created netdev (hostif TAP or pseudo interface),
+send and receive packets via scapy directly on the runtime-created name.
+The test orchestrates:
+
+1. Call SAI Thrift to create the object (hostif / LAG / VLAN RIF / Loopback).
+2. Wait for the kernel netdev to appear (poll `/sys/class/net/<name>` with
+   a short timeout — the linux-cp creation is asynchronous).
+3. Use scapy bound to that netdev name for inject and capture.
+4. In `tearDown`, delete the SAI object; linux-cp removes the netdev.
+
+Wire-side traffic continues to use the normal PTF helpers on the
+pre-created `OEthernetN_peer` veth ports.
+
+#### ScapyPortMixin — the bridge between PTF and scapy
+
+A mixin in `sai_base_test.py` recovers most of PTF's verification
+semantics for the dynamic-netdev side. It reuses PTF's `Mask` and the
+standalone `match_exp_pkt` helper so that field-level don't-cares,
+negative assertions, and multi-port disjunction continue to work —
+these are the parts of PTF that hurt most to lose.
+
+```python
+# sai_base_test.py
+import os, time
+from scapy.all import sendp, AsyncSniffer
+from ptf.mask import Mask
+from ptf.dataplane import match_exp_pkt   # works on a bare scapy pkt
+
+class ScapyPortMixin:
+    """Pseudo-port helpers that mimic the PTF dataplane API on raw netdevs."""
+
+    # --- lifecycle ---------------------------------------------------
+    def wait_for_netdev(self, name, timeout=5.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if os.path.exists(f"/sys/class/net/{name}"):
+                return
+            time.sleep(0.1)
+        raise RuntimeError(f"netdev {name} did not appear within {timeout}s")
+
+    # --- send --------------------------------------------------------
+    def scapy_send(self, iface, pkt):
+        sendp(pkt, iface=iface, verbose=False)
+
+    # --- positive verification (PTF-equivalent: verify_packet) -------
+    def scapy_verify_packet(self, iface, expected, timeout=2.0):
+        """Wait for one packet on `iface` that matches `expected`
+        (scapy pkt or ptf.mask.Mask). Raises AssertionError otherwise."""
+        sniffer = AsyncSniffer(iface=iface, timeout=timeout, store=True)
+        sniffer.start(); sniffer.join()
+        for got in sniffer.results:
+            if match_exp_pkt(expected, bytes(got)):
+                return got
+        raise AssertionError(
+            f"no matching packet on {iface} within {timeout}s; "
+            f"captured {len(sniffer.results)} pkts")
+
+    # --- negative verification (PTF-equivalent: verify_no_packet) ----
+    def scapy_verify_no_packet(self, iface, unexpected, timeout=1.0):
+        sniffer = AsyncSniffer(iface=iface, timeout=timeout, store=True)
+        sniffer.start(); sniffer.join()
+        for got in sniffer.results:
+            if match_exp_pkt(unexpected, bytes(got)):
+                raise AssertionError(
+                    f"unexpected packet on {iface}: {got.summary()}")
+
+    # --- multi-iface disjunction (LAG / ECMP) ------------------------
+    def scapy_verify_packet_any_iface(self, ifaces, expected, timeout=2.0):
+        """Returns the iface on which `expected` arrived; fails if
+        none or more than one."""
+        sniffers = {ifc: AsyncSniffer(iface=ifc, timeout=timeout, store=True)
+                    for ifc in ifaces}
+        for s in sniffers.values(): s.start()
+        for s in sniffers.values(): s.join()
+        hits = [ifc for ifc, s in sniffers.items()
+                if any(match_exp_pkt(expected, bytes(p)) for p in s.results)]
+        if not hits:
+            raise AssertionError(f"expected packet on none of {ifaces}")
+        if len(hits) > 1:
+            raise AssertionError(f"expected on one iface, got {hits}")
+        return hits[0]
+```
+
+#### Scapy ↔ PTF capability map
+
+| PTF dataplane API                  | ScapyPortMixin equivalent          | Notes |
+|------------------------------------|------------------------------------|-------|
+| `send_packet(port, pkt)`           | `scapy_send(iface, pkt)`           | identical semantics |
+| `verify_packet(pkt, port)`         | `scapy_verify_packet(iface, pkt)`  | `Mask(pkt)` works as `expected` |
+| `verify_no_packet(pkt, port)`      | `scapy_verify_no_packet(iface, pkt)` | uses sniff-with-timeout |
+| `verify_packet_any_port(pkt, [ports])` | `scapy_verify_packet_any_iface(ifaces, pkt)` | LAG / ECMP |
+| `Mask(pkt, ignore_fields=[...])`   | identical — imported from `ptf.mask` | no rewrite needed |
+| Per-port counters / `DataPlane.get_counters()` | **not provided**             | not needed for unit tests |
+| `verify_each_packet_on_each_port`  | **not provided**                   | implementable; only if a test needs it |
+
+What is genuinely lost: per-port long-running counters and ordered
+multi-packet/multi-port assertions. Neither is required by any test
+case planned in Phase 5/6.
+
+#### Usage example
+
+```python
+class HostifPuntTest(SaiBaseTest, ScapyPortMixin):
+    def test_arp_punt(self):
+        sai_thrift_create_hostif(self.client, type=NETDEV,
+                                 obj_id=self.port0, name="Ethernet0")
+        self.wait_for_netdev("Ethernet0")
+
+        self.send_packet(0, arp_req)                       # PTF wire port
+        self.scapy_verify_packet("Ethernet0", Mask(arp_req))
+
+class LagPuntTest(SaiBaseTest, ScapyPortMixin):
+    def test_portchannel_arp_punt(self):
+        lag = sai_thrift_create_lag(self.client, ...)
+        sai_thrift_create_lag_member(self.client, lag, port_oid=self.port0)
+        self.wait_for_netdev("PortChannel1")
+
+        self.send_packet(0, arp_req)                       # member's wire side
+        self.scapy_verify_packet("PortChannel1", Mask(arp_req))
+```
+
+#### Constraints
+
+- **Wire side stays on PTF**: `OEthernetN_peer` veths are pre-created in
+  `run_test.sh` and bound at PTF startup. Only the dynamic-netdev side
+  uses scapy.
+- **Privileged container is already required** (raw AF_PACKET on TAPs);
+  scapy uses the same socket type, no extra capability needed.
+- **Cleanup**: tests must delete SAI objects in `tearDown` so the
+  netdev goes away before the next test, otherwise stale netdevs and
+  sniffer threads accumulate.
+
+#### Test Cases
+
+- **Hostif TAP punt/inject** (Phase 5): ARP / LLDP / LACP / IP-to-me on
+  `EthernetN` via the mixin.
+- **PortChannel punt**: LAG with one member → send ARP on member's wire
+  side → `scapy_verify_packet("PortChannel1", …)`.
+- **PortChannel inject**: `scapy_send("PortChannel1", arp_reply)` →
+  verify on member's wire-side PTF port.
+- **LAG hashing**: send N flows on wire-side →
+  `scapy_verify_packet_any_iface([member0, member1, …], pkt)`.
+- **VLAN SVI punt**: VLAN 10 + member ports + SVI RIF → send ARP for
+  SVI IP on a member's wire side → `scapy_verify_packet("Vlan10", …)`.
+- **Loopback IP-to-me**: Loopback RIF with IP → route a packet to that
+  IP via a wire-side port → `scapy_verify_packet("Loopback0", …)`.
+
+#### Implementation Notes
+
+- `ScapyPortMixin` lives in `sai_base_test.py`; every test class that
+  touches a dynamic netdev mixes it in.
+- `run_test.sh` only pre-creates wire-side veths and starts VPP +
+  saiserver; it has no knowledge of hostif or pseudo-iface names.
+- New PTF test files: `sai_hostif_punt_test.py` (Phase 5),
+  `sai_pseudo_iface_test.py` (Phase 6 — LAG/VLAN/Loopback).
+
+**Deliverables**: `ScapyPortMixin` in the test base class; hostif and
+pseudo-interface test cases using it.
+
+### Phase 7: Extended Coverage
+**Goal**: Run L2 and advanced L3 tests.
+
+- Enable `sai_vlan_test`, `sai_fdb_test`, `sai_lag_test`
+- Enable `sai_tunnel_test` (VXLAN)
+- Track full compatibility matrix across all SAI object types
+
+**Deliverables**: Full compatibility matrix, expanded coverage
+## 7. Future Plan
+
+### 7.1 Data-Driven Tests (YAML/JSON)
+
+Add a declarative test format for rapid test authoring without Python:
+
+```yaml
+name: "L3 IPv4 basic forwarding"
+topology:
+  ports: [0, 1]
+setup:
+  - create_virtual_router: {result: vr_id}
+  - create_router_interface:
+      type: PORT
+      port_id: $port0
+      virtual_router_id: $vr_id
+      src_mac: "00:01:02:03:04:05"
+      result: rif0
+  - create_router_interface:
+      type: PORT
+      port_id: $port1
+      virtual_router_id: $vr_id
+      src_mac: "00:01:02:03:04:06"
+      result: rif1
+  - create_next_hop:
+      ip: "10.0.1.2"
+      router_interface_id: $rif1
+      result: nhop
+  - create_neighbor_entry:
+      rif_id: $rif1
+      ip_address: "10.0.1.2"
+      dst_mac: "00:aa:bb:cc:dd:ee"
+  - create_route_entry:
+      destination: "10.0.1.0/24"
+      vr_id: $vr_id
+      next_hop_id: $nhop
+packets:
+  - send:
+      port: 0
+      Ether: {dst: "00:01:02:03:04:05", src: "00:11:22:33:44:55"}
+      IP: {dst: "10.0.1.100", src: "192.168.1.1", ttl: 64}
+    expect:
+      port: 1
+      Ether: {dst: "00:aa:bb:cc:dd:ee", src: "00:01:02:03:04:06"}
+      IP: {dst: "10.0.1.100", src: "192.168.1.1", ttl: 63}
+teardown: auto  # removes objects in reverse order
+```
+
+Benefits:
+- Non-programmers can write/review test cases
+- Easy to generate bulk tests (parametrize IP ranges, port combinations)
+- Machine-readable test specifications
+- Can be auto-generated from SAI spec or existing configs
+
+### 7.2 Transition to Direct SAI Bindings
+
+Long-term, eliminate the saiserver Thrift daemon:
+- Rebuild `pysairedis` SWIG module linked against `libsaivs.so` instead of `libsairedis.so`
+- Single-process architecture: Python test → SWIG → libsaivs.so → VPP
+- Lower latency, easier debugging, no RPC serialization overhead
+- In-process breakpoints for SAI implementation debugging

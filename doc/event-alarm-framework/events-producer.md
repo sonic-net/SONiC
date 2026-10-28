@@ -223,7 +223,7 @@ The event will now be published as below per schema. The instance data would ind
 
 ## gNMI client
 A gNMI client could subscribe for events in streaming mode.
-At the rate of 10K/second and to conserve switch resources, only one gNMI client is supported and hence all events are sent to the client with no additonal filtering. It is expected that the client will save events in a an external storage and consumer clients can watch/query from the external resource with filters.
+At the rate of 10K/second and to conserve switch resources, only one gNMI client is supported and hence all events are sent to the client with no additional filtering. It is expected that the client will save events in a an external storage and consumer clients can watch/query from the external resource with filters.
 Below shows the command & o/p for subscribing all events.
 ```
 gnmic --target events --path "/events/" --mode STREAM --stream-mode ON_CHANGE
@@ -314,7 +314,7 @@ The libswsscommon will have the APIs for publishing & receiving.
 ## exporter
 1. Telemetry container runs a gNMI server to export events to external receiver/collector via SUBSCRIBE request.
 2. Telemetry container sends all the events to the receiver in FIFO order.
-3. Telemetry container ensures atleast one event sent every N seconds, by sending a heartbeat/no-op event when there are no events to publish.
+3. Telemetry container ensures at least one event sent every N seconds, by sending a heartbeat/no-op event when there are no events to publish.
 4. Telemetry container uses an internal buffer, when local publishing rates overwhelms the receiver.
    - Internal buffer overflow will cause new events to be dropped.
    - The dropped events are counted and recorded in STATE-DB via stats.
@@ -323,7 +323,7 @@ The libswsscommon will have the APIs for publishing & receiving.
    - A long downtime can result in message drop due to cache overflow.
    - A unplanned telemetry service down (say crash) will not use the cache service
 
-5. The stats for maintained for SLA compliance verification. This inlcudes like total count of events sent, missed count, ...
+5. The stats for maintained for SLA compliance verification. This includes like total count of events sent, missed count, ...
    - The stats are collected and recorded in STATE-DB.
    - An external gNMI client could subscribe for stats table updates' streaming ON-CHANGE.
 
@@ -524,11 +524,11 @@ The event detection could happen in many ways
 ### Log message based detection
 At high level:
 1. This is a two step process.
-2. The process raising the event sends a sylog message out.
+2. The process raising the event sends a syslog message out.
 3. A watcher scans all the syslog messages emitted and parse/check for events of interest.
 4. When matching message arrives, publish the event
 
-Here you have code that sends the log and a watcher who has the regex pattern for that log message to match. Anytime the log messsage is changed the pattern has to be updated for the event to fire consistently across releases.
+Here you have code that sends the log and a watcher who has the regex pattern for that log message to match. Anytime the log message is changed the pattern has to be updated for the event to fire consistently across releases.
 
 Though this sounds like a redundant/roundabout way, this helps as below.
 - For III party code, not owned by SONiC, this is an acceptable solution.
@@ -542,7 +542,7 @@ Though this sounds like a redundant/roundabout way, this helps as below.
   - For logs raised by host processes, configure this plugin at host.
   - For logs raised by processes inside the container, configure plugin inside the container. This helps in container upgrade scenarios and as well help with load distribution.
   - The plugin can be configured using rsyslog properties to help scale into multiple instances, so a single instance see only a subset of logs pre-filtered by rsyslog.
-    - A plugin instance could receive messasges **only** for processes that it is configured for.
+    - A plugin instance could receive messages **only** for processes that it is configured for.
   
 - The plugin is provided with the list of regex patterns to use for matching messages. Each pattern is associated with the name of event source and the tag.
   - The regex pattern is present as files as one per plugin instance, so an instance sees only the regex expressions that it could match.
@@ -685,7 +685,7 @@ The message reliability is ensured as BEST effort. There are 3 kinds of missed m
   
 	
 # STATS update
-The stats are collected and updaed periodically in DB. The stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
+The stats are collected and updated periodically in DB. The stats can be used to assess the performance and SLA (_Service Level Agreement_) compliance.</br>
 The stats are collected by telemetry service that serves the main receiver. Hence the stats update occur only when main receiver is connected.</br>
 
 - The counters are persisted in STATE-DB with keys as "EVENT-STATS|< counter name >"
@@ -716,7 +716,7 @@ The stats are collected by telemetry service that serves the main receiver. Henc
   
     
 # CLI
-- Show commands is provided to vew STATS collected
+- Show commands is provided to view STATS collected
 - gnmi cli commands
 
 ```
@@ -726,7 +726,7 @@ gnmi_cli -client_types=gnmi -a 127.0.0.1:50051 -t EVENTS -logtostderr -insecure 
 # heartbeat=n sets to every n seconds if n>0.
 gnmi_cli -client_types=gnmi -a 127.0.0.1:50051 -t EVENTS -logtostderr -insecure -v 7 -streaming_type ON_CHANGE -q all[heartbeat=5] -qt s
 	
-# Sets pq max size to be 1000; The q between Telemetry container and the exernal gNMI connection.
+# Sets pq max size to be 1000; The q between Telemetry container and the external gNMI connection.
 gnmi_cli -client_types=gnmi -a 127.0.0.1:50051 -t EVENTS -logtostderr -insecure -v 7 -streaming_type ON_CHANGE -q all[heartbeat=5][qsize=1000] -qt s
 ```	
 
@@ -779,7 +779,7 @@ namespace SONIC_EVENTS_BGP {
 
 ## Event definition enhancements
 - The consumer of events get the instance data of event as a key-value pair, where key points to the YANG model.
-- The YANG schema defintion could be enhanced with additional custom data types created using YANG extensions.
+- The YANG schema definition could be enhanced with additional custom data types created using YANG extensions.
 - An extension could be defined for "severity". The developer of the schema could use this to specify the severity of an event added.
 - An extension could be defined for globally unique event-id, which could be used by event consumer, when publishing the event to external parties.
  

@@ -15,8 +15,10 @@
 - [3.1 ConfigDB Changes](#31-configdb-changes)
 - [3.2 AppDB Changes](#32-appdb-changes)
 - [3.3 Orchestration Agent Changes](#33-orchestration-agent-changes)
-- [3.4 SAI](#34-sai)
-- [3.5 YANG Model](#35-yang-model )
+- [3.4 CLI changes](#34-cli-changes)
+- [3.5 SAI](#35-sai)
+- [3.6 YANG Model](#36-yang-model )
+- [3.7 SRv6 MySID Warm Boot Design](#37-srv6-mysid-warm-boot-design)
 - [4 Unit Test](#4-unit-test)
 - [5 References ](#5-references) 
 
@@ -28,6 +30,8 @@
 | 0.2  | 8/24/2021 | Dong Zhang                 |  More explanation       |
 | 0.3  | 10/15/2021| Kumaresh Perumal           |  Minor updates          |
 | 0.4  | 10/26/2021| Kumaresh Perumal           |  Update MY_SID table.   |
+| 0.5  | 4/7/2024  | Yakiv Huryk                |  Add MySID counters     |
+| 0.6  | 9/2/2026  | Changrong Wu               |  Add static MySID warm boot support |
 
 
 # Definition/Abbreviation
@@ -47,6 +51,7 @@
 | uSID | Micro Segment |
 | VNI  | VXLAN Network Identifier  |
 | VRF  | Virtual Routing and Forwarding  |
+| MySID | Local SID configured on the device |
 
 # About this Manual
 
@@ -91,6 +96,7 @@ Later phases:
 - Support HMAC option
 - Support sBFD for SRv6 
 - Support anycast SID
+- Support packet and byte counters for each configured MySID
 
 This document will focus on Phase #1, while keep the design extendable for future development
 
@@ -104,9 +110,19 @@ This document will focus on Phase #1, while keep the design extendable for futur
 
 4. User should be able to configure endpoint action and corresponding argument for matched local SID
 
+5. User should be able to enable/disable counters for MySIDs via CLI
+
+6. User should be able to configure polling interval for counter updates
+
+7. User should be able to clear counters via CLI
+
+8. User should be able to view counter statistics via CLI
+
 ## 2.3 Warm Boot Requirements
 
-Warm reboot is intended to be supported for planned system, swss and BGP warm reboot.
+Warm reboot is supported for planned system warm reboot and warm restart of the
+SWSS and BGP containers. MySID forwarding entries remain programmed in
+the ASIC while the control-plane state is restored and reconciled.
 
  
 
@@ -430,6 +446,17 @@ Orchagent listens to SRV6_MY_SID_TABLE in APP_DB to create SAI objects in ASIC_D
 
 
 
+The MySID counters are implemented utilizing the existing Flex Counter infrastructure.
+The FlexCounterManager is extened with a new group - `SRV6_STAT_COUNTER_FLEX_COUNTER_GROUP`. The default polling interval is set to 10 seconds.
+
+For MySID counters, SRV6Orchagent:
+1. Checks if platform supports SRv6 MySID counter via querying SAI_MY_SID_ENTRY_ATTR_COUNTER_ID attribute capabilities
+2. Creates FlexCounterManager for SRv6 counters group
+3. Creates/removes generic counters for MySID entries
+4. Binds/unbinds counters to MySID entries
+5. Manages counter ID lists in Flex Counter DB
+6. Maintains MySID name to counter ID mapping in Counter DB
+
 **NextHopKey Changes**
 
 
@@ -452,9 +479,56 @@ Struct NextHopKey {
 }
 ```
 
+## 3.4 CLI changes
+The `counterpoll`, `sonic-clear`, and `show` CLI utilities are extended to support SRv6 counters:
 
+```bash
+$ counterpoll srv6
+Usage: counterpoll srv6 [OPTIONS] COMMAND [ARGS]...
 
-## 3.4 SAI
+  SRv6 counter commands
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  disable   Disable SRv6 counter query
+  enable    Enable SRv6 counter query
+  interval  Set SRv6 counter query interval
+```
+
+```bash
+$ sonic-clear
+Usage: sonic-clear [OPTIONS] COMMAND [ARGS]...
+
+  SONiC command line - 'Clear' command
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+...
+  srv6counters           Clear SRv6 counters
+```
+
+```bash
+$ show srv6 stats
+MySID             Packets    Bytes
+--------------  ---------  -------
+3000:1:10::/48          1     1024
+3000:2:20::/48          2     2048
+```
+
+```bash
+$ show srv6 stats 3000:2:20::/48
+MySID             Packets    Bytes
+--------------  ---------  -------
+3000:2:20::/48          2     2048
+```
+
+The `sonic-clear` and `show srv6 stats` are implemented using a new utility - `srv6stats` which incapsulates the logic for SRv6 counters management.
+
+## 3.5 SAI
 
   https://github.com/opencomputeproject/SAI/compare/master...ashutosh-agrawal:srv6
 
@@ -545,37 +619,200 @@ my_sid_attr[1].value.oid = vr_id_1001 // overlay vrf, created elsewhere
 saistatus = saiv6sr_api->create_my_sid_entry(&my_sid_entry, 2, my_sid_attr)
 
 
-## 3.5 YANG Model
+## 3.6 YANG Model
+```yang
+
+container SRV6_MY_LOCATORS {
+    list SRV6_MY_LOCATORS_LIST {
+        key "locator_name";
+
+        leaf locator_name {
+            type string;
+        }
+
+        leaf prefix {
+            type inet:ipv6-address;
+            mandatory true;
+        }
+
+        leaf block_len {
+            type uint8 {
+                range "1..128";
+            }
+
+            default 32;
+        }
+
+        leaf node_len {
+            type uint8 {
+                range "1..128";
+            }
+
+            default 16;
+        }
+
+        leaf func_len {
+            type uint8 {
+                range "0..128";
+            }
+
+            default 16;
+        }
+
+        leaf arg_len {
+            type uint8 {
+                range "0..128";
+            }
+
+            default 0;
+        }
+
+        must 'block_len + node_len + func_len + arg_len <= 128';
+
+        leaf vrf {
+            type union {
+                type leafref {
+                    path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                }
+                type string {
+                    pattern 'default';
+                }
+            }
+            description "VRF name";
+
+            default "default";
+        }
+    }
+}
+
+container SRV6_MY_SIDS {
+    list SRV6_MY_SIDS_LIST {
+        key "locator ip_prefix";
+
+        leaf ip_prefix {
+            type inet:ipv6-prefix;
+        }
+
+        leaf locator {
+            type leafref {
+                path "/srv6:sonic-srv6/srv6:SRV6_MY_LOCATORS/srv6:SRV6_MY_LOCATORS_LIST/srv6:locator_name";
+            }
+        }
+
+        leaf action {
+            type enumeration {
+                enum uN;
+                enum uDT46;
+            }
+        }
+
+        leaf decap_vrf {
+            type union {
+                type leafref {
+                    path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:name";
+                }
+                type string {
+                    pattern 'default';
+                }
+            }
+            description "VRF name used for decapsulation";
+
+            default "default";
+        }
+
+        leaf decap_dscp_mode {
+            type enumeration {
+                enum uniform;
+                enum pipe;
+            }
+        }
+    }
+}
 ```
-module: sonic-srv6
-  +--rw sonic-srv6
-     +--rw SRV6_SID_LIST
-     |  +--rw SRV6_SID_LIST_LIST* [name]
-     |     +--rw name    string
-     |     +--rw path*   inet:ipv6-address
-     +--rw SRV6_MY_SID
-     |  +--rw SRV6_MY_SID_LIST* [ip-address]
-     |     +--rw ip-address    inet:ipv6-address
-     |     +--rw block_len?    uint16
-     |     +--rw node_len?     uint16
-     |     +--rw func_len?     uint16
-     |     +--rw arg_len?      uint16
-     |     +--rw action?       enumeration
-     |     +--rw vrf?          -> /vrf:sonic-vrf/VRF/VRF_LIST/name
-     |     +--rw adj*          inet:ipv6-address
-     |     +--rw policy?       -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
-     |     +--rw source?       inet:ipv6-address
-     +--rw SRV6_POLICY
-     |  +--rw SRV6_POLICY_LIST* [name]
-     |     +--rw name       string
-     |     +--rw segment*   -> /sonic-srv6/SRV6_SID_LIST/SRV6_SID_LIST_LIST/name
-     +--rw SRV6_STEER
-        +--rw SRV6_STEER_LIST* [vrf-name ip-prefix]
-           +--rw vrf-name     -> /vrf:sonic-vrf/VRF/VRF_LIST/name
-           +--rw ip-prefix    union
-           +--rw policy?      -> /sonic-srv6/SRV6_POLICY/SRV6_POLICY_LIST/name
-           +--rw source?      inet:ipv6-address
+
+The sonic-flex_counter.yang is extended to support SRv6 counters configuration:
+```yang
+container SRV6 {
+    /* ENI_STAT_COUNTER_FLEX_COUNTER_GROUP */
+    leaf FLEX_COUNTER_STATUS {
+        type flex_status;
+    }
+
+    leaf FLEX_COUNTER_DELAY_STATUS {
+        type flex_delay_status;
+    }
+
+    leaf POLL_INTERVAL {
+        type poll_interval;
+    }
+}
 ```
+
+## 3.7 SRv6 MySID Warm Boot Design
+
+Currently, only static SRv6 MySID entries are guaranteed to have full warmboot
+support. Additional FRR support is needed for other sources of MySID entries
+to ensure that FRR state is correctly reconciled.
+
+### 3.7.1 Static MySID State Ownership
+
+Static MySID entries are owned by FRR `staticd` or the Linux kernel. Zebra
+replays the entries to `fpmsyncd` over FPM using `RTM_NEWSRV6LOCALSID` and
+`RTM_DELSRV6LOCALSID` messages. `fpmsyncd` is the producer of
+`SRV6_MY_SID_TABLE` in `APPL_DB`. The
+`SRV6_MY_LOCATORS` table in `CONFIG_DB` provides supplemental locator and
+decapsulation policy; they do not replace replay of the MySID forwarding
+entries.
+
+### 3.7.2 BGP and fpmsyncd Warm Restart
+
+`ROUTE_TABLE` and `SRV6_MY_SID_TABLE` are restored and reconciled by one
+`WarmStartHelper` instance under the existing BGP warm-start state machine.
+The helper maintains independent restoration and refresh state for each table
+so that identical keys in different tables do not collide.
+
+When warm restart begins, `fpmsyncd` reads the existing entries from both
+`APPL_DB` tables as the restored state. MySID SET and DEL messages replayed by
+Zebra are deferred in the `SRV6_MY_SID_TABLE` refresh state instead of being
+written directly to `APPL_DB`. At the BGP reconciliation barrier, the restored
+and replayed views are compared per table:
+
+- An unchanged entry produces no `APPL_DB` operation.
+- A changed entry is explicitly deleted and then set with the replayed fields.
+- A new entry is added.
+- An explicit delete or a restored entry absent from the replay is removed as
+    stale.
+- A delete for an entry that does not exist in the restored view is discarded.
+
+When BGP warm restart is disabled, `fpmsyncd` writes MySID SET and DEL
+operations directly to `SRV6_MY_SID_TABLE`.
+
+Reconciliation is safe only when Zebra replays every MySID before the
+selected BGP reconciliation barrier closes. When BGP EOIU is used, the
+zebra or kernel replay must precede the IPv4 and IPv6 EOIU markers and the
+configured hold interval. The timer fallback has the same complete-replay
+requirement. `fpmsyncd` cannot infer completion from an idle FPM stream; a
+deployment that cannot guarantee this ordering must provide a dedicated
+replay-complete indication before enabling BGP warm restart for MySIDs.
+
+### 3.7.3 SWSS and Srv6Orch Warm Restart
+
+During an SWSS warm restart, the retained or restored
+`SRV6_MY_SID_TABLE` entries are replayed to `Srv6Orch`. The corresponding SAI
+MySID entries remain in the ASIC. `Srv6Orch` processes the replay
+idempotently: an entry that already matches the requested action and resources
+is accepted without reprogramming it. If SAI reports that a MySID already
+exists, `Srv6Orch` reads its attributes and reconciles any differences in
+place instead of deleting and recreating the forwarding entry.
+
+Actions that depend on a VRF or adjacency may be replayed before those objects
+are restored. Such entries are placed in the Orchagent retry cache, keyed by
+the missing VRF or next-hop constraint, and are retried when `VRFOrch` or
+`NeighOrch` reports that the dependency is available. Duplicate replay does
+not create duplicate references. Transient SAI failures remain pending for
+retry, and partial resource updates are rolled back or cleaned up before a
+retry. Orchagent reports reconciliation complete only after the MySID replay
+and all resolvable dependencies have been processed.
 
 ## 4 Unit Test
 
@@ -583,6 +820,7 @@ TBD
 
 ## 5 References
 
+-  [Static MySID warm boot support implementation](https://github.com/sonic-net/sonic-swss/pull/4814)
 -  [SAI IPv6 Segment Routing Proposal for SAI 1.2.0](https://github.com/opencomputeproject/SAI/blob/1066c815ddd7b63cb9dbf4d76e06ee742bc0af9b/doc/SAI-Proposal-IPv6_Segment_Routing-1.md)
 
 -  [RFC 8754](https://tools.ietf.org/html/rfc8754)

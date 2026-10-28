@@ -221,7 +221,7 @@ The key should be switch chip model name in captical letters.
 
 ##### Initialization
 
-Every vendor should provide the ASIC_TABLE for all switch chips it supports in SONiC. It should be stored in `files/build_templates` in the [sonic-buildimage](https://github.com/azure/sonic-buildimage) repo.
+Every vendor should provide the ASIC_TABLE for all switch chips it supports in SONiC. It should be stored in `files/build_templates` in the [sonic-buildimage](https://github.com/sonic-net/sonic-buildimage) repo.
 
 This template is rendered when the switch starts for the first time.
 
@@ -311,7 +311,7 @@ This table contains the peripheral parameters, like gearbox. The key can be gear
 
 ##### Initialization
 
-Every vendor should provide the `PERIPHERAL_TABLE` for all peripheral devices it supports in SONiC, like gearbox models. It should be stored in `files/build_templates/peripheral_config.json.j2` in the [sonic-buildimage](https://github.com/azure/sonic-buildimage) repo and `/usr/shared/sonic/template/peripheral_table.json.j2` on the switch.
+Every vendor should provide the `PERIPHERAL_TABLE` for all peripheral devices it supports in SONiC, like gearbox models. It should be stored in `files/build_templates/peripheral_config.json.j2` in the [sonic-buildimage](https://github.com/sonic-net/sonic-buildimage) repo and `/usr/shared/sonic/template/peripheral_table.json.j2` on the switch.
 
 When the template is being rendered, all entries in `PERIPHERAL_TABLE` will be loaded into the state database.
 
@@ -352,7 +352,7 @@ This table contains the gearbox info of each port.
 
 ##### Initialization
 
-Every vendor should provide the `PORT_PERIPHERAL_TABLE` for platforms with gearbox installed. It should be stored in `device/<vendor>/<platform>/port_peripheral_config.json.j2` in the [sonic-buildimage](https://github.com/azure/sonic-buildimage) repo and `/usr/shared/sonic/device/<platform>/port_peripheral_config.json` on the switch.
+Every vendor should provide the `PORT_PERIPHERAL_TABLE` for platforms with gearbox installed. It should be stored in `device/<vendor>/<platform>/port_peripheral_config.json.j2` in the [sonic-buildimage](https://github.com/sonic-net/sonic-buildimage) repo and `/usr/shared/sonic/device/<platform>/port_peripheral_config.json` on the switch.
 
 For the platforms that have an identical gearbox model for all the ports, to provide a global gearbox is enough. In this case, the key should be "global" and there is only one such items in the table.
 
@@ -453,6 +453,9 @@ Currently, there already are some fields in `BUFFER_POOL` table. In this design,
                                         ; and its real size will be calculated by substracting accumulative headroom and reserved size
                                         ; from total available memory which stored ASIC_TABLE.
     xoff        = 1*9DIGIT              ; the shared headroom pool size. Available for ingress_lossless_pool only.
+    percentage  = 1*3DIGIT              ; the percentage of the buffer pool size compared with the whole available memory size
+                                        ; available in dynamic buffer model only
+                                        ; the buffer pool size in APPL_DB.BUFFER_POOL_TABE is available_memory_size * percentage / 100 if it is configured
 ```
 
 ##### Initialization

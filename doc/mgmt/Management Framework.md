@@ -1792,28 +1792,39 @@ At Transformer init, it loads YANG modules pertaining to the applications. Trans
 Below structure is defined for the transformer spec:
 
 ```YANG
-type yangXpathInfo  struct {
-    yangDataType   string
-    tableName      *string
-    xfmrTbl        *string
-    childTable      []string
-    dbEntry        *yang.Entry
-    yangEntry      *yang.Entry
-    keyXpath       map[int]*[]string
-    delim          string
-    fieldName      string
-    xfmrFunc       string
-    xfmrField      string
-    xfmrPost       string
-    validateFunc   string
-    rpcFunc        string
-    xfmrKey        string
-    keyName        *string
-    dbIndex        db.DBNum
-    keyLevel       int
-    isKey          bool
-    defVal         string
-    hasChildSubTree bool
+type yangXpathInfo struct {
+	tableName          *string
+	xfmrTbl            *string
+	childTable         []string
+	yangEntry          *yang.Entry
+	keyXpath           map[int]*[]string
+	delim              string
+	fieldName          string
+	xfmrFunc           string
+	xfmrField          string
+	validateFunc       string
+	xfmrKey            string
+	keyName            *string
+	dbIndex            db.DBNum
+	keyLevel           uint8
+	isKey              bool
+	defVal             string
+	tblOwner           *bool
+	hasChildSubTree    bool
+	hasNonTerminalNode bool
+	subscribeMinIntvl  int
+	cascadeDel         int8
+	virtualTbl         *bool
+	nameWithMod        *string
+	operationalQP      bool
+	hasChildOpertnlNd  bool
+	yangType           yangElementType
+	xfmrPath           string
+	compositeFields    []string
+	dbKeyCompCnt       int
+	subscriptionFlags  utils.Bits
+	isDataSrcDynamic   *bool
+	isRefByKey         bool
 }
 ```
 
@@ -1838,6 +1849,8 @@ CRUD requests (configuration) are processed via the following steps:
 9. Invoke any annotated post-Transformer functions
 10. Transformer aggregates the results to returns to App module
 11. App module proceeds to update DB to ensure DB update in the order learnt from step 2
+
+    Refer [model based REPLACE & DELETE in Transformer](Management_Framework_Transformer_Component_Support_For_Model_based_Replace_And_Delete.md) for more details on REPLACE/PUT & DELETE processing.
 
 GET requests are processed via the following steps:
 1. App module asks the transformer to translate the URL to the keyspec to the query target
@@ -1873,18 +1886,14 @@ The translation hints are defined as YANG extensions to support simple table/fie
 
 ----------
 
-1. `sonic-ext:table-name [string]`: 
+1. `sonic-ext:table-name [string]`:
 Map a YANG container/list to TABLE name, processed by the default transformer method. Argument is a table name statically mapped to the given YANG container or list node.
 The table-name is inherited to all descendant nodes unless another one is defined.
 
-2. `sonic-ext:field-name [string]`: 
+2. `sonic-ext:field-name [string]`:
 Map a YANG leafy - leaf or leaf-list - node to FIELD name, processed by the default transformer method
 
-3. `sonic-ext:key-delimiter [string]`: 
-Override the default key delimiters used in Redis DB, processed by the default transformer method.
-Default delimiters are used by Transformer unless the extension is defined - CONFIG_DB: "&#124;", APPL_DB: "&#58;", ASIC_DB: "&#124;", COUNTERS_DB: "&#58;", FLEX_COUNTER_DB: "&#124;", STATE_DB: "&#124;"
-
-4. `sonic-ext:key-name [string]`: 
+3. `sonic-ext:key-name [string]`:
 Fixed key name, used for YANG container mapped to TABLE with a fixed key, processed by the default transformer method. Used to define a fixed key, mainly for container mapped to TABLE key
 e.g. Redis can have a hash “STP|GLOBAL”
 ```YANG
@@ -1892,37 +1901,43 @@ container global
    sonic-ext:table-name “STP”
    sonic-ext:key-name “GLOBAL”
 ```
-5. `sonic-ext:key-transformer [function]`: 
+4. `sonic-ext:key-transformer [function]`:
 Overloading default method with a callback to generate DB keys(s), used when the key values in a YANG list are different from ones in DB TABLE.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
-6. `sonic-ext:field-transformer [function]`: 
+5. `sonic-ext:field-transformer [function]`:
 Overloading default method with a callback to generate FIELD value, used when the leaf/leaf-list values defined in a YANG list are different from the field values in DB.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
-7. `sonic-ext:subtree-transformer [function]`: 
+6. `sonic-ext:subtree-transformer [function]`:
 Overloading default method with a callback for the current subtree, allows the sub-tree transformer to take full control of translation. Note that, if any other extensions, e.g. table-name etc., are annotated to the nodes on the subtree, they are not effective.
 The subtree-transformer is inherited to all descendant nodes unless another one is defined, i.e. the scope of subtree-transformer callback is limited to the current and descendant nodes along the YANG path until a new subtree transformer is annotated.
 A pair of callbacks should be implemented to support 2 way translation - **YangToDB***function*, **DbToYang***function*
 
-8. `sonic-ext:db-name [string]`: 
+7. `sonic-ext:db-name [string]`:
 DB name to access data – “APPL_DB”, “ASIC_DB”, “COUNTERS_DB”, “CONFIG_DB”, “FLEX_COUNTER_DB”, “STATE_DB”. The default db-name is CONFIG_DB, Used for GET operation to non CONFIG_DB, applicable only to SONiC YANG. Processed by Transformer core to traverse database.
 The db-name is inherited to all descendant nodes unless another one. Must be defined with the table-name
 
-9. `sonic-ext:post-transformer [function]`: 
+8. `sonic-ext:post-transformer [function]`:
 A special hook to update the DB requests right before passing to common-app, analogous to the postponed YangToDB subtree callback that is invoked at the very end by the Transformer.
 Used to add/update additional data to the maps returned from Transformer before passing to common-app, e.g. add a default acl rule 
 Note that the post-transformer can be annotated only to the top-level container(s) within each module, and called once for the given node during translation
 
-10. `sonic-ext:table-transformer [function]`: 
+9. `sonic-ext:table-transformer [function]`:
 Dynamically map a YANG container/list to TABLE name(s), allows the table-transformer to map a YANG list/container to table names.
 Used to dynamically map a YANG list/container to table names based on URI and payload.
 The table-transformer is inherited to all descendant nodes unless another one is defined
 
-11. `sonic-ext:get-validate [function]`: 
-A special hook to validate YANG nodes, to populate data read from database, allows developers to instruct Transformer to choose a YANG node among multiple nodes, while constructing the response payload. 
-Typically used to check the “when” condition to validate YANG node among multiple nodes to choose only valid nodes from sibling nodes.
+10. `sonic-ext:validate-xfmr [function]`:
+A special hook to validate if a YANG node hierarchy should be traversed when traversal is being done to service a SET/GET request from a specific parent YANG node.Typically used to check the “when” condition to validate YANG node among multiple nodes to choose only valid nodes from sibling nodes in agien yang hierarchy.
 
+11. `sonic-ext:table-owner:false [boolean]`:
+This annotation is useful in cases where DB table has data not only from the mapped yang node in the request, but also from host or another yang and a REPLACE/DELETE operation should not act on the whole instance/table-entry but just a subset of attributes/fields.
+Refer [model based REPLACE & DELETE in Transformer](Management_Framework_Transformer_Component_Support_For_Model_based_Replace_And_Delete.md) for more details and dynamic version of annotation.
+
+12. `sonic-ext:virtual-table:true [boolean]`:
+This annotation is useful where there is no matching table in the DB schema for a yang node, however that node needs to be traversed to reach the child yang hierarchy where DB mappings exist.
+Refer [model based REPLACE & DELETE in Transformer](Management_Framework_Transformer_Component_Support_For_Model_based_Replace_And_Delete.md) for more details and dynamic version of annotation.
 ----------
 
 
@@ -1956,19 +1971,28 @@ The function prototypes for external transformer callbacks are defined in the fo
 
 ```go
 type XfmrParams struct {
-        d *db.DB
-        dbs [db.MaxDB]*db.DB
-        curDb db.DBNum
-        ygRoot *ygot.GoStruct
-        uri string
-        requestUri string //original uri using which a curl/NBI request is made
-        oper int
-        key string
-        dbDataMap *map[db.DBNum]map[string]map[string]db.Value
-        subOpDataMap map[int]*RedisDbMap // used to add an in-flight data with a sub-op
-        param interface{}
-        txCache *sync.Map
-        skipOrdTblChk *bool
+	d                    *db.DB
+	dbs                  [db.MaxDB]*db.DB
+	curDb                db.DBNum
+	ygRoot               *ygot.GoStruct
+	xpath                string // flattened yang xpath of uri with uri predicates stripped off
+	uri                  string
+	requestUri           string //original uri using which a curl/NBI request is made
+	oper                 Operation
+	table                string
+	key                  string
+	dbDataMap            *map[db.DBNum]map[string]map[string]db.Value
+	subOpDataMap         map[Operation]*RedisDbMap // used to add an in-flight data with a sub-op
+	param                interface{}
+	txCache              *sync.Map
+	skipOrdTblChk        *bool
+	isVirtualTbl         *bool
+	yangDefValMap        map[string]map[string]db.Value
+	queryParams          QueryParams
+	pruneDone            *bool
+	invokeCRUSubtreeOnce *bool
+	ctxt                 context.Context
+    isNotTblOwner        *bool
 }
 
 /**
@@ -2028,12 +2052,11 @@ type ValidateCallpoint func (inParams XfmrParams) (bool)
  **/
 type RpcCallpoint func (body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error)
 /**
- * PostXfmrFunc type is defined to use for handling any default handling operations required as part of the CREATE
- * Transformer function definition.
- * Param: XfmrParams structure having database pointers, current db, operation, DB data in multidimensional map, YgotRoot, uri
- * Return: multi dimensional map to hold the DB data, error
+ * PostXfmrFunc type is defined to use for handling cases where application want to override the final translation generated at the end of CRUD operation
+ * Param: XfmrParams structure having database pointers, current db, operation, DB data in multidimensional map resulting from the CRUD operation, YgotRoot, uri
+ * Return: error
  **/
-type PostXfmrFunc func (inParams XfmrParams) (map[string]map[string]db.Value, error)
+type PostXfmrFunc func (inParams XfmrParams) error
 /**
  * TableXfmrFunc type is defined to use for table transformer function for dynamic derviation of redis table.
  * Param: XfmrParams structure having database pointers, current db, operation, DB data in multidimensional map, YgotRoot, uri

@@ -27,15 +27,15 @@ GNS3 server — Controls SONiC VM execution (natively supported on Ubuntu Linux 
 1. Goto azure pipeline under [master branch](https://sonic-build.azurewebsites.net/ui/sonic/pipelines/142/builds?branchName=master) 
 2. Select the latest successful build by clicking the Artifacts.
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image12.jpg)
+![](image12.jpg)
 
 3. Under artifacts, click on sonic-buildimage.vs
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image13.jpg)
+![](image13.jpg)
 
 4. Now, download the sonic image with the name target/sonic-vs.img.gz
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image14.jpg)
+![](image14.jpg)
 
 5. Extract sonic-vs-img.gz to a folder in your windows environment. Example: d:\sonic-vs.img
 
@@ -43,7 +43,7 @@ GNS3 server — Controls SONiC VM execution (natively supported on Ubuntu Linux 
 
 Once the GNS3 VM is installed and application is opened. We see a window as shown below,
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image1.jpg)
+![](image1.jpg)
 
 
 In the GNS3 window, create a project.
@@ -53,11 +53,11 @@ b. Name: Enter a new project name.
 c. Location: The default projects folder name changes to the new project name.
 d. Click OK.
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image2.jpg)
+![](image2.jpg)
 
 The project window opens. The window title displays the name of the new project.
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image3.jpg)
+![](image3.jpg)
 
 Install an SONiC image for GNS3 appliance file.
 	- Go to [SONiC pipeline](https://sonic-build.azurewebsites.net/ui/sonic/pipelines) and select the version of the SONiC image that you want to use.
@@ -67,36 +67,36 @@ Install an SONiC image for GNS3 appliance file.
 In the GNS3 project window, Click on New template on the left corner of the screen
 Select the option "Manually createa new template"
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image4.jpg)
+![](image4.jpg)
 
 Under the new tab, select Qemu VM and then select a new template as shown below. Key in the desired type of device and its RAM details as recommended. 
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image5.jpg)
+![](image5.jpg)
 
 Now, we should be able to find a new device on the left side panel to configure our device template. 
 	- In the QEMU VM template configuration window, under the General Settings tab, change the RAM size to 8192 MB (8GB) and the vCPU number to 4.
 	- Select Auto Start Console to automatically open the console when the Community SONiC appliances start.
 	- Click OK to save the changes.
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image6.jpg)
+![](image6.jpg)
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image7.jpg)
+![](image7.jpg)
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image11.jpg)
+![](image11.jpg)
 
 ### Build your network topology
 
 In the GNS3 project window, click the Browse Routers icon on the left side bar. Drag and drop CommunitySONiC devices in the middle project frame as required for your network topology. Place each device in the appropriate location on the screen. To rename a switch, click its icon and overwrite the text
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image8.jpg)
+![](image8.jpg)
 
 Connect the Community SONiC switches. Select the "Add a link" icon on the left side bar. Click a switch in the project frame and select an available port in the drop-down list.
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image9.jpg)
+![](image9.jpg)
 
 Drag the connection line to another switch, click the switch icon, and select a port from the drop-down list to establish the link.
 
-![](https://github.com/sonic-net/SONiC/blob/master/doc/sonic-gns3/image10.jpg)
+![](image10.jpg)
 
 Repeat this step to connect each Community SONiC devices. 
 

@@ -43,7 +43,8 @@
 # Revision
 | Rev |     Date    |       Author          | Change Description                |
 |:---:|:-----------:|:---------------------:|-----------------------------------|
-| 0.1 | 02/24/2024  | Nikita Agarwal / Satoru Shinohara | Initial version                   |
+| 0.1 | 02/24/2024  | Nikita Agarwal / Satoru Shinohara | Initial version                    |
+| 0.2 | 05/08/2025  | Anukul Verma                      | Added support for new state leaves |
 
 # About this Manual
 This document provides general information about the OpenConfig configuration of Ethernet interfaces in SONiC.
@@ -60,30 +61,48 @@ This document provides general information about the OpenConfig configuration of
   module: openconfig-interfaces
   +--rw interfaces
      +--rw interface* [name]
-        +--rw name               -> ../config/name
+        +--rw name                  -> ../config/name
         +--rw config
         |  +--rw name?          string
+        |  +--rw type           identityref
         |  +--rw mtu?           uint16
         |  +--rw description?   string
         |  +--rw enabled?       boolean
         +--ro state
         |  +--ro name?           string
+        |  +--ro type            identityref
         |  +--ro mtu?            uint16
         |  +--ro description?    string
         |  +--ro enabled?        boolean
+        |  +--ro ifindex?        uint32
         |  +--ro admin-status    enumeration
+        |  +--ro oper-status     enumeration
+        |  +--ro last-change?    oc-types:timeticks64
+        |  +--ro logical?        boolean
+        |  +--ro management?     boolean
+        |  +--ro cpu?            boolean
+        |  +--ro counters
+        |     +--ro in-octets?            oc-yang:counter64
+        |     +--ro in-pkts?              oc-yang:counter64
+        |     +--ro in-unicast-pkts?      oc-yang:counter64
+        |     +--ro in-broadcast-pkts?    oc-yang:counter64
+        |     +--ro in-multicast-pkts?    oc-yang:counter64
+        |     +--ro in-errors?            oc-yang:counter64
+        |     +--ro in-discards?          oc-yang:counter64
+        |     +--ro out-octets?           oc-yang:counter64
+        |     +--ro out-pkts?             oc-yang:counter64
+        |     +--ro out-unicast-pkts?     oc-yang:counter64
+        |     +--ro out-broadcast-pkts?   oc-yang:counter64
+        |     +--ro out-multicast-pkts?   oc-yang:counter64
+        |     +--ro out-discards?         oc-yang:counter64
+        |     +--ro out-errors?           oc-yang:counter64
         +--rw subinterfaces
         |  +--rw subinterface* [index]
         |     +--rw index         -> ../config/index
         |     +--rw config
-        |     |  +--rw index?         uint32
-        |     |  +--rw description?   string
-        |     |  +--rw enabled?       boolean
+        |     |  +--rw index?   uint32
         |     +--ro state
-        |     |  +--ro index?         uint32
-        |     |  +--ro description?   string
-        |     |  +--ro enabled?       boolean
-        |     |  +--ro name?          string
+        |     |  +--ro index?   uint32
         |     +--rw oc-ip:ipv4
         |     |  +--rw oc-ip:addresses
         |     |     +--rw oc-ip:address* [ip]
@@ -105,14 +124,35 @@ This document provides general information about the OpenConfig configuration of
         |        |        +--ro oc-ip:ip?              oc-inet:ipv6-address
         |        |        +--ro oc-ip:prefix-length    uint8
         |        +--rw oc-ip:config
-        |           +--rw oc-ip:enabled?   boolean
+        |        |  +--rw oc-ip:enabled?   boolean
+        |        +--ro oc-ip:state
+        |           +--ro oc-ip:enabled?   boolean
         +--rw oc-eth:ethernet
-           +--rw oc-eth:config
-           |  +--rw oc-eth:auto-negotiate?   boolean
-           |  +--rw oc-eth:port-speed?       identityref
-           +--ro oc-eth:state
-              +--ro oc-eth:auto-negotiate?   boolean
-              +--ro oc-eth:port-speed?       identityref
+        |  +--rw oc-eth:config
+        |  |  +--rw oc-eth:auto-negotiate?   boolean
+        |  |  +--rw oc-eth:port-speed?       identityref
+        |  |  +--rw oc-lag:aggregate-id?     -> /oc-if:interfaces/interface/name
+        |  +--ro oc-eth:state
+        |     +--ro oc-eth:auto-negotiate?   boolean
+        |     +--ro oc-eth:port-speed?       identityref
+        |     +--ro oc-eth:counters
+        |     |  +--ro oc-eth:in-oversize-frames?    oc-yang:counter64
+        |     |  +--ro oc-eth:in-undersize-frames?   oc-yang:counter64
+        |     |  +--ro oc-eth:in-jabber-frames?      oc-yang:counter64
+        |     |  +--ro oc-eth:in-fragment-frames?    oc-yang:counter64
+        |     |  +--ro oc-eth-ext:in-distribution
+        |     |     +--ro oc-eth-ext:in-frames-64-octets?          oc-yang:counter64
+        |     |     +--ro oc-eth-ext:in-frames-65-127-octets?      oc-yang:counter64
+        |     |     +--ro oc-eth-ext:in-frames-128-255-octets?     oc-yang:counter64
+        |     |     +--ro oc-eth-ext:in-frames-256-511-octets?     oc-yang:counter64
+        |     |     +--ro oc-eth-ext:in-frames-512-1023-octets?    oc-yang:counter64
+        |     |     +--ro oc-eth-ext:in-frames-1024-1518-octets?   oc-yang:counter64
+        |     +--ro oc-lag:aggregate-id?     -> /oc-if:interfaces/interface/name
+        +--rw oc-lag:aggregation
+           +--rw oc-lag:config
+           |  +--rw oc-lag:min-links?   uint16
+           +--ro oc-lag:state
+              +--ro oc-lag:min-links?   uint16
 
 
 # Definition/Abbreviation
@@ -195,8 +235,8 @@ Support for additional speeds for Ethernet are brought in to openconfig-if-ether
 Supported at leaf level as well.
 Sample GET output without IPv4 configuration on Ethernet104: 
 ```
-curl -X GET -k "https://100.94.113.103/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet104" -H "accept: application/yang-data+json"
-{"openconfig-interfaces:interface":[{"config":{"enabled":true,"mtu":9100,"name":"Ethernet104"},"openconfig-if-ethernet:ethernet":{"config":{"auto-negotiate":false,"port-speed":"openconfig-if-ethernet:SPEED_10GB"},"state":{"auto-negotiate":false,"port-speed":"openconfig-if-ethernet:SPEED_10GB"}},"name":"Ethernet104","state":{"admin-status":"UP","description":"","enabled":true,"mtu":9100,"name":"Ethernet104"},"subinterfaces":{"subinterface":[{"config":{"index":0},"index":0,"openconfig-if-ip:ipv6":{"config":{"enabled":false}},"state":{"index":0}}]}}]}
+curl -X GET -k "https://localhost/restconf/data/openconfig-interfaces:interfaces/interface=Ethernet0" -H "accept: application/yang-data+json"
+{"openconfig-interfaces:interface":[{"config":{"enabled":true,"mtu":9100,"name":"Ethernet0","type":"iana-if-type:ethernetCsmacd"},"openconfig-if-ethernet:ethernet":{"config":{"port-speed":"openconfig-if-ethernet:SPEED_100GB"}},"name":"Ethernet0","state":{"cpu":false,"logical":false,"management":false,"name":"Ethernet0","type":"iana-if-type:ethernetCsmacd"},"subinterfaces":{"subinterface":[{"config":{"index":0},"index":0,"openconfig-if-ip:ipv6":{"config":{"enabled":false},"state":{"enabled":false}},"state":{"index":0}}]}}]}
 ```
 Sample GET output with IPv4 configuration on Ethernet104:
 ```
@@ -237,7 +277,9 @@ Mapping attributes between OpenConfig YANG and SONiC YANG:
 |   description           |      description      |
 |   mtu                   |      mtu              |
 |   enabled               |      admin\_status    |
-|   index                 |      index            |
+|   ifindex               |      index            |
+|   oper-status           |      oper\_status     |
+|   last-change           |      last_up/down_time|
 
 |   OpenConfig YANG       |    Sonic-interface YANG |
 |-------------------------|-------------------------|
