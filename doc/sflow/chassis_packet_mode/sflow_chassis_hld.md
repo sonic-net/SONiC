@@ -25,7 +25,7 @@
 | 0.1 | 2026-10-20 | Sridhar Talari Rajagopal, Cisco | Initial draft for sFlow support on T2 chassis in packet mode. |
 | 0.2 | 2026-10-23 | Sridhar Talari Rajagopal, Cisco | Cleaned up document structure and terminology; added revision history and unit and system test tables. |
 | 0.3 | 2026-10-27 | Sridhar Talari Rajagopal, Cisco | Editorial cleanup: fixed typos and wording, restructured the high-level design, feature enablement, and design choices sections, and populated open questions. |
-| 0.4 | 2026-10-29 | Sridhar Talari Rajagopal, Cisco | Aligned the design with a single global sFlow configuration applied to all ASIC namespaces and an interface-derived namespace for `config sflow interface`; excluded fabric interfaces and fabric-card ASICs; reworked CLI, design choices, and test cases accordingly. |
+| 0.4 | 2026-10-29 | Sridhar Talari Rajagopal, Cisco | Aligned the design with a single global sFlow configuration applied to all ASIC namespaces and an interface-derived namespace for `config sflow interface`; excluded fabric interfaces and fabric-card ASICs; reworked CLI, design choices, and test cases accordingly; added flow diagrams for feature start, global and interface configuration, and the sample path. |
 
 ## 2. Scope
 
@@ -149,6 +149,102 @@ The sFlow feature is disabled by default in `init_cfg.json.j2`. The `FEATURE` ta
 | sFlow instances | One `hsflowd` instance per ASIC namespace rather than a single instance per line card. A single instance does not help, because the collector is reachable only through front-panel interfaces that belong to individual ASIC namespaces. |
 | Configuration CLI scope | `config sflow` is global: it is applied to every ASIC namespace of the line card, so the user does not pass `-n`. `config sflow interface` resolves the namespace from the interface name. Per-namespace configuration commands are not introduced. |
 | Show CLI scope | `show sflow` accepts an optional `-n <asicN>` to display a single namespace, and displays all namespaces by default. |
+
+### 7.7. Flows
+
+#### 7.7.1. Feature start (`config feature state sflow enabled`)
+
+```mermaid
+sequenceDiagram
+    participant admin
+    participant CLI
+    participant HOST_CFGDB as CONFIG_DB (host)
+    participant ASICn_CFGDB as CONFIG_DB (asic0..asicN)
+    participant hostcfgd
+    participant systemd
+
+    admin ->> CLI: config feature state sflow enabled
+    CLI ->> HOST_CFGDB: Verify FEATURE|sflow exists
+    CLI ->> ASICn_CFGDB: Verify FEATURE|sflow exists with the same state in every namespace
+    alt state differs or feature missing in any namespace
+        CLI -->> admin: Error, nothing written
+    else consistent
+        CLI ->> HOST_CFGDB: FEATURE|sflow state=enabled
+        CLI ->> ASICn_CFGDB: FEATURE|sflow state=enabled (every namespace)
+        hostcfgd ->> systemd: Start sflow@0 .. sflow@N (one per ASIC namespace)
+        systemd ->> systemd: Start sflow container in each namespace (sflowmgrd, hsflowd)
+    end
+```
+
+#### 7.7.2. Global configuration (`config sflow ...`)
+
+```mermaid
+sequenceDiagram
+    participant admin
+    participant CLI
+    participant ASICn_CFGDB as CONFIG_DB (asic0..asicN)
+    participant sflowmgrd as sflowmgrd (per ASIC)
+    participant hsflowd as hsflowd (per ASIC)
+
+    admin ->> CLI: config sflow enable / polling-interval / collector add / agent-id add
+    CLI ->> ASICn_CFGDB: Validate the setting against every namespace
+    alt validation fails in any namespace
+        CLI -->> admin: Error naming the namespace, nothing written
+    else valid in all namespaces
+        CLI ->> ASICn_CFGDB: Write SFLOW / SFLOW_COLLECTOR entries to every namespace
+        ASICn_CFGDB ->> sflowmgrd: SFLOW table event
+        ASICn_CFGDB ->> hsflowd: Global and collector configuration
+        hsflowd ->> hsflowd: Apply collectors, polling interval, agent-id
+    end
+```
+
+#### 7.7.3. Interface configuration (`config sflow interface ...`)
+
+```mermaid
+sequenceDiagram
+    participant admin
+    participant CLI
+    participant ASICx_CFGDB as CONFIG_DB (owning asicX)
+    participant sflowmgrd as sflowmgrd (asicX)
+    participant APPL_DB as APPL_DB (asicX)
+    participant sfloworch as sfloworch (asicX)
+    participant SAI
+
+    admin ->> CLI: config sflow interface enable / sample-rate ifname [rate]
+    CLI ->> CLI: Resolve the owning namespace asicX from ifname
+    alt ifname is not a designated front-panel interface of any ASIC
+        CLI -->> admin: Error, nothing written
+    else eligible interface
+        CLI ->> ASICx_CFGDB: SFLOW_SESSION|ifname admin_state / sample_rate
+        ASICx_CFGDB ->> sflowmgrd: SFLOW_SESSION event
+        sflowmgrd ->> APPL_DB: SFLOW_SESSION_TABLE|ifname
+        APPL_DB ->> sfloworch: SFLOW_SESSION_TABLE event
+        sfloworch ->> SAI: Create samplepacket object (rate)
+        sfloworch ->> SAI: SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE on the port
+    end
+```
+
+For `config sflow interface ... all`, the flow above is repeated for every eligible front-panel interface in its own namespace.
+
+#### 7.7.4. Sample path
+
+```mermaid
+sequenceDiagram
+    participant ASIC as ASIC (asicX)
+    participant KNET
+    participant psample as psample genetlink (asicX)
+    participant hsflowd as hsflowd (asicX)
+    participant FP as Front-panel port
+    participant Collector
+
+    ASIC ->> KNET: Ingress sampled packet with source interface metadata
+    KNET ->> KNET: Demultiplex by incoming interface to namespace asicX
+    KNET ->> psample: Sample on the psample packets group of asicX
+    psample ->> hsflowd: Sample
+    hsflowd ->> hsflowd: Build sFlow v5 datagram
+    hsflowd ->> FP: UDP datagram to IPv4 / IPv6 collector, injected through a front-panel port
+    FP ->> Collector: sFlow datagram
+```
 
 ## 8. SAI API and SDK Changes
 
