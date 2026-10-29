@@ -1,61 +1,163 @@
-# SONiC VRF bind guard
+# SONiC VRF Bind Guard High-Level Design
 
 ## Revision history
 
 | Rev | Date       | Author     | Change Description |
 | --- | ---------- | ---------- | ------------------ |
 | 0.1 | 2026-09-28 | Bojun-Feng | Initial draft. Describes the VRF bind guard and interface retirement approach. |
+| 0.2 | 2026-10-28 | Bojun-Feng | Rewrite for readability and structure; add table of contents, definitions, and schema example. |
 
-## Purpose
+## Table of contents
 
-A Linux interface can enter a new virtual routing and forwarding instance (VRF) while orchagent still owns the old router interface (RIF). New route or neighbor work can then use the old RIF and add references that prevent its removal.
+- [Revision history](#revision-history)
+- [Definitions and abbreviations](#definitions-and-abbreviations)
+- [1. Overview](#1-overview)
+  - [1.1 Existing behavior](#11-existing-behavior)
+  - [1.2 Failure during a VRF change](#12-failure-during-a-vrf-change)
+- [2. Scope and requirements](#2-scope-and-requirements)
+- [3. Architecture and design](#3-architecture-and-design)
+  - [3.1 Component responsibilities](#31-component-responsibilities)
+  - [3.2 Guarding new work](#32-guarding-new-work)
+  - [3.3 Retiring the old interface](#33-retiring-the-old-interface)
+- [4. DB schema and request protocol](#4-db-schema-and-request-protocol)
+  - [4.1 Coordination records](#41-coordination-records)
+  - [4.2 Request processing](#42-request-processing)
+- [5. Lifecycle examples](#5-lifecycle-examples)
+  - [5.1 UNBIND](#51-unbind)
+  - [5.2 Clean BIND](#52-clean-bind)
+  - [5.3 BIND while earlier UNBIND retirement is pending](#53-bind-while-earlier-unbind-retirement-is-pending)
+- [6. Retained work and retry](#6-retained-work-and-retry)
+  - [6.1 Interface retirement](#61-interface-retirement)
+  - [6.2 Neighbor replay](#62-neighbor-replay)
+  - [6.3 Retry wakeups](#63-retry-wakeups)
+- [7. Restart and recovery](#7-restart-and-recovery)
+- [8. Test plan](#8-test-plan)
+  - [8.1 Unit tests](#81-unit-tests)
+  - [8.2 Integration and failure tests](#82-integration-and-failure-tests)
+  - [8.3 State and forwarding checks](#83-state-and-forwarding-checks)
+- [9. References](#9-references)
 
-The guard separates the Linux binding change from RIF readiness. IntfMgr waits for IntfsOrch to confirm the guard is active before changing the Linux binding. While the guard is active, IntfsOrch keeps new interface work queued and dependency owners keep dependency work queued. After retirement, IntfsOrch releases the guard when the current request permits it, so ordinary processing can create the new RIF and use it for current desired work.
+## Definitions and abbreviations
 
-The design preserves the existing CLI and CONFIG_DB API. UNBIND and BIND remain separate operations, and UNBIND can finish without a later BIND. The guard is keyed by interface alias; steady-state route leaking continues to use the existing route and next-hop model.
-
-## Ownership and completion
-
-The Linux interface, recorded interface state, and RIF describe different parts of the lifecycle:
-
-- **Linux interface**: the device whose Linux binding IntfMgr changes with `master` or `nomaster`.
-- **Recorded interface state**: IntfMgr's interface-level STATE_DB entry, including its `vrf` field. Address entries have separate recorded address state.
-- **Interface prefixes**: address entries processed through APPL_DB and tracked by IntfsOrch. An interface-level entry is distinct from its interface prefixes.
-- **Old RIF / new RIF**: the orchagent objects for the old and new interface lifecycles.
-
-| Owner | Responsibility |
+| Term | Definition |
 | --- | --- |
-| IntfMgr | Change the Linux binding, publish interface work to APPL_DB, and update recorded interface state. |
-| IntfsOrch | Maintain the guard, retire the old interface, and create the new RIF. |
-| Dependency owners | RouteOrch, NeighOrch, and next-hop-group owners retain their object references and retry responsibilities. NeighOrch removes old neighbors during retirement. |
+| `VRF` | Virtual Routing and Forwarding instance. |
+| `RIF` | Switch Abstraction Interface (SAI) router interface managed by `IntfsOrch`. |
+| `BIND` / `UNBIND` | Interface VRF transition operations (`config interface vrf bind` and `config interface vrf unbind`). |
+| `APPL_DB` `INTF_TABLE` | Application database table carrying interface-level (`INTF_TABLE:<alias>`) and interface-prefix (`INTF_TABLE:<alias>:<prefix>`) entries from `IntfMgr` to `IntfsOrch`. |
+| `STATE_DB` `INTERFACE_TABLE` | State database table holding `IntfMgr`'s recorded interface state (`INTERFACE_TABLE\|<alias>`) and recorded address state (`INTERFACE_TABLE\|<alias>\|<prefix>`). |
+| `STATE_DB` `INTERFACE_GUARD_TABLE` | State database table (`INTERFACE_GUARD_TABLE\|<alias>`) retaining the current VRF bind guard request, applied transition state, and acknowledgment state per interface alias. |
+| `APPL_DB` `INTF_GUARD_TABLE` | Application database state table (`INTF_GUARD_TABLE:<alias>`) carrying guard requests with `id` and `action` (`prepare`, `applied`, or `cancel`), written by `IntfMgr` and consumed by `IntfsOrch`. |
+| `INTF_GUARD_ACK` | `STATE_DB` notification channel used by `IntfsOrch` to wake `IntfMgr` after writing guard acknowledgment fields. |
+| `Dependency owners` | `orchagent` consumers that create, reuse, or withdraw objects referencing an interface's RIF (`RouteOrch`, `NeighOrch`, `NhgOrch`, `FgNhgOrch`, and `MuxCableOrch`, according to the covered paths in Section 3.2). |
 
-CLI return, recorded interface state, and RIF readiness are separate completion points. The CLI returns after saving the configuration in CONFIG_DB. IntfMgr updates recorded interface state without waiting for old RIF removal. The charts' “UNBIND complete” and “BIND complete” mark the later lifecycle endpoints shown, not the CLI return point.
+## 1. Overview
 
-“Old RIF removed”, “new RIF ready”, and the optional neighbor and next hop readiness describe orchagent object state after successful Switch Abstraction Interface (SAI)/API handling. Forwarding is a separate validation concern.
+### 1.1 Existing behavior
 
-## Guard and retirement
+When a SONiC interface changes its virtual routing and forwarding instance (VRF), `IntfMgr` and `IntfsOrch` process the transition asynchronously across two processes. `IntfMgr` updates the Linux network device's VRF binding (`master` or `nomaster`), publishes interface updates to `APPL_DB` `INTF_TABLE`, and updates recorded interface state in `STATE_DB` `INTERFACE_TABLE` (`INTERFACE_TABLE|<alias>`). Inside `orchagent`, `IntfsOrch` consumes `APPL_DB` `INTF_TABLE` interface work on its own schedule to remove the old SAI router interface (RIF) and create the new RIF.
 
-The guard establishes two ordering rules: confirmation that the guard is active precedes the Linux binding change, and old interface retirement precedes new RIF creation. Confirmation means a matching acknowledgment in state `guarded` or `retired`; it does not require retirement to have finished.
+Because `IntfMgr` updates the Linux binding and recorded interface state without waiting for `IntfsOrch` to finish removing the old RIF, the Linux interface can enter a new VRF while `orchagent` still owns the old RIF. During that window, kernel route and neighbor changes are published to `APPL_DB` for the new VRF, and `RouteOrch` and `NeighOrch` consume those updates independently of `IntfsOrch`.
 
-While the guard is active, IntfsOrch keeps interface-level and interface-prefix SETs queued. Dependency owners check the guard before creating or reusing objects, including cached neighbors, next hops, and next-hop groups. The guard blocks new references to the old RIF, not cleanup lookups. Cleanup and withdrawal paths can still find the old RIF and release existing references. Guard-blocked work stays with its retry owner, which must neither submit it for hardware programming nor count it as successfully processed in a bulk operation.
+### 1.2 Failure during a VRF change
 
-“Check and retire any old interface” is IntfsOrch's retirement operation. It first checks that all ports are ready, including when no old interface or RIF remains. For an old interface, IntfsOrch asks NeighOrch to remove old neighbors and release their RIF references. IntfsOrch then removes any remaining old interface prefixes, performs applicable proxy-ARP cleanup, and removes the old RIF. Existing reference accounting determines when these operations can finish. Dependency owners independently release next-hop references and RIF references for withdrawn work; BIND and UNBIND do not generate those withdrawals.
+While the Linux interface is already in the new VRF and `orchagent` still holds the old RIF, incoming route and neighbor updates for the new VRF arrive in `APPL_DB`. Because `RouteOrch`, `NeighOrch`, and `IntfsOrch` consume separate `APPL_DB` tables independently, `RouteOrch` can receive a connected route before `IntfsOrch` observes the interface transition, programming the route against the old RIF without queuing it for retry. Similarly, `NeighOrch` can create a neighbor or next hop while old RIF removal is pending. Both paths resolve the interface alias to the old RIF and attach references that prevent `IntfsOrch` from removing the old RIF and creating the new RIF.
 
-When a retirement attempt returns incomplete, IntfsOrch must keep retirement queued for retry. The guard remains active until retirement completes and the current request permits guard release. Cleanup follows the existing owners and SAI error handling, including terminal errors.
+`orchagent` cannot prevent this mismatch simply by requiring a route's VRF to match its outgoing RIF's VRF, because legitimate cross-VRF features such as steady-state VRF route leaking and VPN decapsulation install routes whose outgoing RIF belongs to another VRF. Nor can a local removal check inside `IntfsOrch` catch route updates that reach `RouteOrch` before `IntfsOrch` sees the interface change. Preventing the mismatch requires coordinating `IntfMgr` and `orchagent` before the Linux VRF binding changes.
 
-## Lifecycle examples
+## 2. Scope and requirements
 
-The three intent charts illustrate Ethernet0 UNBIND and named-VRF BIND lifecycles. These are representative interleavings of asynchronous consumers. A published APPL_DB operation is processed asynchronously, and independent consumers can run between the steps shown. Linux operations and object changes are shown on their successful paths; readiness and reference waits can repeat. Successful endpoints are conditional on readiness, resolution of blocking references, and successful cleanup or creation.
+During a VRF transition, SONiC must prevent new routes, neighbors, next hops, or interface prefixes from attaching to an interface's old RIF while still allowing existing references on the old RIF to drain. The old RIF must finish retiring before the new RIF is created, and new desired work for the interface must stay queued for retry until the new RIF is ready.
 
-### UNBIND
+The existing CLI and `CONFIG_DB` interface are retained. `BIND` and `UNBIND` remain independent operations, and `UNBIND` can finish without a later `BIND`. Steady-state cross-VRF route leaking continues to use the existing route and next-hop model, and a transition on one interface does not block unrelated interfaces.
 
-For Ethernet0, `config interface vrf unbind` removes the interface configuration and configured addresses. IntfMgr processes address removal and defers interface removal while counted Linux addresses remain. The address count excludes IPv6 link-local addresses. For addresses other than IPv4 link-local, IntfMgr also requests removal of the interface prefix and removes the recorded address state; IPv4 link-local address removal is local to Linux in this path. IntfsOrch may consume interface-prefix removal before the guard is active or during retirement.
+This design applies to non-loopback interfaces (physical ports, VLAN interfaces, LAG interfaces, and sub-ports) transitioning out of or into a named VRF, or recovering an interrupted transition, while preserving their existing manager and orchestrator readiness requirements. Removing an interface already in the default VRF does not invoke the transition guard when no interrupted transition is pending, and loopback processing remains separate.
 
-After confirming that no counted Linux addresses remain and that the guard is active, IntfMgr can detach the Linux interface from the old VRF. It then requests removal of the old interface, reports that the Linux binding changed, and removes the recorded interface state. Before these final three updates, IntfMgr checks that applicable link-local neighbor cleanup succeeded; a failure leaves interface removal pending. IntfsOrch completes retirement asynchronously, subject to port readiness, blocking references, and successful cleanup. UNBIND requires no future target VRF or BIND request.
+## 3. Architecture and design
 
-![UNBIND intent: guard confirmation precedes Linux detachment; old RIF removal and guard release complete asynchronously.](vrf-bind-guard/lifecycles/render/01-unbind-intent.png)
+To close the asynchronous window between Linux and `orchagent`, this design introduces a VRF bind guard keyed by interface alias. Across guarded transitions, the guard enforces two ordering rules: confirmation that the guard is active in `IntfsOrch` precedes the Linux VRF binding change in `IntfMgr`, and old interface retirement precedes new RIF creation.
 
-[UNBIND intent — full-size PNG](vrf-bind-guard/lifecycles/render/01-unbind-intent.png) · [SVG](vrf-bind-guard/lifecycles/render/01-unbind-intent.svg) · [Editable Mermaid](vrf-bind-guard/lifecycles/source/01-unbind-intent.mmd)
+Before changing a guarded Linux VRF binding, `IntfMgr` asks `IntfsOrch` to activate the guard and waits for confirmation. While the guard is active, `IntfsOrch` and dependency owners (`RouteOrch`, `NeighOrch`, and next-hop-group owners `NhgOrch` and `FgNhgOrch`) keep new `SET` work queued for retry while allowing withdrawals and cleanup to drain existing references on the old RIF. Once `IntfMgr` updates the Linux binding and `IntfsOrch` finishes retiring the old RIF, `IntfsOrch` releases the guard so ordinary processing can create the new RIF and use it for current desired work.
+
+### 3.1 Component responsibilities
+
+`IntfMgr` coordinates the guard request, changes the Linux interface binding (`master` or `nomaster`), publishes interface work to `APPL_DB` `INTF_TABLE`, and updates recorded interface state in `STATE_DB` `INTERFACE_TABLE`. Recorded interface state is `IntfMgr`'s interface-level `STATE_DB` entry (`INTERFACE_TABLE|<alias>`), including its `vrf` field. It is distinct from interface prefixes, which are address entries processed through `APPL_DB` (`INTF_TABLE:<alias>:<prefix>`) and tracked by `IntfsOrch`; address entries also have separate recorded address state in `STATE_DB` (`INTERFACE_TABLE|<alias>|<prefix>`).
+
+`IntfsOrch` maintains the guard, retires the old interface, and creates the new RIF. Dependency owners (`RouteOrch`, `NeighOrch`, and next-hop-group owners `NhgOrch` and `FgNhgOrch`) retain their object references and retry responsibilities, and `NeighOrch` removes old neighbors during retirement.
+
+CLI return, recorded interface state, and RIF readiness are separate completion points. The CLI returns after saving the configuration in `CONFIG_DB`. `IntfMgr` updates recorded interface state after changing the Linux binding without waiting for old RIF removal, while `IntfsOrch` completes old RIF retirement and new RIF creation asynchronously.
+
+### 3.2 Guarding new work
+
+Before changing a guarded Linux binding, `IntfMgr` asks `IntfsOrch` to activate the guard. A matching acknowledgment in state `guarded` or `retired` confirms that the guard is active. `IntfMgr` can then change the Linux binding whether or not old interface retirement has finished.
+
+While the guard is active, `IntfsOrch` keeps interface-level and interface-prefix `SET` operations queued. On covered dependency paths (`RouteOrch` route processing, `NeighOrch` neighbor and single/bulk neighbor-enable processing, `NhgOrch` group and link-up validation, and ordinary `MuxCableOrch` activation requests), owners check the guard before creating or reusing objects that reference the interface, including cached neighbors, next hops, and next-hop groups; legacy `RouteOrch` ECMP and `FgNhgOrch` link-state callbacks remain separate from this guard. Cleanup and withdrawal paths retain access to the old RIF so they can find it and release existing references. A guarded operation remains pending with its retry owner and is excluded from hardware submission and bulk-success accounting.
+
+### 3.3 Retiring the old interface
+
+To retire an old interface, `IntfsOrch` first waits for all ports to be ready, including when no old interface or RIF remains. When an old interface is present, `IntfsOrch` asks `NeighOrch` to remove old neighbors and release their RIF references, removes any remaining old interface prefixes, performs applicable proxy-ARP cleanup, and removes the old RIF.
+
+Existing reference accounting determines when these operations can finish. Dependency owners independently release next-hop references and RIF references as withdrawn work arrives; `BIND` and `UNBIND` do not generate those withdrawals. When a retirement attempt returns incomplete, `IntfsOrch` keeps retirement queued for retry. The guard remains active until retirement completes and the current request permits guard release. Cleanup follows the existing owners and SAI error handling, including terminal errors.
+
+## 4. DB schema and request protocol
+
+### 4.1 Coordination records
+
+Because `IntfMgr` and `IntfsOrch` run as independent processes, the guard coordinates transitions through internal `APPL_DB` and `STATE_DB` records. `IntfMgr` retains one current request per interface alias in `STATE_DB` `INTERFACE_GUARD_TABLE|<alias>` and allocates a monotonically increasing `request_id` from that record.
+
+- **Guard invocation:** In addition to named-VRF creation and removal, `IntfMgr` uses the guard when creating an interface with a retained `request_id` while recorded interface state in `STATE_DB` `INTERFACE_TABLE|<alias>` is absent, or when `kernel_pending` indicates retained unfinished Linux binding work, so any prior transition finishes retiring first.
+- **Request publication (`IntfMgr` to `IntfsOrch`):** `IntfMgr` persists the request in `STATE_DB` `INTERFACE_GUARD_TABLE|<alias>` before publishing a `SET` with `id` and `action` (`prepare`, `applied`, or `cancel`) through the `APPL_DB` `INTF_GUARD_TABLE` state table, keyed by `<alias>`.
+- **Validation and acknowledgment (`IntfsOrch` to `IntfMgr`):** For each `APPL_DB` request update, `IntfsOrch` validates its `id` and `action` against the retained `STATE_DB` record before processing it. After writing acknowledgment fields to that record, `IntfsOrch` sends an `INTF_GUARD_ACK` notification to wake `IntfMgr`.
+- **Acknowledgment readback:** `IntfMgr` then reads the retained `INTERFACE_GUARD_TABLE|<alias>` record to check the acknowledged ID and state.
+
+| Database / Table | Writer | Fields | Meaning |
+| --- | --- | --- | --- |
+| `STATE_DB` `INTERFACE_GUARD_TABLE\|<alias>` | `IntfMgr` | `request_id` | Monotonically increasing identity allocated from retained state; retries of the same `prepare` retain the request ID. |
+| `STATE_DB` `INTERFACE_GUARD_TABLE\|<alias>` | `IntfMgr` | `action` | Current request action (`prepare`, `applied`, or `cancel`); notification ID and action must match the retained current request. |
+| `STATE_DB` `INTERFACE_GUARD_TABLE\|<alias>` | `IntfMgr` | `target_vrf` | Current request's target VRF name (for example, `VrfBlue` in Section 5.2, or empty for `nomaster`). |
+| `STATE_DB` `INTERFACE_GUARD_TABLE\|<alias>` | `IntfMgr` | `kernel_pending` | Set before a guarded Linux binding change and cleared after updating recorded interface state; if processing is interrupted or replaced, this field keeps unfinished Linux binding work guarded. |
+| `STATE_DB` `INTERFACE_GUARD_TABLE\|<alias>` | `IntfMgr` | `applied_id`, `applied_vrf` | Latest applied request and its target VRF (or empty for `nomaster`), preserving pending retirement across `DEL`-to-`SET` coalescing and newer request cancellations. |
+| `STATE_DB` `INTERFACE_GUARD_TABLE\|<alias>` | `IntfsOrch` | `id`, `state` | Acknowledged request identity and progress state (`guarded`, `retired`, or `released`). |
+| `STATE_DB` `INTERFACE_GUARD_TABLE\|<alias>` | `IntfsOrch` | `retired_id` | Retirement completion identity compared with `applied_id` to determine whether an applied transition's pending retirement remains unfinished. |
+| `APPL_DB` `INTF_GUARD_TABLE:<alias>` (state-table entry) | `IntfMgr` | `id`, `action` | Request fields delivered by `ProducerStateTable` / `ConsumerStateTable`; `id` and `action` are validated against `INTERFACE_GUARD_TABLE\|<alias>`. |
+| `STATE_DB` `INTF_GUARD_ACK` (notification channel) | `IntfsOrch` | Operation `ack`; data `<alias>`; no field/value pairs | Wakeup after the acknowledgment fields in `INTERFACE_GUARD_TABLE\|<alias>` are updated; `IntfMgr` reads that record to check `id` and `state`. |
+
+Example `STATE_DB` `INTERFACE_GUARD_TABLE|Ethernet0` record after retirement for request `1` is complete and `IntfMgr` has applied request `2`, a `BIND` to `VrfBlue`. `IntfsOrch` has acknowledged request `2` as `guarded` but has not completed its retirement check (`applied_id` `2` > `retired_id` `1`):
+
+```text
+STATE_DB  INTERFACE_GUARD_TABLE|Ethernet0
+    request_id     = "2"
+    action         = "applied"
+    target_vrf     = "VrfBlue"
+    kernel_pending = "0"
+    applied_id     = "2"
+    applied_vrf    = "VrfBlue"
+    id             = "2"
+    state          = "guarded"
+    retired_id     = "1"
+```
+
+### 4.2 Request processing
+
+The three request actions coordinate the guard lifecycle across the retained request record:
+
+- `prepare` asks `IntfsOrch` to activate the guard for the interface. `IntfsOrch` validates the request against the retained record, marks the guard active for this request, and writes its acknowledgment. `IntfMgr` proceeds with the Linux binding change only with a matching `guarded` or `retired` acknowledgment. Retries of the same `prepare` keep the same `request_id`.
+- `applied` reports that `IntfMgr` changed the Linux binding. After updating the Linux binding, `IntfMgr` publishes ordinary interface work and records `applied_id` and `applied_vrf`. `IntfsOrch` then completes retirement and releases the guard for the current request.
+- `cancel` ends a `prepare` that did not change the Linux binding. Any earlier applied request's unfinished retirement still completes before guard release, as described in Section 6.1.
+
+Acknowledgment states distinguish guard progress: `guarded` means the guard is active; `retired` means old interface retirement has completed but the guard is still active; `released` means the guard is inactive. When a replacement request arrives, `IntfsOrch` transfers the active guard to the new request without allowing new work between requests. After release, the terminal request record remains in `STATE_DB` so stale `APPL_DB` guard notifications cannot act on a new RIF and an older queued `INTF_TABLE` interface entry cannot recreate a mismatched VRF binding.
+
+## 5. Lifecycle examples
+
+The three sequence diagrams illustrate `Ethernet0` `UNBIND` and named-VRF `BIND` lifecycles. They show representative interleavings where `APPL_DB` consumers run independently, Linux operations and `orchagent` object changes follow their successful paths, and readiness or reference waits can repeat. In these diagrams, `UNBIND complete` marks old RIF removal and guard release; `BIND complete` marks new RIF creation after guard release. Object readiness (“Old RIF removed”, “new RIF ready”, and optional neighbor and next hop readiness) follows successful SAI/API handling.
+
+### 5.1 UNBIND
+
+For `Ethernet0`, `config interface vrf unbind` removes the interface configuration and configured addresses. `IntfMgr` processes address removal and defers interface removal while counted Linux addresses remain (excluding IPv6 link-local addresses). For each configured address, `IntfMgr` removes the Linux address, and for addresses other than IPv4 link-local it also requests removal of the interface prefix and removes the recorded address state (IPv4 link-local address removal is local to Linux in this path). `IntfsOrch` may consume interface-prefix removal before the guard is active or during retirement.
+
+Once no counted Linux addresses remain and `IntfsOrch` confirms the guard is active, `IntfMgr` detaches the Linux interface from the old VRF (`nomaster`). Before requesting removal of the old interface, reporting `applied`, and removing the recorded interface state, `IntfMgr` checks that applicable link-local neighbor cleanup succeeded; a failure leaves those three updates pending. After `IntfMgr` publishes them, `IntfsOrch` completes retirement asynchronously and releases the guard.
+
+![Figure 1: UNBIND sequence — guard confirmation precedes Linux detachment; old RIF removal and guard release complete asynchronously.](vrf-bind-guard/lifecycles/render/01-unbind-intent.png)
 
 <details>
 <summary>Mermaid source</summary>
@@ -116,19 +218,15 @@ sequenceDiagram
 
 </details>
 
-Sub-port UNBIND removes configured addresses and the old interface configuration, waits for old recorded interface state to disappear, then recreates the sub-port configuration in the default VRF by omitting the VRF field. The old RIF must still retire before new RIF creation; sub-port recreation and its final configuration are outside the Ethernet0 UNBIND endpoint shown.
+Sub-port `UNBIND` removes configured addresses and the old interface configuration, waits for old recorded interface state to disappear, and then recreates the sub-port configuration in the default VRF by omitting the VRF field. While the `Ethernet0` diagram above ends once the old RIF is removed and the guard is released, sub-port recreation continues into new default-VRF RIF creation after old RIF retirement completes.
 
-### Clean BIND
+### 5.2 Clean BIND
 
-A clean BIND starts with the Linux interface detached, recorded interface state absent, no old RIF, and the guard inactive. VrfBlue is the target VRF in the example. Before saving the new interface configuration, `config interface vrf bind` removes configured addresses and the old interface configuration, then waits for old recorded interface state to disappear, not for old RIF removal. IntfMgr must check interface and VrfBlue state readiness before asking IntfsOrch to activate the guard. After confirmation, it can attach the Linux interface to VrfBlue, request creation of the new interface, report that the Linux binding changed, and record the new interface state.
+A clean `BIND` starts with the Linux interface detached, recorded interface state absent, no old RIF, and the guard inactive, with `VrfBlue` as the target VRF. Before saving the new interface configuration, `config interface vrf bind` removes configured addresses and the old interface configuration, then waits for old recorded interface state to disappear. After checking interface and `VrfBlue` state readiness and confirming the guard is active, `IntfMgr` attaches the Linux interface to `VrfBlue` (`master`), publishes the new interface request and `applied` update, and records the new interface state.
 
-The guard still requires the retirement check: all ports must be ready before IntfsOrch can establish that no old interface or RIF remains and release the guard. Ordinary interface processing then checks that ports and VrfBlue are ready. With the port available and successful SAI/API handling, IntfsOrch creates the new RIF. This is the BIND endpoint.
+In `IntfsOrch`, the retirement check waits for all ports to be ready, establishes that no old interface or RIF remains, and releases the guard. Ordinary interface processing then verifies port and `VrfBlue` readiness and creates the new RIF (`BIND complete`). Address configuration and neighbor learning arrive independently; when eligible neighbor work with a valid neighbor IP and a usable MAC is supplied, `NeighOrch` uses the new RIF to create the neighbor and next hop.
 
-Independently supplied eligible neighbor work is an optional continuation. With a valid neighbor IP, a usable MAC, and successful processing, NeighOrch can use the new RIF to create the neighbor and next hop. Address configuration and neighbor learning are supplied independently as needed; BIND itself supplies neither replacement addresses nor a neighbor request.
-
-![Clean BIND intent: separate Linux attachment, recorded interface state, guard release, and new RIF readiness; neighbor work is optional.](vrf-bind-guard/lifecycles/render/02-clean-bind-intent.png)
-
-[Clean BIND intent — full-size PNG](vrf-bind-guard/lifecycles/render/02-clean-bind-intent.png) · [SVG](vrf-bind-guard/lifecycles/render/02-clean-bind-intent.svg) · [Editable Mermaid](vrf-bind-guard/lifecycles/source/02-clean-bind-intent.mmd)
+![Figure 2: Clean BIND sequence — separate Linux attachment, recorded interface state, guard release, and new RIF readiness; neighbor work is optional.](vrf-bind-guard/lifecycles/render/02-clean-bind-intent.png)
 
 <details>
 <summary>Mermaid source</summary>
@@ -184,15 +282,13 @@ sequenceDiagram
 
 </details>
 
-### BIND while earlier UNBIND retirement is pending
+### 5.3 BIND while earlier UNBIND retirement is pending
 
-Here the Linux interface is already detached and recorded interface state is absent, but the guard is active and old interface retirement is pending. A new BIND request transfers the active guard to the current request without a gap. Once IntfMgr has the matching confirmation, it can attach the Linux interface to VrfBlue and record the new interface state while old interface retirement remains pending. New RIF creation and dependency work wait for retirement and guard release.
+As in Section 5.2, `config interface vrf bind` waits only for old recorded interface state to disappear. A new `BIND` can therefore begin when the Linux interface is already detached and recorded interface state is absent, while the guard remains active and old interface retirement from the earlier `UNBIND` is still pending. When `IntfMgr` issues the new `BIND` request, `IntfsOrch` transfers the active guard to the current request without a gap. After matching confirmation, `IntfMgr` attaches the Linux interface to `VrfBlue` and records the new interface state while old interface retirement remains pending. New RIF creation and dependency work wait for retirement and guard release.
 
-The old objects belong to the earlier UNBIND; guard release uses the validated current request. After retirement and guard release, new RIF creation and the optional neighbor work follow the same conditions as clean BIND.
+The old neighbors, interface prefixes, and RIF belong to the earlier `UNBIND`, whereas guard release uses the validated current `BIND` request. After retirement and guard release, new RIF creation and the optional neighbor work follow the same conditions as a clean `BIND`.
 
-![BIND while earlier UNBIND retirement is pending — intent: the active guard transfers to the current request, preserving earlier UNBIND retirement before new RIF creation.](vrf-bind-guard/lifecycles/render/03-bind-waits-for-unbind-intent.png)
-
-[BIND while earlier UNBIND retirement is pending — intent, full-size PNG](vrf-bind-guard/lifecycles/render/03-bind-waits-for-unbind-intent.png) · [SVG](vrf-bind-guard/lifecycles/render/03-bind-waits-for-unbind-intent.svg) · [Editable Mermaid](vrf-bind-guard/lifecycles/source/03-bind-waits-for-unbind-intent.mmd)
+![Figure 3: BIND while earlier UNBIND retirement is pending — the active guard transfers to the current request, preserving earlier UNBIND retirement before new RIF creation.](vrf-bind-guard/lifecycles/render/03-bind-waits-for-unbind-intent.png)
 
 <details>
 <summary>Mermaid source</summary>
@@ -264,43 +360,59 @@ sequenceDiagram
 
 </details>
 
-## Request protocol
+## 6. Retained work and retry
 
-The guard uses internal APPL_DB and STATE_DB tables. IntfMgr retains one current request per interface alias and allocates a monotonically increasing `request_id` from that record. It persists the request before publishing an APPL_DB notification. IntfsOrch validates the notification's ID and action against the retained request before processing it.
+### 6.1 Interface retirement
 
-| Record | Writer and contents |
-| --- | --- |
-| APPL_DB `INTF_GUARD_TABLE:<alias>` | IntfMgr publishes `id` and `action`: `prepare`, `applied`, or `cancel`. |
-| STATE_DB `INTERFACE_GUARD_TABLE\|<alias>` | IntfMgr writes `request_id`, `action`, `target_vrf`, `kernel_pending`, `applied_id`, and `applied_vrf`. IntfsOrch writes acknowledgment `id` and `state`, plus `retired_id` after retirement. |
-| STATE_DB notification `INTF_GUARD_ACK` | IntfsOrch wakes IntfMgr after writing the acknowledgment. The retained record supplies the ID and state that IntfMgr checks. |
+`IntfsOrch` retains pending retirement separately from the ordinary interface consumer queue. If an interface `DEL` and a later `SET` coalesce in the `APPL_DB` state-table delivery path before `IntfsOrch` consumes the `DEL`, the ordinary interface entry alone no longer shows the `DEL`, but `applied_id` in `STATE_DB` still records the pending retirement. `IntfsOrch` compares `applied_id` with `retired_id` to determine whether retirement is unfinished, including when a newer `prepare` is canceled. Canceling that newer request therefore preserves the earlier pending retirement.
 
-The actions connect the lifecycle operations to the retained request:
+### 6.2 Neighbor replay
 
-- **`prepare`** implements “Ask IntfsOrch to activate the guard”. IntfsOrch validates the request, performs “Set the guard active for this request”, and reports its state. IntfMgr proceeds only with a matching `guarded` or `retired` acknowledgment.
-- **`applied`** implements “Report that the Linux binding changed”. IntfMgr publishes ordinary interface work and records `applied_id` and `applied_vrf`. `applied_vrf` records the applied request’s target VRF, or empty for `nomaster`. IntfsOrch then completes retirement and releases the guard for the current request.
-- **`cancel`** ends a prepare that did not change the Linux binding. Any earlier applied request's unfinished retirement still has to complete before guard release.
+`NeighOrch` similarly separates desired neighbor input from its hardware cache. After successful old neighbor removal during retirement, `NeighOrch` requeues a previously consumed desired `SET` if no newer `SET` or `DEL` is already pending for that neighbor. Desired `SET` operations that are still pending remain queued while the guard is active. After guard release and new RIF creation, ordinary retries process current desired neighbor work against the new RIF.
 
-Acknowledgment states distinguish progress: `guarded` means the guard is active; `retired` means old interface retirement has completed but the guard is still active; `released` means the guard is inactive. A replacement request transfers the active guard without allowing new work between requests. The terminal request record remains so stale APPL_DB notifications cannot act on a new RIF.
+### 6.3 Retry wakeups
 
-`target_vrf` names the current request's target VRF: VrfBlue in the BIND examples, or empty for `nomaster`. IntfMgr sets `kernel_pending` before a guarded Linux binding change and clears it after updating recorded interface state. If processing is interrupted or replaced, this field keeps unfinished Linux binding work guarded. Retries of the same prepare retain the request ID.
+`INTF_GUARD_ACK` prompts `IntfMgr` to read the retained `STATE_DB` record and retry pending work. `IntfMgr` also retries on timeout and after other events.
 
-## Retained work and recovery
+## 7. Restart and recovery
 
-Retirement is retained separately from the ordinary interface queue. If an interface DEL and a later SET coalesce, `applied_id` still records the retirement obligation. IntfsOrch compares `applied_id` with `retired_id` to determine whether retirement is unfinished, including when a newer prepare is canceled. Canceling that newer request therefore preserves the earlier retirement obligation.
+Recovery depends on whether the guard records in `STATE_DB` survive. After an `intfmgrd` or `orchagent` restart, or a `config reload`, the components use the recovery sequence below when retained requests are present. If a cold reboot or another initialization path clears those records, there is no previous guard request to reconstruct; the components follow the normal SONiC initialization path.
 
-NeighOrch similarly separates desired neighbor input from its hardware cache. After successful old neighbor removal, it requeues a previously consumed desired SET if no newer SET or DEL is already pending. Desired SETs that are still pending remain queued while the guard is active. After guard release and new RIF creation, ordinary retries process current desired work.
+Warm reboot and fast reboot may restore other Redis state while filtering `STATE_DB`. The current reboot filter does not retain `INTERFACE_GUARD_TABLE`, so the retained-state algorithm below does not establish recovery of an in-flight transition across those reboots. Support for that case requires explicit preservation of the required records and validation of the relevant reboot path.
 
-With retained database state, IntfsOrch reconstructs active requests and terminal records during startup, before dependency work can use a RIF. IntfMgr reconciles retained prepares and unfinished Linux binding work with configuration and recorded interface state. It resumes a retained removal before processing a replacement request for a different VRF, recovering applicable link-local neighbor cleanup from the old APPL_DB interface entry; an orphan prepare with no removal obligation can be canceled. This recovery scope assumes the retained request state is available.
+During startup with retained `STATE_DB` state, `IntfsOrch` reconstructs active guard requests and terminal request records from `STATE_DB` `INTERFACE_GUARD_TABLE` before dependency work can use a RIF. Reconstructing active requests preserves admission blocking for in-flight transitions, while reconstructing terminal records ensures stale `APPL_DB` notifications cannot act on a RIF after restart.
 
-`INTF_GUARD_ACK` prompts IntfMgr to retry pending work. IntfMgr also retries on timeout and after other events, so retries do not depend solely on notification delivery, even if a notification is lost or input arrives continuously.
+`IntfMgr` reconciles retained `prepare` requests and unfinished Linux binding work (`kernel_pending`) with `CONFIG_DB` configuration and recorded interface state in `STATE_DB` `INTERFACE_TABLE`. When a retained removal was interrupted, `IntfMgr` resumes and completes that removal before processing a replacement request for a different VRF, recovering applicable link-local neighbor cleanup from the old `APPL_DB` `INTF_TABLE` interface entry. An orphan `prepare` with no pending removal can be canceled. Validation covers supported reload and restart interleavings with retained database state.
 
-## Compatibility and validation
+## 8. Test plan
 
-The guard applies to non-loopback interface-level removal from a named VRF, creation attached to a named VRF, and retained unfinished Linux binding work. Removing an interface already in the default VRF does not use the guard when no unfinished Linux binding work is retained. Loopback processing remains separate. Physical ports, VLAN interfaces, LAG interfaces, and sub-ports retain their existing manager and orchestrator readiness requirements. IntfMgr changes the Linux binding with `master` or `nomaster`.
+### 8.1 Unit tests
 
-Validation should compare guarded behavior with the existing behavior and check each completion point separately:
+- Exercise `prepare`, `applied`, and `cancel` processing, verifying that retries of the same `prepare` keep the same `request_id`. Verify that notifications are validated against retained `request_id` and `action` fields and that `IntfMgr` changes the Linux binding only after an acknowledgment whose `id` matches the current request, including when a stale acknowledgment is injected.
+- Inject stale requests and acknowledgments across replacement and release, verifying that replacement requests transfer the active guard without an unguarded gap and that retained terminal records reject stale `APPL_DB` notifications after guard release.
+- Verify that a matching `guarded` or `retired` acknowledgment precedes the Linux binding change, old RIF removal precedes new RIF creation, and interface-level and interface-prefix `SET` operations stay queued while the guard is active.
+- Verify that on covered dependency paths (`RouteOrch` route processing, `NeighOrch` neighbor and single/bulk neighbor-enable processing, `NhgOrch` group and link-up validation, and ordinary `MuxCableOrch` activation requests), owners block new object creation and cached neighbor, next-hop, and next-hop-group reuse while the guard is active, and allow cleanup and withdrawal lookups to release existing references. Verify that guard-blocked work remains pending without being submitted for hardware programming or counted as successfully processed in a bulk operation.
+- Verify that `IntfMgr` and `IntfsOrch` wait while interface or target-VRF state is not ready, and that `IntfsOrch` keeps retirement queued when ports are not ready (including clean `BIND` when no old interface or RIF remains). Verify that retirement also stays queued while external next-hop or RIF references remain held and completes after ports become ready and dependency owners withdraw their references.
 
-- Exercise default-to-named, named-to-default, and named-to-named changes, independent UNBIND, cancellation, and overlapping BIND across the supported interface types and both address families, including addressless and link-local configurations.
-- Verify matching guard confirmation before the Linux binding change, old RIF removal before new RIF creation, and guard-blocked work retained for retry. Cover direct routes, gateway routes, equal-cost multipath (ECMP), fine-grained ECMP, cached object reuse, and steady-state route leaking.
-- Force DEL-to-SET coalescing, stale requests and acknowledgments, command and SAI failures, and supported reload/restart interleavings with retained state. Cover both desired neighbor replay cases: a previously consumed desired SET that NeighOrch requeues after old neighbor removal, and a desired SET that remains queued while the guard is active.
-- Inspect Linux, FRRouting (FRR), APPL_DB, STATE_DB, ASIC_DB, object identity and reference counts, and forwarding separately. Check that IntfMgr updates recorded interface state without waiting for old RIF removal and that unrelated interfaces continue to progress.
+### 8.2 Integration and failure tests
+
+- Exercise default-to-named, named-to-default, and named-to-named VRF transitions, standalone `UNBIND` completing without a later `BIND`, `prepare` cancellation, and overlapping `BIND` while earlier `UNBIND` retirement is pending. Cover physical ports, VLAN interfaces, LAG interfaces, and sub-ports (distinguishing sub-port default-VRF recreation from the `Ethernet0` `UNBIND` endpoint) across IPv4 and IPv6, including addressless interfaces, IPv6 link-local addresses (excluded from the counted-address gate), and IPv4 link-local addresses.
+- Cover direct/connected routes, gateway routes, ECMP, fine-grained ECMP, and cached object reuse. Verify both desired neighbor replay cases in `NeighOrch`: requeuing a previously consumed desired `SET` after successful old neighbor removal when not superseded by a newer `SET` or `DEL`, and keeping a desired `SET` that arrives while guarded queued until the new RIF is created.
+- Force `DEL`-to-`SET` interface coalescing before `IntfsOrch` consumes the `DEL` and verify that comparing `applied_id` with `retired_id` preserves pending retirement across a canceled newer `prepare`, while rejecting a stale queued interface `SET` whose VRF does not match the completed transition.
+- Inject Linux command failures, link-local neighbor cleanup failures (verifying that the final three `UNBIND` updates stay pending), and SAI failures including terminal errors.
+- Test lost `INTF_GUARD_ACK` notifications and continuous input to confirm timer and event retry wakeups.
+- Run supported reload/restart interleavings with retained database state across `prepare`, `kernel_pending`, `applied`, and retirement to verify startup reconstruction, interrupted removal completion before different-VRF replacement, and orphan `prepare` cancellation.
+
+### 8.3 State and forwarding checks
+
+Validation compares guarded behavior with existing SONiC behavior and checks each completion point separately:
+
+- Inspect the Linux kernel, FRR, `APPL_DB`, `STATE_DB`, `ASIC_DB`, SAI object identities and reference counts, and data-plane packet forwarding independently across each transition.
+- Verify that `IntfMgr` updates recorded interface state without waiting for old RIF removal, that unrelated interfaces continue to progress while an interface is guarded, and that steady-state cross-VRF route leaking continues to forward traffic using the existing route and next-hop model.
+
+## 9. References
+
+- [sonic-buildimage#27608](https://github.com/sonic-net/sonic-buildimage/issues/27608): Connected route in the new VRF programmed against the old RIF while VRF removal is pending
+- [sonic-swss#4645](https://github.com/sonic-net/sonic-swss/pull/4645) and backport [sonic-swss#4803](https://github.com/sonic-net/sonic-swss/pull/4803): Defer connected route processing after `IntfsOrch` starts interface removal, and [cross-VRF route-leaking discussion on why route VRF cannot be required to match outgoing RIF VRF](https://github.com/sonic-net/sonic-swss/pull/4645#discussion_r3439874875)
+- [sonic-buildimage#28619](https://github.com/sonic-net/sonic-buildimage/issues/28619): Connected route reaches `RouteOrch` before `IntfsOrch` observes the VRF rehome, bypassing the removal-in-progress check
+- [sonic-buildimage#29919](https://github.com/sonic-net/sonic-buildimage/issues/29919): Neighbor or next hop created on the old RIF while VRF removal is pending and connected routes are deferred
