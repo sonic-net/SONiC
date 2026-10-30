@@ -403,18 +403,21 @@ Renovate cannot approve its own pull requests. The existing merge robot merges t
 |---|---|
 | `renovate.json` | Applies the `automerge` label as set out in [7.5](#75-branch-policy). Renovate's own `automerge` setting stays off |
 | Merge robot | Lists Renovate pull requests carrying both the `automerge` and `security` labels, evaluates their checks, and merges the ones that pass with `gh pr merge --admin`, pinned to the head commit it evaluated. One that fails is left for its reviewers, without the cherry-pick retry or escalation |
-| Branch protection | Depends on whether the branch's protection applies to administrators. See below |
+| Branch protection and rulesets | Must let `mssonicbld` merge without a review. See below |
 
-Which pull requests merge is decided in `renovate.json`, by the label. Whether a labeled pull request merges is decided by the robot, and by branch protection where it applies to administrators.
+Which pull requests merge is decided in `renovate.json`, by the label. Whether a labeled pull request merges is decided by the robot, and by whatever the base branch's rules do not let `mssonicbld` bypass.
 
-`--admin` bypasses what an administrator may bypass on that branch:
+Nothing approves a Renovate pull request, so `mssonicbld` has to be able to merge one without a review. `--admin` bypasses only what `mssonicbld` may bypass on that branch, and classic branch protection and repository rulesets grant that differently:
 
-| Protection applies to administrators | Review requirement | Required status checks |
-|--------------------------------------|--------------------|------------------------|
-| No | Bypassed | Bypassed |
-| Yes | Enforced, unless `mssonicbld` is allowed to bypass required pull requests | Enforced |
+| Rule on the base branch | Review requirement | Required status checks |
+|-------------------------|--------------------|------------------------|
+| Classic protection that does not apply to administrators | Bypassed | Bypassed |
+| Classic protection that applies to administrators | Enforced, unless `mssonicbld` is allowed to bypass required pull requests | Enforced |
+| A ruleset with a pull request or required status check rule | Enforced, unless `mssonicbld` is a bypass actor of the ruleset | Enforced, unless `mssonicbld` is a bypass actor of the ruleset |
 
-The robot therefore enforces the checks itself, whatever the branch setting. Where protection applies to administrators, `mssonicbld` needs the pull request bypass on that branch, or the robot cannot merge there.
+`--admin` does not bypass a ruleset by itself. Each ruleset has a bypass list, set under the repository's Settings, Rules, Rulesets: the actors on it are exempt from that ruleset's rules, and can merge a pull request that has no approval or a missing required check. The list names repository roles, teams and apps, never a user, and `mssonicbld` is a user. It becomes a bypass actor through the repository admin role, with `mssonicbld` a repository admin, or through a team it belongs to ([9.5](#95-setup-steps)). Without that, GitHub refuses the robot's merge with "Repository rule violations found", and every labeled Renovate pull request in the repository waits for a person.
+
+The robot therefore enforces the checks itself, whatever the branch setting.
 
 Robot check evaluation is a prerequisite for the `automerge` label. For a Renovate pull request, the robot merges only when every check it reads has completed successfully:
 
@@ -434,7 +437,7 @@ Robot check evaluation is a prerequisite for the `automerge` label. For a Renova
 
 The labels and the pull request author do not say who wrote the commits, and anyone with write access can push to a Renovate branch. The robot therefore reads every commit on the pull request. GitHub signs a commit the Renovate bot makes through its API, and a `go.sum` fixup made the same way. It does not sign a pushed commit, whatever author the commit names.
 
-The robot reads the base branch's required status checks from the branch API, so a merge never waits on a check list kept in the robot. The build check covers a branch that requires only `EasyCLA`, where the build might not yet have registered when the robot runs. The robot's evaluation of every other pull request is unchanged. The strict evaluation lands in the same `sonic-pipelines` change as the preset, so no Renovate pull request carries the label before it. Both labels are required, so a stray `automerge` label on an ordinary Renovate pull request merges nothing.
+The robot reads the base branch's required status checks from both the branch protection API and the rules API (`/repos/{repo}/rules/branches/{branch}`), so a merge never waits on a check list kept in the robot, and a check that only a ruleset requires is still enforced when `mssonicbld` bypasses that ruleset. The build check covers a branch that requires only `EasyCLA`, where the build might not yet have registered when the robot runs. The robot's evaluation of every other pull request is unchanged. The strict evaluation lands in the same `sonic-pipelines` change as the preset, so no Renovate pull request carries the label before it. Both labels are required, so a stray `automerge` label on an ordinary Renovate pull request merges nothing.
 
 `EasyCLA` is a required check, and is a commit status. A pull request from the Renovate bot clears it the same way one from `mssonicbld` does. So does a commit from `github-actions[bot]`, which authors the `go.sum` fixups in [7.2](#72-native-managers).
 
@@ -630,7 +633,7 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 | 2 | Organization administrator, Security WG | Create the `sonic-security-wg` team as set out in [7.7](#77-reviewers): visible, no parent team, the public Working Group membership with at least one member as team maintainer, and Read on each repository Renovate runs in |
 | 3 | Each repository's administrators | Leave Dependabot alerts on, and turn Dependabot security updates off. See [7.8](#78-existing-automation) |
 | 4 | `sonic-pipelines` maintainers | Merge `renovate/default.json` and the `automation-pr-scan.yml` change: the Renovate author filter, and the check evaluation in [7.6](#76-approval-and-merge). Add each Renovate repository to the robot's `repos` parameter if it is not already listed |
-| 5 | Organization administrator | Where branch protection applies to administrators, allow `mssonicbld` to bypass required pull requests on the branches Renovate targets ([7.6](#76-approval-and-merge)) |
+| 5 | Organization administrator | On each branch Renovate targets, let `mssonicbld` merge without a review ([7.6](#76-approval-and-merge)). Where classic branch protection applies to administrators, allow `mssonicbld` to bypass required pull requests. Where a ruleset carries a pull request or required status check rule, make `mssonicbld` a repository admin and add the repository admin role to the ruleset's bypass list, or add a team holding `mssonicbld` to it |
 | 6 | Each repository's administrators | Where a repository carries a workflow from [7.2](#72-native-managers) and a branch protection rule matches every branch, replace that rule with a branch ruleset that includes all branches, excludes `renovate/**`, keeps the same rules, and lets the repository admin role bypass, so the workflow can commit to Renovate branches |
 | 7 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)) |
 | 8 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers) |
@@ -668,7 +671,7 @@ No change. Nothing is added to the image.
 | Hand-pinned versions outside an ecosystem datasource are never classified as security updates | No advisory feed sits behind them. They are enabled by name and merged by a reviewer. See [7.5](#75-branch-policy) |
 | Renovate cannot update `go.sum` past a `replace` that points outside the repository | A workflow in that repository tidies it and re-dispatches its checks. See [7.2](#72-native-managers) |
 | The `go` directive is not updated | A standard library fix reaches SONiC through the build container's toolchain |
-| The merge robot merges without a review | Where branch protection does not apply to administrators it also bypasses the required checks, so the robot evaluates them itself. See [7.6](#76-approval-and-merge) |
+| The merge robot merges without a review | The bypass that lets it also skips the required checks, so the robot evaluates them itself. See [7.6](#76-approval-and-merge) |
 | A security fix to a v0 Go module can change its API | Go treats a v0 minor bump as compatible, and labels it accordingly. Security updates take the lowest fixed version, and the build and tests gate the merge |
 | The FIPS Go pin depends on a SONiC FIPS build | Renovate lists the upstream release on the dashboard. The bump lands after SONiC publishes the package |
 | Renovate reads only what a manifest declares | Versions resolved at build time belong to the version freeze pipeline |
@@ -697,6 +700,7 @@ Renovate ships no code into SONiC. The configuration is tested:
 | The `go.sum` workflow produces a tidy module | With the replaced repository checked out beside it, `go mod tidy` after a Renovate bump leaves a `go.sum` the build accepts. On a Renovate pull request, the fixup commit is signed by GitHub, and is followed by dispatched runs of each GitHub Actions check |
 | Robot check evaluation | The evaluation function, run against each case in [7.6](#76-approval-and-merge) and against the check list and required checks of a live bot pull request, passes only when every check has completed successfully, every required check has reported, and a build check is present. A list holding only `EasyCLA` does not pass |
 | Robot commit check | The robot declines a Renovate pull request carrying a pushed commit, including one that names the Renovate bot as its author, and merges one whose commits are all GitHub-signed commits from the Renovate bot and `github-actions[bot]` |
+| Robot merges past a ruleset | In a repository whose base branch ruleset requires a review and status checks, the robot merges a labeled Renovate pull request that passes its evaluation and has no approval. With a check required only by the ruleset left failing, it does not |
 | Release age | An ordinary update younger than 7 days is not proposed. A security update of the same age is |
 | Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request, labeled `security` and `patched-module`, without `automerge` |
 | Renovate leaves a fixed-up branch alone | After the `go.sum` workflow commits, Renovate makes no further push to the branch until the rebase box is ticked, including when the fixup moves lines in `go.mod` |
@@ -739,3 +743,4 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 | 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | `src/sonic-fips/`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build` |
 | 10 | Stand up SBOM-driven triage for the Debian packages SONiC rebuilds | — | Security WG |
 | 11 | Confirm the release branch policy in [7.5](#75-branch-policy) | `renovate.json` | Security WG |
+| 12 | Let `mssonicbld` merge without a review in each Renovate repository, including through every ruleset on the branches Renovate targets ([9.5](#95-setup-steps) step 5) | Repository settings | Organization administrators |
