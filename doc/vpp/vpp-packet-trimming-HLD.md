@@ -61,7 +61,7 @@ runs.
 
 **Candidate revision status (2026-10-30).** The single-node path described below
 tracks [sonic-platform-vpp#329](https://github.com/sonic-net/sonic-platform-vpp/pull/329)
-at `3d5634362e5cf08f454ad74f80e8b8cb2d1af64c`. Explicit-disable recovery tracks
+at `c19099543a73cd7633e1284c574b56b6bb8e4aca`. Explicit-disable recovery tracks
 [sonic-sairedis#2017](https://github.com/sonic-net/sonic-sairedis/pull/2017) at
 `3767fa32574a154effd6649573d2c29ba5772c54`. These follow-up changes are under
 review, not yet qualified as a paired SONiC image. Earlier implementations used
@@ -1178,7 +1178,7 @@ a valid reply populates its output before publishing completion. It also checks
 all three trim SET reply handlers against expired, duplicate, and valid contexts.
 
 **Candidate component evidence (2026-10-30).** Platform
-`3d5634362e5cf08f454ad74f80e8b8cb2d1af64c` built against the patched VPP SDK with
+`c19099543a73cd7633e1284c574b56b6bb8e4aca` built against the patched VPP SDK with
 `-Wall -Werror`. All **41 selected framework tests passed without skips**:
 19 trim/accessor and 22 ECMP/LAG PBH cases. They include combined single-pass
 tracing/node counters, operation while bufmon owns the free callback, independent
@@ -1221,7 +1221,7 @@ suites.
 
 **Current paired-candidate status (2026-10-30).** Validation-only
 [sonic-buildimage#30446](https://github.com/sonic-net/sonic-buildimage/pull/30446)
-at `53186f4adbd0f8db17d838d46b01a2378dad751f` pins the platform and SAI revisions
+at `2a908cf099c80a54ab3ab7b4d009bde6e6778d6d` pins the platform and SAI revisions
 listed in [2](#2-scope). It forces candidate source builds under the unchanged
 monthly VPP version, preserves the clean-version gate, compares copied sources,
 and checks that the syncd Docker plugin matches the newly built deb. Fresh
