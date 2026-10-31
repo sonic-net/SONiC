@@ -57,9 +57,7 @@ Attaching a monitored object is the *only* thing that promotes a group from SW-d
 - [10. Future Enhancements](#10-future-enhancements)
 - [11. Limitations](#11-limitations)
 - [12. Error Handling and Failure Scenarios](#12-error-handling-and-failure-scenarios)
-- [13. Testing](#13-testing)
-- [14. Implementation Status and Known Deltas](#14-implementation-status-and-known-deltas)
-<!-- /code_chunk_output -->
+- [13. Testing](#13-testing)<!-- /code_chunk_output -->
 
 ## 1. Revision
 | Rev |     Date    |         Author        |          Change Description      |
@@ -85,7 +83,7 @@ Two optional settings reduce software work, both off by default: the per-consume
 | HW               | Hardware (ASIC / SAI layer). |
 | SW               | Software (SONiC / orchagent). |
 | NOS              | Network Operating System; here SONiC/orchagent acting through ProtNhgOrch, the sole writer of `ADMIN_ROLE`. |
-| FRR              | Fast ReRoute. |
+| FRR              | FRRouting -- the routing suite that integrates with SONiC through fpmsyncd/zebra. |
 | MON_OBJ          | Monitored Object whose state drives a HW-autonomous switchover (ICMP, BFD, link, etc.), referenced from the primary member. Attaching one is what puts the NHG in HW-autonomous mode. |
 | FSM              | Finite State Machine. |
 | FDB              | Forwarding Database. |
@@ -136,7 +134,7 @@ Some ASICs can pre-stage or de-prioritize a next-hop group known to be a *backup
 
 ProtNhgOrch therefore treats it purely as an opt-in hint on the **standby leg's recursive NHG** (the inner ECMP group behind the standby member), never on the protection NHG itself. The hint is **optional** (off unless asked for), **advisory** (forwarding is identical with and without it, and no logic depends on it), and **capability-gated** (applied only where the startup probe says the platform accepts the type; elsewhere the standby leg is a plain ECMP group and the outcome is recorded in STATE_DB).
 
-Applications request it through dedicated APIs ([Section 7.1.1.6](#7116-backup-group-hint)) and the `backup_group_hint` field on the create surface ([Section 8.2](#82-app-db)). Both are expressed in terms of the hint rather than the SAI type, so the mechanism used to convey it stays internal to ProtNhgOrch.
+Applications request it through dedicated APIs ([Section 7.1.1.6](#7116-backup-group-hint)) and the `backup_group_hint` field on the create API ([Section 8.2](#82-app-db)). Both are expressed in terms of the hint rather than the SAI type, so the mechanism used to convey it stays internal to ProtNhgOrch.
 
 ## 5. Requirements
 
@@ -172,7 +170,7 @@ Applications request it through dedicated APIs ([Section 7.1.1.6](#7116-backup-g
 **Backup-group hint:**
 - Provide application-facing APIs to discover whether the hint is supported and to opt a protection NHG's standby leg into it ([Section 7.1.1.6](#7116-backup-group-hint)).
 - Apply the hint only to the recursive NHG behind the standby member, never to the protection NHG.
-- Gate its use on the probed capability: apply the hint only where the platform accepts the type, create a plain ECMP group otherwise, and surface the outcome in STATE_DB. The protection NHG is fully functional either way.
+- Gate its use on the probed capability: apply the hint only where the platform accepts the type, create a plain ECMP group otherwise, and report the outcome in STATE_DB. The protection NHG is fully functional either way.
 - Keep all switchover, FSM, arbitration, and resync logic independent of whether the hint was applied.
 
 ### 5.2 ASIC Requirements
@@ -310,8 +308,16 @@ Examples:
 
 Both forms still derive the protection group's identity from its members, so two callers naming the same pair -- by membership, or by the same index pair -- share one protection group. Changing that (two groups over the same pair) would need a caller-supplied id ([Section 10.6](#106-caller-supplied-nhg-id-as-the-key)).
 
+**Referencing a protection group, and changing its members.** A route uses a protection group the same way it uses any NHG: RouteOrch and NhgOrch point the route at the group's SAI object, and nothing on the forwarding path re-derives the group from its members. How a member change is applied depends on how the group is named:
+
+  * **Paths inside a leg -- in place.** When a leg is a nested NHG, the path set within that leg can change while the protection group stands. The leg keeps its identity, NhgOrch updates the nested group, and the protection member's `SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID` is repointed at the nested group's current SAI object. No key change, no protection-group rebuild, no route write.
+  * **A whole leg, under a stable id -- in place.** `SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID` is `CREATE_AND_SET`, so replacing a leg -- a different nested group, or a different single next hop -- is a repoint of the existing member rather than a new group. When the protection group is named by a stable id ([Section 10.6](#106-caller-supplied-nhg-id-as-the-key)) instead of by its membership, the id does not move, so every route already pointing at the group's SAI object stays pointed and nothing is rewritten per prefix. This is the same in-place member update the implementation already uses for the monitored object, applied to the next-hop id.
+  * **A whole leg, under a membership-derived key -- a new group.** With the default membership-derived key ([Section 7.1.1.2](#7112-protection-nhg-key-format)), changing a leg changes the key, so it is a different group: create the new group, move each referring route to it, then release the old one -- one write per prefix. Naming the group by a stable id is what turns this into the in-place case above.
+
+Changing a group between plain and protected is the one member change that always needs a new SAI object, because `SAI_NEXT_HOP_GROUP_ATTR_TYPE` is set only at create.
+
 ##### 7.1.1.3 NhgOrch and ProtNhgOrch Boundary
-NhgOrch and ProtNhgOrch share ownership of a protection NHG along a clear boundary. The precise call surface is an implementation concern; the design boundary is:
+NhgOrch and ProtNhgOrch share ownership of a protection NHG along a clear boundary. The exact set of calls is an implementation concern; the design boundary is:
 
   * **Lifecycle and SAI ownership: NhgOrch.** The SAI object creation, removal, member resolution, refcount tracking, and the usual validation (capacity, duplicates, deferred resolution) live in NhgOrch and are invoked through its exposed protection-NHG APIs. ProtNhgOrch is the caller of those APIs for both creation sources -- the `APP_DB PROTECTION_NHG_TABLE` it subscribes to ([Section 8.2](#82-app-db)) and in-process consumer orchs. NhgOrch never calls back into ProtNhgOrch.
   * **Role control: ProtNhgOrch.** ProtNhgOrch is the sole writer of `SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE` in both modes. The same write path serves SW direct-apply ([Section 7.1.3](#713-sw-driven-switchover-handling)), `forceRole(...)` overrides, and `T_resync` re-writes ([Section 7.1.4.5](#7145-slow-consistency-sweep-t_resync)).
@@ -392,6 +398,8 @@ ProtNhgOrch follows standard orchagent convention: state changes use `Observer`/
   * **`createProtectionNhg(request)`** -- the request carries both member lists, the owner identifier, and the optional `monitored_object`, `backup_group_hint`, and `t_reconcile_ms`. Two convenience overloads:
       - `createProtectionNhg(primary, standby)` -- create SW-driven; attach later, or never.
       - `createProtectionNhg(primary, standby, mon_oid)` -- create with the monitored object attached inline, for consumers whose probe already exists. Exactly equivalent to a create followed by `attachMonitoredObject`, including the failure behaviour: a refused attach still leaves the group created and SW-driven, and does **not** fail the create.
+      - `createProtectionNhg(primary_nhg, standby_nhg)` -- each leg is an **owned** nested NHG that ProtNhgOrch builds and holds; its membership is fixed for the group's life.
+      - `createProtectionNhgShared(primary_index, standby_index)` -- each leg is a **shared** nested NHG that NhgOrch already holds, named by its APP_DB index. NhgOrch maintains the leg's contents and ProtNhgOrch repoints the member in place when the nested group's SAI object changes, so the protection group is not rebuilt ([Section 7.1.1.2](#7112-protection-nhg-key-format)). This is the create form that names a shared leg by index rather than by its members.
   * **`attachMonitoredObject(nhg, mon_oid)` / `detachMonitoredObject(nhg)`** -- promote/demote the NHG's switchover mode ([Section 7.1.1.5](#7115-switchover-mode-and-capability-discovery)). Callable only by the NHG's owner. The consumer still owns the monitored object's lifecycle, so rebuilding a probe is a detach plus an attach on the same NHG.
   * **`setBackupGroupHint(nhg, enable)`** -- opt the standby leg's recursive NHG into or out of the backup-group hint ([Section 7.1.1.6](#7116-backup-group-hint)).
 
@@ -522,7 +530,7 @@ The **startup sweep** always runs, regardless of `t_resync_period_ms`, reading S
 
 `T_reconcile` in the HW FSM ([Section 7.1.4.2](#7142-per-nhg-reconciler-fsm)) is **not** a debounce of the underlying signal; it is a short window to let the two independent inputs (HW notify and SW observation) for the *same* edge converge before arbitration.
 
-Tuning, hysteresis, and probe parameters of the monitored object are out of scope of this HLD; each monitored-object owner publishes its own tuning surface.
+Tuning, hysteresis, and probe parameters of the monitored object are out of scope of this HLD; each monitored-object owner publishes its own tuning parameters.
 
 #### 7.1.6 Performance, Cost, and Tunable Parameters
 *HW-autonomous mode only (except where noted).* Reconciliation needs a per-NHG deadline timer and, in the worst case, SAI reads (`sai_get`). ProtNhgOrch keeps that cost constant with NHG count and off the hot path. Everything here is an implementation/optimization concern and does not change externally observable behaviour.
@@ -600,6 +608,8 @@ PROTECTION_NHG_OWNER_CONFIG|<owner>
 ### 8.2 App-DB
 ProtNhgOrch subscribes to `APP_DB PROTECTION_NHG_TABLE` so external apps can create protection NHGs without a dedicated consumer orch. On each SET/DEL, ProtNhgOrch drives the SAI lifecycle through NhgOrch's exposed protection-NHG APIs (see [Section 7.1.1.3](#7113-nhgorch-and-protnhgorch-boundary)) -- the same APIs it uses for in-process consumer requests. Typical writers: FRR via fpmsyncd, configd, or any app that knows the canonical key but does not run its own orch.
 
+A dedicated table is used, rather than deriving protection from `NEXTHOP_GROUP_TABLE` / `ROUTE_TABLE`, because a protection group carries state those tables have nowhere to hold: the monitored object, the backup-group hint, the per-NHG `t_reconcile_ms`, and the owner. An app without its own orch needs one place to create, promote, and delete the group. The key here is the same string NhgOrch uses as its index, so the group a producer writes and the group an in-process consumer creates are the same object, not a second one. Naming a protection group by a producer-supplied id instead of its membership -- so the producer keeps using an id it already owns -- is the [Section 10.6](#106-caller-supplied-nhg-id-as-the-key) extension.
+
 Key: the canonical protection-NHG key from [Section 7.1.1.2](#7112-protection-nhg-key-format). The key encodes both member lists, so a minimal create is just the key with no fields.
 
 ```
@@ -614,17 +624,18 @@ PROTECTION_NHG_TABLE:<canonical-key>
                                              where the platform cannot honour it.)
   t_reconcile_ms     : <integer>            (optional per-NHG override; applies only while
                                              the NHG is HW-autonomous)
-  owner              : <string>             (optional writer identifier; mirrored to the
-                                             STATE_DB `consumer` field for operator clarity)
+  owner              : <string>             (optional writer identifier, set at create and
+                                             fixed thereafter; mirrored to the STATE_DB
+                                             `consumer` field for operator clarity)
 ```
 
 Semantics:
 
-  * **SET** creates the NHG if absent; on an existing key, updates `monitored_object` / `backup_group_hint` / `t_reconcile_ms` / `owner`. Member lists are immutable -- to change membership, use DEL then SET under a new key.
+  * **SET** creates the NHG if absent; on an existing key, updates `monitored_object` / `backup_group_hint` / `t_reconcile_ms`. Under the default membership-derived key, the member lists *are* the key, so changing a leg means DEL then SET under the new key; changing the paths inside a nested leg repoints the member in place with no key change ([Section 7.1.1.2](#7112-protection-nhg-key-format)). Under a caller-supplied id ([Section 10.6](#106-caller-supplied-nhg-id-as-the-key)), a leg change is an in-place member repoint under the same id, so referring routes are untouched. The `owner` is fixed at create: a SET that changes it is rejected (ownership follows the first creator, [Section 7.1.1.5](#7115-switchover-mode-and-capability-discovery)).
   * **Setting `monitored_object`** on an existing row promotes the NHG to HW-autonomous; clearing it demotes the NHG back to SW-driven ([Section 7.1.1.5](#7115-switchover-mode-and-capability-discovery)). No other field and no key change is involved.
   * **Toggling `backup_group_hint`** rebuilds the standby leg's recursive NHG ([Section 7.1.1.6](#7116-backup-group-hint)); it is ignored when the standby is a single nexthop.
   * **DEL** removes the NHG if its reference count is zero; otherwise the request is rejected and logged.
-  * **Observations.** This surface only handles lifecycle. A HW-autonomous NHG is driven by the SAI HW switchover notification and needs no SW-side observer. An NHG left SW-driven still requires **some** publisher of `SUBJECT_TYPE_PROT_NHG_OBSERVATION` for the failover signal (either the writer itself if it runs an orch, or another orch wired to the same monitored signal). Without an observation source, a SW-driven NHG created here stays at its initial primary forever.
+  * **Observations.** This table only handles lifecycle. A HW-autonomous NHG is driven by the SAI HW switchover notification and needs no SW-side observer. An NHG left SW-driven still requires **some** publisher of `SUBJECT_TYPE_PROT_NHG_OBSERVATION` for the failover signal (either the writer itself if it runs an orch, or another orch wired to the same monitored signal). Without an observation source, a SW-driven NHG created here stays at its initial primary forever.
   * Other App-DBs that consumers own (e.g., `MUX_CABLE_TBL` for dual-ToR) are unaffected; they continue to drive their consumer's logic.
 
 ### 8.3 State-DB
@@ -678,7 +689,7 @@ Field semantics:
   * **`t_reconcile_armed_at`** -- when `T_reconcile` was armed, if any.
   * **`last_arbitration_outcome`** / **`last_arbitration_ts`** -- most recent arbitration case (`a`/`b`/`c`) and timestamp.
   * **`last_arbitration_source`** -- where the last arbitration sourced `OBSERVED_ROLE`: `cache` (served from cache, no SAI read) or `sai_get` (cache stale, SAI read issued). Telemetry for the §7.1.6 cache-first path.
-  * **`last_cache_update_ts`** -- RFC3339 wall-clock timestamp of when `OBSERVED_ROLE` was last refreshed from SAI ([Section 7.1.6](#716-performance-cost-and-tunable-parameters)); empty until the first refresh. Operator surface only.
+  * **`last_cache_update_ts`** -- RFC3339 wall-clock timestamp of when `OBSERVED_ROLE` was last refreshed from SAI ([Section 7.1.6](#716-performance-cost-and-tunable-parameters)); empty until the first refresh. For operators only.
   * **`last_mode_change_ts`** -- when the NHG was last promoted or demoted. Empty for an NHG that has never changed mode.
   * **`last_resync_ts`** -- timestamp of the last `T_resync` tick that touched this NHG. With `t_resync_period_ms = 0` it records only the startup-sweep time and does not advance after that; the "stale value -> sweep not running" heuristic applies only when the sweep is enabled.
   * **`consumer`** -- owning orch identifier (e.g., `MuxOrch`, `BfdProtectionOrch`).
@@ -804,7 +815,7 @@ global  600                     0 (disabled)        1200
 
 `show protection-nhg owner-config` lists the per-owner `convergence_mode` declarations from `PROTECTION_NHG_OWNER_CONFIG` ([Section 8.1](#81-config-db)). APP_DB writers without an entry default to `disabled`.
 
-Per-consumer surfaces (e.g., dual-ToR's `show mux status`) are documented in the consumer's HLD.
+Per-consumer commands (e.g., dual-ToR's `show mux status`) are documented in the consumer's HLD.
 
 ## 10. Future Enhancements
 
@@ -824,7 +835,7 @@ This keeps the group a strict pair (no cardinality change) and is orthogonal to 
 
 Requirements:
   * **SAI extension.** Generalize `SAI_NEXT_HOP_GROUP_MEMBER_ATTR_MONITORED_OBJECT` from a single object to an object list, plus an aggregation-policy attribute (initially `ALL_DOWN` to trigger switchover; `ANY_DOWN` may be added later). The current single-object form remains the default (a one-element list with `ALL_DOWN` is equivalent to today's behavior).
-  * **ProtNhgOrch.** Accept a list of monitored objects per member from the consumer / `APP_DB PROTECTION_NHG_TABLE`, program them on the member, and surface the aggregation policy and per-object state in STATE_DB (`monitored_object_state` becomes the aggregated result, with the individual object states available for diagnostics). The switchover-mode rule generalizes to "HW-autonomous while the list is non-empty."
+  * **ProtNhgOrch.** Accept a list of monitored objects per member from the consumer / `APP_DB PROTECTION_NHG_TABLE`, program them on the member, and report the aggregation policy and per-object state in STATE_DB (`monitored_object_state` becomes the aggregated result, with the individual object states available for diagnostics). The switchover-mode rule generalizes to "HW-autonomous while the list is non-empty."
   * **Semantics unchanged elsewhere.** `OBSERVED_ROLE`, `ADMIN_ROLE`, and the dual-master arbitration are unaffected -- the ASIC still presents a single aggregated up/down decision for the primary leg; only the input to that decision becomes a set.
 
 Until this lands, a consumer that needs "switch over only when several objects are all down" must aggregate the signals itself and program a single representative monitored object (or drive `ADMIN_ROLE` through `forceRole` from its own aggregation logic).
@@ -832,16 +843,17 @@ Until this lands, a consumer that needs "switch over only when several objects a
 ### 10.5 SAI Spec Convergence for the Backup-Group Hint
 `SAI_NEXT_HOP_GROUP_TYPE_HW_PROTECTION` expresses a hint as a group type, which brings properties a hint should not have: a type is mutually exclusive with every other type and immutable after create. Expressing it instead as a next-hop-group **attribute** (for example a boolean `SAI_NEXT_HOP_GROUP_ATTR_IS_BACKUP` on an otherwise ordinary ECMP group) with documented hint-only semantics would let a group be a backup group without giving up its real type, and let the flag be set or cleared in place.
 
-Because ProtNhgOrch's application-facing surface ([Section 7.1.1.6](#7116-backup-group-hint)) is written in terms of the hint rather than the enum, that migration is internal: `isBackupGroupHintSupported()` probes the new attribute, `setBackupGroupHint(nhg, enable)` becomes an in-place set and the group rebuild goes away, and the APP_DB and STATE_DB `backup_group_hint` fields keep their meaning. Consumers, the key format, and every switchover path are unaffected either way, because nothing depends on the hint for correctness.
+Because ProtNhgOrch's application-facing API ([Section 7.1.1.6](#7116-backup-group-hint)) is written in terms of the hint rather than the enum, that migration is internal: `isBackupGroupHintSupported()` probes the new attribute, `setBackupGroupHint(nhg, enable)` becomes an in-place set and the group rebuild goes away, and the APP_DB and STATE_DB `backup_group_hint` fields keep their meaning. Consumers, the key format, and every switchover path are unaffected either way, because nothing depends on the hint for correctness.
 
 ### 10.6 Caller-Supplied NHG Id as the Key
 Today the key is derived from the members of the pair ([Section 7.1.1.2](#7112-protection-nhg-key-format)), so two consumers asking for the same primary/standby pair share one NHG and therefore one switchover mode ([Section 11](#11-limitations)). An extension would let the caller supply an explicit **id** as the key, with the members carried as a value -- the model SONiC already uses for normal NHGs, where `NEXTHOP_GROUP_TABLE` is keyed by an arbitrary control-plane index (fpmsyncd fills it with FRR's nexthop-group id) and routes reference the group by that index.
 
-With an explicit id, two consumers can create **two** protection NHGs over the same members, each with its own monitored object and mode. This removes the shared-pair limitation for callers that opt in. The storage already allows it: protection NHGs are held in a string-keyed map and the membership key is only a convenience built from the members; an id-keyed create reuses the same path.
+Naming the group by an id instead of its membership decouples the name from the members, which gives two things at once: two consumers can create **two** protection NHGs over the same members (each with its own monitored object and mode), and a group's members can change while its name stays put. The storage already allows it: protection NHGs are held in a string-keyed map and the membership key is only a convenience built from the members; an id-keyed create reuses the same path.
 
 What an id-keyed mode must define:
   * **No automatic dedup.** Two ids are two SAI groups and two `CRM_NEXTHOP_GROUP` / member allocations even when the members are identical, drawn from the same shared pool. This is a deliberate cost, not a side effect of sharing.
-  * **Id ownership and collisions.** The id space needs an owner and a namespace (e.g., prefix by `owner`) so two consumers do not collide. Rule: same id + same members is idempotent; same id + different members is rejected.
+  * **Id ownership and collisions.** The id space needs an owner and a namespace (e.g., prefix by `owner`) so two consumers do not collide. Same id from the owner is the same group; same id from a different owner is rejected.
+  * **In-place leg change.** Because the id, not the membership, is the name, a SET on an existing id that changes a leg keeps the SAI group and repoints the member's `SAI_NEXT_HOP_GROUP_MEMBER_ATTR_NEXT_HOP_ID` in place (the attribute is `CREATE_AND_SET`). Routes keep their reference, so nothing is rewritten per prefix -- this is the in-place path referenced in [Section 7.1.1.2](#7112-protection-nhg-key-format). The one change that still needs a new SAI object is plain &lt;-&gt; protected, because `SAI_NEXT_HOP_GROUP_ATTR_TYPE` is create-only.
   * **Reference by id.** Because two groups can share members, route programming and any "find the group for this pair" lookup must carry the specific id rather than re-derive identity from the members.
   * **Mixed addressing.** A membership-derived key and a caller id over the same members are different keys, so they name different groups; there is no dedup across the two styles.
 
@@ -859,6 +871,7 @@ What an id-keyed mode must define:
 - Because identity is derived from the members, consumers wanting different switchover ownership over the same primary/standby pair cannot have separate NHGs; they share one, and only its owner may attach or detach the monitored object ([Section 7.1.1.5](#7115-switchover-mode-and-capability-discovery)). A non-owner that needs a different mode has no recourse beyond observing the mode it got and declining to use the group. A caller-supplied id as the key would lift this ([Section 10.6](#106-caller-supplied-nhg-id-as-the-key)).
 - `convergence_mode` is fixed at NHG create time even though the switchover mode is not. An NHG created SW-driven and later promoted uses the `convergence_mode` its owner had registered at create time; a mid-life change requires DEL + SET on the same key.
 - `convergence_mode` is per-consumer (per-owner for APP_DB injection), not per-NHG. A consumer that wants both behaviours has to register twice or split its NHGs across owners.
+- **Coexistence with a RouteOrch-derived protection path.** A separate design has RouteOrch derive a protection group from `primary_nh_count` on `ROUTE_TABLE`, adding no new tables. Both paths build the same NhgOrch protection group from the same primary/standby sets under the same derived key, so a route carrying `primary_nh_count` and a `PROTECTION_NHG_TABLE` row for the same pair resolve to **one** shared SAI object, not two. Ownership follows the first creator ([Section 7.1.1.5](#7115-switchover-mode-and-capability-discovery)); the later reference shares the group and does not change the owner. The detailed division of labour between the RouteOrch-derived path and this table is tracked with that design's author.
 
 ## 12. Error Handling and Failure Scenarios
 
@@ -978,7 +991,7 @@ Detailed validation checklist follows.
     - **Lost-notify recovery:** drop a HW switchover notify; after the cache ages out, the next arbitration refreshes from SAI, writes the correct `ADMIN_ROLE`, and clears the divergence with no operator action.
 - Integration with the dual-ToR reference consumer:
     - E2E switchover under normal conditions; `PROTECTION_NHG_TABLE` row matches consumer view.
-    - E2E `inconsistent` injection (HW switchover `failed[]` + retry failure); consumer surfaces the alarm.
+    - E2E `inconsistent` injection (HW switchover `failed[]` + retry failure); consumer raises the alarm.
 
 **HW-autonomous -- `convergence: disabled` (default):**
 
@@ -1049,11 +1062,3 @@ Detailed validation checklist follows.
     - `show protection-nhg config` reflects CONFIG_DB tunables and renders `T_RESYNC_PERIOD_MS = 0` as `0 (disabled)`.
     - `show protection-nhg owner-config` lists per-owner `convergence_mode`; missing owners default to `disabled`.
 - Mixed-mode soak: DUT with SW-driven and HW-autonomous protection NHGs and a mix of `convergence: enabled` and `convergence: disabled` (10 switchovers/min HW, 1 observation/sec SW), plus periodic promote/demote of a subset, for 1 h. Assert no false `inconsistent`, no role-attribute thrash, no leaked FSM or deadline entries, `T_resync` runs on schedule when enabled, and observations do not leak into `convergence: disabled` NHGs.
-
-## 14. Implementation Status and Known Deltas
-
-The first code drop is [sonic-swss PR #4390](https://github.com/sonic-net/sonic-swss/pull/4390), which adds the NhgOrch-level pieces: the `ProtNhg` / `ProtNhgMember` classes, the NhgOrch create/remove/query/reference-count APIs, monitored-object attach/detach, observed-role reads, and the capability publish to `STATE_DB SWITCH_CAPABILITY`. The pieces this document describes around that core -- `ProtNhgOrch`, the per-NHG `PROTECTION_NHG_TABLE`, the FSM, arbitration, `T_resync`, the APP_DB table, the notifications, and the CLI -- are not in that PR and land separately.
-
-One point where this document leads the current code, a deliberate choice to specify the target state:
-
-  * **Switchover control attribute.** This document uses `SAI_NEXT_HOP_GROUP_ATTR_ADMIN_ROLE` as the single control in both modes ([Section 5.2](#52-asic-requirements)); `SAI_NEXT_HOP_GROUP_ATTR_SET_SWITCHOVER` is not used. That follows the updated SAI protection-NHG spec ([opencomputeproject/SAI#2348](https://github.com/opencomputeproject/SAI/pull/2348)). PR #4390 still writes `SET_SWITCHOVER` for an SW-driven group and uses `ADMIN_ROLE` only for the HW-autonomous override. Converging the code to `ADMIN_ROLE`-only is pending.
