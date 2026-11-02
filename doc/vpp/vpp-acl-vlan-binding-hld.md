@@ -140,18 +140,24 @@ This selection describes the paths in scope. Separately configured VLAN-ID trans
 
 Bridged VLAN subinterfaces classify their outer tag without requiring an exact single-tag packet. This admits an additional customer tag. Routed subinterfaces keep exact single-tag classification.
 
-On a native member, the existing filter validates an outer `0x8100` tag against the member's native VLAN and removes one matching tag. Processing then resumes at the remaining Layer 2 features, including ACL processing, with any customer tag intact.
+On a native member, the filter validates an outer `0x8100` tag against the member's native VLAN and removes one matching tag. The next step depends on whether another VLAN tag remains:
+
+- **A customer tag remains:** continue the remaining Layer 2 features, including ACL processing, with that tag intact. This prevents the customer VID from being checked again as a native VLAN.
+- **No tag remains:** return through the existing Layer 2 input and protocol-classification path. This preserves DHCP trapping and configured ARP/IPv6 multicast flood suppression before ordinary forwarding.
 
 ```mermaid
 flowchart LR
     I[Native VLAN filter] --> V{Outer VLAN matches?}
     V -- No --> D[Drop before ACL]
     V -- Yes --> P[Remove one outer tag]
-    P --> A[Continue remaining L2 features and ACL]
+    P --> Q{Customer tag remains?}
+    Q -- Yes --> A[Continue remaining L2 features and ACL]
     A --> B[Bridge forwarding]
+    Q -- No --> C[Return through L2 input and protocol classification]
+    C --> T[Existing protocol trap or forwarding path]
 ```
 
-Continuing the existing feature chain prevents the customer tag from being classified again as a native VLAN. The continuation state is initialized after the main plugin state so initialization cannot erase it. These changes preserve the described QinQ path; they do not add complete provider-bridging support.
+The continuation state is initialized after the main plugin state so initialization cannot erase it. CoPP remains on the existing host-delivery paths; preserving protocol classification keeps the earlier trap and flood-suppression decisions in place for single-tagged traffic. These changes preserve the described QinQ data path without adding QinQ control-protocol trapping or complete provider-bridging support.
 
 ### 5.4. Lookup Paths, Interface Matches, and Sessions
 
@@ -195,13 +201,17 @@ high-priority user table -> lower-priority user table -> default permit
 
 An explicit user DROP still wins before the permit. The default ACL is created lazily once per backend instance and reused. Removing a policy detaches its default permit from that interface; it does not delete the shared definition.
 
-VPP appends table bindings. When inserting a user table, the backend temporarily removes the default attachment and restores it after the user tables. This keeps the permit from hiding later tables. An empty group retains its port/LAG association but installs no user tables; clearing a policy removes its attachments.
+For each interface, the backend builds the complete ordered regular ACL lists and sends them with `acl_interface_set_acl_list`. In each direction, user tables precede the shared default permit. This replaces the list directly, without temporarily removing the default or detaching the old group first.
+
+The API carries both directions in one request: ingress ACL indices first, followed by egress ACL indices, with a count identifying the ingress portion. Updating one direction preserves the other direction's recorded list. The combined list, including default permits, is limited to 255 attachments by the API's count field. Duplicate indices within a direction and oversized lists are rejected before programming.
+
+An empty group retains its port/LAG association but installs no user tables or default permit. Clearing a policy removes its attachments. List replacement reuses existing ACL definitions and their counters.
 
 ### 6.2. Assignment and Interface Lifecycle
 
-Existing bridged children are included when assigning the parent's group. A new child replays the parent's recorded table order and default-permit state before activation is requested. If the parent is down, the child can wait for it to come up.
+Existing bridged children are included when assigning the parent's group. A new child receives the parent's recorded ingress and egress lists, including their default permits, in at most one list-replacement request before activation is requested. If the parent is down, the child can wait for it to come up.
 
-Child creation does not rebuild missing tables from the accepted group. If an earlier failure left the parent with a partial policy, the child can inherit that partial policy. A later successful group update or retry repairs the parent and its current children.
+Child creation uses the parent's recorded installed policy rather than rebuilding it from the accepted group. If the parent's installed state is unverified after a failed update, the backend first reads its lists from VPP; failure to read them prevents inheritance. A child can inherit a known policy that still needs recovery to the accepted group. A later successful group update or retry repairs the parent and its current children.
 
 If bridge/rewrite setup or policy inheritance fails, creation reports failure, removes the failed SAI VLAN-member object, and attempts cleanup. Teardown brings the child down before removing its ACLs and forwarding setup. The backend forgets its attachment tracking after successful interface deletion.
 
@@ -214,28 +224,23 @@ The backend keeps two kinds of information:
 | State | What it records |
 |-------|-----------------|
 | Accepted policy | SAI objects, group membership, port/LAG group ownership, and stored ACL attributes. |
-| Binding state | Successfully programmed tables in each direction, their order, default-permit state, and work still awaiting retry, such as tunnel-termination cleanup. |
+| Binding state | The confirmed ordered regular ACL lists in both directions, their default permits, and separate interface programming still awaiting retry. |
 
-Recovery compares the installed policy with the required policy and repairs their differences. It relies on the backend's record of successful VPP calls, not a readback of live VPP state. Manual VPP ACL edits are not discovered by this mechanism.
-
-For a group-member change, the backend saves the original members and associated ports, detaches the old policy, then attempts the updated policy on every target. If any step fails, it restores the original accepted membership and attempts recovery across all original ports and children, including targets already detached before the error.
+A group-member change saves the original members and associated ports, tentatively updates the membership, and replaces each target's regular ACL list directly. It does not detach the old list first. If any target fails, the backend restores the original accepted membership and attempts to restore the original policy across all original ports and children, including those already updated.
 
 A failed member create removes the new member object. A failed member removal preserves the old object. The requested operation returns failure even if restoring the old policy succeeds.
 
-A failed PORT/LAG replacement attempts to restore the previously accepted group and leaves the stored ACL attribute unchanged. The accepted group's association is removed only after successful detachment. A rejected group assignment loses its attempted association, so later changes to that group cannot take ownership of the port.
+A PORT/LAG replacement similarly applies the new group's policy directly. The stored ACL attribute changes only after success. On failure, the backend attempts to restore the previously accepted group and removes the rejected group's attempted ownership, so later changes to that group cannot take over the port.
 
-For each interface and direction, repair follows this order:
+For each interface, a successful list-replacement reply confirms both regular ACL lists. The backend records those lists and updates the associated table-to-interface tracking. Existing ACL definitions and counters are reused.
 
-1. Keep the leading tables that already match the required order.
-2. Remove the remaining installed tables from the end, stopping if a removal fails. Keep the default permit if a user-table removal fails.
-3. Retry obsolete related cleanup and append the required remaining tables.
-4. Put the shared permit last, or remove it when no tables are required.
+A failed request or a timeout does not prove that the old lists remain installed: VPP can apply one direction before reporting a failure. The backend therefore reads both lists back after an error and records the confirmed result. If that read also fails, it marks the interface's regular ACL state as unverified. A later update of one direction must first obtain a successful readback so it can preserve the other direction safely. Teardown can replace both directions with empty lists directly.
 
-Removing from the end matters. Starting with `[A, B, C, permit]`, removing C and then failing to remove B leaves `[A, B, permit]`. Recovery can append C and restore the permit last without reversing the priority of A and B.
+Readback is part of failure recovery, not continuous detection of manual VPP changes. The backend does not rebuild policy ownership from VPP's lists.
 
-The backend records which bindings succeeded and tracks unfinished work separately for retry. Recovery also removes leftover tentative tables when the old group was empty. An explicit clear repairs stale bindings even when the stored ACL attribute is already null. The opposite direction remains independent.
+Tunnel-termination and policy-based hashing (PBH) bindings use separate APIs. Their successful attachments and unfinished cleanup are tracked separately, and failures remain visible for restoration or retry. A regular list replacement cannot make these operations transactional. PBH-only groups preserve regular ACL lists that they do not own. If a rejected replacement changes such a list and rollback fails, the backend keeps the original list for a later retry or clear. Clearing a policy also retries stale cleanup, including when its stored ACL attribute is already null.
 
-Updates use several API calls and are not atomic; traffic can see intermediate policy. If VPP keeps failing, restoration is best effort and the error stays visible. There is no background repair worker. A later supported group assignment, member change, replacement, or clear retries the unfinished work.
+One request replaces the complete regular ACL lists on one interface, avoiding the separate default-permit removal and per-table attachment steps. An update across several interfaces or separate features still uses multiple requests and is not an atomic or hitless transaction. If VPP keeps failing, restoration is best effort. There is no background repair worker; a later supported group assignment, member change, replacement, or clear retries unfinished work.
 
 ## 7. Configuration and Compatibility
 
@@ -271,7 +276,7 @@ VLAN verification, bridged-child linear lookup, and bypassing cached sessions ad
 
 The VPP API adds two 16-bit fields per rule. Internal rule allocation also grows, subject to alignment. The packet classification tuple stays 48 bytes and requires no new per-packet dynamic allocation. The fields remain part of the compiled rule format even when a rule has no VLAN restriction.
 
-Children share table definitions; inheritance adds interface attachments and lookup contexts rather than a new ACL definition per child. Binding state grows with attached interfaces and tables. Unfinished-operation records are removed after successful cleanup, rather than retained as an event history.
+Children share table definitions; inheritance adds interface attachments and lookup contexts rather than a new ACL definition per child. Binding state grows with attached interfaces and tables. Failed list updates can require readback and additional recovery calls. Unfinished-operation records and unverified-state markers are cleared after successful recovery, rather than retained as an event history.
 
 One logical entry can produce multiple rules: applicable IP families × protocol variants × existing ingress-port expansion. For example, an entry covering both families with a port match but no protocol can produce four rules before port expansion. Those rules and counters consume additional memory.
 
@@ -289,10 +294,11 @@ The main boundaries are:
 - The described tag paths do not define every VLAN-ID translation or VTR combination. QinQ tag preservation does not imply complete 802.1ad/provider-bridging support.
 - Routed children do not inherit the parent's policy or its `IN_PORTS` identity.
 - An ACL definition or lookup context cannot combine a nonzero VLAN mask with permit-and-reflect.
-- Multi-interface updates are not hitless or atomic, and persistent failures require a later SAI retry.
+- The combined ingress/egress regular ACL list is limited to 255 attachments per interface, including default permits.
+- Multi-interface updates and separate feature programming are not hitless or atomic, and persistent failures require a later SAI retry.
 - Logical counter aggregation is preserved, but continuity across rule replacement or restart is not guaranteed.
 
-For diagnosis, compare accepted group membership with `vppctl show acl-plugin interface` on the parent and children. User tables should precede `sonic_acl_default_permit`. API dumps show the VLAN value/mask; rule counters, packet captures, and traces show whether the intended rule and tag path were used. Backend logs identify failed binds, unbinds, and recovery attempts. Native-filter error counters can increment more than once for one rejected packet, so they are not exact packet counts.
+For diagnosis, compare accepted group membership with `vppctl show acl-plugin interface` on the parent and children. User tables should precede `sonic_acl_default_permit`. API dumps show the VLAN value/mask; rule counters, packet captures, and traces show whether the intended rule and tag path were used. Backend logs identify failed list replacements, readback failures, separate feature programming errors, and recovery attempts. Native-filter error counters can increment more than once for one rejected packet, so they are not exact packet counts.
 
 ## 9. References
 
