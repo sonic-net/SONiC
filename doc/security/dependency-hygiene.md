@@ -159,7 +159,7 @@ The repositories that are mostly Go come first: `sonic-mgmt-common` and `sonic-g
 
 **The `go` directive.** Each Go repository lists `go` in `ignoreDeps`. A standard library vulnerability makes Renovate propose raising the `go` directive, and a security update overrides every package rule, so only `ignoreDeps` stops it. The directive cannot move ahead of the Go in the build container, and a standard library fix reaches SONiC through that toolchain.
 
-`ignoreDeps` does not stop `go get` from raising the directive. Renovate runs `go get` with the newest Go the directive allows, and raises the directive when an update needs a newer Go. CI downloads whatever toolchain `go.mod` names, so it passes. Each Go repository therefore checks its Renovate pull requests: where Renovate updates `go.sum` itself, a check fails a pull request whose `go` directive differs from the merge base; where the `go.sum` workflow runs, the workflow fails instead (see below).
+`ignoreDeps` does not stop `go get` from raising the directive. Renovate runs `go get` with the newest Go the directive allows, and raises the directive when an update needs a newer Go. Each Go repository's CI therefore builds only with the build container's Go. Every job that runs Go runs in the `sonic-slave` container for the pull request's base branch, the pipeline sets `GOTOOLCHAIN=local` so Go never downloads a toolchain, and no pipeline names a Go version. A directive newer than the container's Go then fails CI, and the merge robot does not merge the pull request; a raise the container's Go supports passes. A GitHub Actions workflow that needs Go installs the version the `go` directive names, which CI keeps within the container's Go. When the build container moves to a newer Go, no repository changes.
 
 **Local `replace` directives.** To update `go.sum`, Renovate runs `go get` in a checkout of the one repository. A `replace` that points outside that repository, such as `sonic-gnmi` replacing `sonic-mgmt-common` with `../sonic-mgmt-common`, makes `go get` fail, and `go.sum` is left behind. Renovate's `gomodMassage` option comments out the whole `replace` block, which also drops the pins that patched modules depend on, so it is not used.
 
@@ -177,7 +177,7 @@ A commit made through the API is signed by GitHub, which the merge robot require
 
 Renovate no longer rebases an edited branch that falls behind or conflicts, or adds a newer version to it. A reviewer ticks the rebase box for that, including on a security update labeled `automerge` whose base branch moved before it merged. Such a repository therefore does not require branches to be up to date before merging: with that requirement, every merge to the base branch would hold each `automerge` pull request until someone ticked its rebase box. An edited branch is not closed automatically when its update is no longer needed, and Renovate comments instead.
 
-`go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local`, and fails instead of committing when the directive changes, so the pull request shows that the update needs a newer build container.
+`go mod tidy` raises the `go` directive when a dependency needs a newer Go. Step 2 runs with `GOTOOLCHAIN=local` and the Go the directive names, and fails instead of committing when tidy would raise it. A raise Renovate made is left to CI.
 
 Renovate cannot rewrite import paths in such a repository either, so a major update that changes the module path only changes `go.mod`. `go mod tidy` then drops the new requirement, which nothing imports, and requires the old module again. Committing that would undo the update, and Renovate would push it again, in a loop. Step 2 therefore compares `go.mod` at the merge base, at the head and after tidy, and fails instead of committing when tidy removes a requirement the update changed or requires again a module the update removed. The pull request then shows that the code has to change with the update.
 
@@ -633,7 +633,7 @@ The preset:
 }
 ```
 
-This is the file committed to `sonic-pipelines`. Its `description` names this document. Each Go repository adds `ignoreDeps` for the `go` directive, and a rule and a `vulnerabilityAlerts.groupName` for its patched modules ([7.3](#73-hand-pinned-versions)). A repository with a local `replace` also adds `suppressNotifications` and the workflow in [7.2](#72-native-managers). Any other Go repository adds the `go.mod` check in [7.2](#72-native-managers) and [7.3](#73-hand-pinned-versions).
+This is the file committed to `sonic-pipelines`. Its `description` names this document. Each Go repository adds `ignoreDeps` for the `go` directive, and a rule and a `vulnerabilityAlerts.groupName` for its patched modules ([7.3](#73-hand-pinned-versions)). A repository with a local `replace` also adds `suppressNotifications` and the workflow in [7.2](#72-native-managers). Any other Go repository adds the held-module check in [7.3](#73-hand-pinned-versions). Each Go repository's CI builds with the build container's Go only ([7.2](#72-native-managers)).
 
 #### 9.5 Setup steps
 
@@ -646,7 +646,7 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 | 5 | Organization administrator | On each branch Renovate targets, let `mssonicbld` merge without a review ([7.6](#76-approval-and-merge)). Where classic branch protection applies to administrators, allow `mssonicbld` to bypass required pull requests. Where a ruleset carries a pull request or required status check rule, add the `sonic-automation` team, whose only member is `mssonicbld`, to the ruleset's bypass list, in the "For pull requests only" mode |
 | 6 | Each repository's administrators | Where a branch protection rule matches every branch, replace that rule with a branch ruleset that includes all branches, excludes `renovate/**`, keeps the same rules, and lets the repository admin role bypass, and the `sonic-automation` team in the "For pull requests only" mode, so Renovate and any workflow from [7.2](#72-native-managers) can add commits to Renovate branches. A repository with the `go.sum` workflow does not require branches to be up to date before merging ([7.2](#72-native-managers)) |
 | 7 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)) |
-| 8 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers) |
+| 8 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers). In a Go repository, CI builds with the build container's Go only ([7.2](#72-native-managers)) |
 | 9 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
 
 Renovate opens nothing in a repository but its onboarding pull request until step 8. Steps 1 to 6 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot. A pull request Renovate opened before step 1 keeps its failed `EasyCLA` status until someone comments `/easycla` on it.
@@ -718,7 +718,7 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Renovate can update its own branches | In each Renovate repository, a requested rebase pushes a new commit to the branch |
 | The robot reaches an old pull request | A labeled Renovate pull request opened more than a month ago, whose checks then pass, is merged |
 | A person's commit stops the robot | The robot skips a labeled Renovate pull request after "Update branch", and merges it after a rebase from the rebase box |
-| The `go` directive is never raised | A `go.sum` workflow run on a bump that needs a newer Go fails, and pushes nothing |
+| The `go` directive stays within the build container's Go | A Renovate pull request that raises the directive past the container's Go fails CI, which downloads no toolchain. One that raises it within the container's Go passes. A `go.sum` workflow run on a bump where tidy would raise the directive fails, and pushes nothing |
 
 #### 13.2 System Test cases
 
