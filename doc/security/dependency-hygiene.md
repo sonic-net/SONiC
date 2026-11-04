@@ -557,8 +557,10 @@ Neither the freeze pipelines nor Renovate closes these. CVE-2026-111497, a Brotl
 | G3 | Version files no freeze build produces go stale. The scheduled clean-up drops a container's files only when no build produces the container at all | `files/build/versions-public/dockers/docker-ptf/versions-deb-bookworm` kept `+b6` after the freeze moved the rest of `master`, until a hand-written pull request (#30454) | Build every pinned container and distribution in the freeze, or drop the files of each one it does not build |
 | G4 | `docker-ptf` has two version trees, and the published image follows neither for Debian packages | `files/build/versions-public/dockers/docker-ptf/` and `dockers/docker-ptf/files/` disagree. The `docker-ptf` Dockerfile ends by removing the `apt` pins and running `apt-get upgrade` | Keep one tree per image, and record what the image ships after the upgrade |
 | G5 | `versions-py3` cannot tell a Debian package from a PyPI one | `brotli==1.1.0` is Debian's patched `python3-brotli`, and also the name of the vulnerable PyPI release. A scanner reading `versions-py3` reports it, and a `pip install` would satisfy the constraint with the vulnerable wheel | Mark or leave out the packages under `dist-packages` in `pip3 freeze`, and have scanners read `versions-deb-*` for them |
-| G6 | A copy of a library built into another package is not seen as that library | The PyPI `Brotli` wheel and Debian's `python3-brotli` both compile the decoder into `_brotli.so`. An advisory against the C library names neither | SBOM triage that records bundled copies, with a list of known ones, as for SONiC's Debian rebuilds |
-| G7 | A fix reaches only new builds | Images built before 2026-10-29 carry the vulnerable decoder | The release process: which shipped images to rebuild after a fix |
+| G6 | The SBOM sees a library built into another package only when an advisory names that package | The SBOM records Debian's `python3-brotli` under its source package `brotli`, so a scan matches Debian's advisory. A PyPI `Brotli` wheel, which also compiles the decoder into `_brotli.so`, matches only if the GitHub advisory lists the PyPI package. `README.sbom.md` lists statically linked vendored libraries as undetectable | A list of known bundled copies, mapped to the library each carries, read by SBOM triage |
+| G7 | Build and test images have no SBOM | `README.sbom.md` puts `sonic-slave-*` out of scope, and `docker-ptf`'s Trivy scan is optional | Scan them, or record that they are accepted unscanned |
+
+Shipped images are covered. Each official image's SBOM is published beside it and sent to OpenPSIRT for its branch (`.azure-pipelines/upload-sbom-openpsirt.yml`), and an old SBOM can be scanned again against current advisories, which finds the shipped images a new fix applies to. Rebuilding them is the release process's.
 
 #### 7.10 Rollout
 
@@ -802,4 +804,5 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 | 15 | Build or drop every pinned container and distribution the freeze does not build (G3) | `scripts/versions_manager.py`, `.azure-pipelines/` | `@sonic-net/sonic-build` |
 | 16 | One version tree for `docker-ptf`, recording what it ships after its `apt-get upgrade` (G4) | `dockers/docker-ptf/`, `.azure-pipelines/docker-ptf.yml` | `docker-ptf` owners |
 | 17 | Keep Debian-installed Python packages apart from PyPI ones in `versions-py3` (G5) | `src/sonic-build-hooks/` | `@sonic-net/sonic-build` |
-| 18 | Record bundled library copies in SBOM triage (G6), with item 10 | — | Security WG |
+| 18 | Keep a list of known bundled library copies for SBOM triage (G6), with item 10 | — | Security WG |
+| 19 | Scan the build and test images, or record that they are accepted unscanned (G7) | `.azure-pipelines/` | `@sonic-net/sonic-build`, Security WG |
