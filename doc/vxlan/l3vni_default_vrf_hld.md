@@ -91,7 +91,7 @@ Each layer continues to use its native representation of the default VRF. The in
 6. Do not create or delete an additional Linux `type vrf` netdevice for the default VRF. Do not create or delete the switch-owned SAI default virtual router.
 7. Support add, delete, restart, reload, and supported reboot flows idempotently.
 8. Preserve existing named-VRF behavior and configuration compatibility.
-9. Reject an in-place change from one nonzero VNI to another. Updating the VNI requires removal of the existing mapping, completion of its dependent cleanup, and a fresh add, consistent with named-VRF behavior.
+9. Reject an in-place change from one nonzero VNI to another at the supported configuration interfaces. Updating the VNI requires removal of the existing mapping, completion of its dependent cleanup, and a fresh add, consistent with named-VRF behavior. Because APP_DB represents desired state rather than transaction history, `VRFOrch` may observe that valid delete-and-add sequence as a coalesced nonzero-to-nonzero transition and shall reconcile it by removing the old mapping before adding the new mapping.
 10. Support the default VRF and named tenant VRFs concurrently, using a distinct L3VNI for each VRF. Reject a request to associate a VNI that is already assigned to another VRF, leaving the existing mapping and operational state unchanged.
 11. Support both existing routing-management modes: render the default-VRF VNI through `frrcfgd` when `frr_mgmt_framework_config` is enabled, and preserve the existing independently managed FRR configuration when it is disabled.
 12. Require FRR policy that exports only intended overlay prefixes as RT-5, prevents EVPN-imported routes from being advertised to underlay peers, and prevents VTEP or underlay endpoint reachability from resolving through an imported EVPN route.
@@ -228,9 +228,9 @@ Across all four sequences, `default` is the logical management and orchestration
 | Management and CLI | Accept `default` as the reserved VRF name for L3VNI configuration. `sonic-utilities` performs first-line validation of the VNI range, the VNI-to-VLAN prerequisite, and cross-VRF VNI uniqueness before updating CONFIG_DB. |
 | `sonic-yang-models` | Extend the `sonic-vrf.yang` VRF key constraint to accept the exact reserved name `default` in addition to existing valid named-VRF names. Add validation and configuration save/reload coverage so `VRF|default` persists without aborting reload. |
 | FRR configuration | No EVPN protocol or FRR daemon change is required. When `frr_mgmt_framework_config` is enabled, the existing `frrcfgd` VRF subscription renders `vrf default` with `vni <vni>` and removes it with `no vni <vni>`. In split mode, the operator separately configures and removes the matching VNI in FRR. Required route policy is applied using existing FRR policy mechanisms. |
-| `vrfmgrd` | Process the `vni` field for `default`, while skipping Linux `type vrf` netdevice creation and deletion for `default`. Reject a direct nonzero-to-nonzero VNI change and conflicting ownership before side effects. Interpret deletion of the logical `VRF|default` CONFIG_DB entry as mapping removal. Publish and remove the existing APP_DB VRF and VXLAN-VRF entries and reconcile dependency ordering. |
-| `VRFOrch` | Register the logical name `default` with the default VR OID (`gVirtualRouterId`) obtained through `SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID`. Apply the same replacement and ownership checks defensively, accept explicit mapping removal, and avoid creating/removing a SAI virtual router or duplicating default-VR link-local routes. |
-| `VxlanVrfMapOrch` | Create and remove the existing VNI-to-VR and VR-to-VNI tunnel-map entries using the default VR OID (`gVirtualRouterId`). Reject duplicate default-VRF maps and cross-VRF VNI ownership before calling SAI. Track the logical VRF name explicitly for correct deletion. |
+| `vrfmgrd` | Process the `vni` field for `default`, while skipping Linux `type vrf` netdevice creation and deletion for `default`. Reject a direct nonzero-to-nonzero VNI change before side effects. Keep a cross-VRF ownership conflict pending so a valid SET-before-DEL move can converge after the old owner is removed. Interpret deletion of the logical `VRF|default` CONFIG_DB entry as mapping removal. Publish and remove the existing APP_DB VRF and VXLAN-VRF entries. On NVO deletion, preserve all named- and default-VRF mappings while the NVO remains accepted in APP_DB, then complete the shared cleanup after `vxlanmgrd` removes that accepted state. Dependency validation, pending-operation retry, and eventual programming are handled by the existing orchagent consumers. |
+| `VRFOrch` | Register the logical name `default` with the default VR OID (`gVirtualRouterId`) obtained through `SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID`. Reconcile a coalesced nonzero-to-nonzero APP_DB transition by removing the old mapping before adding the new mapping. Keep a mapping pending while its requested VNI is still owned by another VRF so a valid SET-before-DEL ordering can converge. Accept explicit mapping removal, and avoid creating/removing a SAI virtual router or duplicating default-VR link-local routes. |
+| `VxlanVrfMapOrch` | Create and remove the existing VNI-to-VR and VR-to-VNI tunnel-map entries using the default VR OID (`gVirtualRouterId`). Keep a second map for the same VRF, or a cross-VRF ownership conflict, pending without calling SAI so it can be retried after the old mapping is removed. Apply this ordering behavior equally to default and named VRFs, and track the logical VRF name explicitly for correct deletion. |
 | `fpmsyncd` and `RouteOrch` | No new route format is required. Reuse existing VXLAN route and nexthop handling; unqualified routes resolve to the default VR OID (`gVirtualRouterId`). |
 | Linux networking | Keep the SVI and routes in the default namespace and main routing table. Do not create an additional Linux `type vrf` netdevice named `default`. |
 | SAI and syncd | No interface change. Program existing tunnel-map, tunnel-nexthop, and route-entry objects using the default VR OID (`gVirtualRouterId`). |
@@ -246,9 +246,9 @@ Across all four sequences, `default` is the logical management and orchestration
 7. `VxlanVrfMapOrch` creates encap and decap tunnel-map entries between the VNI and the default VR OID (`gVirtualRouterId`).
 8. After the required kernel VXLAN and SVI objects are available, Zebra associates the configured VNI with the default routing table.
 
-Dependencies may arrive in any order. A mapping that cannot yet be completed remains pending and is reconciled when its tunnel, NVO, or VLAN/VNI dependency appears. Repeated SET operations must be idempotent.
+VRF and NVO configuration may arrive in either order. `vrfmgrd` publishes the VRF-to-VNI intent after both are known, without independently consuming or caching `VXLAN_TUNNEL_MAP` configuration. `VxlanVrfMapOrch` uses the accepted tunnel state and retries if that tunnel is not yet available. The VNI-to-VLAN mapping is independently owned by `vxlanmgrd` and `VxlanTunnelMapOrch`; it may arrive before or after the L3VNI intent, and its arrival reconciles the existing L3VNI VLAN state without requiring `vrfmgrd` to replay the VRF mapping. Repeated SET operations must be idempotent.
 
-The normal CLI path rejects a VNI already owned by another VRF before updating CONFIG_DB. `vrfmgrd`, `VRFOrch`, and `VxlanVrfMapOrch` repeat the ownership check as defensive boundaries for configuration introduced through other CONFIG_DB or APP_DB writers, configuration reload, and restart replay. A rejected update does not publish new operational state or disturb the existing mapping.
+The normal CLI path rejects a VNI already owned by another VRF before updating CONFIG_DB. If a valid delete-and-add move is delivered out of order, `vrfmgrd` does not consume the new owner's CONFIG_DB SET while the old owner remains present; it leaves the SET pending without publishing partial APP_DB state. `VRFOrch` and `VxlanVrfMapOrch` apply the same rule to their APP_DB inputs, allowing a SET-before-DEL sequence to converge after the old owner releases the VNI. APP_DB is an internal interface; a writer that bypasses the supported configuration path is responsible for publishing valid intent. The orchestration layer does not add transaction provenance or additional event-history tracking to distinguish such direct writes.
 
 ### 7.3 Remote route flow
 
@@ -282,13 +282,15 @@ Route-map names, tag values, and configuration delivery are deployment-specific.
 
 The operator removes the SONiC VRF-to-VNI mapping through the supported CLI. SWSS reconciles the resulting APP_DB and ASIC state using dependency-safe, idempotent cleanup; the design does not require a specific delivery order among internal delete events. The VRF-to-VNI mapping must be removed before the operator deletes the VNI-to-VLAN map, NVO, or tunnel on which it depends.
 
+NVO deletion is a shared lifecycle operation and does not distinguish between named and default VRFs. If an out-of-order CONFIG_DB delete requests NVO removal while `vxlanmgrd` retains the accepted APP_DB NVO because dependent VXLAN maps still exist, `vrfmgrd` keeps the NVO delete pending and preserves every published named- and default-VRF L3VNI mapping. After the dependencies are removed and `vxlanmgrd` deletes the accepted APP_DB NVO entry, `vrfmgrd` completes the pending cleanup. This prevents CONFIG_DB intent from prematurely withdrawing mappings that still depend on the accepted operational NVO state.
+
 For `default`, the delete CLI deletes the logical `VRF|default` CONFIG_DB entry. The entry exists only to carry the default-VRF L3VNI association; the Linux global routing table and switch-owned SAI default virtual router exist independently of it. `vrfmgrd` removes the APP_DB VXLAN-VRF entry and deletes the logical `VRF_TABLE:default` entry. `VRFOrch` interprets the APP_DB delete as removal of the L3VNI association and logical cache entry without deleting the underlying default virtual router. Named VRFs retain their CONFIG_DB row and continue to use the existing `vni=0` indication so deleting a mapping does not delete the named VRF itself.
 
 The delete flow removes the VNI-to-VRF and VRF-to-VNI tunnel-map entries and clears the L3VNI VLAN state and logical VNI bookkeeping. The Linux main table, SVI, switch-owned SAI default virtual router, and unrelated default-VR state remain present.
 
 When `frr_mgmt_framework_config` is enabled, deletion of the logical CONFIG_DB entry causes `frrcfgd` to issue `no vni <old-vni>` under `vrf default`. It does not delete the default BGP instance. In split mode, the independently managed FRR VNI configuration may be removed before or after the SONiC mapping and is not removed automatically.
 
-`vrfmgrd` shall retain the exact APP_DB keys it published so cleanup does not depend on configuration objects that may already have been removed. A SET that changes directly from one nonzero VNI to another is rejected and leaves the old mapping intact. To update the VNI, the operator deletes the `VRF|default` VNI mapping with `config vrf del_vrf_vni_map default`, waits for the logical L3VNI and tunnel-map cleanup to complete, and then adds `VRF|default` with the new VNI. This matches the named-VRF configuration workflow. For `default`, deletion applies only to SONiC's logical configuration and mapping state; the Linux global routing table and switch-owned SAI default virtual router remain present throughout.
+`vrfmgrd` shall retain the exact APP_DB keys it published so cleanup does not depend on configuration objects that may already have been removed. A CONFIG_DB SET that changes directly from one nonzero VNI to another is rejected by `vrfmgrd` and leaves the old mapping intact. To update the VNI, the operator deletes the `VRF|default` VNI mapping with `config vrf del_vrf_vni_map default`, waits for the logical L3VNI and tunnel-map cleanup to complete, and then adds `VRF|default` with the new VNI. This matches the named-VRF configuration workflow. If the APP_DB consumer observes only the final nonzero VNI because the valid delete-and-add sequence was coalesced, `VRFOrch` performs the corresponding old-map removal followed by the new-map add. For `default`, deletion applies only to SONiC's logical configuration and mapping state; the Linux global routing table and switch-owned SAI default virtual router remain present throughout.
 
 ### 7.7 Database interfaces
 
@@ -394,24 +396,27 @@ The feature adds one logical VRF record, existing tunnel-map entries, and normal
 1. Add `VRF|default` with a valid VNI after its VNI-to-VLAN map and NVO exist; verify `VRF_TABLE:default` and the expected `VXLAN_VRF_TABLE` entry in APP_DB without creating an additional Linux `type vrf` netdevice for `default`.
 2. Process deletion of `VRF|default`; verify the APP_DB VRF and VXLAN mapping entries are removed while the Linux main table remains and no VRF netdevice deletion is attempted.
 3. Replay the same VNI and verify idempotency.
-4. Reject an invalid VNI, a direct nonzero-to-nonzero replacement, and a VNI already owned by another VRF without partial APP_DB or STATE_DB state.
-5. Exercise VRF, NVO, tunnel, and VNI-to-VLAN configuration in different orders and verify eventual convergence.
+4. Reject an invalid VNI and a direct nonzero-to-nonzero replacement without partial APP_DB or STATE_DB state. Keep a cross-VRF ownership conflict pending, remove the old owner, and verify the pending new owner succeeds without losing intent.
+5. Exercise VRF and NVO configuration in different orders and verify idempotent APP_DB publication and cleanup. Verify that an update to an existing NVO does not retarget an established VRF-to-VNI mapping.
+6. Configure named- and default-VRF L3VNI mappings on one NVO, request NVO deletion while dependent VXLAN maps retain its accepted APP_DB state, and verify both mappings remain. Remove the dependencies, verify the pending deletion completes for both VRF types, and recreate the NVO on another tunnel to verify stale state is not retained.
 
 ### 13.3 `VRFOrch` tests
 
 1. Resolve `default` to the default VR OID (`gVirtualRouterId`) returned through `SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID`, without creating or deleting a SAI virtual router.
 2. Add, replay, remove, and re-add the default-VRF VNI while preserving the logical default VRF and its object ID.
-3. Reject direct replacement and duplicate ownership from direct APP_DB input.
-4. Verify pending operations, reference-counted deletion, warm-restart replay, and dependency recovery do not leave stale L3VNI state.
-5. Run the existing named-VRF tests to verify no behavioral regression.
+3. Reconcile a coalesced nonzero-to-nonzero APP_DB transition by removing the old VNI state before adding the new VNI. Verify this for the default VRF and preserve the equivalent named-VRF lifecycle.
+4. Keep a cross-VRF ownership conflict pending without partial programming, then release the old owner and verify the pending mapping succeeds on retry.
+5. Verify pending operations, reference-counted deletion, warm-restart replay, and dependency recovery do not leave stale L3VNI state.
+6. Run the existing named-VRF tests to verify no behavioral regression.
 
 ### 13.4 `VxlanVrfMapOrch` tests
 
 1. Create one VNI-to-VRF and one VRF-to-VNI tunnel-map entry using the default VR OID (`gVirtualRouterId`).
-2. Reject a second mapping for `default` and a VNI already mapped to another VRF before calling SAI.
-3. Delete both directions cleanly and verify retry or rollback behavior for partial failures.
-4. Verify the VNI-to-VLAN map cannot be removed while the VRF-to-VNI mapping depends on it.
-5. Exercise NVO creation, tunnel-map creation, VRF mapping, deletion, and recreation in different orders.
+2. Keep a second mapping for the same default or named VRF pending until the old mapping is removed, and keep a VNI owned by another VRF pending until its old owner releases it. Verify that neither transient conflict calls SAI or creates partial state.
+3. Configure default- and named-VRF mappings on the same tunnel, remove them independently, and verify tunnel-use and VRF reference counts remain balanced while the surviving mapping stays operational.
+4. Delete both directions cleanly and verify retry or rollback behavior for partial failures.
+5. Verify the VNI-to-VLAN map cannot be removed while the VRF-to-VNI mapping depends on it.
+6. Exercise NVO creation, tunnel-map creation, VRF mapping, deletion, and recreation in different orders.
 
 ### 13.5 `sonic-utilities` tests
 
@@ -435,7 +440,7 @@ The feature adds one logical VRF record, existing tunnel-map entries, and normal
 1. Permute the ordering of VNI-to-VLAN, NVO, tunnel, default-VRF mapping, and route updates; verify either a clean pending state or convergence when the dependency appears.
 2. Attempt to remove the tunnel, NVO, or VNI-to-VLAN map while the default-VRF mapping is active; verify dependency enforcement and no partial cleanup.
 3. Delete a pending mapping, replay stale events, and rapidly delete/re-add with another VNI; verify the final database and ASIC_DB state matches the latest valid configuration.
-4. Configure duplicate ownership in both orders—tenant first and default first—and verify rejection at each defensive layer.
+4. Configure VNI ownership conflicts in both orders—tenant first and default first. Verify that the supported CLI rejects a permanent duplicate before changing CONFIG_DB, while a direct CONFIG_DB or APP_DB SET that can represent a valid SET-before-DEL ownership transfer remains pending without partial programming and converges after the old owner releases the VNI.
 
 ### 13.8 SpyTest scenarios
 
