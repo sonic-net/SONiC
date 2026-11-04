@@ -807,4 +807,4 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 | 17 | Keep Debian-installed Python packages apart from PyPI ones in `versions-py3` (G5) | `src/sonic-build-hooks/` | `@sonic-net/sonic-build` |
 | 18 | Keep a list of known bundled library copies for SBOM triage (G6), with item 10 | — | Security WG |
 | 19 | Scan the build and test images, or record that they are accepted unscanned (G7) | `.azure-pipelines/` | `@sonic-net/sonic-build`, Security WG |
-| 20 | Apply the distribution's security updates in every image built on a base that is not Debian, starting with `docker-dash-engine` (G8) | `platform/vs/docker-dash-engine/Dockerfile.j2` | `platform/vs` owners |
+| 20 | Apply the distribution's security updates in every image built on a base that is not Debian, starting with `docker-dash-engine` (G8) | `platform/vs/docker-dash-engine/Dockerfile.j2` | `@sonic-net/DASH-maintainer` |
