@@ -17,7 +17,8 @@
   - [7.6 Approval and merge](#76-approval-and-merge)
   - [7.7 Reviewers](#77-reviewers)
   - [7.8 Existing automation](#78-existing-automation)
-  - [7.9 Rollout](#79-rollout)
+  - [7.9 Gaps outside both](#79-gaps-outside-both)
+  - [7.10 Rollout](#710-rollout)
 - [8. SAI API](#8-sai-api)
 - [9. Configuration and management](#9-configuration-and-management)
   - [9.1 Manifest](#91-manifest)
@@ -40,6 +41,7 @@
 | 0.1 | 2026-08-31 | Brad House (Nexthop) | First draft. Security WG. |
 | 0.2 | 2026-10-14 | Brad House (Nexthop) | Restructured as a design and implementation plan. Review corrections. |
 | 0.3 | 2026-10-22 | Brad House (Nexthop) | Go repositories first. Security update grouping, patched modules, local `replace` directives, the `go` directive, DCO, and the setup steps. Release branches by pattern, release age in the preset, the robot commit check, copies into `vendor/` that follow `go.mod`, no unattended merge for patched modules, branch protection on Renovate branches, no fixup that undoes the update, the fixup as an edit Renovate leaves alone, the `go` directive and held-module checks, and rebasing only on a conflict outside the `automerge` rule. |
+| 0.4 | 2026-11-04 | Brad House (Nexthop) | The freeze pipelines and what they keep current that Renovate does not, and the gaps outside both. |
 
 ### 2. Scope
 
@@ -493,14 +495,38 @@ Renovate sets reviewers when it opens a pull request and does not revisit them.
 
 #### 7.8 Existing automation
 
-Three pipelines already keep parts of the tree current, all acting as `mssonicbld`. Renovate is added beside them.
+Five pipelines already keep parts of the tree current, all acting as `mssonicbld`. Renovate is added beside them.
 
 | Pipeline | Owns | Where it lives |
 |----------|------|----------------|
-| Version freeze | What the build resolves: `apt` and `pip` versions per platform, architecture and container, and the Debian snapshot timestamp | `sonic-buildimage`, `.azure-pipelines/azure-pipelines-UpgrateVersion.yml` |
+| Version freeze | What the image build resolves: `apt` and `pip` versions per platform, architecture and container, Docker base image digests, and the Debian snapshot timestamp. Writes `files/build/versions-public/`, which `files/build/versions` links to | `sonic-buildimage`, `.azure-pipelines/azure-pipelines-UpgrateVersion.yml` |
+| `docker-ptf` version freeze | The same for the `docker-ptf` test image. Writes `dockers/docker-ptf/files/` | `sonic-buildimage`, `.azure-pipelines/docker-ptf.yml` |
+| `docker-sonic-mgmt` version freeze | The same for the `docker-sonic-mgmt` test image. Writes `dockers/docker-sonic-mgmt/files/` | `sonic-buildimage`, `.azure-pipelines/docker-sonic-mgmt.yml` |
 | Submodule update | Which commit of each submodule `sonic-buildimage` builds | `sonic-pipelines`, `azure-pipelines/submodule-update.yml` |
 | Merge robot | Merging labeled bot pull requests | `sonic-pipelines`, `azure-pipelines/automation-pr-scan.yml` |
 | Renovate | What manifests declare, and hand-pinned versions | Each repository's `renovate.json` |
+
+**The freeze pipelines.** Each one builds with nothing pinned, records what the build installed, and opens a pull request with the difference:
+
+| Step | Work |
+|------|------|
+| 1 | Read the newest Debian and Debian security snapshot timestamps from `packages.trafficmanager.net` |
+| 2 | Build with `SONIC_VERSION_CONTROL_COMPONENTS=` empty, against those snapshots. The version freeze builds `vs`, `vpp`, `alpinevs`, `broadcom`, `marvell-prestera` (`armhf`, `arm64`), `mellanox`, `nvidia-bluefield` and `aspeed-arm64` |
+| 3 | The build hooks record each container's result: `dpkg-query` for `versions-deb-*`, `pip3 freeze --all` for `versions-py3`, and the images, downloads and clones it used for `versions-docker`, `versions-web` and `versions-git` (`src/sonic-build-hooks/scripts/collect_version_files`) |
+| 4 | `make freeze` (`scripts/versions_manager.py freeze`) merges the results into the version files. A scheduled run of the version freeze also drops the files of containers no build produced |
+| 5 | Push `repd/versions/<branch>` (or `repd/docker-ptf-versions/<branch>`) and open a pull request labeled `automerge`, which the merge robot merges |
+
+The version freeze runs daily. Its YAML schedule names the `20*` release branches, and it also opens the `master` pull requests, such as #30435. `docker-sonic-mgmt` runs daily on `master`. `docker-ptf` names no schedule in its YAML. A build with `deb` in `SONIC_VERSION_CONTROL_COMPONENTS` sets `MIRROR_SNAPSHOT=y` and installs only what the files name, so a Debian security fix reaches a build only through the next freeze.
+
+What the freeze pipelines keep current, and Renovate does not:
+
+| Item | Version file | Why not Renovate |
+|------|--------------|------------------|
+| Stock Debian packages, including Debian security and LTS fixes | `versions-mirror`, `versions-deb-*` | No manifest names them, and Renovate has no Debian advisory feed |
+| Python packages Debian installs, such as `python3-brotli` | `versions-py3`, through `pip3 freeze` | They are Debian packages. `pip` reports their upstream version |
+| Python packages a build installs with `pip` | `versions-py3` | The pip seam below |
+| Docker base images named in Dockerfile templates, such as `debian:trixie` | `versions-docker`, by digest | The `dockerfile` manager does not read a `.j2` template such as `FROM {{ prefix }}debian:trixie` ([7.3](#73-hand-pinned-versions)) |
+| What a pinned download or clone fetched | `versions-web`, `versions-git` | These record what a build fetched. A hand-pinned version in the URL is Renovate's ([7.3](#73-hand-pinned-versions)) |
 
 **Dependabot.** Dependabot has three parts, and each is handled when a repository adopts Renovate:
 
@@ -520,7 +546,21 @@ Open Dependabot pull requests are closed once Renovate runs; Renovate opens its 
 | Teach the build hook to read requirements files | Removes the seam |
 | Order the Renovate pull request behind a re-freeze | Keeps both, with a dependency between them |
 
-#### 7.9 Rollout
+#### 7.9 Gaps outside both
+
+Neither the freeze pipelines nor Renovate closes these. CVE-2026-111497, a Brotli decoder overflow fixed by Debian on 2026-10-23, shows most of them: `master` picked up the fix when freeze pull request #30435 merged on 2026-10-29, and only because the freeze runs nightly.
+
+| # | Gap | Example | Suggested fix |
+|---|-----|---------|---------------|
+| G1 | The freeze runs on a clock, not on an advisory. Nothing starts it when Debian publishes a fix, or speeds the merge of its pull request | The Brotli fix took six days to reach `master` | A daily job that compares each branch's `versions-deb-*` against the Debian security tracker's JSON, and starts that branch's freeze or opens an issue when a pinned version is older than a fix |
+| G2 | A stalled freeze is silent. A failing pipeline or an unmerged pull request leaves the pins where they are | `202505`'s last freeze merged on 2026-06-28. It still pins `libbrotli1` `1.0.9-2+b6` | An alert when a branch's `versions-mirror` snapshot is older than a set age |
+| G3 | Version files no freeze build produces go stale. The scheduled clean-up drops a container's files only when no build produces the container at all | `files/build/versions-public/dockers/docker-ptf/versions-deb-bookworm` kept `+b6` after the freeze moved the rest of `master`, until a hand-written pull request (#30454) | Build every pinned container and distribution in the freeze, or drop the files of each one it does not build |
+| G4 | `docker-ptf` has two version trees, and the published image follows neither for Debian packages | `files/build/versions-public/dockers/docker-ptf/` and `dockers/docker-ptf/files/` disagree. The `docker-ptf` Dockerfile ends by removing the `apt` pins and running `apt-get upgrade` | Keep one tree per image, and record what the image ships after the upgrade |
+| G5 | `versions-py3` cannot tell a Debian package from a PyPI one | `brotli==1.1.0` is Debian's patched `python3-brotli`, and also the name of the vulnerable PyPI release. A scanner reading `versions-py3` reports it, and a `pip install` would satisfy the constraint with the vulnerable wheel | Mark or leave out the packages under `dist-packages` in `pip3 freeze`, and have scanners read `versions-deb-*` for them |
+| G6 | A copy of a library built into another package is not seen as that library | The PyPI `Brotli` wheel and Debian's `python3-brotli` both compile the decoder into `_brotli.so`. An advisory against the C library names neither | SBOM triage that records bundled copies, with a list of known ones, as for SONiC's Debian rebuilds |
+| G7 | A fix reaches only new builds | Images built before 2026-10-29 carry the vulnerable decoder | The release process: which shipped images to rebuild after a fix |
+
+#### 7.10 Rollout
 
 | Phase | Work |
 |-------|------|
@@ -757,3 +797,9 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 | 10 | Stand up SBOM-driven triage for the Debian packages SONiC rebuilds | — | Security WG |
 | 11 | Confirm the release branch policy in [7.5](#75-branch-policy) | `renovate.json` | Security WG |
 | 12 | Let `mssonicbld` merge without a review in each Renovate repository, adding `sonic-automation` to every ruleset on the branches Renovate targets ([9.5](#95-setup-steps) step 5) | Repository settings | Organization administrators |
+| 13 | Start a branch's freeze when the Debian security tracker shows a fix newer than a pinned version (G1 in [7.9](#79-gaps-outside-both)) | `sonic-buildimage` `.azure-pipelines/` | `@sonic-net/sonic-build`, Security WG |
+| 14 | Alert when a branch's Debian snapshot is older than a set age (G2) | `sonic-buildimage` `.azure-pipelines/` | `@sonic-net/sonic-build` |
+| 15 | Build or drop every pinned container and distribution the freeze does not build (G3) | `scripts/versions_manager.py`, `.azure-pipelines/` | `@sonic-net/sonic-build` |
+| 16 | One version tree for `docker-ptf`, recording what it ships after its `apt-get upgrade` (G4) | `dockers/docker-ptf/`, `.azure-pipelines/docker-ptf.yml` | `docker-ptf` owners |
+| 17 | Keep Debian-installed Python packages apart from PyPI ones in `versions-py3` (G5) | `src/sonic-build-hooks/` | `@sonic-net/sonic-build` |
+| 18 | Record bundled library copies in SBOM triage (G6), with item 10 | — | Security WG |
