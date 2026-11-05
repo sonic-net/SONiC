@@ -53,7 +53,7 @@ A maintainer may step down or be proposed for removal in the following scenarios
 - **Voluntary step-down:** A maintainer may request to step down at any time by creating a PR to remove their entry from [SONiC_Repo_Maintainer.md](./SONiC_Repo_Maintainer.md).
 - **Dormancy:** A maintainer who has made no contributions, performed no reviews, and undertaken no maintenance activities in the specific repository for six consecutive months or longer may be proposed for removal. An existing maintainer of the repository or a TSC member may create a PR to remove the dormant maintainer's entry from [SONiC_Repo_Maintainer.md](./SONiC_Repo_Maintainer.md), documenting the period of inactivity and supporting evidence.
 
-All removal PRs, including voluntary step-down requests, follow the same approval procedure as nominations under [Review & Approval](#review--approval), except that the review window is at least one month rather than four weeks:
+All removal PRs, including voluntary step-down requests, follow the same approval procedure as nominations under [Review & Approval](#review--approval):
 
 1. The PR must receive approval from at least one existing maintainer of the repository and two TSC voting members.
 2. The PR must remain open for at least one month from the date it is opened to allow for review and objections. It may be merged only after this period has elapsed, the required approvals have been obtained, and there are no objections.
