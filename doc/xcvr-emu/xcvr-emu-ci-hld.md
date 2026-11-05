@@ -294,7 +294,7 @@ sequenceDiagram
     X->>D: Remove port N transceiver tables
 ```
 
-**PR checker integration.** sonic-mgmt runs impacted-area-based PR testing. Each PR checker represents a topology, and the test scripts each checker runs are listed in `.azure-pipelines/pr_test_scripts.yaml`. Once KVM DUTs can run the emulator, the transceiver test scripts are added there for one KVM topology, first in an optional (non-blocking) checker. sonic-buildimage PRs, including submodule updates, also run sonic-mgmt tests on KVM, so the same tests cover transceiver changes that arrive through those PRs.
+**PR checker integration.** sonic-mgmt runs impacted-area-based PR testing. Each PR checker represents a topology, and the test scripts each checker runs are listed in `.azure-pipelines/pr_test_scripts.yaml`. Once KVM DUTs can run the emulator, the transceiver test scripts are added there for one KVM topology, first in an optional (non-blocking) checker. Test selection must recognize emulator-enabled DUTs and include the applicable checks currently marked physical-only, including EEPROM hexdump. On these DUTs, setup must fail if the platform adapter or emulator is unavailable, and the legacy VS `ERROR_CHASSIS_LOAD` success bypasses must not apply; ordinary VS behavior is unchanged. sonic-buildimage PRs, including submodule updates, also run sonic-mgmt tests on KVM, so the same tests cover transceiver changes that arrive through those PRs.
 
 #### 7.4. Emulator fidelity and governance
 
