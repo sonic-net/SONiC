@@ -193,6 +193,12 @@ GitHub refuses such a commit with "Required status check is expected. Cannot for
 
 Step 2 also brings in any drift between the two repositories' `go.mod` files. The CI pipeline's own `go mod tidy` applies the same change on every build.
 
+**Lock files.** A Rust repository commits its `Cargo.lock`, a library included, as Cargo recommends. Without one, every build resolves crates.io afresh, so a new release reaches the build without review, and Renovate has only the ranges in `Cargo.toml` to update. A library's lock file does not affect the repositories that depend on it, which resolve it in their own. The change that adds a repository's `renovate.json` also adds a missing `Cargo.lock`, and CI builds with `--locked`, so a lock file out of step with `Cargo.toml` fails. As with Go, CI builds with the build container's Rust toolchain and installs none, so a lock file that needs a newer Rust fails.
+
+Renovate updates the crates a `Cargo.toml` names, and their entries in `Cargo.lock`. A crate the lock file holds only as another crate's dependency gets no pull request of its own, a vulnerable one included. The preset therefore enables lock file maintenance: once a week Renovate runs `cargo update`, and opens one pull request per repository that moves every crate in its lock files to the newest compatible release. A crate SONiC takes from a git branch, such as `swss-common` from `master`, moves to that branch's head in the same pull request. `gomod` has no lock file maintenance, and needs none: `go.mod` lists every module the build uses, and Renovate updates each one there.
+
+`cargo update` takes the newest releases as they stand, without the 7-day hold in [7.5](#75-branch-policy), so the lock file maintenance pull request is never labeled `automerge`, and a reviewer reads its lock file changes. It runs on `master` only: the release branch rule that disables every manager but `custom.regex` disables it too.
+
 #### 7.3 Hand-pinned versions
 
 A version a person pins in a build script has a custom manager entry beside it.
@@ -361,6 +367,7 @@ Release branches from `202611` on are in scope. One pattern matches them, so a n
 | Hand-pinned version, major | Reviewer | Not opened |
 | Any other patch or minor | Grouped, reviewer | Not opened |
 | Any other major | One per dependency, reviewer | Not opened |
+| Lock file maintenance | Weekly, reviewer | Not opened |
 
 **Security classification.** Renovate classifies a security update from GitHub vulnerability alerts and OSV, both keyed by ecosystem:
 
@@ -623,6 +630,7 @@ The preset:
   "commitBody": "Signed-off-by: {{{gitAuthor}}}",
   "enabledManagers": ["gomod", "cargo", "github-actions", "dockerfile", "custom.regex"],
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "lockFileMaintenance": { "enabled": true },
   "vulnerabilityAlerts": {
     "enabled": true,
     "labels": ["security"],
@@ -689,7 +697,7 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 | 5 | Organization administrator | On each branch Renovate targets, let `mssonicbld` merge without a review ([7.6](#76-approval-and-merge)). Where classic branch protection requires a review, add the `sonic-automation` team to the actors allowed to bypass required pull requests, unless `mssonicbld` is a repository admin and the protection does not apply to administrators. Where a ruleset carries a pull request or required status check rule, add the `sonic-automation` team, whose only member is `mssonicbld`, to the ruleset's bypass list, in the "For pull requests only" mode |
 | 6 | Each repository's administrators | Where a branch protection rule matches every branch, replace that rule with a branch ruleset that includes all branches, excludes `renovate/**`, keeps the same rules, and lets the repository admin role bypass, and the `sonic-automation` team in the "For pull requests only" mode, so Renovate and any workflow from [7.2](#72-native-managers) can add commits to Renovate branches. A repository with the `go.sum` workflow does not require branches to be up to date before merging ([7.2](#72-native-managers)) |
 | 7 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)) |
-| 8 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers). In a Go repository, CI builds with the build container's Go only ([7.2](#72-native-managers)) |
+| 8 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers). In a Go repository, CI builds with the build container's Go only. In a Rust repository, the change commits any missing `Cargo.lock`, and CI builds with `--locked` and the build container's Rust ([7.2](#72-native-managers)) |
 | 9 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
 
 Renovate opens nothing in a repository but its onboarding pull request until step 8. Steps 1 to 6 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot. A pull request Renovate opened before step 1 keeps its failed `EasyCLA` status until someone comments `/easycla` on it.
@@ -727,6 +735,7 @@ No change. Nothing is added to the image.
 | The merge robot merges without a review | The bypass that lets it also skips the required checks, so the robot evaluates them itself. See [7.6](#76-approval-and-merge) |
 | A security fix to a v0 Go module can change its API | Go treats a v0 minor bump as compatible, and labels it accordingly. Security updates take the lowest fixed version, and the build and tests gate the merge |
 | The FIPS Go pin depends on a SONiC FIPS build | Renovate lists the upstream release on the dashboard. The bump lands after SONiC publishes the package |
+| A vulnerable crate held only in a `Cargo.lock` gets no security pull request | Renovate raises security updates only for the crates a `Cargo.toml` names. Lock file maintenance moves the crate on `master` within a week, after review. On a release branch it is updated by hand. See [7.2](#72-native-managers) |
 | Renovate reads only what a manifest declares | Versions resolved at build time belong to the version freeze pipeline |
 | npm lockfiles inside Debian's Go and Ruby packages are not reached | They are part of Debian's packages and are not SONiC dependencies |
 | Findings with no published fix are not addressed | Nothing can update to a fix that does not exist. Shipping less is the [EOL plan](../eol-planning/202611-eol-and-deprecation.md)'s remit |
@@ -755,6 +764,7 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Robot commit check | The robot declines a Renovate pull request carrying a pushed commit, including one that names the Renovate bot as its author, and merges one whose commits are all GitHub-signed commits from the Renovate bot and `github-actions[bot]` |
 | Robot merges past a ruleset | In a repository whose base branch ruleset requires a review and status checks, the robot merges a labeled Renovate pull request that passes its evaluation and has no approval. With a check required only by the ruleset left failing, it does not |
 | Release age | An ordinary update younger than 7 days is not proposed. A security update of the same age is |
+| Lock file maintenance | A run against `master` in a Rust repository opens one lock file maintenance pull request, without `automerge`, whose CI builds with `--locked`. A run against a release branch opens none, and a Go repository gets none |
 | Patched modules stay separate | A run with an ordinary update to a patched module and to an unpatched one in the same ecosystem opens the unpatched one in the ecosystem group, and lists the patched one alone for approval. A security update to a patched module opens in its own pull request, labeled `security` and `patched-module`, without `automerge` |
 | Renovate leaves a fixed-up branch alone | After the `go.sum` workflow commits, Renovate makes no further push to the branch until the rebase box is ticked, including when the fixup moves lines in `go.mod` |
 | Rebasing is limited to `automerge` updates | After a merge to `master`, a run rebases only the pull requests labeled `automerge` that are behind it, and any pull request that conflicts |
