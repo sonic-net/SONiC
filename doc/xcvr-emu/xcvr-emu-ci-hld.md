@@ -155,6 +155,7 @@ The author used xcvr-emu to reproduce sonic-buildimage #18893 on SONiC VS, and l
 | CI-6 | Bounded cost: start-up time, test duration and resource use are measured and stay within existing pipeline time limits. |
 | CI-7 | Diagnosable: on failure, emulator logs and the EEPROM state needed to reproduce the failure are available from the pipeline. |
 | CI-8 | Compatible with the Python, gRPC and protobuf versions SONiC ships. |
+| CI-9 | Loopback only: the emulator's gRPC API has no authentication, so in both tiers `xcvr-emud` listens only on a loopback address, never on all interfaces. Only processes on the same host (Tier 1) or DUT (Tier 2) can reach it. |
 
 #### 5.3. Exemptions
 
@@ -183,17 +184,17 @@ flowchart LR
         t2cli --> t2plat
         t2xcvrd --> t2plat
     end
-    emu1["xcvr-emud: one process per test"]
-    emu2["xcvr-emud: container on the DUT"]
+    emu1["xcvr-emud: one process per test, loopback only"]
+    emu2["xcvr-emud: container on the DUT, loopback only"]
     mgmt["sonic-mgmt tests"]
     t1adapter -- "gRPC Read and Write" --> emu1
     t2plat -- "gRPC Read, Write and Monitor" --> emu2
     mgmt -- "CLI and STATE_DB checks" --> t2cli
-    mgmt -- "Insert, remove, set values" --> emu2
+    mgmt -- "Insert, remove, set values: xcvr-emush on the DUT, over SSH" --> emu2
 ```
 
 - In Tier 1 the production code runs inside the pytest process. A test adapter implements the platform SFP's EEPROM read and write over gRPC, and the database is replaced where a suite needs it.
-- In Tier 2 the DUT runs the VS image with an emulator-backed `sonic_platform`. Host CLIs and xcvrd in PMON use it exactly as they use a vendor platform package on hardware.
+- In Tier 2 the DUT runs the VS image with an emulator-backed `sonic_platform`. Host CLIs and xcvrd in PMON use it exactly as they use a vendor platform package on hardware. The emulator listens only on the DUT's loopback interface, and sonic-mgmt controls it by running commands on the DUT.
 
 ### 7. High-Level Design
 
@@ -212,6 +213,9 @@ The template's checklist, answered for this design:
 
 - **Repository.** `ishidawataru/xcvr-emu` moves to `sonic-net/xcvr-emu` by a GitHub repository transfer, which keeps its history, issues, pull requests and releases and redirects existing links. Initial maintainers: Wataru Ishida (ishidawataru, author), Ariz Zubair (az-pz) and Mihir Patel (mihirpat1). Standard sonic-net repository settings apply: CODEOWNERS, branch protection, PR checks and tagged releases.
 - **Compatibility.** The upstream emulator needs changes to work with the gRPC and protobuf versions SONiC ships (package-qualified protobuf imports and SONiC-compatible gRPC constraints). These changes are carried today in a fork commit (`az-pz/xcvr-emu@3aca04f`). They will be submitted as regular PRs and shipped in the first `sonic-net` release.
+- **Required emulator changes.** The first `sonic-net` release also includes two changes that this design depends on, each covered by emulator tests:
+  - **Listen address.** `xcvr-emud` always listens on all interfaces today (`[::]:<port>`). The release adds a listen-address option, and SONiC tests always pass a loopback address (CI-9).
+  - **Per-module EEPROM isolation.** All modules served by one `xcvr-emud` process share one EEPROM today: the server passes one memory map to every module, and the memory map's default EEPROM objects are Python default arguments, created once per process. The release gives each module its own memory map and EEPROM. An emulator test checks that writes, application selection, reset, insertion and removal on one module leave the other modules unchanged (FR-5).
 - **Artifacts.** Each release publishes a Python package that installs from the release tag, and a container image under the sonic-net organization.
 - **Consumption.** Repositories pin a release tag in their `testing` extra, and KVM testbeds pin the container image tag. For example (illustrative):
 
@@ -229,7 +233,7 @@ testing_packages = [
 
 All three suites follow the same pattern:
 
-- A pytest fixture starts `xcvr-emud` as a subprocess bound to loopback on an ephemeral port, loads a checked-in YAML module configuration, waits until the server is ready, and stops and reaps it at teardown.
+- A pytest fixture starts `xcvr-emud` as a subprocess on an ephemeral port, listening only on `127.0.0.1` (CI-9), loads a checked-in YAML module configuration, waits until the server is ready, and stops and reaps it at teardown. The sonic-platform-daemons suite already binds `127.0.0.1` through a small launcher. The sonic-platform-common and sonic-utilities suites run `xcvr-emud`, which listens on all interfaces today, so they pass a loopback listen address when they pin the first `sonic-net` release ([7.1](#71-hosting-versioning-and-packaging)).
 - A thin adapter implements the platform SFP's EEPROM read and write over gRPC, so `XcvrApiFactory`, `CmisApi` and everything above them run unmodified.
 - Each repository's existing pytest run discovers the suite, and the emulator is declared as a test dependency (the package's `testing` extra). Where a pipeline does not yet install test extras, a one-line install step is added.
 - A pytest marker or path selects or deselects the suites. On a developer machine without the emulator they skip; in CI a missing emulator is an error (CI-4).
@@ -248,7 +252,7 @@ How Tier 1 closes the gaps described in [4.1](#41-problem-statement):
 - A command-inventory check requires an explicit coverage decision for every new `sfputil` command.
 - The xcvrd suite drives the CMIS manager through insertion, removal and application changes, the code paths behind sonic-buildimage #18893.
 
-In local validation of sonic-platform-common #758, the 53 integration tests and the full test suite (1,916 tests) pass. In the xcvrd suite, each emulated module currently runs in its own emulator process, because the current emulator revision shares EEPROM storage within a process. Per-module isolation inside one process is a planned emulator improvement (see [14](#14-openaction-items---if-any)).
+In local validation of sonic-platform-common #758, the 53 integration tests and the full test suite (1,916 tests) pass. In the xcvrd suite, each emulated module currently runs in its own emulator process, because the current emulator revision shares EEPROM storage between the modules of one process. Tier 1 does not need the fix, but Tier 2 does, so per-module isolation ships in the first `sonic-net` release ([7.1](#71-hosting-versioning-and-packaging), [7.5](#75-rollout-and-gating)).
 
 #### 7.3. Tier 2: transceiver system tests on SONiC VS
 
@@ -264,9 +268,10 @@ This design makes the same capability part of the VS image and the testbed setup
 1. **Emulator-backed VS SFP implementation (sonic-buildimage).** Add an `Sfp` class based on `SfpOptoeBase`, and the matching `Chassis` methods, to the VS `sonic_platform` package, with EEPROM reads and writes sent to `xcvr-emud` over gRPC. Map the emulator's `Monitor` stream to `Chassis.get_change_event()` so insertion and removal reach xcvrd. Install the package for both the host and PMON, and provide the SFP inventory (`chassis.sfps` in `platform.json`) that the platform API tests use.
 2. **xcvrd only where the emulator is used.** xcvrd stays disabled on regular VS DUTs and runs on DUTs that use the emulator, for example through a dedicated VS HwSKU or a start-up check for the emulator endpoint (open item).
 3. **Host-TX readiness.** The xcvrd CMIS manager waits for host-TX readiness. The author's prototype needed vslib to support `SAI_PORT_ATTR_HOST_TX_READY_STATUS`. This is confirmed against the current vslib (sonic-sairedis) and added if still missing.
-4. **Emulator placement.** Start with `xcvr-emud` as a container on the DUT, on the host network, so that the host and PMON reach it on `localhost`. If resource use becomes a problem, the alternatives are running it from the sonic-mgmt container or as a shared service.
-5. **Breakout (later phase).** DPB tests on VS need `platform.json`-based port configuration, updated lane maps and virtual interfaces for the breakout sub-ports, as in the author's prototype.
-6. **Test control.** sonic-mgmt fixtures deploy the emulator with a per-topology module configuration, and provide helpers to insert and remove modules and change values through gRPC or `xcvr-emush`.
+4. **Emulator placement.** Start with `xcvr-emud` as a container on the DUT, on the host network, listening only on `127.0.0.1` (CI-9). The host and PMON reach it on the loopback interface, and nothing reaches it from the DUT's other interfaces. If resource use becomes a problem, the alternatives are running it from the sonic-mgmt container or as a shared service. An alternative must also keep the gRPC port off the network, for example by forwarding a DUT loopback port over the existing SSH connection to an emulator that listens only on loopback.
+5. **Independent modules.** One `xcvr-emud` process serves every front-panel module, and each port's `Sfp` reads and writes its own module index. This relies on per-module EEPROM isolation ([7.1](#71-hosting-versioning-and-packaging)). Without it, application selection or reset on one port would change the EEPROM of other ports. Phase 2 therefore starts only on an emulator release that includes the isolation change ([7.5](#75-rollout-and-gating)), and a system test checks port independence on the DUT ([13.2](#132-system-test-cases)).
+6. **Breakout (later phase).** DPB tests on VS need `platform.json`-based port configuration, updated lane maps and virtual interfaces for the breakout sub-ports, as in the author's prototype.
+7. **Test control.** sonic-mgmt fixtures deploy the emulator with a per-topology module configuration, and provide helpers to insert and remove modules and change values. The helpers run on the DUT through the existing SSH connection: they run `xcvr-emush` non-interactively (`-c` or `-x`) inside the emulator container. sonic-mgmt never connects to the emulator's gRPC port over the network.
 
 The sequence below shows insertion, CMIS initialization and removal on a VS DUT:
 
@@ -277,6 +282,7 @@ sequenceDiagram
     participant P as VS sonic_platform
     participant X as xcvrd
     participant D as STATE_DB
+    Note over T,E: sonic-mgmt runs xcvr-emush on the DUT over SSH. xcvr-emud listens only on loopback.
     T->>E: Insert module on port N (module configuration)
     E-->>P: Monitor event: port N inserted
     X->>P: get_change_event()
@@ -308,9 +314,9 @@ sequenceDiagram
 
 | Phase | Deliverables | Gating |
 |:-----:|--------------|--------|
-| 0 | `sonic-net/xcvr-emu` created by transfer; first release with the SONiC compatibility changes; container image | Not applicable |
+| 0 | `sonic-net/xcvr-emu` created by transfer; first release with the SONiC compatibility changes, the listen-address option and per-module EEPROM isolation ([7.1](#71-hosting-versioning-and-packaging)); container image | Not applicable |
 | 1 | sonic-platform-common #758, sonic-platform-daemons #895 and sonic-utilities #4877 pinned to the release and merged | Part of each repository's existing test step, gating like other tests |
-| 2 | VS SFP implementation, xcvrd enablement and emulator deployment; transceiver tests on one KVM topology | Optional (non-blocking) checker first; required after a stability period agreed with the maintainers |
+| 2 | Prerequisite: the phase 0 emulator release with per-module EEPROM isolation and the listen-address option. VS SFP implementation, xcvrd enablement and emulator deployment; transceiver tests on one KVM topology | Optional (non-blocking) checker first; required after a stability period agreed with the maintainers |
 | 3 | Emulator coverage growth (see [12](#12-restrictionslimitations)) and new regression scenarios | Per capability |
 
 A flaky emulator-backed test is quarantined with a marker and fixed, rather than left to fail intermittently.
@@ -319,7 +325,7 @@ A flaky emulator-backed test is quarantined with a marker and fixed, rather than
 
 | Repository | Change | Phase |
 |------------|--------|:-----:|
-| sonic-net/xcvr-emu (new) | Emulator, SONiC compatibility changes, releases and container image | 0 |
+| sonic-net/xcvr-emu (new) | Emulator, SONiC compatibility changes, listen-address option, per-module EEPROM isolation, releases and container image | 0 |
 | sonic-platform-common | `tests/sonic_xcvr/integration` and `testing` extra (#758) | 1 |
 | sonic-platform-daemons | `sonic-xcvrd/tests/integration` and `testing` extra (#895) | 1 |
 | sonic-utilities | `integration_tests` and `testing` extra (#4877) | 1 |
@@ -370,7 +376,7 @@ There is no memory impact on hardware platforms. In CI, Tier 1 adds one short-li
 
 - Today's suites cover bank-0 pluggable CMIS modules. Optical links, real hardware timing, coherent (C-CMIS) and CPO devices, and CDB firmware execution are not covered.
 - SFF-8472 and SFF-8636 modules are not modeled in the first phase.
-- The current emulator revision shares EEPROM storage within one process, so multi-module tests run one process per module.
+- The current emulator revision shares EEPROM storage between the modules of one process, so multi-module Tier 1 tests run one process per module. Tier 2 waits for the per-module isolation change ([7.1](#71-hosting-versioning-and-packaging)).
 - The emulator requires Python 3.10 or later in the test environment.
 - Emulated behavior is only as accurate as the emulator's CMIS model. Passing emulator-backed tests does not replace the qualification of real modules on physical testbeds.
 
@@ -419,17 +425,18 @@ Tier 2 runs on a KVM testbed whose DUT uses emulated modules:
 | 8 | New: DOM thresholds | Move a monitor value across a threshold | DOM values and flags in STATE_DB reflect the change |
 | 9 | New: DPB regression for sonic-buildimage #18893 | Breakout-capable module, then apply a breakout | xcvrd keeps running and the sub-ports initialize |
 | 10 | Selected `tests/transceiver` suites (for example `eeprom`, `dom`, `oir` and `system`) | Modules configured to match the transceiver inventory | Cases that need no optical link pass on KVM |
+| 11 | New: port independence | Change the application of one module, reset it, then remove it | Only that port's EEPROM, CMIS state and STATE_DB entries change, and the other ports are unaffected |
 
 ### 14. Open/Action items - if any
 
 | # | Item |
 |:-:|------|
 | 1 | TSC approval of the transfer to `sonic-net/xcvr-emu` (presented 10/29/2026). |
-| 2 | First `sonic-net/xcvr-emu` release with the SONiC gRPC and protobuf compatibility changes, and the publishing location of the container image. |
+| 2 | First `sonic-net/xcvr-emu` release with the SONiC gRPC and protobuf compatibility changes, the listen-address option and per-module EEPROM isolation, and the publishing location of the container image. |
 | 3 | How xcvrd is enabled only on VS DUTs that use the emulator (dedicated VS HwSKU or start-up check). |
-| 4 | Emulator placement for Tier 2 (DUT container, sonic-mgmt container or shared service), decided on measured resource use. |
+| 4 | Emulator placement for Tier 2 (DUT container, sonic-mgmt container or shared service), decided on measured resource use. Every option keeps the gRPC port loopback-only (CI-9). |
 | 5 | Which KVM topology carries the transceiver tests, and the stability criteria for making the checker required. |
-| 6 | Emulator improvements: per-module EEPROM isolation in one process, insertion and removal events through `Monitor` for `get_change_event()`, CDB, bank paging, C-CMIS, VDM, LPO, CPO and ELSFP, SFF-8636 and SFF-8472. |
+| 6 | Emulator improvements: insertion and removal events through `Monitor` for `get_change_event()`, CDB, bank paging, C-CMIS, VDM, LPO, CPO and ELSFP, SFF-8636 and SFF-8472. |
 | 7 | Whether and how emulator-backed testing extends to physical testbeds. |
 
 ### 15. References
