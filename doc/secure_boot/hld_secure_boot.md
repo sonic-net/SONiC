@@ -301,7 +301,7 @@ In addition, on the ESP (EFI system partition), the shim and grub bootloaders ma
 
 As images get installed and removed on a system, the UEFI db database may grow to have many certificates, and may potentially fill up the UEFI firmware storage space. For that purpose, when removing an image, the db database will also get cleaned up. This is done by scanning the vmlinuz kernel binary of all installed SONiC images and the bootloader installed on the system, comparing it to the certificates that are installed, and determining which certificates need to be present.
 
-This is done by looking at the auth files under `/host/db-auth/`. Because of the limitations of the UEFI variable APIs (in that variables can be only set or appended to, but not partially removed), one of these auth files must be one that removes all db certificates. The auth files that correspond to certificates that are required are collected and then applied (after applying the `noDb.auth` file that removes all db certificates).
+This is done by looking at the auth files under `/host/db-auth/`. Because of the limitations of the UEFI variable APIs (in that variables can be only set or appended to, but not partially removed), one of these auth files must be one that removes all db certificates; this file should be named `remove-all-db.auth`. The auth files that correspond to certificates that are required are collected and then applied (after applying the `remove-all-db.auth` file that removes all db certificates).
 
 #  1.8. <a name='SAIAPI'></a>SAI API
 N/A
