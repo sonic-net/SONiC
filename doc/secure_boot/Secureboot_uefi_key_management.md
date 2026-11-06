@@ -6,7 +6,7 @@
 |  Rev  | Date           | Author      | Change Description |
 | :---: | :------------: | :---------: | ------------------ |
 |  0.1  |   08/25/2023   | Sachin Naik | Initial version    |
-|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim, factory default, efi-readvar / efi-updatevar |
+|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim, factory default, efi-readvar / efi-updatevar. OVMF: enroll needs no reboot; SecureBoot=1 on next boot |
 
 
 <!-- omit in toc -->
@@ -116,9 +116,11 @@ UEFI Secure Boot is controlled by two global variables. They are independent: en
 
 **User Mode** (`SetupMode=0`): A PK is enrolled. Updates to PK and KEK must be AUTH2 objects signed by the current PK. Updates to db and dbx must be AUTH2 objects signed by a KEK. Enrolling the platform owner's PK is the standard UEFI transition from Setup Mode to User Mode. That PK enrollment is the ownership claim: the owner's PK becomes the root of the key hierarchy.
 
-**Secure Boot flag**: `SecureBoot` is not the same variable as `SetupMode`. User Mode does not by itself mean images are verified. After PK enrollment the firmware should set `SecureBoot=1` so bootloaders and OS images are checked against db and dbx. While `SecureBoot=0`, keys may already be present but unsigned images are still loaded.
+**Secure Boot flag**: `SecureBoot` is not the same variable as `SetupMode`. User Mode does not by itself mean images are verified. While `SecureBoot=0`, keys may already be present but unsigned images are still loaded.
 
-Enforcing Secure Boot is both flags together: `SetupMode=0` and `SecureBoot=1`.
+On OVMF (and typical EDK2), `SetupMode` flips to `0` as soon as PK is accepted. `SecureBoot` is computed at POST, so it stays `0` until the **next reboot**. Image verification against db/dbx also starts on that boot. The running OS is not re-checked. Enroll of dbx/db/KEK/PK does **not** require a reboot between those writes.
+
+Enforcing Secure Boot is both flags together after that reboot: `SetupMode=0` and `SecureBoot=1`.
 
 ## 4 Factory default state
 The hardware vendor ships the machine. The platform owner has not claimed it yet. Factory default is Setup Mode so the owner can enroll keys. The device is not yet constrained to owner-signed operating-system images. Vendor manufacturing must not enroll a PK if the owner is expected to claim with unsigned ESL (section 5.3).
@@ -160,7 +162,7 @@ The hardware vendor provides the machine. The platform owner owns it after claim
 
 If the vendor ships with a vendor PK already enrolled, the owner cannot claim with unsigned ESL. Either the vendor ships Setup Mode, or the vendor provides a PK-signed path into Setup Mode. This HLD is the **owner-provisioned PK** model: factory is Setup Mode, owner PK is last during claim.
 
-Ownership claim is one ordered procedure. PK is last. Enrolling PK leaves Setup Mode, enters User Mode, and firmware should set `SecureBoot=1`. After that, bootloaders and OS images must verify against db. Enrolling PK against firmware, ONIE, or SONiC that db will not verify can leave the device unbootable.
+Ownership claim is one ordered procedure. PK is last. Enrolling PK leaves Setup Mode and enters User Mode immediately (`SetupMode=0`). On OVMF, `SecureBoot=1` and db/dbx image checks apply on the **next reboot**, not during the enroll writes. Enrolling PK against firmware, ONIE, or SONiC that db will not verify can leave the device unbootable on that reboot.
 
 ### 5.2 Claim workflow
 Do these steps **in order**. Stay in Setup Mode until PK is written.
@@ -172,9 +174,10 @@ Do these steps **in order**. Stay in Setup Mode until PK is written.
   On device  (Setup Mode)
     3. Confirm SetupMode = 1, SecureBoot = 0, PK empty
     4. Install the owner-signed OS that db will trust
-    5. Enroll dbx, db, KEK, then PK
+    5. Enroll dbx, db, KEK, then PK (no reboot between these writes)
   After PK
-    6. Verify User Mode and Secure Boot
+    6. Verify SetupMode = 0 and keys present
+    7. Reboot, then verify SecureBoot = 1
 ```
 
 1. **Generate keys** off the device (section 6.1). Private keys stay on the owner host. Only public certificates are written to the device.
@@ -185,9 +188,11 @@ Do these steps **in order**. Stay in Setup Mode until PK is written.
 
 4. **Install owner-signed ONIE and SONiC** before PK. Once SONiC is running, `sonic-installer` can replace the image (verify against db before write). USB is only if SONiC is not running.
 
-5. **Enroll keys.** dbx, db, KEK, then PK. PK last: that write enters User Mode and enables Secure Boot.
+5. **Enroll keys.** dbx, db, KEK, then PK. No reboot between these writes. PK last: that write enters User Mode (`SetupMode = 0`) immediately.
 
-6. **Verify.** `SetupMode = 0`, `SecureBoot = 1`, and PK / KEK / db present.
+6. **Verify NVRAM.** `SetupMode = 0` and PK / KEK / db present. On OVMF, `SecureBoot` may still be `0` until reboot.
+
+7. **Reboot once.** Then `SecureBoot = 1` and firmware verifies shim / OS against db. This is when claim enforcement starts.
 
 ### 5.3 Enroll keys in Setup Mode
 Firmware accepts unsigned ESL while `SetupMode = 1`. Enroll **dbx, db, KEK, then PK**. PK is last, and it is still an unsigned ESL. There is no enrolled PK yet, so a PKCS#7-signed AUTH2 cannot be used for this write.
@@ -199,7 +204,8 @@ Firmware accepts unsigned ESL while `SetupMode = 1`. Enroll **dbx, db, KEK, then
        │  3. KEK.esl  →  KEK
        │  4. PK.esl   →  PK   (last, unsigned `-e`, same as the others)
        ▼
-  User Mode, Secure Boot enabled
+  User Mode (SetupMode = 0) immediately
+  SecureBoot = 1 and image check on next reboot (OVMF)
 ```
 
 **Owner host — build ESLs:**
@@ -225,17 +231,15 @@ efi-updatevar -e -f PK.esl  PK
 
 `-e` prepends an empty AUTH2 header (no PKCS#7) and writes the ESL. That is not a signed AUTH2. Do not run `sign-efi-sig-list` on the first PK, and do not enroll a PK-signed `PK.auth` during claim.
 
-After PK is written, further PK/KEK/db/dbx changes must be AUTH2 as in section 6.
+After PK is written, further PK/KEK/db/dbx changes must be AUTH2 as in section 6. A reboot is not required to finish the four enroll writes. A reboot is required on OVMF before `SecureBoot=1` and before firmware enforces db on the bootloader.
 
 ### 5.4 Verify ownership claim
+Immediately after PK (no reboot required for this check):
+
 ```bash
 od -An -tu1 -j4 -N1 \
   /sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c
 # expect 0  User Mode
-
-od -An -tu1 -j4 -N1 \
-  /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
-# expect 1  Secure Boot enabled
 
 efi-readvar PK
 efi-readvar KEK
@@ -243,6 +247,14 @@ efi-readvar db
 ```
 
 If PK is missing, the platform is still in Setup Mode. Do not treat KEK/db enrollment alone as a completed claim.
+
+Then reboot. On OVMF, `SecureBoot` is computed at POST:
+
+```bash
+od -An -tu1 -j4 -N1 \
+  /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+# expect 1  Secure Boot enabled
+```
 
 ## 6 UEFI key management
 
@@ -413,7 +425,7 @@ Expected failures for enroll/update: missing file; not root; efivarfs not mounte
 The sonic-mgmt can cover UEFI key management including at least:
 
 1. Factory default: `SetupMode=1`, `SecureBoot=0`, PK empty (section 4).
-2. Ownership claim: enroll dbx, db, KEK, then PK; then `SetupMode=0`, `SecureBoot=1`, keys present (section 5).
+2. Ownership claim: enroll dbx, db, KEK, then PK with no reboot between writes; `SetupMode=0` and keys present immediately; after reboot `SecureBoot=1` (section 5).
 3. After claim, unsigned ESL writes are rejected.
 4. Add, update, remove, and revoke AUTH2 for PK, KEK, db, and dbx (section 6).
 5. Remove/revoke of an in-use db signer is documented as destructive; next boot fails verification when `SecureBoot=1`.
