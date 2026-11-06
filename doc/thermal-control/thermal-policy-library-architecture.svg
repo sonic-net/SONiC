@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" width="1000" height="400" role="img" aria-label="Today each vendor has its own conditions, actions and PID; with the library they share one implementation and keep only their JSON files and sensor hooks">
+  <style>
+    .bg { fill: #ffffff; }
+    .box { fill: #ffffff; stroke: #c9d4e3; stroke-width: 1.5; }
+    .box-blue { fill: #edf3fc; stroke: #1764c0; stroke-width: 1.5; }
+    .box-strong { fill: #1764c0; stroke: #1764c0; }
+    .t { fill: #1c2633; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 17px; }
+    .t-s { fill: #5d6878; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; }
+    .t-w { fill: #ffffff; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 600; }
+    .t-w2 { fill: #ffffff; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; }
+    .t-h { fill: #0e3f7d; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.04em; }
+    .t-b { fill: #0e3f7d; font-family: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 600; }
+    .ln { stroke: #5d6878; stroke-width: 1.5; fill: none; }
+    .ln-blue { stroke: #1764c0; stroke-width: 2; fill: none; }
+    .div { stroke: #c9d4e3; stroke-width: 1.5; stroke-dasharray: 4 5; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#5d6878" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path fill="#1764c0" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1000" height="400"/>
+
+  <text class="t-h" x="30" y="24">TODAY</text>
+  <rect class="box" x="115" y="44" width="260" height="44" rx="4"/>
+  <text class="t" x="245" y="72" text-anchor="middle">thermalctld</text>
+  <line class="ln" x1="245" y1="88" x2="245" y2="114" marker-end="url(#a)"/>
+  <rect class="box" x="115" y="116" width="260" height="44" rx="4"/>
+  <text class="t" x="245" y="144" text-anchor="middle">policy engine</text>
+  <path class="ln" d="M245,160 V180 M95,180 H395 M95,180 V206 M245,180 V206 M395,180 V206"/>
+  <rect class="box" x="30" y="208" width="130" height="118" rx="4"/>
+  <text class="t" x="95" y="236" text-anchor="middle">Vendor A</text>
+  <text class="t-s" x="95" y="264" text-anchor="middle">conditions</text>
+  <text class="t-s" x="95" y="286" text-anchor="middle">actions</text>
+  <text class="t-s" x="95" y="308" text-anchor="middle">own PID</text>
+  <rect class="box" x="180" y="208" width="130" height="118" rx="4"/>
+  <text class="t" x="245" y="236" text-anchor="middle">Vendor B</text>
+  <text class="t-s" x="245" y="264" text-anchor="middle">conditions</text>
+  <text class="t-s" x="245" y="286" text-anchor="middle">actions</text>
+  <text class="t-s" x="245" y="308" text-anchor="middle">own PID</text>
+  <rect class="box" x="330" y="208" width="130" height="118" rx="4"/>
+  <text class="t" x="395" y="236" text-anchor="middle">Vendor C</text>
+  <text class="t-s" x="395" y="264" text-anchor="middle">conditions</text>
+  <text class="t-s" x="395" y="286" text-anchor="middle">actions</text>
+  <text class="t-s" x="395" y="308" text-anchor="middle">own PID</text>
+  <text class="t-s" x="245" y="362" text-anchor="middle">Each vendor maintains a separate implementation</text>
+
+  <line class="div" x1="500" y1="10" x2="500" y2="380"/>
+
+  <text class="t-h" x="540" y="24">WITH THE LIBRARY</text>
+  <rect class="box" x="635" y="44" width="260" height="44" rx="4"/>
+  <text class="t" x="765" y="72" text-anchor="middle">thermalctld</text>
+  <line class="ln" x1="765" y1="88" x2="765" y2="114" marker-end="url(#a)"/>
+  <rect class="box-blue" x="585" y="116" width="360" height="44" rx="4"/>
+  <text class="t-b" x="765" y="144" text-anchor="middle">PidThermalManagerBase</text>
+  <line class="ln-blue" x1="765" y1="160" x2="765" y2="180" marker-end="url(#ab)"/>
+  <rect class="box-strong" x="555" y="182" width="420" height="66" rx="4"/>
+  <text class="t-w" x="765" y="210" text-anchor="middle">Common thermal policy library</text>
+  <text class="t-w2" x="765" y="234" text-anchor="middle">conditions · actions · PID</text>
+  <path class="ln" d="M765,248 V268 M615,268 H915 M615,268 V292 M765,268 V292 M915,268 V292"/>
+  <rect class="box" x="555" y="294" width="120" height="60" rx="4"/>
+  <text class="t" x="615" y="320" text-anchor="middle">Vendor A</text>
+  <text class="t-s" x="615" y="342" text-anchor="middle">JSON + hooks</text>
+  <rect class="box" x="705" y="294" width="120" height="60" rx="4"/>
+  <text class="t" x="765" y="320" text-anchor="middle">Vendor B</text>
+  <text class="t-s" x="765" y="342" text-anchor="middle">JSON + hooks</text>
+  <rect class="box" x="855" y="294" width="120" height="60" rx="4"/>
+  <text class="t" x="915" y="320" text-anchor="middle">Vendor C</text>
+  <text class="t-s" x="915" y="342" text-anchor="middle">JSON + hooks</text>
+  <text class="t-s" x="765" y="384" text-anchor="middle">Vendors provide only configuration and sensor hooks</text>
+</svg>
