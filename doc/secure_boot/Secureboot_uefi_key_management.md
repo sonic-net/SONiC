@@ -6,7 +6,7 @@
 |  Rev  | Date           | Author      | Change Description |
 | :---: | :------------: | :---------: | ------------------ |
 |  0.1  |   08/25/2023   | Sachin Naik | Initial version    |
-|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim, factory default, efi-readvar / efi-updatevar. OVMF: enroll needs no reboot; SecureBoot=1 on next boot |
+|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim. Community reference is OVMF: efi-readvar / efi-updatevar, enroll needs no reboot, SecureBoot=1 on next boot |
 
 
 <!-- omit in toc -->
@@ -62,16 +62,16 @@ This requires SONiC to access UEFI Secure Boot variables for:
 3. Add, replace, remove, and revoke those keys after claim (AUTH2).
 
 ## 2 Overview
-The UEFI Secure Boot feature is introduced in UEFI spec version 2.3.1 onwards. It verifies image integrity and authenticity before load. The spec also describes how UEFI keys are managed. Firmware implementation may differ by platform; this HLD uses standard Authenticated Variables so any vendor can implement the same owner-claim model.
+The UEFI Secure Boot feature is introduced in UEFI spec version 2.3.1 onwards. It verifies image integrity and authenticity before load. The spec also describes how UEFI keys are managed.
 
-This revision uses `efi-readvar` and `efi-updatevar` (and efivarfs for `SetupMode` / `SecureBoot`). A custom platform plugin is not required until a platform cannot expose PK/KEK/db/dbx that way.
+**This community HLD follows the OVMF model** (Open Virtual Machine Firmware: the open UEFI implementation for QEMU/KVM). Key access is `efi-readvar`, `efi-updatevar`, and efivarfs. There is no vendor plugin in this revision. Platforms that cannot use that path are out of scope here.
 
 TPM measured boot is out of scope.
 
 ## 3 UEFI components
 
 ### 3.1 UEFI firmware
-Typically the UEFI is a modern replacement for traditional BIOS. The UEFI implementation may vary from system to system but it has to follow the core principles mentioned in the UEFI spec. This document references the OVMF(Open Virtual Machine Firmware) UEFI implementation, which is the open UEFI firmware available for virtual machines like QEMU and KVM.
+Typically the UEFI is a modern replacement for traditional BIOS. This HLD uses **OVMF** (Open Virtual Machine Firmware) as the reference UEFI: open firmware for QEMU/KVM that implements UEFI Authenticated Variables, Setup Mode / User Mode, and `SecureBoot` as specified. Behavior called out below (including when `SecureBoot` becomes 1) is the OVMF behavior.
 
 ### 3.2 UEFI keys
 UEFI keys are types of UEFI variables. These are cryptographic keys used in Unified Extensible Firmware Interface (UEFI) firmware. These are asymmetric cryptographic keys that come with public and private key pairs. The private keys are used for signing data and public keys are enrolled in the UEFI device for verifying signed data.
@@ -80,7 +80,7 @@ There are multiple keys involved in the UEFI secure boot implementations. The pl
 
 ![image](https://github.com/sacnaik/SONiC/assets/25231205/fdf6a164-6153-4c14-ba6d-b8d30475e390)
 
-**1.	Platform Key(PK):** The PK establishes trust between the **platform owner** and UEFI firmware. The owner enrolls the public PK during ownership claim (section 5), not at vendor manufacturing. The PK private key stays with the owner and is used to authorize later PK and KEK AUTH2 updates.
+**1.	Platform Key(PK):** The PK establishes trust between the **platform owner** and UEFI firmware. The owner enrolls the public PK during ownership claim (section 5), not before the VM is provisioned. The PK private key stays with the owner and is used to authorize later PK and KEK AUTH2 updates.
 
 **2.	Key Exchange Key(KEK)**: KEK authorizes changes to db and dbx. The owner enrolls the public KEK (unsigned ESL during claim; AUTH2 signed by PK after claim). The KEK private key stays with the owner and is used to authorize db and dbx AUTH2 updates, including NOS signing keys.
 
@@ -118,20 +118,20 @@ UEFI Secure Boot is controlled by two global variables. They are independent: en
 
 **Secure Boot flag**: `SecureBoot` is not the same variable as `SetupMode`. User Mode does not by itself mean images are verified. While `SecureBoot=0`, keys may already be present but unsigned images are still loaded.
 
-On OVMF (and typical EDK2), `SetupMode` flips to `0` as soon as PK is accepted. `SecureBoot` is computed at POST, so it stays `0` until the **next reboot**. Image verification against db/dbx also starts on that boot. The running OS is not re-checked. Enroll of dbx/db/KEK/PK does **not** require a reboot between those writes.
+In the OVMF model, `SetupMode` flips to `0` as soon as PK is accepted. `SecureBoot` is computed at POST, so it stays `0` until the **next reboot**. Image verification against db/dbx also starts on that boot. The running OS is not re-checked. Enroll of dbx/db/KEK/PK does **not** require a reboot between those writes.
 
 Enforcing Secure Boot is both flags together after that reboot: `SetupMode=0` and `SecureBoot=1`.
 
 ## 4 Factory default state
-The hardware vendor ships the machine. The platform owner has not claimed it yet. Factory default is Setup Mode so the owner can enroll keys. The device is not yet constrained to owner-signed operating-system images. Vendor manufacturing must not enroll a PK if the owner is expected to claim with unsigned ESL (section 5.3).
+OVMF factory default is Setup Mode with empty PK/KEK/db/dbx so the owner can enroll keys. The platform is not yet constrained to owner-signed images. Do not enroll a PK before claim if the owner is expected to claim with unsigned ESL (section 5.3).
 
 | Attribute | Factory default |
 | --------- | --------------- |
 | UEFI mode | Setup Mode (`SetupMode = 1`) |
 | Secure Boot | Disabled (`SecureBoot = 0`) |
 | PK, KEK, db, dbx | Not enrolled (empty) |
-| Firmware | Hardware-vendor signed |
-| SONiC / bootloader | Not the owner's production image. Any factory OS is vendor-provided so the claim path can run. |
+| Firmware | OVMF (unsigned or test-signed as shipped with the VM) |
+| SONiC / bootloader | A bootable image so the claim path can run. Install the owner-signed image before PK. |
 
 There is no end-user CLI that only enables Secure Boot in the factory state. Secure Boot is enabled as part of the one-time ownership claim (section 5).
 
@@ -152,17 +152,17 @@ od -An -tu1 -j4 -N1 \
 ## 5 Ownership
 
 ### 5.1 Ownership model
-The hardware vendor provides the machine. The platform owner owns it after claim.
+OVMF provides the UEFI variable store. The platform owner owns the VM after claim.
 
 | Role | Responsibility |
 | ---- | -------------- |
-| **Hardware vendor** | Ships the platform in **Setup Mode** with empty PK/KEK/db/dbx (or documents how to reach that state). Provides vendor-signed firmware and a factory OS/ONIE so the owner can boot and claim. Does not retain the owner's private keys. |
+| **Firmware (OVMF)** | Starts in **Setup Mode** with empty PK/KEK/db/dbx. Implements standard Authenticated Variables. Does not retain the owner's private keys. |
 | **Platform owner** | Generates PK, KEK, and db (and dbx) off the device. Holds private keys. Signs ONIE and SONiC. Builds ESL/AUTH2. Enrolls keys. Sets boot policy in db/dbx. |
 | **SONiC** | CLI to show variables and apply the owner's ESL (Setup Mode) or AUTH2 (User Mode) with `efi-readvar` / `efi-updatevar`. Does not generate or store owner private keys. |
 
-If the vendor ships with a vendor PK already enrolled, the owner cannot claim with unsigned ESL. Either the vendor ships Setup Mode, or the vendor provides a PK-signed path into Setup Mode. This HLD is the **owner-provisioned PK** model: factory is Setup Mode, owner PK is last during claim.
+This HLD is the **owner-provisioned PK** model on OVMF: factory is Setup Mode, owner PK is last during claim.
 
-Ownership claim is one ordered procedure. PK is last. Enrolling PK leaves Setup Mode and enters User Mode immediately (`SetupMode=0`). On OVMF, `SecureBoot=1` and db/dbx image checks apply on the **next reboot**, not during the enroll writes. Enrolling PK against firmware, ONIE, or SONiC that db will not verify can leave the device unbootable on that reboot.
+Ownership claim is one ordered procedure. PK is last. Enrolling PK leaves Setup Mode and enters User Mode immediately (`SetupMode=0`). `SecureBoot=1` and db/dbx image checks apply on the **next reboot**, not during the enroll writes. Enrolling PK against an ONIE or SONiC image that db will not verify can leave the VM unbootable on that reboot.
 
 ### 5.2 Claim workflow
 Do these steps **in order**. Stay in Setup Mode until PK is written.
@@ -190,9 +190,9 @@ Do these steps **in order**. Stay in Setup Mode until PK is written.
 
 5. **Enroll keys.** dbx, db, KEK, then PK. No reboot between these writes. PK last: that write enters User Mode (`SetupMode = 0`) immediately.
 
-6. **Verify NVRAM.** `SetupMode = 0` and PK / KEK / db present. On OVMF, `SecureBoot` may still be `0` until reboot.
+6. **Verify NVRAM.** `SetupMode = 0` and PK / KEK / db present. `SecureBoot` is still `0` until reboot.
 
-7. **Reboot once.** Then `SecureBoot = 1` and firmware verifies shim / OS against db. This is when claim enforcement starts.
+7. **Reboot once.** Then `SecureBoot = 1` and OVMF verifies shim / OS against db. This is when claim enforcement starts.
 
 ### 5.3 Enroll keys in Setup Mode
 Firmware accepts unsigned ESL while `SetupMode = 1`. Enroll **dbx, db, KEK, then PK**. PK is last, and it is still an unsigned ESL. There is no enrolled PK yet, so a PKCS#7-signed AUTH2 cannot be used for this write.
@@ -205,7 +205,7 @@ Firmware accepts unsigned ESL while `SetupMode = 1`. Enroll **dbx, db, KEK, then
        │  4. PK.esl   →  PK   (last, unsigned `-e`, same as the others)
        ▼
   User Mode (SetupMode = 0) immediately
-  SecureBoot = 1 and image check on next reboot (OVMF)
+  SecureBoot = 1 and image check on next reboot
 ```
 
 **Owner host — build ESLs:**
@@ -231,7 +231,7 @@ efi-updatevar -e -f PK.esl  PK
 
 `-e` prepends an empty AUTH2 header (no PKCS#7) and writes the ESL. That is not a signed AUTH2. Do not run `sign-efi-sig-list` on the first PK, and do not enroll a PK-signed `PK.auth` during claim.
 
-After PK is written, further PK/KEK/db/dbx changes must be AUTH2 as in section 6. A reboot is not required to finish the four enroll writes. A reboot is required on OVMF before `SecureBoot=1` and before firmware enforces db on the bootloader.
+After PK is written, further PK/KEK/db/dbx changes must be AUTH2 as in section 6. A reboot is not required to finish the four enroll writes. A reboot is required before `SecureBoot=1` and before OVMF enforces db on the bootloader.
 
 ### 5.4 Verify ownership claim
 Immediately after PK (no reboot required for this check):
@@ -248,7 +248,7 @@ efi-readvar db
 
 If PK is missing, the platform is still in Setup Mode. Do not treat KEK/db enrollment alone as a completed claim.
 
-Then reboot. On OVMF, `SecureBoot` is computed at POST:
+Then reboot. OVMF computes `SecureBoot` at POST:
 
 ```bash
 od -An -tu1 -j4 -N1 \
@@ -315,7 +315,7 @@ After claim, copy only the AUTH2 file to the device. Do not copy `PK.key` or `KE
 ### 6.3 Remove keys from UEFI database
 Removal of a certificate is an AUTH2 **update** of the remaining list, built off the device. Signing uses `KEK.key` on the owner host. Only `DB-new.auth` is copied to the DUT.
 
-**Warning:** Removing a db certificate that currently signs the running bootloader (shim) is potentially destructive if `SecureBoot=1`. The next reboot will fail firmware verification. The running NOS is not killed immediately. Linux CLI cannot recover that state. Recovery is firmware/BIOS enrollment or Setup Mode. Do not remove the only signer of the installed bootloader until a replacement signer is in db.
+**Warning:** Removing a db certificate that currently signs the running bootloader (shim) is potentially destructive if `SecureBoot=1`. The next reboot will fail OVMF image verification. The running NOS is not killed immediately. Linux CLI cannot recover that state. Recovery is OVMF Setup (clear PK / enroll from firmware Setup). Do not remove the only signer of the installed bootloader until a replacement signer is in db.
 
 ```
 Sample example of authenticated variable creation for removal of the key from the signature database list:
@@ -345,7 +345,7 @@ E.g The UEFI database has 3 entries of keys and one of them to be removed here
 Revoking a key from the UEFI database is done when the previously trusted key is no longer trustworthy. This action is taken when a key's security has been compromised.
 It is achieved by inserting the authenticated variable for the compromised key into the forbidden key list (dbx). Firmware checks dbx **before** db. A dbx match refuses the image even if the same cert is still in db.
 
-**Warning:** Revoke is potentially destructive. If that cert or hash currently signs the running boot chain and `SecureBoot=1`, the next reboot will fail verification. That is not a hardware brick. Linux CLI cannot recover it. Recovery is through the firmware/BIOS key-enrollment path, or by returning the platform to Setup Mode. After a compromise, prefer: enroll the replacement db cert, then append the old cert/hash to dbx, then remove it from db.
+**Warning:** Revoke is potentially destructive. If that cert or hash currently signs the running boot chain and `SecureBoot=1`, the next reboot will fail OVMF verification. That is not a hardware brick. Linux CLI cannot recover it. Recovery is OVMF Setup (clear PK / enroll from firmware Setup), which returns Setup Mode. After a compromise, prefer: enroll the replacement db cert, then append the old cert/hash to dbx, then remove it from db.
 
 ```
 Sample example:
@@ -369,13 +369,11 @@ efi-readvar dbx
 ```
 
 ## 7 SONIC implementation
-This revision uses the Linux standard path:
+SONiC talks to OVMF the same way Linux does on QEMU: **efi-readvar**, **efi-updatevar**, and **efivarfs**. No vendor plugin.
 
 - show / export: `efi-readvar` (efivarfs for `SetupMode` / `SecureBoot`)
 - enroll in Setup Mode: `efi-updatevar -e` with an unsigned ESL
 - append / update / remove / revoke in User Mode: `efi-updatevar -f` with AUTH2
-
-A custom platform plugin is not a commitment in this revision. If a later platform cannot expose PK/KEK/db/dbx this way, a plugin can be added then.
 
 The Linux kernel provides efivarfs, which exposes EFI runtime variables as files. Mount it to access the variables:
 
@@ -392,7 +390,7 @@ Ex: UEFI key variables represented as sysfs file
 
 <img src="https://github.com/sacnaik/SONiC/assets/25231205/1566c4d1-098f-4bde-b830-289e793e168d" width="400" hight="400">
 
-efivarfs files are often `FS_IMMUTABLE`. `efi-updatevar` fails until the immutable bit is cleared. The CLI will clear it around the write when it can; if the platform still denies the write, that error is returned.
+On Linux/OVMF, efivarfs files are often `FS_IMMUTABLE`. `efi-updatevar` fails until the immutable bit is cleared. The CLI will clear it around the write when it can; otherwise it returns that error.
 
 ## 8 SONiC CLI commands
 
@@ -419,7 +417,7 @@ Return values follow normal SONiC CLI:
 - success: exit 0. show prints the variables (or SetupMode/SecureBoot for status).
 - failure: non-zero exit and an error on stderr. The CLI surfaces the efitools / firmware reason.
 
-Expected failures for enroll/update: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or AUTH2 in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; firmware / platform deny.
+Expected failures for enroll/update: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or AUTH2 in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; OVMF reject.
 
 ## 9 Test considerations
 The sonic-mgmt can cover UEFI key management including at least:
