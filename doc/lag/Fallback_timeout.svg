@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="640" viewBox="0 0 920 640">
+  <rect width="920" height="640" fill="#ffffff"/>
+  <text x="460" y="36" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="18" font-weight="700" fill="#1f4e79">Fallback timeout</text>
+
+  <!-- Lifelines -->
+  <line x1="160" y1="90" x2="160" y2="600" stroke="#7a8a99" stroke-width="2" stroke-dasharray="6 6"/>
+  <line x1="460" y1="90" x2="460" y2="600" stroke="#7a8a99" stroke-width="2" stroke-dasharray="6 6"/>
+  <line x1="760" y1="90" x2="760" y2="600" stroke="#7a8a99" stroke-width="2" stroke-dasharray="6 6"/>
+
+  <!-- Participant boxes -->
+  <rect x="90" y="52" width="140" height="38" rx="4" fill="#ffffff" stroke="#2e75b6" stroke-width="2"/>
+  <text x="160" y="77" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="16" fill="#1f4e79">Peer</text>
+  <rect x="390" y="52" width="140" height="38" rx="4" fill="#ffffff" stroke="#2e75b6" stroke-width="2"/>
+  <text x="460" y="77" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="16" fill="#1f4e79">teamd</text>
+  <rect x="655" y="52" width="210" height="38" rx="4" fill="#ffffff" stroke="#2e75b6" stroke-width="2"/>
+  <text x="760" y="77" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="16" fill="#1f4e79">fallback_timeout</text>
+
+  <!-- 1: LACPDU reception stops -->
+  <line x1="160" y1="130" x2="448" y2="130" stroke="#c00000" stroke-width="2"/>
+  <polygon points="448,130 432,124 432,136" fill="#c00000"/>
+  <line x1="160" y1="122" x2="172" y2="138" stroke="#c00000" stroke-width="2"/>
+  <line x1="172" y1="122" x2="160" y2="138" stroke="#c00000" stroke-width="2"/>
+  <text x="304" y="122" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#333333">LACPDU reception stops</text>
+
+  <!-- 2: CURRENT to EXPIRED -->
+  <path d="M460 170 C520 170 520 198 460 198" fill="none" stroke="#2e75b6" stroke-width="2"/>
+  <polygon points="460,198 472,192 472,204" fill="#2e75b6"/>
+  <text x="545" y="190" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#333333">CURRENT to EXPIRED (3 PDU intervals)</text>
+
+  <!-- alt box -->
+  <rect x="250" y="220" width="620" height="175" fill="#f7fbff" stroke="#5b9bd5" stroke-width="1.5"/>
+  <rect x="250" y="220" width="92" height="24" fill="#5b9bd5"/>
+  <text x="296" y="237" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="12" fill="#ffffff">alt</text>
+  <text x="355" y="237" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#1f4e79">fallback enabled</text>
+  <line x1="250" y1="308" x2="870" y2="308" stroke="#5b9bd5" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="268" y="328" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#1f4e79">else fallback disabled</text>
+
+  <!-- 3: start timeout -->
+  <line x1="460" y1="270" x2="748" y2="270" stroke="#2e75b6" stroke-width="2"/>
+  <polygon points="748,270 732,264 732,276" fill="#2e75b6"/>
+  <text x="604" y="262" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#333333">start 1..300s (default 90s)</text>
+
+  <!-- 4: short EXPIRED timeout -->
+  <path d="M460 350 C520 350 520 378 460 378" fill="none" stroke="#2e75b6" stroke-width="2"/>
+  <polygon points="460,378 472,372 472,384" fill="#2e75b6"/>
+  <text x="545" y="370" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#333333">short EXPIRED timeout (3s)</text>
+
+  <!-- 5: timeout expires -->
+  <line x1="760" y1="430" x2="472" y2="430" stroke="#2e75b6" stroke-width="2" stroke-dasharray="6 4"/>
+  <polygon points="472,430 488,424 488,436" fill="#2e75b6"/>
+  <text x="616" y="422" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#333333">timeout expires</text>
+
+  <!-- 6: DEFAULTED -->
+  <path d="M460 470 C520 470 520 498 460 498" fill="none" stroke="#2e75b6" stroke-width="2"/>
+  <polygon points="460,498 472,492 472,504" fill="#2e75b6"/>
+  <text x="545" y="490" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#333333">member becomes DEFAULTED</text>
+
+  <!-- 7: elect -->
+  <path d="M460 530 C520 530 520 558 460 558" fill="none" stroke="#2e75b6" stroke-width="2"/>
+  <polygon points="460,558 472,552 472,564" fill="#2e75b6"/>
+  <text x="545" y="550" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#333333">elect one member if none in CURRENT or EXPIRED</text>
+</svg>
