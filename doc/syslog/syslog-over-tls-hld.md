@@ -14,6 +14,7 @@
 - [2. Design](#2-design)
   - [2.1. Overview](#21-overview)
   - [2.2. Trust material and SSL profiles](#22-trust-material-and-ssl-profiles)
+    - [2.2.1. Using Certz certificates](#221-using-certz-certificates)
   - [2.3. Configuration model](#23-configuration-model)
   - [2.4. rsyslog rendering and apply](#24-rsyslog-rendering-and-apply)
   - [2.5. Operational state](#25-operational-state)
@@ -29,6 +30,8 @@
 | Rev | Date       | Author        | Description        |
 |:---:|:----------:|:-------------:|:-------------------|
 | 0.1 | 13/10/2026 | (initial)     | Initial version    |
+| 0.2 | 06/11/2026 | (update)      | Move TLS apply state from `show syslog` to new `show syslog tls-state` |
+| 0.3 | 06/11/2026 | (update)      | Add `ssl_profile.notify_profile_update` host hook (restart `rsyslog-config` when a used profile changes); describe how Certz-provided certificates are used (Certz itself out of scope); clarify single STATE_DB writer |
 
 ## About this manual
 
@@ -41,14 +44,14 @@ This document describes the high-level design for forwarding SONiC host syslog t
 1. Remote syslog from the **host** rsyslog instance to one or more collectors over **TLS** (TCP + rsyslog `ossl`).
 2. CONFIG_DB schema, YANG validation, CLI (`config` / `show`), and Generic Config Updater validation.
 3. Rendering `/etc/rsyslog.conf` via `rsyslog-config` and `rsyslog.conf.j2`.
-4. Use of SSL profile material under `/etc/sonic/ssl-certs/<profile_id>/`, installed by gNSI **Certz** or placed there manually by the operator.
+4. Use of SSL profile material under `/etc/sonic/ssl-certs/<profile_id>/`, provided by gNSI **Certz** or placed there manually by the operator. When a profile used by a `SYSLOG_SERVER` row is updated, the `ssl_profile.notify_profile_update` host hook (`sonic-host-services`) restarts `rsyslog-config`.
 5. STATE_DB visibility of whether TLS forwarding was actually applied.
 
 **Out of scope:**
 
 1. TLS for syslog **reception** on the switch (containers still ship logs to the host over existing UDP/RELP paths).
 2. Per-container remote syslog over TLS (only the host aggregates and forwards).
-3. Certificate provisioning (rotation, CSR); see [gNSI Certz](../mgmt/gnmi/gnsi.md).
+3. The Certz implementation (certificate provisioning, CSR, issuance, rotation and the copying of PEMs to the host); see [gNSI Certz](../mgmt/gnmi/gnsi.md). This design only defines the profile directory contract and how syslog reacts to a profile update ([2.2.1](#221-using-certz-certificates)).
 4. Mutual TLS with client certificate **authentication enforced by the collector** beyond installing client PEMs for the TLS handshake (client certs are configured; collector policy is external).
 
 ## Abbreviations
@@ -59,6 +62,7 @@ This document describes the high-level design for forwarding SONiC host syslog t
 | CONFIG_DB | Redis configuration database (DB 4)               |
 | STATE_DB  | Redis operational state database (DB 6)           |
 | Certz  | gNSI certificate rotation service                    |
+| GNSI   | gRPC Network Security Interface                      |
 | PEM    | Privacy-Enhanced Mail encoding for X.509 keys/certs  |
 | omfwd  | rsyslog forwarding module (UDP/TCP/TLS)              |
 | ossl   | rsyslog OpenSSL stream driver                        |
@@ -73,7 +77,7 @@ Design principles:
 
 - **Fail closed for TLS**: If TLS is requested but profile PEMs are missing, `tls_permitted_peers` is unset, or rendering/restart fails, that server is **omitted** from generated config. The implementation does **not** fall back to cleartext TCP/UDP for that destination.
 - **Reuse the SSL profile layout**: The same profile directory layout used elsewhere on the switch (`ca-bundle.pem`, `cert.pem`, `key.pem`) avoids a parallel PKI stack for syslog. The PEMs may come from Certz or be copied in manually; syslog only checks that the files exist under the profile directory.
-- **Operator feedback**: STATE_DB fields report whether TLS forwarding is active and why not, surfaced in `show syslog`.
+- **Operator feedback**: STATE_DB fields report whether TLS forwarding is active and why not, surfaced in `show syslog tls-state`.
 
 ### 1.2. Requirements
 
@@ -91,7 +95,8 @@ Design principles:
 #### 1.2.2. Command interface
 
 - `config syslog add <server> --protocol tls --tls-profile-id <id> --tls-permitted-peers <names>` (optional `--port`, `--source`, `--vrf`).
-- `show syslog` extended columns: TLS profile, permitted peers, TLS applied, failure reason.
+- `show syslog` extended with configuration columns: TLS profile id, permitted peers.
+- `show syslog tls-state`: new command showing the TLS apply state (TLS applied, failure reason) of TLS-configured servers, read from STATE_DB. The apply-state columns are intentionally not part of `show syslog`.
 - Generic Config Updater: reject invalid TLS combinations; restart `rsyslog-config` when `SYSLOG_SERVER` changes.
 
 #### 1.2.3. Error handling
@@ -104,7 +109,7 @@ Design principles:
 | `rsyslog.conf` install/restart fails | Yes | Previous or no config | `RSYSLOG_APPLY_FAILED` |
 | TLS fully applied | Yes | omfwd TLS action present | `NONE` (`applied_transport_security` `true`) |
 
-Non-TLS servers: `TLS APPLIED` / `FAILURE REASON` show `N/A` in `show syslog`.
+Non-TLS servers are not listed in `show syslog tls-state`. For TLS servers with no STATE_DB entry published yet, `TLS APPLIED` / `FAILURE REASON` show `N/A`.
 
 ## 2. Design
 
@@ -134,13 +139,31 @@ sequenceDiagram
     RS->>Coll: TLS syslog (omfwd ossl)
 ```
 
+When the profile material is delivered by Certz instead of by hand, Certz places the PEMs in the profile directory and notifies syslog through the `ssl_profile` host hook, which triggers the same `rsyslog-config` run (see [2.2.1](#221-using-certz-certificates)):
+
+```mermaid
+sequenceDiagram
+    participant Certz as Certz (host side)
+    participant FS as ssl-certs dir
+    participant SP as ssl_profile.notify_profile_update
+    participant CDB as CONFIG_DB
+    participant RCfg as rsyslog-config
+    participant SDB as STATE_DB
+
+    Certz->>FS: install / replace / remove PEMs
+    Certz->>SP: notify_profile_update(id)
+    SP->>CDB: any SYSLOG_SERVER with tls_profile_id == id?
+    SP->>RCfg: systemctl restart rsyslog-config (only if yes)
+    RCfg->>SDB: SYSLOG_SERVER|&lt;addr&gt; applied_transport_security, failure_reason
+```
+
 Logging path on the switch is unchanged at a high level: container rsyslog instances forward to the host; the **host** `rsyslog.conf` applies remote `omfwd` actions, including TLS destinations.
 
 ### 2.2. Trust material and SSL profiles
 
 Profile directories are populated in one of two ways:
 
-1. **Certz** (or host-services integrating Certz) installs them.
+1. **Certz** places them there and notifies syslog ([2.2.1](#221-using-certz-certificates)).
 2. **Manually**: the operator creates `/etc/sonic/ssl-certs/<profile_id>/` and stores the three PEM files there. This is useful for labs and for deployments that do not use Certz.
 
 Either way the layout is:
@@ -164,7 +187,7 @@ sudo chmod 750 /etc/sonic/ssl-certs/<profile_id>
 sudo chmod 640 /etc/sonic/ssl-certs/<profile_id>/*.pem
 ```
 
-PEMs are scanned each time `rsyslog-config.sh` runs, so after adding, replacing or removing files by hand, re-render with `sudo systemctl restart rsyslog-config` to apply the change. Manually stored profiles are not rotated by Certz; the operator is responsible for renewing them.
+PEMs are scanned each time `rsyslog-config.sh` runs, so after adding, replacing or removing files by hand, re-render with `sudo systemctl restart rsyslog-config` to apply the change. Manually stored profiles are not rotated by Certz; the operator is responsible for renewing them. Profiles provided by Certz need no manual step: once Certz has placed the PEMs it notifies syslog with `ssl_profile.notify_profile_update`, which restarts `rsyslog-config` when the profile is in use.
 
 Image build creates `/etc/sonic/ssl-certs` owned by `root:ssl-certs` mode `0750`, and adds the `syslog` user to group `ssl-certs` so rsyslog can read keys.
 
@@ -176,6 +199,32 @@ Image build creates `/etc/sonic/ssl-certs` owned by `root:ssl-certs` mode `0750`
 - `ssl_profiles[tls_profile_id]` is true.
 
 Otherwise a comment is written and **no** action line is generated for that server.
+
+#### 2.2.1. Using Certz certificates
+
+The Certz implementation is out of scope of this feature. Syslog only relies on the following contract, so certificates produced by Certz are used exactly like manually stored ones:
+
+1. Certz places the profile's PEMs in `/etc/sonic/ssl-certs/<profile_id>/` as `ca-bundle.pem`, `cert.pem` and `key.pem`, owned by `root:ssl-certs` with mode `0750` (directory) and `0640` (files), as described in [2.2](#22-trust-material-and-ssl-profiles). rsyslog runs on the host as the `syslog` user, so the files must be readable there.
+2. The operator references the profile with `tls_profile_id` / `--tls-profile-id` (not `gnxi`, which is the gNMI listener identity).
+3. After Certz installs, rotates or removes the PEMs of a profile, it notifies syslog so the new material is loaded without a manual restart.
+
+**Profile update hook.** For step 3, `host_modules/ssl_profile.py` in `sonic-host-services`, registered in `sonic-host-server` as D-Bus object `ssl_profile`, exposes one method:
+
+| D-Bus method (`org.SONiC.HostService.ssl_profile.`) | Purpose |
+|---|---|
+| `notify_profile_update(profile_id)` | The PEMs of `profile_id` were installed, replaced or removed. Returns `(0, msg)` on success, `(1, error)` for an invalid id. |
+
+Behavior:
+
+- **Profile id validation:** must match `[A-Za-z0-9._-]+`; `gnxi` is rejected because it is the gNMI listener identity and is not a host SSL profile.
+- **Syslog reaction:** the module checks CONFIG_DB for a `SYSLOG_SERVER` row whose `tls_profile_id` equals `profile_id`. If one exists it runs `systemctl reset-failed rsyslog-config rsyslog` and `systemctl restart rsyslog-config`; otherwise it does nothing. The re-render picks up the new PEMs, restarts rsyslog and refreshes STATE_DB ([2.5](#25-operational-state)).
+- **Extensible:** the dispatch point `_notify_consumers()` is generic, so other TLS consumers can be added later.
+- **Ordering independence:** the profile can arrive before or after the `SYSLOG_SERVER` row. If the row exists first, the server is skipped with `NO_CERTIFICATE` until the notification triggers the re-render. If the profile exists first, `config syslog add` renders it immediately.
+- **Caller-agnostic:** any component that changes PEMs (Certz, or an operator running `busctl`) can call the hook; syslog only reads files that are already on disk.
+
+> **Note:** `notify_profile_update` is a suggested entry point, not a required interface. The restart logic lives in `_notify_consumers()`, so a Certz implementation running in the same host module can call `_notify_consumers(profile_id)` directly from its add / delete profile handlers after the PEMs change, without going through D-Bus. In that case `notify_profile_update` can be dropped, or kept only as a manual trigger.
+
+`hostcfgd` is not involved in TLS state: it keeps its existing behavior of restarting `rsyslog-config` when `SYSLOG_SERVER` or `SYSLOG_CONFIG` change, and does not write the TLS apply state.
 
 **Permitted peers:** `tls_permitted_peers` is a comma-separated list of DNS names (optional leading `*.` on one label). It maps to rsyslog `StreamDriverPermittedPeers`. With rsyslog 8.2504 and earlier, wildcard entries match only the certificate **subject CN**, not SAN DNS names; operators should list exact SAN names when possible.
 
@@ -255,7 +304,11 @@ Template input sanitization strips newlines/quotes from values embedded in rsysl
 
 Stale STATE_DB keys for servers removed from CONFIG_DB are deleted on each publish pass.
 
-`show syslog` reads CONFIG_DB for the table body and STATE_DB for TLS apply columns.
+`rsyslog-config.sh` is the only writer of `SYSLOG_SERVER|<server_address>` in STATE_DB. It runs after every CONFIG_DB change (via `hostcfgd`), every `ssl_profile.notify_profile_update` call for a profile used by a syslog server, and every manual `systemctl restart rsyslog-config`, so the published state always reflects the rendered `rsyslog.conf`. `hostcfgd` does not publish this state, which avoids two writers disagreeing about the failure reason.
+
+Syslog decides profile readiness only from the PEM files on disk, not from any STATE_DB profile table.
+
+`show syslog` reads only CONFIG_DB. `show syslog tls-state` reads CONFIG_DB to enumerate TLS-configured servers and STATE_DB for their TLS apply state.
 
 ### 2.6. CLI and Generic Config Updater
 
@@ -268,7 +321,31 @@ Stale STATE_DB keys for servers removed from CONFIG_DB are deleted on each publi
 
 **show syslog**
 
-- Additional columns: TLS profile id, permitted peers, TLS applied, failure reason.
+- Shows configuration only (CONFIG_DB). Additional columns: TLS profile id, permitted peers.
+- TLS apply state is not shown here; use `show syslog tls-state`.
+
+```
+admin@sonic:~$ show syslog
+SERVER IP    SOURCE IP    PORT    VRF      PROTOCOL    TLS PROFILE ID    PERMITTED PEERS
+-----------  -----------  ------  -------  ----------  ----------------  --------------------------
+2.2.2.2      1.1.1.1      514     default  udp         N/A               N/A
+10.0.0.5     N/A          6514    N/A      tls         siem-east         syslog-east.example.com
+10.0.0.8     N/A          6514    N/A      tls         no-certs          syslog-nocerts.example.com
+```
+
+**show syslog tls-state**
+
+- Lists only TLS-configured servers (`protocol` `tls`, or `transport_security` `true`), sorted naturally by server address.
+- Columns: `SERVER IP`, `TLS APPLIED`, `FAILURE REASON`, taken from STATE_DB `SYSLOG_SERVER|<server>` (`applied_transport_security`, `failure_reason`).
+- Shows `N/A` for both state columns when nothing has been published yet for a server.
+
+```
+admin@sonic:~$ show syslog tls-state
+SERVER IP    TLS APPLIED    FAILURE REASON
+-----------  -------------  ----------------
+10.0.0.5     true           NONE
+10.0.0.8     false          NO_CERTIFICATE
+```
 
 **Generic Config Updater** (`services_validator.rsyslog_validator`):
 
@@ -293,6 +370,8 @@ YANG revision `2026-08-21` documents the TLS extension.
 | `rsyslog.conf.j2` | TLS `omfwd` blocks, `ssl_profiles` gating |
 | `rsyslog-config.sh` | Profile scan, jq-encoded cfggen args, STATE_DB publish |
 | `sonic-config-engine` tests | Jinja tests for TLS render, skip missing profile/peers |
+| `sonic-host-services` `host_modules/ssl_profile.py` | New D-Bus host module with `notify_profile_update(profile_id)`: restarts `rsyslog-config` when a `SYSLOG_SERVER` row uses the profile |
+| `sonic-host-services` `scripts/sonic-host-server` | Register the `ssl_profile` module |
 
 ### 2.9. Security properties
 
@@ -300,7 +379,8 @@ YANG revision `2026-08-21` documents the TLS extension.
 - **Server authentication:** `x509/name` with explicit permitted peers; no anonymous TLS to syslog collectors.
 - **No cleartext fallback** for destinations configured for TLS.
 - **Client identity:** Client cert/key from the profile are offered to the collector; authorization is collector-side.
-- **Key storage:** Keys live under `/etc/sonic/ssl-certs` with group-readable semantics for the `syslog` user; profile `gnxi` is blocked from syslog use to avoid reusing the gNMI listener identity.
+- **Key storage:** Keys live under `/etc/sonic/ssl-certs` with group-readable semantics for the `syslog` user; profile `gnxi` is blocked from syslog use to avoid reusing the gNMI listener identity, and the `ssl_profile` D-Bus module also rejects it.
+- **Profile ids:** validated against `[A-Za-z0-9._-]+` by the CLI, YANG and the `ssl_profile` hook.
 
 ### 2.10. Multi-ASIC and containers
 
@@ -315,18 +395,21 @@ YANG revision `2026-08-21` documents the TLS extension.
 |-----------|----------|
 | `sonic-config-engine` | `test_rsyslog_conf_tls_two_profiles_and_skip_missing`, `test_rsyslog_conf_tls_without_profiles_skips_all_tls` |
 | `sonic-yang-models` | `tests/yang_model_tests/tests/syslog.json` TLS valid/invalid cases |
-| `sonic-utilities` | `tests/syslog_test.py` TLS CLI validation, show output with STATE_DB |
+| `sonic-utilities` | `tests/syslog_test.py` TLS CLI validation, `show syslog` (configuration only) and `show syslog tls-state` output with STATE_DB |
 | `sonic-utilities` | `generic_config_updater/service_validator_test.py` GCU TLS rules |
+| `sonic-host-services` | `tests/ssl_profile_test.py`: id validation, `notify_profile_update`, `SYSLOG_SERVER` lookup, `rsyslog-config` restart only when a row uses the profile |
 
 ### 3.2. Manual / lab validation
 
 1. Provision a collector listening on TCP 6514 with a server cert whose SAN/CN matches `tls_permitted_peers`.
 2. Install a non-`gnxi` profile, either with Certz or by manually copying `ca-bundle.pem`, `cert.pem` and `key.pem` into `/etc/sonic/ssl-certs/<id>/` (owner `root:ssl-certs`, readable by the group); verify the PEMs are present.
 3. `config syslog add <collector-ip> --protocol tls --tls-profile-id <id> --tls-permitted-peers <name>`.
-4. `show syslog`: `TLS APPLIED` `true`, `FAILURE REASON` `NONE`.
+4. `show syslog tls-state`: `TLS APPLIED` `true`, `FAILURE REASON` `NONE`.
 5. Confirm messages arrive at the collector; packet capture shows TLS (not cleartext syslog).
 6. Remove PEMs or use wrong peer name: `TLS APPLIED` `false`, appropriate `failure_reason`; confirm no cleartext fallback to that IP.
 7. Regression: existing UDP/TCP servers still forward; `config syslog del` removes destination and STATE_DB key.
+8. Profile update hook: configure the TLS server first (state shows `NO_CERTIFICATE`), copy the PEMs into `/etc/sonic/ssl-certs/<id>/`, then call `busctl call org.SONiC.HostService.ssl_profile /org/SONiC/HostService/ssl_profile org.SONiC.HostService.ssl_profile notify_profile_update s <id>`; `rsyslog-config` re-runs and `show syslog tls-state` flips to `true` / `NONE` without a manual restart.
+9. Certz-provided certificates (where a Certz implementation is available): install a profile, rotate it, and verify `/etc/sonic/ssl-certs/<id>/` has `root:ssl-certs` `0750`/`0640`, `rsyslog-config` re-runs after each change, `show syslog tls-state` stays `true` / `NONE`, and the collector sees the new client certificate after rotation.
 
 ### 3.3. Out of scope for automated VS/PTF
 
@@ -334,7 +417,5 @@ Data-plane PTF is not required: the feature is host management-plane forwarding.
 
 ## References
 
-- [SONiC Syslog Source IP design](syslog-design.md)
-- [SONiC Syslog rate limit design](syslog-rate-limit-design.md)
+- [SONiC Syslog Design](syslog-design.md)
 - [gNSI Certz](../mgmt/gnmi/gnsi.md)
-- Implementation (syslog-tls branch): `sonic-buildimage` (rsyslog template, YANG, image), `sonic-utilities` (CLI/show/GCU)
