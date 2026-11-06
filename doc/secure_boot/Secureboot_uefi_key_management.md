@@ -63,18 +63,20 @@
 
 ## Scope of this HLD
 
-This document **proposes** UEFI Secure Boot ownership and key management for SONiC. The procedure is standard UEFI (Authenticated Variables, Setup Mode / User Mode) on **OVMF**, using **Linux efitools** and **UEFI runtime services** (`GetVariable` / `SetVariable`). Those pieces already exist. SONiC is not implementing firmware, openssl, or efitools.
+The **main intent** of this HLD is how a **UEFI platform** is used for Secure Boot key management: Setup Mode claim, User Mode AUTH2 updates of PK/KEK/db/dbx, unclaim by clearing PK, and boot verification against db/dbx. That is standard UEFI (Authenticated Variables and UEFI runtime `GetVariable` / `SetVariable`). Linux **efitools** (`efi-readvar` / `efi-updatevar`) and efivarfs are how the OS talks to that firmware.
 
-**What SONiC actually contributes is the CLI plugin** (`show` / `config platform security uefi …` in sonic-utilities). The plugin is a thin wrapper: it takes a file or a show request and calls `efi-readvar` / `efi-updatevar` (and efivarfs for `SetupMode` / `SecureBoot`). It does not generate keys, does not build AUTH2, does not take a `.key`, and does not replace OVMF.
+**OVMF** is the open reference so anyone can reproduce the model on QEMU/KVM. **Cisco platforms implement this same UEFI model** in their firmware (same variable names, Setup Mode / User Mode, AUTH2). This HLD is not a Cisco-only protocol and not a new SONiC Secure Boot stack. Firmware remains firmware; SONiC does not reimplement OVMF or UEFI runtime.
 
-| Piece | Role in this HLD | SONiC contribution? |
-| ----- | ---------------- | ------------------- |
-| UEFI spec, OVMF, UEFI runtime `GetVariable` / `SetVariable` | How PK/KEK/db/dbx and `SetupMode` / `SecureBoot` behave | No |
-| openssl, `cert-to-efi-sig-list`, `sign-efi-sig-list` | Owner host: keys and AUTH2 / ESL | No |
-| `efi-readvar`, `efi-updatevar`, efivarfs | Device: read/write those variables | No (Linux / efitools) |
-| `show platform security uefi …` / `config platform security uefi …` CLI plugin | Operator interface on SONiC | **Yes** |
+**SONiC's code contribution is the CLI plugin** (`show` / `config platform security uefi …` in sonic-utilities). The plugin is a thin wrapper over efitools so the NOS can show and apply ESL/AUTH2 files the owner built off-box. It does not generate keys, does not build AUTH2, does not take a `.key`, and does not replace platform firmware.
 
-Sections 3–7 describe the UEFI/OVMF model so the CLI plugin has a defined contract. They are not a proposal to reimplement that stack in SONiC.
+| Piece | Role in this HLD | Who implements it |
+| ----- | ---------------- | ----------------- |
+| UEFI Authenticated Variables, Setup Mode / User Mode, `SecureBoot` | How key management and boot verification work | UEFI platform firmware (OVMF as the open reference; Cisco and others that implement the same UEFI model) |
+| openssl, `cert-to-efi-sig-list`, `sign-efi-sig-list` | Owner host: keys and AUTH2 / ESL | Owner tooling (efitools), not SONiC |
+| `efi-readvar`, `efi-updatevar`, efivarfs | OS path to UEFI runtime services | Linux / efitools, not SONiC |
+| `show platform security uefi …` / `config platform security uefi …` CLI plugin | Operator interface on the NOS | **SONiC** |
+
+Sections 3–7 are the UEFI platform model (what firmware must do, what OVMF does, what Cisco platforms implement). Section 8–9 are the SONiC CLI plugin on top of that model.
 
 ## 1 Requirements
 SONiC runs on switching hardware from multiple vendors. Some of this hardware implements a hardware root of trust and UEFI firmware, which helps establish Secure Boot. The hardware vendor ships the machine. The **platform owner** must be able to take ownership of that machine: enroll their own Platform Key, constrain boot to owner-trusted images, and later manage PK, KEK, db, and dbx under their own policy (rotate keys, add signers, revoke compromised keys).
@@ -88,14 +90,14 @@ This requires a SONiC **CLI plugin** that can show and apply UEFI Secure Boot va
 ## 2 Overview
 The UEFI Secure Boot feature is introduced in UEFI spec version 2.3.1 onwards. It verifies image integrity and authenticity before load. The spec also describes how UEFI keys are managed.
 
-**This community HLD follows the OVMF model** (Open Virtual Machine Firmware: the open UEFI implementation for QEMU/KVM). Variable access is UEFI runtime services, exposed to Linux as efivarfs and used through `efi-readvar` / `efi-updatevar`. The SONiC CLI plugin is the only new SONiC code in this design; it wraps those tools. Platforms that cannot use efitools are out of scope here.
+**This community HLD follows the OVMF model** as the open UEFI reference (QEMU/KVM). Cisco platforms implement the same UEFI key-management model in firmware. Variable access is UEFI runtime services, exposed to Linux as efivarfs and used through `efi-readvar` / `efi-updatevar`. The SONiC CLI plugin is the NOS-side code in this design; it wraps those tools. Platforms that cannot use this UEFI/efitools path are out of scope here.
 
 TPM measured boot is out of scope.
 
 ## 3 UEFI components
 
 ### 3.1 UEFI firmware
-Typically the UEFI is a modern replacement for traditional BIOS. This HLD uses **OVMF** (Open Virtual Machine Firmware) as the reference UEFI: open firmware for QEMU/KVM that implements UEFI Authenticated Variables, Setup Mode / User Mode, and `SecureBoot` as specified. Behavior called out below (including when `SecureBoot` becomes 1) is the OVMF behavior.
+Typically the UEFI is a modern replacement for traditional BIOS. This HLD uses **OVMF** (Open Virtual Machine Firmware) as the open reference: QEMU/KVM firmware that implements UEFI Authenticated Variables, Setup Mode / User Mode, and `SecureBoot`. Cisco platforms implement that same UEFI model. Behavior called out below (including when `SecureBoot` becomes 1) is the OVMF reference so the community can test it without vendor firmware.
 
 ### 3.2 UEFI keys
 UEFI keys are types of UEFI variables. These are cryptographic keys used in Unified Extensible Firmware Interface (UEFI) firmware. These are asymmetric cryptographic keys that come with public and private key pairs. The private keys are used for signing data and public keys are enrolled in the UEFI device for verifying signed data.
@@ -176,11 +178,11 @@ od -An -tu1 -j4 -N1 \
 ## 5 Ownership
 
 ### 5.1 Ownership model
-OVMF provides the UEFI variable store. The platform owner owns the VM after claim.
+The UEFI platform provides the variable store (OVMF as the open reference; Cisco platforms implement the same model). The platform owner owns the machine after claim.
 
 | Role | Responsibility |
 | ---- | -------------- |
-| **Firmware (OVMF)** | Starts in **Setup Mode** with empty PK/KEK/db/dbx. Implements standard Authenticated Variables. Does not retain the owner's private keys. |
+| **UEFI firmware** | Starts in **Setup Mode** with empty PK/KEK/db/dbx. Implements standard Authenticated Variables (OVMF reference; Cisco platforms implement the same UEFI model). Does not retain the owner's private keys. |
 | **Platform owner** | Generates PK, KEK, and db (and dbx) off the device. Holds private keys. Signs ONIE and SONiC. Builds ESL/AUTH2. Enrolls keys. Sets boot policy in db/dbx. |
 | **SONiC** | CLI **plugin** only: show variables and apply the owner's ESL (Setup Mode) or AUTH2 (User Mode). The plugin calls `efi-readvar` / `efi-updatevar`. Does not generate or store owner private keys. |
 
@@ -627,7 +629,7 @@ Owner B's claim is the same procedure as first claim. PK last. If owner B enroll
 
 ## 8 SONIC implementation
 
-SONiC does not implement UEFI firmware or efitools. The **SONiC contribution is the CLI plugin**. It dispatches show/enroll/update/unclaim to the OVMF/Linux path:
+The UEFI platform (OVMF reference; Cisco firmware that implements the same model) owns key storage and verification. Linux efitools talk to UEFI runtime services. SONiC does not replace either. The **SONiC contribution is the CLI plugin**. It dispatches show/enroll/update/unclaim to that path:
 
 - show / export: `efi-readvar` (efivarfs for `SetupMode` / `SecureBoot`)
 - enroll in Setup Mode: `efi-updatevar -e` with an unsigned ESL
