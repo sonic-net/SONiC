@@ -19,6 +19,7 @@
 |  | sonic-mgmt-common-maintainer | Shashank Neelam (Google) | sneelam20 | enabled |
 |  | sonic-mgmt-common-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | enabled |
 |  | sonic-mgmt-common-maintainer | Anukul Verma (Cisco) | Verma-Anukul | Request on 11/02/2026 |
+|  | sonic-mgmt-common-maintainer | Dawei Huang (Microsoft) | hdwhdw | Self-nominated on 11/05/2026; pending approval |
 | sonic-mgmt-framework | sonic-mgmt-framework-maintainer | Joseph, Joyas (DELL) | joyas-joseph | enabled |
 |  | sonic-mgmt-framework-maintainer | Shashank Neelam | sneelam20 | Replace Tomek on 3/5/2024 |
 |  | sonic-mgmt-framework-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
@@ -65,6 +66,7 @@
 |  | sonic-gnmi-maintainer | Seifert, Eric (DELL) | seiferteric | enabled |
 |  | sonic-gnmi-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
 |  | sonic-gnmi-maintainer | Anukul Verma (Cisco) | Verma-Anukul | Request on 11/02/2026 |
+|  | sonic-gnmi-maintainer | Dawei Huang (Microsoft) | hdwhdw | Self-nominated on 11/05/2026; pending approval |
 | sonic-utilities | sonic-utilities-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 | sonic-wpa-supplicant | sonic-wpa-supplicant-maintainer | Ze Gan (Microsoft) | Pterosaur | enabled |
 | sonic-buildimage | sonic-buildimage-maintainer | Guohan Lu (Microsoft) | lguohan | enabled |
@@ -76,6 +78,7 @@
 |  | sonic-buildimage-maintainer | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
 |  | sonic-buildimage-maintainer | Anand Mehra (Cisco) | anamehra | Requested on 09/28/2026 |
 |  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
+|  | sonic-buildimage-maintainer | Rita Hui (Microsoft) | rlhui | enabled |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
