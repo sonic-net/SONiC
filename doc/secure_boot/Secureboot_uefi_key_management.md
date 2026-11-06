@@ -6,7 +6,7 @@
 |  Rev  | Date           | Author      | Change Description |
 | :---: | :------------: | :---------: | ------------------ |
 |  0.1  |   08/25/2023   | Sachin Naik | Initial version    |
-|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim. Community reference is OVMF: efi-readvar / efi-updatevar, enroll needs no reboot, SecureBoot=1 on next boot |
+|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim (OVMF). After-claim PK/KEK/db/dbx append, update, remove, revoke samples |
 
 
 <!-- omit in toc -->
@@ -26,11 +26,14 @@
   - [5.3 Enroll keys in Setup Mode](#53-enroll-keys-in-setup-mode)
   - [5.4 Verify ownership claim](#54-verify-ownership-claim)
 - [6 UEFI key management](#6-uefi-key-management)
-  - [6.1 Generation of keys and authenticated variable](#61-generation-of-keys-and-authenticated-variable)
-  - [6.2 Enrollment of authenticated variables into the device](#62-enrollment-of-authenticated-variables-into-the-device)
-  - [6.3 Remove keys from UEFI database](#63-remove-keys-from-uefi-database)
-  - [6.4 Revoke keys](#64-revoke-keys)
-  - [6.5 Show keys](#65-show-keys)
+  - [6.1 AUTH2 write models](#61-auth2-write-models)
+  - [6.2 Generation of keys and authenticated variable](#62-generation-of-keys-and-authenticated-variable)
+  - [6.3 Apply AUTH2 on the device](#63-apply-auth2-on-the-device)
+  - [6.4 Append](#64-append)
+  - [6.5 Update](#65-update)
+  - [6.6 Remove](#66-remove)
+  - [6.7 Revoke](#67-revoke)
+  - [6.8 Show keys](#68-show-keys)
 - [7 SONIC implementation](#7-sonic-implementation)
 - [8 SONiC CLI commands](#8-sonic-cli-commands)
 - [9 Test considerations](#9-test-considerations)
@@ -258,108 +261,259 @@ od -An -tu1 -j4 -N1 \
 
 ## 6 UEFI key management
 
-This section is **after ownership claim** (User Mode). Setup Mode claim enrollment is section 5.3. Private keys stay on the owner host. Only public certificates (ESL / AUTH2) are written to the device.
+This section is **after ownership claim** (User Mode, `SetupMode=0`). Setup Mode claim enrollment is section 5.3. Private keys stay on the owner host. Only public certificates (ESL / AUTH2) are written to the device. All samples below are the **OVMF** path: `sign-efi-sig-list` on the owner host, `efi-updatevar -f` on the VM (`-e` is Setup Mode only).
 
-The key management involves following the functional area
-1. Generation of keys and authenticated variable
-2. Add the key to the UEFI database
-3. Remove the key to the UEFI database
-4. Revoke keys
-5. Show key list from UEFI database
+| Variable | AUTH2 signed by | VendorGuid (`sign-efi-sig-list -g`) | Typical use after claim |
+| -------- | --------------- | ----------------------------------- | ----------------------- |
+| PK       | Current PK      | `EFI_GLOBAL_VARIABLE` `8be4df61-93ca-11d2-aa0d-00e098032b8c` | Rotate or add a Platform Key |
+| KEK      | Current PK      | same `EFI_GLOBAL_VARIABLE`          | Add/rotate who may change db/dbx |
+| db       | An enrolled KEK | `EFI_IMAGE_SECURITY_DATABASE` `d719b2cb-3d3a-4596-a3bc-dad00e67656f` | Add/rotate boot signers |
+| dbx      | An enrolled KEK | same `EFI_IMAGE_SECURITY_DATABASE`  | Blacklist a signer or image |
 
-### 6.1 Generation of keys and authenticated variable
-#### asymmetric key creations
-The secure boot key and authenticate variable creation happens outside of the device.
+AUTH2 `EFI_TIME` must be later than the last successful write of that variable.
 
-```
-Sample example of key creation:
+### 6.1 AUTH2 write models
 
+OVMF implements two UEFI write models. They differ only by `EFI_VARIABLE_APPEND_WRITE` on the AUTH2. There is no per-certificate delete.
+
+| Model | `sign-efi-sig-list` | `efi-updatevar` | Effect |
+| ----- | ------------------- | --------------- | ------ |
+| **Append** | `-a` | `-f file.auth <var>` | Add the ESL to the existing variable. Current certificates stay. |
+| **Update** (replace) | no `-a` | `-f file.auth <var>` | Replace the **entire** variable with this ESL. Certificates not in the ESL are gone. |
+
+| Operation | Write model | PK | KEK | db | dbx |
+| --------- | ----------- | -- | --- | -- | --- |
+| Add a certificate | Append | yes | yes | yes | yes (forbidden cert) |
+| Replace the store | Update | yes | yes | yes | yes |
+| Remove a certificate | Update of the remaining ESL | yes (must leave a PK or it is unclaim) | yes | yes | use update of remaining dbx |
+| Revoke a signer or image | Append to dbx | — | — | — | yes |
+| Show | `efi-readvar` | yes | yes | yes | yes |
+
+### 6.2 Generation of keys and authenticated variable
+
+Key and AUTH2 creation happens **off the device**. dbx is not a key pair; it is a list of forbidden certificates and/or image hashes.
+
+```bash
 openssl req -newkey rsa:2048 -nodes -keyout PK.key -new -x509 -sha256 -days 365 -subj "/CN=Platform key/" -out PK.crt
 openssl req -newkey rsa:2048 -nodes -keyout KEK.key -new -x509 -sha256 -days 365 -subj "/CN=Key Exchange Key/" -out KEK.crt
 openssl req -newkey rsa:2048 -nodes -keyout db.key -new -x509 -sha256 -days 365 -subj "/CN=Database key/" -out db.crt
 ```
-The private keys are kept secretly and used during image signing. The public keys are used to verify images signed by private keys. Public keys are wrapped in the x509 format of the certificate. These public certificates are enrolled in the UEFI key database by the platform owner.
 
-#### Authenticated variable creation
-After claim, User Mode writes are AUTH2. `cert-to-efi-sig-list -g` is the owner-chosen **SignatureOwner**. `sign-efi-sig-list -g` is the UEFI **VendorGuid** for that variable (`EFI_GLOBAL_VARIABLE` `8be4df61-93ca-11d2-aa0d-00e098032b8c` for PK/KEK; `EFI_IMAGE_SECURITY_DATABASE` `d719b2cb-3d3a-4596-a3bc-dad00e67656f` for db/dbx).
+Private keys stay on the owner host. Public certificates are wrapped as x509 and enrolled.
 
-```
-Sample example of authenticated variable creation:
+`cert-to-efi-sig-list -g` is the owner-chosen **SignatureOwner** (`uuidgen`). `sign-efi-sig-list -g` is the UEFI **VendorGuid** (table above). Do not swap them.
 
+```bash
 uuidgen --random > GUID.txt
 SIGNATURE_OWNER="$(< GUID.txt)"
 VENDOR_GUID_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
 VENDOR_GUID_IMAGE=d719b2cb-3d3a-4596-a3bc-dad00e67656f
+```
 
-**PK authenticated variable:**
+Update AUTH2 (no `-a`) signed by the **currently enrolled** PK or KEK:
+
+```bash
+# PK  (signed by current PK)
 cert-to-efi-sig-list -g "$SIGNATURE_OWNER" PK.crt PK.esl
 sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt PK PK.esl PK.auth
 
-**KEK authenticated variable:**
+# KEK (signed by current PK)
 cert-to-efi-sig-list -g "$SIGNATURE_OWNER" KEK.crt KEK.esl
 sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt KEK KEK.esl KEK.auth
 
-**Db authenticated variable:**
+# db  (signed by current KEK)
 cert-to-efi-sig-list -g "$SIGNATURE_OWNER" db.crt db.esl
 sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt db db.esl db.auth
+
+# dbx forbidden cert (signed by current KEK). Add -a to append instead of replace.
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" revoked.crt revoked.esl
+sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt dbx revoked.esl dbx.auth
 ```
 
-### 6.2 Enrollment of authenticated variables into the device
-After claim, copy only the AUTH2 file to the device. Do not copy `PK.key` or `KEK.key`.
+Add `-a` on `sign-efi-sig-list` to build an **append** AUTH2. That flag does not change either GUID.
 
-1. Copy the generated authenticated variable (Ex. KEK.auth, db.auth) to the device
-2. Use CLI / `efi-updatevar -f` to send the authenticated variable to UEFI firmware.
-3. UEFI firmware checks the trust source and integrity of authenticated variables and enrolls into UEFI database.
-4. The system requires a reboot to activate the keys for boot verification.
+### 6.3 Apply AUTH2 on the device
 
-### 6.3 Remove keys from UEFI database
-Removal of a certificate is an AUTH2 **update** of the remaining list, built off the device. Signing uses `KEK.key` on the owner host. Only `DB-new.auth` is copied to the DUT.
+Copy only the `.auth` file. Do not copy `.key`.
 
-**Warning:** Removing a db certificate that currently signs the running bootloader (shim) is potentially destructive if `SecureBoot=1`. The next reboot will fail OVMF image verification. The running NOS is not killed immediately. Linux CLI cannot recover that state. Recovery is OVMF Setup (clear PK / enroll from firmware Setup). Do not remove the only signer of the installed bootloader until a replacement signer is in db.
-
-```
-Sample example of authenticated variable creation for removal of the key from the signature database list:
-E.g The UEFI database has 3 entries of keys and one of them to be removed here
-
-1. Read the db key list from UEFI DB.
-   efi-readvar -v db -o DB-orig.esl
-2. Convert signature list to individual certs. This command extracts DB-orig-1.der DB-orig-2.der DB-orig-3.der so on key files
-   sig-list-to-certs DB-orig.esl DB-orig
-3. Convert each of the certs into pem format
-   openssl x509 -inform der -in db-orig-1.der -out db-orig-1.pem
-   openssl x509 -inform der -in db-orig-2.der -out db-orig-2.pem
-   openssl x509 -inform der -in db-orig-3.der -out db-orig-3.pem
-4. Removal of db-orig-2.pem to be discarded
-5. Convert db-orig-1.pem and db-orig-3.pem to esl format
-   cert-to-efi-sig-list -g "$SIGNATURE_OWNER" db-orig-1.pem db-orig-1.esl
-   cert-to-efi-sig-list -g "$SIGNATURE_OWNER" db-orig-3.pem db-orig-3.esl
-6. Concatenate these two esl files
-   cat db-orig-1.esl db-orig-3.esl > DB-new.esl
-7. Create authenticated variable and sign it on the owner host
-   sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt db DB-new.esl DB-new.auth
-8. Copy DB-new.auth to the system and use CLI to update UEFI database
-   sudo config platform security uefi update db DB-new.auth
+```bash
+efi-updatevar -f PK.auth  PK
+efi-updatevar -f KEK.auth KEK
+efi-updatevar -f db.auth  db
+efi-updatevar -f dbx.auth dbx
 ```
 
-### 6.4 Revoke keys
-Revoking a key from the UEFI database is done when the previously trusted key is no longer trustworthy. This action is taken when a key's security has been compromised.
-It is achieved by inserting the authenticated variable for the compromised key into the forbidden key list (dbx). Firmware checks dbx **before** db. A dbx match refuses the image even if the same cert is still in db.
+Or `sudo config platform security uefi update <var> <file.auth>`. The CLI does not re-sign. Append vs replace is already in the AUTH2 (`-a` or not).
 
-**Warning:** Revoke is potentially destructive. If that cert or hash currently signs the running boot chain and `SecureBoot=1`, the next reboot will fail OVMF verification. That is not a hardware brick. Linux CLI cannot recover it. Recovery is OVMF Setup (clear PK / enroll from firmware Setup), which returns Setup Mode. After a compromise, prefer: enroll the replacement db cert, then append the old cert/hash to dbx, then remove it from db.
+OVMF writes NVRAM immediately (`efi-readvar` shows the new list). A reboot is not required for the variable store. A reboot is required before a **db/dbx** change affects the next firmware image check (`SecureBoot=1`). PK/KEK changes apply to the next AUTH2 immediately.
 
+### 6.4 Append
+
+Append adds certificates. Existing entries remain. `sign-efi-sig-list -a`.
+
+#### Append PK
+
+Some OVMF builds keep a single PK. If append PK is rejected, use update (6.5) instead. After a successful append, either enrolled PK can sign later PK/KEK AUTH2. User Mode continues.
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout PK2.key -new -x509 -sha256 -days 365 \
+  -subj "/CN=Platform key 2/" -out PK2.crt
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" PK2.crt PK2.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt -a PK PK2.esl pk.append.auth
+efi-updatevar -f pk.append.auth PK
 ```
-Sample example:
-If db-orig-1.pem is compromised then generate an authenticated variable for db-orig-1.pem
-1. Convert ESL of pem cert.
-   cert-to-efi-sig-list -g "$SIGNATURE_OWNER" db-orig-1.pem db-orig-1.esl
-2. Create authenticated variable on the owner host
-   sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt -a dbx db-orig-1.esl DB-revoke.auth
-3. Copy DB-revoke.auth to the system and use CLI to update the UEFI database
-   sudo config platform security uefi update dbx DB-revoke.auth
+
+#### Append KEK
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout KEK2.key -new -x509 -sha256 -days 365 \
+  -subj "/CN=Key Exchange Key 2/" -out KEK2.crt
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" KEK2.crt KEK2.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt -a KEK KEK2.esl kek.append.auth
+efi-updatevar -f kek.append.auth KEK
 ```
 
-### 6.5 Show keys
-This is to display the PK, KEK, db, and dbx key lists, and `SetupMode` / `SecureBoot`.
+#### Append db
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout db2.key -new -x509 -sha256 -days 365 \
+  -subj "/CN=Database key 2/" -out db2.crt
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" db2.crt db2.esl
+sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt -a db db2.esl db.append.auth
+efi-updatevar -f db.append.auth db
+```
+
+#### Append dbx (forbidden cert)
+
+See 6.7. Append is the usual revoke write so existing dbx entries stay.
+
+### 6.5 Update
+
+Update replaces the whole store. Do not pass `-a`. Certificates omitted from the ESL are no longer enrolled. Sign with the **currently** enrolled PK or KEK. After a PK update, later PK and KEK AUTH2 must be signed by the **new** PK. After a KEK update, later db and dbx AUTH2 must be signed by a **remaining** KEK.
+
+#### Update PK (stay in User Mode)
+
+ESL is the new PK certificate. This is **not** unclaim. Unclaim is an empty PK ESL (returns Setup Mode); do not use that unless you intend to leave User Mode.
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout newPK.key -new -x509 -sha256 -days 365 \
+  -subj "/CN=Platform key/" -out newPK.crt
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" newPK.crt newPK.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt PK newPK.esl pk.update.auth
+efi-updatevar -f pk.update.auth PK
+```
+
+#### Update KEK
+
+ESL is the complete new KEK list. Concatenate every KEK certificate that must remain.
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout newKEK.key -new -x509 -sha256 -days 365 \
+  -subj "/CN=Key Exchange Key/" -out newKEK.crt
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" newKEK.crt newKEK.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt KEK newKEK.esl kek.update.auth
+efi-updatevar -f kek.update.auth KEK
+```
+
+#### Update db
+
+ESL is the complete new db. Include every certificate that must still verify shim / OS.
+
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout newdb.key -new -x509 -sha256 -days 365 \
+  -subj "/CN=Database key/" -out newdb.crt
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" newdb.crt newdb.esl
+# cat extra.esl newdb.esl > DB.update.esl   # if more certs must remain
+sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt db newdb.esl db.update.auth
+efi-updatevar -f db.update.auth db
+```
+
+#### Update dbx
+
+Replace the whole forbidden list. Prefer append (6.7) unless you intend to drop existing dbx entries.
+
+```bash
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" revoked.crt revoked.esl
+sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt dbx revoked.esl dbx.update.auth
+efi-updatevar -f dbx.update.auth dbx
+```
+
+### 6.6 Remove
+
+UEFI has no per-certificate delete. Remove is an **update** (no `-a`) whose ESL is every certificate that must **remain**. Append cannot remove. Signers are the same as update.
+
+**Warning (db):** Removing a db certificate that currently signs the running bootloader (shim) is potentially destructive if `SecureBoot=1`. The next reboot will fail OVMF image verification. The running NOS is not killed immediately. Linux CLI cannot recover that state. Recovery is OVMF Setup (clear PK). Do not remove the only signer of the installed bootloader until a replacement signer is in db.
+
+#### Remove a PK certificate
+
+Drop PK2, keep the original PK. Sign with a currently enrolled PK. User Mode continues. An empty PK ESL is unclaim (Setup Mode), not this sample.
+
+```bash
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" PK.crt PK.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt PK PK.esl pk.remove.auth
+efi-updatevar -f pk.remove.auth PK
+```
+
+#### Remove a KEK certificate
+
+Drop KEK2, keep KEK. Later db/dbx AUTH2 must be signed by a remaining KEK.
+
+```bash
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" KEK.crt KEK.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt KEK KEK.esl kek.remove.auth
+efi-updatevar -f kek.remove.auth KEK
+```
+
+#### Remove a db certificate
+
+Example: db has three entries; drop the second.
+
+```bash
+efi-readvar -v db -o DB-orig.esl
+sig-list-to-certs DB-orig.esl DB-orig
+openssl x509 -inform der -in DB-orig-1.der -out DB-orig-1.pem
+openssl x509 -inform der -in DB-orig-2.der -out DB-orig-2.pem
+openssl x509 -inform der -in DB-orig-3.der -out DB-orig-3.pem
+# discard DB-orig-2.pem
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" DB-orig-1.pem DB-orig-1.esl
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" DB-orig-3.pem DB-orig-3.esl
+cat DB-orig-1.esl DB-orig-3.esl > DB.remain.esl
+sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt db DB.remain.esl db.remove.auth
+efi-updatevar -f db.remove.auth db
+```
+
+### 6.7 Revoke
+
+dbx is the forbidden signature database. When `SecureBoot=1`, OVMF checks dbx **before** db. A dbx match refuses the image even if the same cert is still in db. Removing a cert from db only stops it granting trust. Putting it in dbx **blocks** it.
+
+Revoke is an **append** AUTH2 (`-a`) so existing dbx entries stay. KEK signs; VendorGuid is `EFI_IMAGE_SECURITY_DATABASE`.
+
+**Warning:** If that cert or hash currently signs the running boot chain and `SecureBoot=1`, the next reboot will fail OVMF verification. Prefer: enroll the replacement db cert, then append the old cert/hash to dbx, then remove it from db.
+
+| Entry | ESL | Effect |
+| ----- | --- | ------ |
+| Forbidden certificate | X.509 of the revoked signer (`cert-to-efi-sig-list`) | Any image signed by that private key is refused |
+| Forbidden digest | SHA-256 of one PE/COFF image (`hash-to-efi-sig-list`) | That binary is refused; other images from the same signer can still boot if they remain in db |
+
+#### Revoke a certificate (blacklist a signer)
+
+```bash
+cert-to-efi-sig-list -g "$SIGNATURE_OWNER" compromised.crt compromised.esl
+sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt -a dbx compromised.esl dbx.revoke.auth
+efi-updatevar -f dbx.revoke.auth dbx
+```
+
+#### Revoke one image (blacklist a hash)
+
+```bash
+hash-to-efi-sig-list -g "$SIGNATURE_OWNER" compromised.efi compromised.hash.esl
+sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt -a dbx compromised.hash.esl dbx.hash.revoke.auth
+efi-updatevar -f dbx.hash.revoke.auth dbx
+```
+
+dbx does not remove the certificate from db. After a compromise, append to dbx, then omit that cert from a db update (6.5 / 6.6).
+
+### 6.8 Show keys
 
 ```bash
 efi-readvar PK
@@ -367,6 +521,8 @@ efi-readvar KEK
 efi-readvar db
 efi-readvar dbx
 ```
+
+`SetupMode` / `SecureBoot` are not printed by `efi-readvar`. Use `show platform security uefi status` or the efivarfs `od` commands in section 4.
 
 ## 7 SONIC implementation
 SONiC talks to OVMF the same way Linux does on QEMU: **efi-readvar**, **efi-updatevar**, and **efivarfs**. No vendor plugin.
