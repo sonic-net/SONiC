@@ -1,0 +1,63 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "17px",
+    "fontFamily": "Segoe UI, Arial, sans-serif",
+    "primaryColor": "#E8F1FC",
+    "primaryBorderColor": "#2E5FA8",
+    "primaryTextColor": "#1F2937",
+    "lineColor": "#4B5563",
+    "actorBkg": "#E8F1FC",
+    "actorBorder": "#2E5FA8",
+    "actorTextColor": "#1F2937",
+    "signalColor": "#374151",
+    "signalTextColor": "#111827",
+    "labelBoxBkgColor": "#F3F4F6",
+    "labelBoxBorderColor": "#9CA3AF",
+    "noteBkgColor": "#F8FAFC",
+    "noteBorderColor": "#94A3B8",
+    "noteTextColor": "#334155"
+  },
+  "sequence": {
+    "useMaxWidth": true,
+    "diagramMarginX": 35,
+    "diagramMarginY": 22,
+    "actorMargin": 55,
+    "width": 130,
+    "height": 55,
+    "boxMargin": 10,
+    "boxTextMargin": 8,
+    "messageMargin": 36,
+    "mirrorActors": false,
+    "wrap": true,
+    "wrapPadding": 8
+  }
+} }%%
+sequenceDiagram
+    box Route Processor
+        participant CP as BGP / Zebra
+        participant K as Kernel
+        participant FPM as fpmsyncd
+        participant PST as ProducerStateTable
+        participant APP as APPL_DB
+        participant ZMQ as ZMQ Server
+    end
+    box Line Card — one NPU
+        participant ZC as zmqClient
+        participant RO as RouteOrch
+        participant HW as ASIC
+    end
+
+    CP->>CP: 1. Route_Install_Request
+    CP->>K: 2. kernel route
+    CP->>FPM: 3. FPM route
+    FPM->>PST: invoke ProducerStateTable
+    rect rgb(248, 250, 252)
+        Note over PST,APP: ProducerStateTable
+        PST->>APP: 4. update ROUTE_TABLE (Redis)
+    end
+    APP->>ZMQ: 5. publish to ZMQ Server
+    ZMQ->>ZC: ZMQ IPC (midplane)
+    ZC->>RO: consume route
+    RO->>HW: 6. program route (SAI)
+    Note over ZC,HW: Same view per NPU — each ASIC has its own zmqClient, RouteOrch, ASIC stack

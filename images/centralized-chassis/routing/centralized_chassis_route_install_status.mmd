@@ -1,0 +1,51 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "17px",
+    "fontFamily": "Segoe UI, Arial, sans-serif",
+    "primaryColor": "#E8F1FC",
+    "primaryBorderColor": "#2E5FA8",
+    "primaryTextColor": "#1F2937",
+    "lineColor": "#4B5563",
+    "actorBkg": "#E8F1FC",
+    "actorBorder": "#2E5FA8",
+    "actorTextColor": "#1F2937",
+    "signalColor": "#374151",
+    "signalTextColor": "#111827",
+    "labelBoxBkgColor": "#F3F4F6",
+    "labelBoxBorderColor": "#9CA3AF",
+    "noteBkgColor": "#F8FAFC",
+    "noteBorderColor": "#94A3B8",
+    "noteTextColor": "#334155"
+  },
+  "sequence": {
+    "useMaxWidth": true,
+    "diagramMarginX": 35,
+    "diagramMarginY": 22,
+    "actorMargin": 55,
+    "width": 130,
+    "height": 55,
+    "boxMargin": 10,
+    "boxTextMargin": 8,
+    "messageMargin": 36,
+    "mirrorActors": false,
+    "wrap": true,
+    "wrapPadding": 8
+  }
+} }%%
+sequenceDiagram
+    box Line Card — one NPU
+        participant HW as ASIC
+        participant RO as RouteOrch
+    end
+    box Route Processor
+        participant AST as APPL_STATE_DB
+        participant FPM as fpmsyncd
+        participant CP as BGP / Zebra
+    end
+
+    HW->>RO: 7. install status
+    RO->>AST: 8. ROUTE status (last ASIC ACK)
+    AST->>FPM: 9. consume status
+    FPM->>CP: 10. RTM_NEWROUTE / RTM_F_OFFLOAD (FPM)
+    CP->>CP: 11. advertise/withdraw
