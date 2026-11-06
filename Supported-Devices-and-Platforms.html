@@ -397,22 +397,6 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
-<td>Accton</td>
-<td>Wedge 100BF-32</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Accton</td>
-<td>Wedge 100BF-65X</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
 <td>Alphanetworks</td>
 <td>SNH60A0-320Fv2</td>
 <td class="asic_vendor">Broadcom</td>
@@ -522,22 +506,6 @@ function Port_Config() {
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 4</td>
 <td>64x400G + 2x10G</td>
-<td></td>
-</tr>
-<tr>
-<td>Arista</td>
-<td>DCS-7170-32CD</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>32x100G + 2x10G</td>
-<td></td>
-</tr>
-<tr>
-<td>Arista</td>
-<td>DCS-7170-64C</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>64x100G + 2x10G</td>
 <td></td>
 </tr>
 <tr>
@@ -862,25 +830,9 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Ingrasys</td>
-<td>S9180-32X</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Ingrasys</td>
 <td>S9200-64X</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
-<td>64x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Ingrasys</td>
-<td>S9280-64X</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
 <td>64x100G</td>
 <td></td>
 </tr>
@@ -1082,30 +1034,6 @@ function Port_Config() {
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
 <td>32x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Netberg </td>
-<td>Aurora 610</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino BFN-T10-032D-020</td>
-<td>48x 25G + 8x 100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Netberg </td>
-<td>Aurora 710</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino BFN-T10-032D</td>
-<td>32x 100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Netberg </td>
-<td>Aurora 750</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino BFN-T10-064Q</td>
-<td>64x 100G</td>
 <td></td>
 </tr>
 <tr>
@@ -1428,14 +1356,6 @@ function Port_Config() {
 <td>32x400G</td>
 <td></td>
 </tr>
-<tr>
-<td>Wnc</td>
-<td>OSW1800</td>
-<td class="asic_vendor">Intel</td>
-<td>Tofino</td>
-<td>48x25G + 6x100G</td>
-<td></td>
-</tr>
 </tbody>
 </table>
 <p>&nbsp;</p>
@@ -1459,7 +1379,7 @@ Note:
 <p>&nbsp;</p>
 
 <script>
-	var vendor_data = {Broadcom:"", Cavium:"", Barefoot:"", Innovium:"", Centec:"", Marvell:"", Nvidia:""};
+	var vendor_data = {Broadcom:"", Cavium:"", Innovium:"", Centec:"", Marvell:"", Nvidia:""};
 	$(document).ready(function () {
 	    $.getJSON("sonic_image_links.json", 
 		function(data) {
@@ -1518,9 +1438,6 @@ Note:
 			asic_name = table[i].children[3].textContent;
 			if (vdata == "Nvidia")
 			    vdata = "Mellanox";
-
-			if (vdata == "Intel")
-			    vdata = "Barefoot";
 
 			if (vdata == "Marvell")
 			    vdata = "Marvell-armhf";
