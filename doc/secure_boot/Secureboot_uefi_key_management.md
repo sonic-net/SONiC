@@ -6,7 +6,7 @@
 |  Rev  | Date           | Author      | Change Description |
 | :---: | :------------: | :---------: | ------------------ |
 |  0.1  |   08/25/2023   | Sachin Naik | Initial version    |
-|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim (OVMF). After-claim PK/KEK/db/dbx append, update, remove, revoke samples |
+|  0.2  |   11/05/2026   | Sachin Naik | Ownership claim/unclaim (OVMF). After-claim PK/KEK/db/dbx samples |
 
 
 <!-- omit in toc -->
@@ -34,9 +34,13 @@
   - [6.6 Remove](#66-remove)
   - [6.7 Revoke](#67-revoke)
   - [6.8 Show keys](#68-show-keys)
-- [7 SONIC implementation](#7-sonic-implementation)
-- [8 SONiC CLI commands](#8-sonic-cli-commands)
-- [9 Test considerations](#9-test-considerations)
+- [7 Unclaim](#7-unclaim)
+  - [7.1 Clear PK (return to Setup Mode)](#71-clear-pk-return-to-setup-mode)
+  - [7.2 Factory reset](#72-factory-reset)
+  - [7.3 Transfer to another owner](#73-transfer-to-another-owner)
+- [8 SONIC implementation](#8-sonic-implementation)
+- [9 SONiC CLI commands](#9-sonic-cli-commands)
+- [10 Test considerations](#10-test-considerations)
 
 
 ## Abbreviation
@@ -63,6 +67,7 @@ This requires SONiC to access UEFI Secure Boot variables for:
 1. Ownership claim (enroll dbx, db, KEK, then PK while the device is in Setup Mode).
 2. Show enrolled PK, KEK, db, and dbx, and show `SetupMode` / `SecureBoot`.
 3. Add, replace, remove, and revoke those keys after claim (AUTH2).
+4. Unclaim: clear PK to return to Setup Mode for factory reset or transfer to another owner.
 
 ## 2 Overview
 The UEFI Secure Boot feature is introduced in UEFI spec version 2.3.1 onwards. It verifies image integrity and authenticity before load. The spec also describes how UEFI keys are managed.
@@ -393,7 +398,7 @@ Update replaces the whole store. Do not pass `-a`. Certificates omitted from the
 
 #### Update PK (stay in User Mode)
 
-ESL is the new PK certificate. This is **not** unclaim. Unclaim is an empty PK ESL (returns Setup Mode); do not use that unless you intend to leave User Mode.
+ESL is the new PK certificate. This is **not** unclaim. Unclaim is an empty PK ESL (returns Setup Mode, section 7); do not use that unless you intend to leave User Mode.
 
 ```bash
 openssl req -newkey rsa:2048 -nodes -keyout newPK.key -new -x509 -sha256 -days 365 \
@@ -524,12 +529,93 @@ efi-readvar dbx
 
 `SetupMode` / `SecureBoot` are not printed by `efi-readvar`. Use `show platform security uefi status` or the efivarfs `od` commands in section 4.
 
-## 7 SONIC implementation
+## 7 Unclaim
+
+Unclaim returns OVMF from User Mode to **Setup Mode** so the platform can be factory-reset or claimed by a **new owner**. In the OVMF model that write is a PK **update** AUTH2 whose ESL is **empty**, signed by the **currently enrolled PK**. That is not the same as section 6.5 “update PK” with a new certificate (that stays in User Mode).
+
+Private keys never go on the VM. The current owner builds `PK.empty.auth` on the owner host.
+
+### 7.1 Clear PK (return to Setup Mode)
+
+```bash
+SIGNATURE_OWNER="$(< GUID.txt)"
+VENDOR_GUID_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
+: > empty.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt PK empty.esl PK.empty.auth
+efi-updatevar -f PK.empty.auth PK
+```
+
+Or `sudo config platform security uefi unclaim PK.empty.auth`. Do **not** use `update pk` with a new PK certificate for this.
+
+OVMF result:
+
+| When | `SetupMode` | `SecureBoot` | PK | KEK / db / dbx |
+| ---- | ----------- | ------------ | -- | -------------- |
+| Immediately after empty PK | `1` | often still `1` until POST | empty | often still present |
+| After reboot | `1` | `0` | empty | often still present |
+
+A reboot is not required for the PK clear itself. A reboot is required before `SecureBoot=0` (OVMF computes `SecureBoot` at POST). Unsigned images can boot after that.
+
+OVMF does **not** always erase KEK/db/dbx when PK is deleted. Treat leftover databases as untrusted. The next claim must overwrite them in Setup Mode with unsigned ESL (section 5.3: dbx, db, KEK, then PK) before the new PK.
+
+Verify after the empty-PK write:
+
+```bash
+od -An -tu1 -j4 -N1 \
+  /sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c
+# expect 1
+
+efi-readvar PK
+# empty / length 0
+```
+
+Then reboot and confirm `SecureBoot=0`.
+
+### 7.2 Factory reset
+
+Goal: same as section 4 factory default so a later owner can claim.
+
+1. Current owner builds `PK.empty.auth` (7.1) and applies it.
+2. Confirm `SetupMode=1`. Reboot. Confirm `SecureBoot=0`, PK empty.
+3. While still in Setup Mode, overwrite leftover stores with empty or new unsigned ESL so old db signers cannot remain after the next PK:
+
+```bash
+: > empty.esl
+efi-updatevar -e -f empty.esl dbx
+efi-updatevar -e -f empty.esl db
+efi-updatevar -e -f empty.esl KEK
+```
+
+4. Leave the VM in Setup Mode (no PK). That is factory default. A future owner runs section 5.
+
+If step 3 is skipped, old KEK/db/dbx may still be in NVRAM. They are not enforced while `SecureBoot=0`, but they can surprise the next claim unless overwritten before PK.
+
+### 7.3 Transfer to another owner
+
+The current owner does **not** give `PK.key` / `KEK.key` / `db.key` to the next owner. The next owner generates a new hierarchy and claims.
+
+```
+  Owner A (User Mode)
+    1. Build PK.empty.auth signed by A's PK
+    2. efi-updatevar -f PK.empty.auth PK
+    3. Reboot; SetupMode=1, SecureBoot=0
+  Setup Mode
+    4. Overwrite dbx, db, KEK (unsigned ESL) — empty, or owner B's lists
+    5. Owner B installs B-signed ONIE/SONiC (db will trust B)
+    6. Owner B enrolls B's dbx, db, KEK, then PK last (section 5)
+  Owner B (User Mode)
+    7. Reboot; SetupMode=0, SecureBoot=1
+```
+
+Owner B's claim is the same procedure as first claim. PK last. If owner B enrolls PK while owner A's db is still present, the next boot may still trust A's images or fail B's images. Always replace db (and KEK/dbx) in Setup Mode **before** B's PK.
+
+## 8 SONIC implementation
 SONiC talks to OVMF the same way Linux does on QEMU: **efi-readvar**, **efi-updatevar**, and **efivarfs**. No vendor plugin.
 
 - show / export: `efi-readvar` (efivarfs for `SetupMode` / `SecureBoot`)
 - enroll in Setup Mode: `efi-updatevar -e` with an unsigned ESL
 - append / update / remove / revoke in User Mode: `efi-updatevar -f` with AUTH2
+- unclaim: `efi-updatevar -f` of an empty-PK AUTH2 signed by the current PK (section 7)
 
 The Linux kernel provides efivarfs, which exposes EFI runtime variables as files. Mount it to access the variables:
 
@@ -548,7 +634,7 @@ Ex: UEFI key variables represented as sysfs file
 
 On Linux/OVMF, efivarfs files are often `FS_IMMUTABLE`. `efi-updatevar` fails until the immutable bit is cleared. The CLI will clear it around the write when it can; otherwise it returns that error.
 
-## 8 SONiC CLI commands
+## 9 SONiC CLI commands
 
 The CLI is apply-only. It takes a file and calls `efi-readvar` / `efi-updatevar`. It does not create AUTH2, does not take a private key, and does not retry on firmware reject.
 
@@ -564,9 +650,10 @@ show platform security uefi variables dbx
 
 config platform security uefi enroll <var> <file.esl>
 config platform security uefi update <var> <file.auth>
+config platform security uefi unclaim PK.empty.auth
 ```
 
-`status` prints `SetupMode` and `SecureBoot` (`efi-readvar` does not). `enroll` is Setup Mode unsigned ESL (`efi-updatevar -e`). `update` is User Mode AUTH2 (`efi-updatevar -f`). `<var>` is one of `pk`, `kek`, `db`, `dbx`.
+`status` prints `SetupMode` and `SecureBoot` (`efi-readvar` does not). `enroll` is Setup Mode unsigned ESL (`efi-updatevar -e`). `update` is User Mode AUTH2 (`efi-updatevar -f`). `unclaim` applies an empty-PK AUTH2 (section 7); it is not `update pk` with a new certificate. `<var>` is one of `pk`, `kek`, `db`, `dbx`.
 
 Return values follow normal SONiC CLI:
 
@@ -575,7 +662,7 @@ Return values follow normal SONiC CLI:
 
 Expected failures for enroll/update: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or AUTH2 in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; OVMF reject.
 
-## 9 Test considerations
+## 10 Test considerations
 The sonic-mgmt can cover UEFI key management including at least:
 
 1. Factory default: `SetupMode=1`, `SecureBoot=0`, PK empty (section 4).
@@ -583,3 +670,6 @@ The sonic-mgmt can cover UEFI key management including at least:
 3. After claim, unsigned ESL writes are rejected.
 4. Add, update, remove, and revoke AUTH2 for PK, KEK, db, and dbx (section 6).
 5. Remove/revoke of an in-use db signer is documented as destructive; next boot fails verification when `SecureBoot=1`.
+6. Unclaim: empty-PK AUTH2; `SetupMode=1` immediately; after reboot `SecureBoot=0` (section 7). `update pk` with a new cert must not be treated as unclaim.
+7. Factory reset: after unclaim, overwrite leftover KEK/db/dbx in Setup Mode (section 7.2).
+8. Transfer: owner B claims with B's keys after A's unclaim; B's db is enrolled before B's PK (section 7.3).
