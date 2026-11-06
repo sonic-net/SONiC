@@ -106,7 +106,7 @@ COUNTERS_DB via `mod_sonic` in `hsflowd` — not from the SAI sFlow path.
                              |
                              v
                   +----------+-----------+
-                  |        syncd         | 
+                  |        syncd         |
                   +----------+-----------+
                              | SAI API
                              v
@@ -311,7 +311,7 @@ API), reusing the same path as ACL/route programming:
 | Set sample rate (global) | `sflow_sampling_rate_set { sampling_N }` |
 | Set polling interval | `sflow_polling_interval_set { polling_S }` |
 | Set header bytes | `sflow_header_bytes_set { header_B }` |
-| Drop monitoring on/off | New helper `sflow_drop_monitoring(bool)` (CLI exists, API trivial wrapper) |
+| Drop monitoring on/off | `sflow_drop_monitoring_set { drop_M }` (global flag; see §4.8) |
 | Drop rate limit | **New API** `sflow_drop_rate_limit_set { max_pps, burst }` (Phase 1.5) |
 | Per-port sub-sampling factor | **New API** `sflow_interface_subsample_set { hw_if_index, sub_factor, desired_rate }` (Phase 3) |
 | Per-port sampling direction | **New API** `sflow_interface_direction_set { hw_if_index, direction }`, where `direction ∈ { ingress, egress, both, none }`. Replaces (per port) what the global `sflow_direction_set` does today. (Phase 3) |
@@ -616,7 +616,202 @@ if (smp->drop_max_pps) {
 Programmed by vpplib from the SAI policer attached to the `SAMPLEPACKET` trap
 group's policer (`SAI_POLICER_ATTR_PIR`, `SAI_POLICER_ATTR_CBS`).
 
-### 4.7 docker-sflow / hsflowd integration
+### 4.7 Drop monitor — NET_DM ingress port encoding
+
+The `osIndex=on` arrangement in §4.3 covers packet samples only. Drop samples
+reach the collector with `inputPort 0`. Two independent defects in the VPP
+plugin's `send_discard_sample()` cause this.
+
+**Mismatch 1 — the attribute is encoded flat, but it is defined as nested.**
+The plugin writes a bare `u32`:
+
+```c
+SFLOWDM_set_attr_int (dmt, NET_DM_ATTR_IN_PORT, sample->input_if_index);
+```
+
+`linux/net_dropmon.h` declares `NET_DM_ATTR_IN_PORT /* nested */` with a
+dedicated member enum (`NET_DM_ATTR_PORT_NETDEV_IFINDEX`,
+`NET_DM_ATTR_PORT_NETDEV_NAME`), and the kernel's own `drop_monitor` builds it
+with `nla_nest_start()`. Since VPP sends on the real `NET_DM` family and
+multicast group, listeners cannot tell its messages apart from the kernel's,
+so the encoding has to match. `mod_dropmon` reinterprets the 4-byte payload as
+a `struct nlattr`, gets `nla_len = 1`, fails its `nla_len >= sizeof(struct
+nlattr)` check, and leaves the ingress port at 0. Consumers using
+`nla_parse_nested()` reject the message outright, because the kernel enforces
+`NLA_F_NESTED` on attributes declared `NLA_NESTED`.
+
+**Mismatch 2 — the value is in the wrong namespace.**
+`NET_DM_ATTR_PORT_NETDEV_IFINDEX` is a *netdev* ifIndex; NET_DM has no field
+for any other namespace. The plugin was putting a VPP `hw_if_index` there.
+For packet samples this is absorbed by `mod_vpp`'s `evt_psample`, which
+translates using the `(VPP index, OSINDEX)` tuples learned from the USERSOCK
+channel. NET_DM has no such companion channel, and `mod_vpp` does not
+subscribe to discard events when `osIndex=on`, so nothing downstream can
+resolve a VPP index. The producer is therefore the only party able to do it.
+The plugin already resolves the pairing for the counter channel, where it
+dlsyms linux-cp's `lcp_itf_pair_get_vif_index_by_phy()` and advertises the
+result as `SFLOW_VPP_ATTR_OSINDEX`; the drop path now reuses that same cached
+`sfif->linux_if_index`.
+
+Net effect: a discard on VPP interface `bobm0` is reported against the ifIndex
+of its linux-cp tap — the same ifIndex the collector already has counters and
+flow samples for. When linux-cp is absent the plugin falls back to the VPP
+`hw_if_index`, preserving prior behaviour for non-SONiC deployments where
+`mod_vpp` does the translating.
+
+This leaves the plugin with two conventions — PSAMPLE carries VPP indices,
+NET_DM carries Linux ifIndices. That asymmetry is forced, not chosen:
+correcting the PSAMPLE path would break `mod_vpp`'s `evt_psample`, whose
+lookup is keyed by VPP index.
+
+Implemented in `vppbld/patches/`:
+`0027-sflow-report-linux-cp-ifindex-in-drop-monitor-in-port.patch`.
+
+### 4.8 Drop monitoring — SAI plumbing
+
+§4.6 and §4.7 deal with the VPP-plugin side of drop monitoring. This section
+covers the SAI side: what SONiC actually asks the platform for, why sonic-vpp
+currently answers "not supported", and what vpplib has to do about it.
+
+#### 4.8.1 How SONiC drives drop monitoring
+
+Drop monitoring ("mirror on drop", MOD) is **not** a switch attribute. SONiC
+plumbs it through SAI TAM:
+
+1. `config sflow drop-monitor-limit <pps>` writes `drop_monitor_limit` into
+   CONFIG_DB `SFLOW|global`.
+2. `SflowOrch::sflowStatusSet()` picks it up. When `admin_state` is up **and**
+   `drop_monitor_limit > 0`, it calls
+   `SflowDropMonitor::enableDropMonitor(limit)`; otherwise
+   `disableDropMonitor()`.
+3. `enableDropMonitor()` builds a fixed object chain, in this order:
+
+   ```text
+   TAM_REPORT → TAM_EVENT_ACTION → TAM_TRANSPORT → POLICER
+              → HOSTIF_TRAP_GROUP → HOSTIF_USER_DEFINED_TRAP (type TAM)
+              → TAM_COLLECTOR (bound to that trap, LOCALHOST=true)
+              → TAM_EVENT (type PACKET_DROP)
+              → TAM (bind point SWITCH)
+   ```
+
+   The policer carries the rate limit: `SAI_POLICER_ATTR_METER_TYPE =
+   PACKETS`, `MODE = SR_TCM`, `CIR = CBS = limit`. A later limit change
+   reuses the same objects and only re-sets `CIR`/`CBS`.
+4. The chain is armed by setting `SAI_SWITCH_ATTR_TAM_OBJECT_ID` on the
+   switch to the one-element list `{ tam }`. Disabling sets the same
+   attribute to an empty list and tears the objects down.
+5. Independently, `hsflowd`'s `mod_sonic` reads `drop_monitor_limit` straight
+   out of CONFIG_DB (`HSP_SONIC_FIELD_SFLOW_DROP_MONITOR_LIMIT`) to decide
+   whether to subscribe to the dropmon channel. `sflowmgr` does not touch the
+   field.
+
+The CLI is gated before any of that happens.
+`config sflow drop-monitor-limit` calls
+`is_sflow_mirror_on_drop_supported()`, which reads STATE_DB
+`SWITCH_CAPABILITY|switch` field `MIRROR_ON_DROP_CAPABLE` and aborts on the
+literal string `"false"`. That field is written by
+`SwitchOrch::querySwitchMirrorOnDropCapability()` at orchagent start-up, from
+six SAI capability queries. The first failing query short-circuits the rest
+and writes `"false"`.
+
+#### 4.8.2 Current symptom on sonic-vpp
+
+```text
+sflow/test_sflow_drop_monitor_limit.py: Drop monitor is not supported on this
+platform: "Usage: config sflow drop-monitor-limit [OPTIONS] <pps>
+... Error: Drop monitor is not supported on this platform"
+```
+
+The failure is entirely in the capability answer, not in the data path.
+vpplib's `queryAttributeCapability` already returns
+`create/set/get = true` for every object type, so checks 3–6 below pass. But
+`queryAttributeEnumValuesCapability` is a fixed if/else chain in
+`SwitchStateBase::queryAttrEnumValuesCapability()` that ends in
+`SAI_STATUS_NOT_SUPPORTED`, and `SwitchVpp` does not override it. Neither
+enum the MOD query needs is in that chain, so check 1 fails immediately.
+
+| # | Query | sonic-vpp today |
+|---|---|---|
+| 1 | enum values of `TAM_EVENT` / `SAI_TAM_EVENT_ATTR_TYPE` must contain `SAI_TAM_EVENT_TYPE_PACKET_DROP` | **`NOT_SUPPORTED`** |
+| 2 | enum values of `HOSTIF_USER_DEFINED_TRAP` / `..._ATTR_TYPE` must contain `SAI_HOSTIF_USER_DEFINED_TRAP_TYPE_TAM` | **`NOT_SUPPORTED`** |
+| 3 | `SWITCH` / `SAI_SWITCH_ATTR_TAM_OBJECT_ID` set-implemented | passes |
+| 4 | `TAM_COLLECTOR` / `SAI_TAM_COLLECTOR_ATTR_HOSTIF_TRAP` create-implemented | passes |
+| 5 | `TAM` / `SAI_TAM_ATTR_EVENT_OBJECTS_LIST` create-implemented | passes |
+| 6 | `HOSTIF_USER_DEFINED_TRAP` / `..._ATTR_TRAP_GROUP` create-implemented | passes |
+
+Once checks 1 and 2 are answered, the rest of the chain already works:
+`TAM_REPORT`, `TAM_EVENT_ACTION`, `TAM_TRANSPORT`, `TAM_EVENT`,
+`TAM_COLLECTOR`, `TAM` and `HOSTIF_USER_DEFINED_TRAP` have no special case in
+`SwitchVpp::create()` and fall through to `create_internal()` (object-store
+bookkeeping), while `POLICER` and `HOSTIF_TRAP_GROUP` have real vpplib
+handlers. Nothing in `initializeDropMonitor()` can fail for lack of an
+implementation.
+
+#### 4.8.3 VPP semantics
+
+Drop monitoring in the VPP plugin is a **single global flag**, `smp->dropM`.
+There is no per-interface drop-monitoring knob. What is per-interface is the
+derived state:
+
+```c
+int drop_on = sfif->sflow_enabled && smp->dropM;
+```
+
+computed in `sflow_enable_disable_interface()`. Two consequences:
+
+- **sFlow sampling must be enabled on an interface for that interface to
+  produce drop samples.** Turning on drop monitoring globally while no port
+  has sampling enabled yields nothing. This matches SONiC, which only calls
+  `enableDropMonitor()` when `admin_state` is up, but it does mean the
+  sonic-mgmt test must have at least one sampled port.
+- **Ordering does not matter.** `sflow_drop_monitoring()` re-runs
+  `sflow_enable_disable_all()`, so enabling drop monitoring before or after
+  per-port sampling converges to the same state.
+
+The relevant plugin surface:
+
+| Binary API | CLI |
+|---|---|
+| `sflow_drop_monitoring_set { enable }` | `sflow drop-monitoring <enable\|disable>` |
+| `sflow_drop_monitoring_get` | — |
+
+#### 4.8.4 SAI → VPP mapping
+
+| SAI event | vpplib action |
+|---|---|
+| `SAI_SWITCH_ATTR_TAM_OBJECT_ID` set, `objlist.count > 0` | `vpp_sflow_drop_monitoring_set(true)` |
+| `SAI_SWITCH_ATTR_TAM_OBJECT_ID` set, `objlist.count == 0` | `vpp_sflow_drop_monitoring_set(false)` |
+| `TAM_*` / `HOSTIF_USER_DEFINED_TRAP` create / remove | bookkeeping only (`create_internal`) |
+| `POLICER` `CIR`/`CBS` on the MOD policer | drop-rate limit, see §4.6 |
+
+The switch-attribute bind is the right hook because it is the one point
+SONiC uses for both enable and disable, it carries no ambiguity (empty list
+means off), and it fires after every dependent object exists. Hooking
+`TAM_EVENT` creation instead would arm the data path before the collector
+chain is complete.
+
+The TAM object graph itself has no VPP counterpart and deliberately stays
+inert. On a real ASIC it describes where dropped packets are mirrored to; on
+sonic-vpp the plugin already delivers drops to `hsflowd` over NET_DM in the
+host netns (§4.7), so the collector, transport and report objects have
+nothing to program. They exist only to satisfy the SONiC state machine.
+
+#### 4.8.5 Work items
+
+- `vslib/vpp/SwitchVpp.{h,cpp}`: override `queryAttrEnumValuesCapability()` to
+  return the full metadata enum list for `TAM_EVENT`/`ATTR_TYPE` and
+  `HOSTIF_USER_DEFINED_TRAP`/`ATTR_TYPE`, delegating everything else to
+  `SwitchStateBase`.
+- `vslib/vpp/vppxlate/SaiVppXlate.{c,h}`: add
+  `vpp_sflow_drop_monitoring_set(bool)` wrapping `sflow_drop_monitoring_set`.
+- `vslib/vpp/SwitchVppSflow.cpp`: add `sflowDropMonitoringSet(bool)`.
+- `vslib/vpp/SwitchVpp.cpp`: handle `SAI_SWITCH_ATTR_TAM_OBJECT_ID` in the
+  switch-attribute `set()` path.
+
+All four are confined to `sonic-sairedis`; no SAI header extension and no
+SONiC change is required.
+
+### 4.9 docker-sflow / hsflowd integration
 
 Two configurations supported, matching the two options in §4.3:
 
@@ -656,7 +851,7 @@ Version bump (Option A) touches:
 - `dockers/docker-sflow/buildinfo/versions/versions-git`
 - The `host-sflow` submodule pin under `src/sflow/hsflowd/host-sflow`.
 
-### 4.8 VPP plugin enablement
+### 4.10 VPP plugin enablement
 
 - Ensure the `sflow` plugin is built (already is — present under
   `vppbld/repo/src/plugins/sflow/`).
