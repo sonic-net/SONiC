@@ -20,7 +20,6 @@ DEFID_GRC="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definition
 DEFID_MRV="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.marvell' | jq -r '.value[0].id')"
 DEFID_MRV_ARMHF="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.marvell-armhf' | jq -r '.value[0].id')"
 DEFID_MRV_ARM64="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.marvell-arm64' | jq -r '.value[0].id')"
-DEFID_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.nephos' | jq -r '.value[0].id')"
 
 BUILD_BRCM_202012="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_BRCM}"'&branchName=refs/heads/'"202012"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
 BUILD_BRCM_TS_202012="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_BRCM_202012}"'?api-version=6.0' | jq -r '.queueTime')"
@@ -55,8 +54,6 @@ do
 	BUILD_MRV_ARMHF_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MRV_ARMHF}"'?api-version=6.0' | jq -r '.queueTime')"
 	BUILD_MRV_ARM64="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_MRV_ARM64}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
 	BUILD_MRV_ARM64_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MRV_ARM64}"'?api-version=6.0' | jq -r '.queueTime')"
-	BUILD_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_NPH}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
-	BUILD_NPH_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_NPH}"'?api-version=6.0' | jq -r '.queueTime')"
 
 	#echo " [*] Last successful builds for \"${BRANCH}\":"
 	#echo "     Broadcom: ${BUILD_BRCM}"
@@ -75,7 +72,6 @@ do
 	ARTF_MRV="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MRV}"'/artifacts?artifactName=sonic-buildimage.marvell&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_MRV_ARMHF="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MRV_ARMHF}"'/artifacts?artifactName=sonic-buildimage.marvell-armhf&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_MRV_ARM64="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MRV_ARM64}"'/artifacts?artifactName=sonic-buildimage.marvell-arm64&api-version=5.1' | jq -r '.resource.downloadUrl')"
-	ARTF_NPH="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_NPH}"'/artifacts?artifactName=sonic-buildimage.nephos&api-version=5.1' | jq -r '.resource.downloadUrl')"
 
 echo "# Supported Platforms" > supported_devices_platforms.md
 
@@ -88,7 +84,6 @@ echo "| 3    | Accton    	| AS5812-54X     		| Broadcom    | Trident 2         |
 echo "| 4    | Accton    	| AS5835-54T     		| Broadcom    | Trident 3         | 48x10G + 6x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 5    | Accton    	| AS5835-54X     		| Broadcom    | Trident 3         | 48x10G + 6x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 6    | Accton    	| AS6712-32X     		| Broadcom    | Trident 2         | 32x40G                  | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 7    | Accton    	| AS7116-54X     		| Nephos      | Taurus            | 48x25G + 6x100G         | [SONiC-ONIE-Nephos]($(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')) |" >> supported_devices_platforms.md
 echo "| 8    | Accton    	| AS7312-54X     		| Broadcom    | Tomahawk          | 48x25G + 6x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 9    | Accton    	| AS7312-54XS    		| Broadcom    | Tomahawk          | 48x25G + 6x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 10   | Accton    	| AS7315-27XB    		| Broadcom    | Qumran            | 20x10G + 4x25G + 3x100G | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
@@ -125,9 +120,6 @@ echo "| 40   | Celestica     | Silverstone     		| Broadcom    | Tomahawk 3     
 echo "| 41   | Celestica     | Seastone_2     		| Broadcom    | Trident 3        | 32x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 42   | Centec    	| E582-48X2Q     		| Centec      | Goldengate        | 48x10G + 2x40G + 4x100G | [SONiC-ONIE-Centec]($(echo "${ARTF_CTC}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-centec.bin/')) |" >> supported_devices_platforms.md
 echo "| 43   | Centec    	| E582-48X6Q     		| Centec      | Goldengate        | 48x10G + 6x40G          | [SONiC-ONIE-Centec]($(echo "${ARTF_CTC}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-centec.bin/')) |" >> supported_devices_platforms.md
-echo "| 44   | Cig       	| CS6436-56P     		| Nephos      | NP8366       | 48x25G + 8x100G         | [SONiC-ONIE-Nephos]($(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')) |" >> supported_devices_platforms.md
-echo "| 45   | Cig | CS5435-54P | Nephos | NP8363 | 10GX48,100GX6 | [SONiC-ONIE-Nephos]($(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')) |" >> supported_devices_platforms.md
-echo "| 46   | Cig | CS6436-54P | Nephos | NP8365 | 25GX48,100GX6 | [SONiC-ONIE-Nephos]($(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')) |" >> supported_devices_platforms.md
 echo "| 47   | Dell |	E3224F-ON |	Broadcom  |	Trident 3.X3 |	24x1G + 4x10G + 2x100G |	[SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 48   | Dell |	N3248PXE |	Broadcom  |	Trident 3.X5 |	48x10GCU+4x25G-2x100G |	[SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 49   | Dell |	N3248TE  |	Broadcom  |	Trident 3.X3   |	48x1G+4x10G-2x100G | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
@@ -158,10 +150,8 @@ echo "| 73   | Ingrasys      | S8810-32Q      		| Broadcom    | Trident 2       
 echo "| 74   | Ingrasys      | S8900-54XC     		| Broadcom    | Tomahawk          | 48x25G + 6x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 75   | Ingrasys      | S8900-64XC     		| Broadcom    | Tomahawk          | 48x25G + 16x100G        | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 76   | Ingrasys      | S9100-32X      		| Broadcom    | Tomahawk          | 32x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 77   | Ingrasys      | S9130-32X      		| Nephos      | Taurus            | 32x100G                 | [SONiC-ONIE-Nephos]($(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')) |" >> supported_devices_platforms.md
 echo "| 78   | Ingrasys      | S9180-32X      		| Intel    | Tofino            | 32x100G                 | [SONiC-ONIE-Barefoot]($(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')) |" >> supported_devices_platforms.md
 echo "| 79   | Ingrasys      | S9200-64X      		| Broadcom    | Tomahawk 2        | 64x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
-echo "| 80   | Ingrasys      | S9230-64X      		| Nephos      | Taurus            | 64x100G                 | [SONiC-ONIE-Nephos]($(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')) |" >> supported_devices_platforms.md
 echo "| 81   | Ingrasys      | S9280-64X      		| Intel    | Tofino            | 64x100G                 | [SONiC-ONIE-Barefoot]($(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')) |" >> supported_devices_platforms.md
 echo "| 82   | Inventec  	| D6254QS        		| Broadcom    | Trident 2         | 72x10G                  | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 83   | Inventec  	| D6356          		| Broadcom    | Trident 3         | 48x25G + 8x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
@@ -205,7 +195,6 @@ echo "| 120   | Nvidia        | SN4600C        	| Nvidia | Spectrum 3        | 6
 echo "| 121   | Nvidia        | SN4600V       	| Nvidia | Spectrum 3        | 64x200G                 | [SONiC-ONIE-Mellanox]($(echo "${ARTF_MLNX}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-mellanox.bin/')) |" >> supported_devices_platforms.md
 echo "| 122   | Nvidia        | SN4700         	| Nvidia | Spectrum 3        | 32x400G                 | [SONiC-ONIE-Mellanox]($(echo "${ARTF_MLNX}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-mellanox.bin/')) |" >> supported_devices_platforms.md
 echo "| 123   | Nvidia        | SN5600          | Nvidia | Spectrum 4        | 64x800G                 | [SONiC-ONIE-Mellanox]($(echo "${ARTF_MLNX}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-mellanox.bin/')) |" >> supported_devices_platforms.md
-echo "| 124   | Pegatron      | Porsche         | Nephos      | Taurus            | 48x25G + 6x100G         | [SONiC-ONIE-Nephos]($(echo "${ARTF_NPH}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-nephos.bin/')) |" >> supported_devices_platforms.md
 echo "| 125   | Quanta        | T3032-IX7      	| Broadcom    | Trident 3         | 32x100G                 | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 126   | Quanta        | T4048-IX8      	| Broadcom    | Trident 3         | 48x25G + 8x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md
 echo "| 127   | Quanta        | T4048-IX8C     	| Broadcom    | Trident 3         | 48x25G + 8x100G         | [SONiC-ONIE-Broadcom]($(echo "${ARTF_BRCM}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-broadcom.bin/')) |" >> supported_devices_platforms.md

@@ -71,12 +71,6 @@
   "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=44986&view=results",
   "build": "44986",
   "date": "2021-10-21T04:00:10.7352861Z"
- },
-"sonic-nephos.bin": {
-  "url": "",
-  "build-url": "https://dev.azure.com/mssonic/build/_build/results?buildId=null&view=results",
-  "build": "null",
-  "date": ""
  }
 },
 "202106": {
