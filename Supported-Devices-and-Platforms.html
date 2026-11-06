@@ -302,14 +302,6 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Accton</td>
-<td>AS7116-54X</td>
-<td class="asic_vendor">Nephos</td>
-<td>Taurus</td>
-<td>48x25G + 6x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Accton</td>
 <td>AS7312-54X</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk</td>
@@ -629,28 +621,6 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
-<td>Cig</td>
-<td>CS6436-56P</td>
-<td class="asic_vendor">Nephos</td>
-<td>NP8366</td>
-<td>48x25G + 8x100G</td>
-<td></td>
-</tr>
-<td>Cig</td>
-<td>CS5435-54P</td>
-<td class="asic_vendor">Nephos</td>
-<td>NP8363</td>
-<td>10GX48,100GX6</td>
-<td></td>
-</tr>
-<td>Cig</td>
-<td>CS6436-54P</td>
-<td class="asic_vendor">Nephos</td>
-<td>NP8365</td>
-<td>25GX48,100GX6</td>
-<td></td>
-</tr> 
-<tr>
 <td>Dell</td>
 <td>E3224F-ON</td>
 <td class="asic_vendor">Broadcom</td>
@@ -892,14 +862,6 @@ function Port_Config() {
 </tr>
 <tr>
 <td>Ingrasys</td>
-<td>S9130-32X</td>
-<td class="asic_vendor">Nephos</td>
-<td>Taurus</td>
-<td>32x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Ingrasys</td>
 <td>S9180-32X</td>
 <td class="asic_vendor">Intel</td>
 <td>Tofino</td>
@@ -911,14 +873,6 @@ function Port_Config() {
 <td>S9200-64X</td>
 <td class="asic_vendor">Broadcom</td>
 <td>Tomahawk 2</td>
-<td>64x100G</td>
-<td></td>
-</tr>
-<tr>
-<td>Ingrasys</td>
-<td>S9230-64X</td>
-<td class="asic_vendor">Nephos</td>
-<td>Taurus</td>
 <td>64x100G</td>
 <td></td>
 </tr>
@@ -1267,14 +1221,6 @@ function Port_Config() {
 <td></td>
 </tr>
 <tr>
-<td>Pegatron</td>
-<td>Porsche</td>
-<td class="asic_vendor">Nephos</td>
-<td>Taurus</td>
-<td>48x25G + 6x100G</td>
-<td></td>
-</tr>
-<tr>
 <td>Quanta</td>
 <td>T3032-IX7</td>
 <td class="asic_vendor">Broadcom</td>
@@ -1513,7 +1459,7 @@ Note:
 <p>&nbsp;</p>
 
 <script>
-	var vendor_data = {Broadcom:"", Cavium:"", Nephos:"", Barefoot:"", Innovium:"", Centec:"", Marvell:"", Nvidia:""};
+	var vendor_data = {Broadcom:"", Cavium:"", Barefoot:"", Innovium:"", Centec:"", Marvell:"", Nvidia:""};
 	$(document).ready(function () {
 	    $.getJSON("sonic_image_links.json", 
 		function(data) {
