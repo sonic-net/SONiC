@@ -7,6 +7,7 @@
 | :---: | :------------: | :---------: | ------------------ |
 |  0.1  |   08/25/2023   | Sachin Naik | Initial version    |
 |  0.2  |   11/05/2026   | Sachin Naik | Ownership claim/unclaim (OVMF). After-claim PK/KEK/db/dbx samples |
+|  0.3  |   11/06/2026   | Sachin Naik | Claim PK is a self-signed AUTH2; dbx/db/KEK remain unsigned ESL |
 
 
 <!-- omit in toc -->
@@ -117,7 +118,7 @@ There are multiple keys involved in the UEFI secure boot implementations. The pl
 ### 3.3 Authenticated variable
 These are a special type of UEFI variable that supports cryptographic authentication and integrity verification. The authenticated variable enables a secure way of storing and accessing UEFI variables within the UEFI environment and ensures that the UEFI variable remains tamper-proof and authentic. Since authenticated variables are signed objects, the UEFI firmware can verify them before accessing or updating them.
 
-UEFI Secure Boot databases (PK, KEK, db, dbx) are time-based authenticated variables. An update is an AUTH2 object: a timestamp, a PKCS#7 signature, and the new signature list (ESL). Firmware verifies the signature against the currently enrolled trust source, then writes the ESL. Unsigned writes are accepted only in Setup Mode (no PK). That is the factory and claim path (sections 4 and 5).
+UEFI Secure Boot databases (PK, KEK, db, dbx) are time-based authenticated variables. An update is an AUTH2 object: a timestamp, a PKCS#7 signature, and the new signature list (ESL). Firmware verifies the signature against the currently enrolled trust source, then writes the ESL. In Setup Mode (no PK), firmware accepts **unsigned ESL** for **KEK, db, and dbx**. The **first PK** is a **self-signed AUTH2** (signed by the PK being enrolled); firmware verifies it against the certificate in that payload (sections 4 and 5).
 
 Once a PK is enrolled, the platform is in User Mode. From that point, **any** add, replace, remove, or revoke of PK, KEK, db, or dbx **must** be an AUTH2 authenticated variable. Firmware must reject unsigned ESL, raw certificates, and any payload that does not verify.
 
@@ -138,9 +139,9 @@ UEFI Secure Boot is controlled by two global variables. They are independent: en
 | `SetupMode` | Whether a Platform Key is enrolled | `1` = Setup Mode (no PK). `0` = User Mode (PK present) |
 | `SecureBoot` | Whether firmware verifies boot images against db/dbx | `1` = enforcing. `0` = not enforcing |
 
-**Setup Mode** (`SetupMode=1`): No PK is enrolled. This is the factory and provisioning state. Firmware accepts PK, KEK, db, and dbx updates as unsigned signature lists (no AUTH2). `SecureBoot` is `0`. Firmware does not reject unsigned boot images.
+**Setup Mode** (`SetupMode=1`): No PK is enrolled. This is the factory and provisioning state. Firmware accepts KEK, db, and dbx as unsigned signature lists. The first PK must be a self-signed AUTH2. `SecureBoot` is `0`. Firmware does not reject unsigned boot images.
 
-**User Mode** (`SetupMode=0`): A PK is enrolled. Updates to PK and KEK must be AUTH2 objects signed by the current PK. Updates to db and dbx must be AUTH2 objects signed by a KEK. Enrolling the platform owner's PK is the standard UEFI transition from Setup Mode to User Mode. That PK enrollment is the ownership claim: the owner's PK becomes the root of the key hierarchy.
+**User Mode** (`SetupMode=0`): A PK is enrolled. Updates to PK and KEK must be AUTH2 objects signed by the current PK. Updates to db and dbx must be AUTH2 objects signed by a KEK. Enrolling the platform owner's self-signed PK AUTH2 is the standard UEFI transition from Setup Mode to User Mode. That PK enrollment is the ownership claim: the owner's PK becomes the root of the key hierarchy. It does not require a reboot (`SetupMode` becomes `0` on the same `SetVariable`).
 
 **Secure Boot flag**: `SecureBoot` is not the same variable as `SetupMode`. User Mode does not by itself mean images are verified. While `SecureBoot=0`, keys may already be present but unsigned images are still loaded.
 
@@ -149,7 +150,7 @@ In the OVMF model, `SetupMode` flips to `0` as soon as PK is accepted. `SecureBo
 Enforcing Secure Boot is both flags together after that reboot: `SetupMode=0` and `SecureBoot=1`.
 
 ## 4 Factory default state
-OVMF factory default is Setup Mode with empty PK/KEK/db/dbx so the owner can enroll keys. The platform is not yet constrained to owner-signed images. Do not enroll a PK before claim if the owner is expected to claim with unsigned ESL (section 5.3).
+OVMF factory default is Setup Mode with empty PK/KEK/db/dbx so the owner can enroll keys. The platform is not yet constrained to owner-signed images. Do not enroll a PK before claim (section 5.3).
 
 | Attribute | Factory default |
 | --------- | --------------- |
@@ -184,7 +185,7 @@ The UEFI platform provides the variable store (OVMF as the open reference; Cisco
 | ---- | -------------- |
 | **UEFI firmware** | Starts in **Setup Mode** with empty PK/KEK/db/dbx. Implements standard Authenticated Variables (OVMF reference; Cisco platforms implement the same UEFI model). Does not retain the owner's private keys. |
 | **Platform owner** | Generates PK, KEK, and db (and dbx) off the device. Holds private keys. Signs ONIE and SONiC. Builds ESL/AUTH2. Enrolls keys. Sets boot policy in db/dbx. |
-| **SONiC** | CLI **plugin** only: show variables and apply the owner's ESL (Setup Mode) or AUTH2 (User Mode). The plugin calls `efi-readvar` / `efi-updatevar`. Does not generate or store owner private keys. |
+| **SONiC** | CLI **plugin** only: show variables and apply the owner's files (unsigned ESL for dbx/db/KEK in Setup Mode; self-signed PK AUTH2 for claim; AUTH2 after claim). The plugin calls `efi-readvar` / `efi-updatevar`. Does not generate or store owner private keys. |
 
 This HLD is the **owner-provisioned PK** model on OVMF: factory is Setup Mode, owner PK is last during claim.
 
@@ -221,43 +222,47 @@ Do these steps **in order**. Stay in Setup Mode until PK is written.
 7. **Reboot once.** Then `SecureBoot = 1` and OVMF verifies shim / OS against db. This is when claim enforcement starts.
 
 ### 5.3 Enroll keys in Setup Mode
-Firmware accepts unsigned ESL while `SetupMode = 1`. Enroll **dbx, db, KEK, then PK**. PK is last, and it is still an unsigned ESL. There is no enrolled PK yet, so a PKCS#7-signed AUTH2 cannot be used for this write.
+While `SetupMode = 1`, firmware accepts **unsigned ESL** for **dbx, db, and KEK**. The **first PK** is a **self-signed AUTH2**: it is signed by the PK being enrolled. There is no enrolled PK yet, so firmware verifies that AUTH2 against the certificate in the payload, writes PK, and enters User Mode immediately (`SetupMode = 0`). That mode change does not require a reboot.
+
+Enroll **dbx, db, KEK, then PK**. PK is last.
 
 ```
   Setup Mode
-       │  1. DBx.esl  →  dbx
-       │  2. DB.esl   →  db
-       │  3. KEK.esl  →  KEK
-       │  4. PK.esl   →  PK   (last, unsigned `-e`, same as the others)
+       │  1. DBx.esl   →  dbx   (unsigned ESL, `-e`)
+       │  2. DB.esl    →  db    (unsigned ESL, `-e`)
+       │  3. KEK.esl   →  KEK   (unsigned ESL, `-e`)
+       │  4. PK.auth   →  PK    (last, self-signed AUTH2, `-f`)
        ▼
   User Mode (SetupMode = 0) immediately
   SecureBoot = 1 and image check on next reboot
 ```
 
-**Owner host — build ESLs:**
+**Owner host — build ESLs and the self-signed PK AUTH2:**
 
 ```bash
 uuidgen --random > GUID.txt
 SIGNATURE_OWNER="$(< GUID.txt)"
+VENDOR_GUID_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
 cert-to-efi-sig-list -g "$SIGNATURE_OWNER" PK.crt  PK.esl
 cert-to-efi-sig-list -g "$SIGNATURE_OWNER" KEK.crt KEK.esl
 cert-to-efi-sig-list -g "$SIGNATURE_OWNER" db.crt  DB.esl
+sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt PK PK.esl PK.auth
 ```
 
-dbx may be empty or a SHA-256 ESL of a revoked digest. Concatenate multiple KEK or db certificates into one ESL before enroll if the owner has more than one.
+dbx may be empty or a SHA-256 ESL of a revoked digest. Concatenate multiple KEK or db certificates into one ESL before enroll if the owner has more than one. Private keys stay on the owner host; only the public ESL/AUTH2 files go to the device.
 
-**Device — enroll** (Setup Mode, unsigned ESL). Use `-e` for all four variables, including PK:
+**Device — enroll.** dbx, db, and KEK are unsigned ESL. PK is the self-signed AUTH2:
 
 ```bash
 efi-updatevar -e -f DBx.esl dbx
 efi-updatevar -e -f DB.esl  db
 efi-updatevar -e -f KEK.esl KEK
-efi-updatevar -e -f PK.esl  PK
+efi-updatevar -f PK.auth PK
 ```
 
-`-e` prepends an empty AUTH2 header (no PKCS#7) and writes the ESL. That is not a signed AUTH2. Do not run `sign-efi-sig-list` on the first PK, and do not enroll a PK-signed `PK.auth` during claim.
+`-e` prepends an empty AUTH2 header (no PKCS#7) and writes the ESL. That is valid for dbx, db, and KEK in Setup Mode. Do **not** enroll PK as unsigned ESL (`-e`). The claim PK must be a self-signed AUTH2 (`-f`).
 
-After PK is written, further PK/KEK/db/dbx changes must be AUTH2 as in section 6. A reboot is not required to finish the four enroll writes. A reboot is required before `SecureBoot=1` and before OVMF enforces db on the bootloader.
+After PK is written, further PK/KEK/db/dbx changes must be AUTH2 as in section 6. A reboot is not required to finish the four enroll writes or to enter User Mode. A reboot is required before `SecureBoot=1` and before OVMF enforces db on the bootloader.
 
 ### 5.4 Verify ownership claim
 Immediately after PK (no reboot required for this check):
@@ -284,7 +289,7 @@ od -An -tu1 -j4 -N1 \
 
 ## 6 UEFI key management
 
-This section is **after ownership claim** (User Mode, `SetupMode=0`). Setup Mode claim enrollment is section 5.3. Private keys stay on the owner host. Only public certificates (ESL / AUTH2) are written to the device. All samples below are the **OVMF** path: `sign-efi-sig-list` on the owner host, `efi-updatevar -f` on the VM (`-e` is Setup Mode only).
+This section is **after ownership claim** (User Mode, `SetupMode=0`). Setup Mode claim enrollment is section 5.3. Private keys stay on the owner host. Only public certificates (ESL / AUTH2) are written to the device. All samples below are the **OVMF** path: `sign-efi-sig-list` on the owner host, `efi-updatevar -f` on the VM (`-e` is Setup Mode dbx/db/KEK only; claim PK is `-f`).
 
 | Variable | AUTH2 signed by | VendorGuid (`sign-efi-sig-list -g`) | Typical use after claim |
 | -------- | --------------- | ----------------------------------- | ----------------------- |
@@ -574,7 +579,7 @@ OVMF result:
 
 A reboot is not required for the PK clear itself. A reboot is required before `SecureBoot=0` (OVMF computes `SecureBoot` at POST). Unsigned images can boot after that.
 
-OVMF does **not** always erase KEK/db/dbx when PK is deleted. Treat leftover databases as untrusted. The next claim must overwrite them in Setup Mode with unsigned ESL (section 5.3: dbx, db, KEK, then PK) before the new PK.
+OVMF does **not** always erase KEK/db/dbx when PK is deleted. Treat leftover databases as untrusted. The next claim must overwrite them in Setup Mode (section 5.3: unsigned ESL for dbx, db, KEK, then a self-signed PK AUTH2) before the new PK.
 
 Verify after the empty-PK write:
 
@@ -632,7 +637,8 @@ Owner B's claim is the same procedure as first claim. PK last. If owner B enroll
 The UEFI platform (OVMF reference; Cisco firmware that implements the same model) owns key storage and verification. Linux efitools talk to UEFI runtime services. SONiC does not replace either. The **SONiC contribution is the CLI plugin**. It dispatches show/enroll/update/unclaim to that path:
 
 - show / export: `efi-readvar` (efivarfs for `SetupMode` / `SecureBoot`)
-- enroll in Setup Mode: `efi-updatevar -e` with an unsigned ESL
+- enroll dbx/db/KEK in Setup Mode: `efi-updatevar -e` with an unsigned ESL
+- enroll PK (claim): `efi-updatevar -f` with a self-signed PK AUTH2
 - append / update / remove / revoke in User Mode: `efi-updatevar -f` with AUTH2
 - unclaim: `efi-updatevar -f` of an empty-PK AUTH2 signed by the current PK (section 7)
 
@@ -672,25 +678,26 @@ show platform security uefi variables db
 show platform security uefi variables dbx
 
 config platform security uefi enroll <var> <file.esl>
+config platform security uefi enroll pk <file.auth>
 config platform security uefi update <var> <file.auth>
 config platform security uefi unclaim PK.empty.auth
 ```
 
-`status` prints `SetupMode` and `SecureBoot` (`efi-readvar` does not). `enroll` is Setup Mode unsigned ESL (`efi-updatevar -e`). `update` is User Mode AUTH2 (`efi-updatevar -f`). `unclaim` applies an empty-PK AUTH2 (section 7); it is not `update pk` with a new certificate. `<var>` is one of `pk`, `kek`, `db`, `dbx`.
+`status` prints `SetupMode` and `SecureBoot` (`efi-readvar` does not). `enroll` for dbx, db, and kek is Setup Mode unsigned ESL (`efi-updatevar -e`). `enroll pk` is the claim self-signed AUTH2 (`efi-updatevar -f`). `update` is User Mode AUTH2 (`efi-updatevar -f`). `unclaim` applies an empty-PK AUTH2 (section 7); it is not `update pk` with a new certificate. `<var>` is one of `pk`, `kek`, `db`, `dbx`.
 
 Return values follow normal SONiC CLI:
 
 - success: exit 0. show prints the variables (or SetupMode/SecureBoot for status).
 - failure: non-zero exit and an error on stderr. The CLI surfaces the efitools / firmware reason.
 
-Expected failures for enroll/update: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or AUTH2 in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; OVMF reject.
+Expected failures for enroll/update: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or unsigned PK in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; OVMF reject.
 
 ## 10 Test considerations
 The sonic-mgmt can cover UEFI key management including at least:
 
 1. Factory default: `SetupMode=1`, `SecureBoot=0`, PK empty (section 4).
-2. Ownership claim: enroll dbx, db, KEK, then PK with no reboot between writes; `SetupMode=0` and keys present immediately; after reboot `SecureBoot=1` (section 5).
-3. After claim, unsigned ESL writes are rejected.
+2. Ownership claim: enroll dbx, db, KEK as unsigned ESL, then self-signed PK AUTH2, with no reboot between writes; `SetupMode=0` and keys present immediately; after reboot `SecureBoot=1` (section 5).
+3. After claim, unsigned ESL writes are rejected. Unsigned PK ESL is rejected in Setup Mode.
 4. Add, update, remove, and revoke AUTH2 for PK, KEK, db, and dbx (section 6).
 5. Remove/revoke of an in-use db signer is documented as destructive; next boot fails verification when `SecureBoot=1`.
 6. Unclaim: empty-PK AUTH2; `SetupMode=1` immediately; after reboot `SecureBoot=0` (section 7). `update pk` with a new cert must not be treated as unclaim.
