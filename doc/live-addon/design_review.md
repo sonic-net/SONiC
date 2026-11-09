@@ -202,35 +202,44 @@ host-control privileges.
 
 ### 5.3 Validation and layer-safe installation
 
-The framework enforces the format, payload, control metadata, and dependency
-rules in [vendor specification section 5](./design_vendor_spec.md#5-artifact-payload-and-dependency-restrictions).
-The detected bundle format selects the validator and approved installation
-tooling: Debian package tools, `tar`, or `unzip`. A declared/detected format
-mismatch fails the build.
+The framework checks the vendor bundle's format, files, package metadata, and
+required dependencies against the rules in
+[vendor specification section 5](./design_vendor_spec.md#5-artifact-payload-and-dependency-restrictions).
+It uses the appropriate checks and installation tools for the actual format:
+Debian package tools, `tar`, or `unzip`. If the bundle's actual format does not
+match the format declared by the vendor, the build fails.
 
 Before building the image, the framework can check the package metadata and
-files without installing the package or running vendor code.
-Debian checks requiring the installed package database or dependency solver run
-in a SONiC-owned validation stage based on the approved base image:
+files without installing the package or running vendor code. For Debian
+packages, some checks also need to know which packages are already installed
+and what the package manager would change. The framework runs these checks in
+a SONiC-controlled build stage that uses the approved base image:
 
-1. Resolve the dependency closure against the approved immutable snapshot.
-2. Lock every package to an exact version and architecture, recording its
-   repository and digest in provenance and the SBOM.
-3. Simulate the complete transaction and reject changes forbidden by the
+1. Identify all required packages, including their dependencies, using the
+   approved repository snapshot whose contents cannot change.
+2. Fix the exact version and target architecture of every package. Record its
+   repository and content hash in the build record (provenance) and software
+   bill of materials (SBOM).
+3. Simulate the full installation before making changes. Reject any package
+   changes forbidden by the
    [restricted Debian profile](./design_vendor_spec.md#52-restricted-debian-profile).
-4. Install only after static and transaction validation succeeds, using the
-   same locked set and `--no-install-recommends`. Do not repeat unconstrained
-   resolution or pass an unvalidated bundle to an unrestricted
+4. Install only after the package metadata, files, and simulated installation
+   pass these checks. Use the same fixed package versions and architectures,
+   with `--no-install-recommends`. Do not let the package manager choose a new,
+   unchecked dependency set or install an unchecked bundle with
    `apt-get install -y ./vendor.deb`.
 
-The framework places the validated bundle at a reserved path in the Docker
-build context. This staging path does not determine the installed payload
-destinations. The generated Dockerfile must not use `COPY` or `ADD` for the
-bundle. Copying the bundle and deleting it later would leave its contents in an
-earlier image layer.
+The framework places the checked bundle at a framework-reserved location in
+the files supplied to Docker for the build (the Docker build context). This is
+where the build reads the bundle, not where its files will be installed.
 
-Instead, the generated Dockerfile uses a BuildKit read-only bind mount to make
-the bundle available only for the installation `RUN` instruction:
+The generated Dockerfile must not use `COPY` or `ADD` to put the bundle into
+the image. Docker saves filesystem changes in layers; deleting the bundle in
+a later step would not remove its contents from the earlier layer.
+
+Instead, a BuildKit read-only bind mount lets the installation `RUN` step read
+the bundle from the build context without storing the bundle itself in an
+image layer:
 
 ```dockerfile
 RUN --mount=type=bind,source=vendor-artifacts/vendor-bundle.tar.gz,target=/tmp/vendor-bundle.tar.gz,readonly \
@@ -240,26 +249,26 @@ RUN --mount=type=bind,source=vendor-artifacts/vendor-bundle.tar.gz,target=/tmp/v
         --strip-components=1
 ```
 
-The exact source name and installation command are generated from the
-validated artifact metadata. The mounted bundle is not committed to the
-resulting image layer.
+The framework generates the bundle's source filename and installation command
+from the checked artifact metadata. The installed files remain in the image,
+but the package or archive itself does not.
 
-For Debian, generated package-manager commands install the validated local
-package and locked dependencies. For TAR and ZIP, generated extraction commands
-apply the validated installation root and archive options; they never execute
-an installer supplied in the archive. The framework enforces the installation
-restrictions in the vendor specification for every format.
+For Debian, the generated package-manager commands install the checked local
+package and the fixed dependency set. For TAR and ZIP, the generated commands
+extract files using the checked installation root and archive options. They
+never run an installer included in the archive. The vendor specification's
+installation restrictions apply to every format.
 
-The installation and package-manager cache cleanup must occur in the same
-`RUN` instruction. Any package-manager or extraction failure fails the image
-build. BuildKit support is required; the SONiC organization build already
-selects `docker buildx build`.
+Installation and package-manager cache cleanup must happen in the same `RUN`
+step. A package-manager or extraction error fails the image build. This approach
+requires BuildKit; the SONiC organization build already uses `docker buildx build`.
 
-The final Docker context exposes only the newly built artifact, explicitly
-declared and validated Supervisor fragments, generated health configuration,
-and approved framework files, including snapshot and lock inputs. It does not
-include the resolved source tree wholesale. Any validation, integrity check,
-artifact build, or installation failure stops the build.
+The final Docker build context contains only the newly built artifact, explicitly
+declared and checked Supervisor configuration fragments, generated health
+configuration, and approved framework files. These framework files include the
+repository snapshot inputs and records of fixed package versions. Do not include
+the entire vendor source tree. Any failed validation, content-integrity check,
+artifact build, or installation stops the build.
 
 ---
 
