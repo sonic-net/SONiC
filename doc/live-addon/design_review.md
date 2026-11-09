@@ -390,7 +390,7 @@ The framework therefore defines how checks are invoked and interpreted, while
 the vendor provides the platform-specific startup, liveness, and readiness
 executables.
 
-### 7.2 Why on-demand checks
+### 7.2 On-demand checks
 
 Kubernetes already decides when to request health checks. The health server
 runs the vendor checks when requested, avoiding a separate background monitor
