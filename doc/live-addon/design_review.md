@@ -62,10 +62,6 @@ documentation repository. Vendor-specific examples illustrate the contract;
 they do not establish a dependency on a particular vendor or claim that its
 integration already implements the proposal.
 
-The framework does not propose new SONiC database schemas, SAI APIs, CLI
-commands, or YANG models. Any such changes needed by a vendor feature require
-separate review.
-
 Live-addon is an optional diagnostic and troubleshooting mechanism, not an
 always-on part of normal SONiC operation. The operator responsible for a SONiC
 deployment decides whether to build or select an addon image and when, where,
