@@ -210,7 +210,7 @@ The targets are proposals, to be confirmed against baselines measured on the phy
 | N5 | Threads and DB connections bounded, independent of the port count | ≤ 16 threads besides those of driver calls in flight (at most 3 per active-standby port, a firmware download included), ≤ 48 Redis connections per namespace |
 | N6 | CPU | Idle CPU no higher than Python's |
 | N7 | Every external call (gRPC, vendor driver, Redis) has a deadline, or runs where it can only block its own port | |
-| N8 | If an internal task fails, the process exits non-zero and supervisord restarts it, as with Python | Exit immediately (Python: within 60 s) |
+| N8 | If an internal task fails, the process exits non-zero and supervisord restarts it, as with Python. Redis not answering at startup is waited for, not a failure, so a restart while redis is down does not make supervisord give up ([Section 4.3.1](#431-process-runtime-and-supervision)). | Exit at once (Python: within 60 s) |
 | N9 | SIGTERM ends the process | ≤ 2 s (Python: never ends by itself) |
 | N10 | Selected per platform ([Section 4.6](#46-build-packaging-and-selection)). Both implementations installed side by side. Switching needs no rebuild. | |
 | N11 | Tests | Rust unit test line coverage ≥ 80%. Parity and black-box tests run in CI. |
@@ -722,7 +722,7 @@ Command and argument tables are in APPL_DB; response and result tables are in ST
 
 ### 3.7 Known issues
 
-Issues keep their numbers in the tables below, which group them by how they were found ([Sections 3.7.1](#371-found-by-reading-the-code) to [3.7.4](#374-found-by-reviewing-the-unit-tests)) or, for cable changes after startup, by trigger ([Section 3.7.5](#375-cable-insertion-and-removal-after-startup)).
+Issues keep their numbers in the tables below, which group them by how they were found ([Sections 3.7.1](#371-found-by-reading-the-code) to [3.7.4](#374-found-by-reviewing-the-unit-tests)) or, for cable changes after startup, by trigger ([Section 3.7.5](#375-cable-insertion-and-removal-after-startup)). ycabled-rs has the fixes ([Section 4.5](#45-deliberate-behavior-differences)); whether Python gets them is open question 4 ([Section 9](#9-open-questions)).
 
 Each table lists its issues by priority:
 
@@ -757,7 +757,7 @@ Issues 18 and 24 also occur when a cable is inserted after startup.
 | 17 | P0 | An active-standby toggle request with a state other than `active` or `standby` | `y_cable_helper.py` `toggle_mux_direction` | orchagent writes `init` after a failed first switch; `TypeError` ends the toggle thread | Ignore other states, as for active-active |
 | 18 | P0 | An exception from a vendor driver's constructor is not caught | `check_identifier_presence_and_update_mux_table_entry` | ycabled exits at startup; at insertion the thread dies | Fix in Python |
 | 20 | P0 | A secure `GRPCCLIENT` config that yields no channel (missing file, target name or client key) gives the GracefulRestart task a `None` channel | `YCableAsyncNotificationTask` | The task dies and the process is killed within 60 s, after every restart | Fix in Python |
-| 24 | P0 | After a `get_vendor()` exception, the port lock is taken again while it is held | `check_identifier_presence_and_update_mux_table_entry` → `read_y_cable_and_update_statedb_port_tbl` | Startup deadlocks: no port is published or served, while supervisord sees a running process. A transient EEPROM error at boot is enough. At insertion, the insertion thread deadlocks instead, and no later insertion or removal of any port is handled. | Fix in Python first |
+| 24 | P0 | After a `get_vendor()` exception, the port lock is taken again while it is held | `check_identifier_presence_and_update_mux_table_entry` → `read_y_cable_and_update_statedb_port_tbl` | Startup deadlocks: no port is published or served, while supervisord sees a running process. A transient EEPROM error at boot is enough. At insertion, the insertion thread deadlocks instead, and no later insertion or removal of any port is handled. | Fix in Python |
 | 19 | P1 | `config muxcable firmware rollback` for a port without a driver takes a lock that does not exist | `handle_config_firmware_roll_cmd_arg_tbl_notification` | After answering, `KeyError` ends the CLI thread | Fix in Python |
 | 23 | P2 | Multi-ASIC: namespace connections are opened before `SonicDBConfig.initializeGlobalConfig()`, and the default namespace `''` is resolved to an ASIC index | `ycable.py` `DaemonYcable.__init__`; `apply_grpc_secrets_configuration`, `wait_for_state_change`, `process_loopback_interface_and_get_read_side` and `delete_ports_status_for_y_cable` | ycabled cannot start on a multi-ASIC platform | Rust keeps the namespaces; fix Python only if multi-ASIC dual ToR is planned |
 | 25 | P2 | `XCVRD_LOG` changes are handled as key `Y_CABLE`, whatever their key | `YCableCliUpdateTask` | The fields of any `XCVRD_LOG` key set the log level and the telemetry flag | Fix in Python |
@@ -900,6 +900,12 @@ flowchart TB
   - SIGTERM or SIGINT: stop accepting events, close the channels and exit 0 within 2 s, without deleting any tables (C7, N9).
   - SIGHUP: ignored, as in Python.
   - A task that ends unexpectedly or panics: log an error and exit 1, and supervisord restarts the daemon (N8).
+- **Redis at startup:** until redis answers, ycabled-rs retries the connection every second and logs a warning; it does not exit. Python exits: swsscommon's `DBConnector` raises when it cannot connect.
+- **Restart by supervisord:** pmon's `[program:ycabled]` sets `autorestart=unexpected` and `startsecs=10`, and leaves `startretries` (3) and `exitcodes` (0) at their defaults.
+  - A process that has run for 10 s and then exits non-zero or is killed is restarted at once.
+  - A process that exits sooner has failed to start. supervisord tries again after 1, 2 and 3 s, and after the fourth failed start it gives up (`FATAL`): ycabled stays down until pmon restarts. pmon has no critical processes, so nothing else restarts it.
+  - Python finds a failed thread with its 60 s check, so it is always restarted. An exception while it initializes, such as redis not answering or issues 18 and 32, usually comes within 10 s, and four in a row end in `FATAL`.
+  - ycabled-rs exits at once when it loses its subscription, so its restart may find redis still down; waiting for redis keeps that start from failing. What can still fail within 10 s does not go away with a restart, such as a platform API that does not load, and supervisord gives up on it as it does on Python.
 
 #### 4.3.2 DB access
 
@@ -1001,7 +1007,7 @@ flowchart TB
 
 **Startup:**
 
-1. Connect to the default namespace's databases and wait for `CONFIG_DB_INITIALIZED`. Read `DEVICE_METADATA` to detect VS, and find the namespaces.
+1. Connect to the default namespace's databases, retrying until redis answers ([Section 4.3.1](#431-process-runtime-and-supervision)), and wait for `CONFIG_DB_INITIALIZED`. Read `DEVICE_METADATA` to detect VS, and find the namespaces.
 2. Write `XCVRD_LOG|Y_CABLE` `log_verbosity=notice`, as Python does. Build the port map, and per namespace determine read_side from Loopback3 (looked up again when an active-active cable is initialized while it is still unknown, as Python does), apply `grpc_secrets.json` to CONFIG_DB and read the `MUX_CABLE` ports.
 3. Start the Y-cable bridge if any port is active-standby.
 4. Create an actor for every `MUX_CABLE` port and subscribe to `TRANSCEIVER_INFO`, then initialize all actors in parallel. A cable inserted or removed meanwhile is handled right after its port's initialization. Startup waits until every port is initialized, for at most 30 s.
@@ -1045,6 +1051,7 @@ sequenceDiagram
 | Order across tables | Within one select wake-up, a fixed table order; cable insertion and removal in another thread | The order redis delivered the notifications, for all of a namespace's tables | A toggle written after a cable insertion runs after it ([Section 4.3.2](#432-db-access)) |
 | Shutdown | Never ends by itself; tables kept | Exits within 2 s; tables kept | N9, C7 |
 | Thread or task failure | Process killed within 60 s | Process exits at once | N8 |
+| Redis not answering at startup | Exits; after four failed starts supervisord gives up | Waits for redis | A restart after a lost subscription may find redis still down ([Section 4.3.1](#431-process-runtime-and-supervision)) |
 | Telemetry | Every 60 s after the previous pass over all ports ends; a port busy with a request holds up the ports after it | Every 60 s per port; a port busy with a request holds up only its own pass | Independent of port count, SoC health and the other ports' requests |
 | Presence of active-active cables | Platform API | STATE_DB `TRANSCEIVER_INFO` | D3 |
 | Redis connections | 125 with 24 active-standby ports, 199 with 32 active-active ports ([Section 5.3](#53-measured-results)) | 4 per namespace | N5, D9 |
@@ -1055,7 +1062,18 @@ sequenceDiagram
 | Firmware activation | The CLI thread waits 5 s after `activate_firmware`; the port's toggles go on | The port's actor waits 5 s, toggles of that port included | The cable restarts its firmware meanwhile; other ports are not affected |
 | CLI commands where Python crashes | The CLI thread dies, and the process exits within 60 s | Answered as errors | [Section 4.3.8](#438-cli-commands) |
 | Syslog identity | Changes with import order | Always `ycable` | C5 |
-| Issues in [Section 3.7](#37-known-issues) | | Same behavior as Python after the fix | Fixed in Python first, unless reviewers decide otherwise |
+| Issues in [Section 3.7](#37-known-issues) | Present | Fixed: every known-issue test passes ([Section 6.3](#63-black-box-component-tests)) | ycabled-rs ships with the fixes, whether or not Python gets them (open question 4 in [Section 9](#9-open-questions)) |
+
+Most of the fixes only keep ycabled running and serving where Python crashes, deadlocks or drops requests. These also change what other components receive:
+
+- **linkmgrd and orchagent:**
+  - 17: an active-standby toggle request for a state other than `active` or `standby`, such as the `init` orchagent writes after a failed first switch, is ignored with a warning, as for active-active.
+  - 21: a re-inserted active-active cable is queried again, so its state does not stay `unknown`.
+  - 22: removing a port that has no `HW_MUX_CABLE_TABLE` entry does not create one.
+  - 30: without a usable Loopback3 address (read side -1), an active-active toggle does not call the SoC and writes `unknown`.
+  - 31: an active-standby port whose read side is 0 or -1 is published and probed as `unknown`, not `standby`.
+  - 32: a `MUX_CABLE` port whose state is outside the YANG enum is skipped with a warning, and the other ports are served.
+- **Telemetry, TLS and configuration:** 4 (`peer_eye_height_lane2` comes from lane 2), 7 (`auth_level=client`, the YANG value, enables mutual TLS as `mutual` does) and 25 (`XCVRD_LOG` keys other than `Y_CABLE` are ignored).
 
 ### 4.6 Build, packaging and selection
 
@@ -1227,6 +1245,7 @@ Until the harness of [#915](https://github.com/sonic-net/sonic-platform-daemons/
 ### 6.5 Performance, fault and soak tests
 
 - The measurements in [Section 5.2](#52-how-to-measure), including a toggle storm on all ports and K unreachable SoCs.
+- Redis restarts, on a KVM DUT with each implementation: restart redis while ycabled runs; and stop redis, restart ycabled and start redis again 30 s later. ycabled must end up running and serving, not `FATAL`.
 - A 72-hour soak with periodic toggles, SoC restarts, cable removal and insertion where the testbed allows it, pmon restarts and config reloads.
 
 ### 6.6 Acceptance criteria
@@ -1246,7 +1265,7 @@ Until the harness of [#915](https://github.com/sonic-net/sonic-platform-daemons/
 | 3 | Turn on by default for the dualtor HwSKUs, in their device files | Release sign-off |
 | 4 | Retire Python ycabled, one release after phase 3 | Agreement of the owners |
 
-Changes to Python ycabled during phases 0-3 must be made in both implementations. The parity tests enforce this. At any phase, removing the key and restarting pmon goes back to Python.
+Changes to Python ycabled during phases 0-3 must be made in both implementations, and the parity tests enforce this. The fixes of the issues in [Section 3.7](#37-known-issues) are the exception: ycabled-rs has them already, and Python gets them only if the maintainers decide so (open question 4 in [Section 9](#9-open-questions)). At any phase, removing the key and restarting pmon goes back to Python.
 
 ## 8 Risks and mitigations
 
@@ -1265,7 +1284,7 @@ Changes to Python ycabled during phases 0-3 must be made in both implementations
 1. Is STATE_DB `TRANSCEIVER_INFO` acceptable as the presence source for active-active ports (D3), or must presence come from the platform API?
 2. Should vendor drivers be reached through a ycabled-local bridge, or through a Y-cable facade added to sonic-platform-common's generated platform API ([#768](https://github.com/sonic-net/sonic-platform-common/pull/768))?
 3. gRPC: tonic with derived connectivity states (D5), or the grpcio crate, which uses grpc-core? Its semantics would be closer to Python's, though not identical: its last release (0.13.0, August 2023) has C core 1.56, and Python ycabled requires grpcio 1.71.
-4. Do the maintainers agree to fix the Python issues in [Section 3.7](#37-known-issues) before the port, so both implementations share the corrected behavior?
+4. Which issues in [Section 3.7](#37-known-issues) should be fixed in Python too? ycabled-rs ships with the fixes ([Section 4.5](#45-deliberate-behavior-differences)), so the port does not wait for them, but Python stays the default until phase 3 of [Section 7](#7-rollout-and-migration). The P0 issues (17, 18, 20 and 24) are the first candidates.
 5. `GRPCCLIENT|config.auth_level`: should YANG (`server`, `client`) or the code (`server`, `mutual`) change?
 6. Is keeping the tables on stop (C7), which is what Python does in practice, the intended behavior, rather than deleting them as `deinit()` was written to do?
 7. Is `pmon_daemon_control.json` enough to select the implementation, or do labs need an override that does not edit device files?
