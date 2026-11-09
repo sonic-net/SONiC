@@ -381,9 +381,9 @@ different check types may execute concurrently. The server does not maintain
 startup state or gate liveness and readiness execution. Kubernetes handles
 normal probe ordering, retries, and restart/readiness policy.
 
-A startup check may test required SONiC dependencies rather than assume they
-are ready when the addon starts. Deployment owners must allow a probe window
-long enough for expected initialization; see
+Startup checks must report success only after vendor initialization and required
+SONiC dependencies are ready, including after reboot. Deployment owners must
+allow a probe window long enough for expected initialization; see
 [framework section 7.6](./design_review.md#76-kubernetes-probe-semantics).
 
 The framework generates `/etc/live-addon/health.ini` from the profile and owns
@@ -448,6 +448,16 @@ Before submission, verify that:
   shut down within the Kubernetes grace period.
 - Startup checks fail until initialization completes, and all checks report
   success and failure correctly within their timeout.
+- With the deployment kept enabled, configured diagnostic services recover and
+  become ready after both cold and warm system reboots on the qualified SONiC
+  releases and platforms.
+- Programs tolerate relevant SONiC service restarts and re-establish their
+  dependencies without resetting or disturbing preserved ASIC forwarding state
+  during warm recovery.
+- Documentation declares whether interrupted diagnostic sessions restart from
+  scratch or can resume, and whether results persist. Any claimed persistence or
+  resumption is verified, including required checkpoints, persistent storage,
+  and identification of collection gaps.
 - The manifest identifies the intended release and runtime requirements.
 
 Invalid source selections, missing inputs, build failures, unsafe artifacts,
