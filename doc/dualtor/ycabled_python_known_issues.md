@@ -17,7 +17,7 @@ This appendix to [ycabled in Rust](ycabled_to_rust_hld.md) is its Sections 3.7 a
 
 ## 3.7 Known issues
 
-Issues keep their numbers in the tables below, which group them by how they were found ([Sections 3.7.1](#371-found-by-reading-the-code) to [3.7.4](#374-found-by-reviewing-the-unit-tests)) or, for cable changes after startup, by trigger ([Section 3.7.5](#375-cable-insertion-and-removal-after-startup)). ycabled-rs has the fixes ([Section 4.5](ycabled_to_rust_hld.md#45-deliberate-behavior-differences)); whether Python gets them is open question 4 ([Section 9](ycabled_to_rust_hld.md#9-open-questions)).
+Issues keep their numbers in the tables below, which group them by how they were found ([Sections 3.7.1](#371-found-by-reading-the-code) to [3.7.4](#374-found-by-reviewing-the-unit-tests)) or, for cable changes after startup, by trigger ([Section 3.7.5](#375-cable-insertion-and-removal-after-startup)). ycabled-rs has the fixes of the issues in the daemon's code ([Section 4.5](ycabled_to_rust_hld.md#45-deliberate-behavior-differences)); whether Python gets them is open question 4 ([Section 9](ycabled_to_rust_hld.md#9-open-questions)).
 
 Each table lists its issues by priority:
 

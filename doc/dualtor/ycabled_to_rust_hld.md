@@ -417,7 +417,7 @@ Command and argument tables are in APPL_DB; response and result tables are in ST
 
 ### 3.7 Known issues
 
-[Appendix B](ycabled_python_known_issues.md) lists the 32 known issues of Python ycabled, with their priority, impact and proposed fix, and the black-box tests that reproduce them. This document refers to them by number. Issues 17, 18, 20 and 24 are P0: after a trigger that occurs in normal operation, ycabled stops serving every port. ycabled-rs has the fixes ([Section 4.5](#45-deliberate-behavior-differences)); whether Python gets them is open question 4 ([Section 9](#9-open-questions)).
+[Appendix B](ycabled_python_known_issues.md) lists the 32 known issues of Python ycabled, with their priority, impact and proposed fix, and the black-box tests that reproduce them. This document refers to them by number. Issues 17, 18, 20 and 24 are P0: after a trigger that occurs in normal operation, ycabled stops serving every port. ycabled-rs has the fixes of the issues in the daemon's code ([Section 4.5](#45-deliberate-behavior-differences)); whether Python gets them is open question 4 ([Section 9](#9-open-questions)).
 
 ### 3.8 Current design improvements
 
@@ -662,7 +662,7 @@ sequenceDiagram
 | Firmware activation | The CLI thread waits 5 s after `activate_firmware`; the port's toggles go on | The port's actor waits 5 s, toggles of that port included | The cable restarts its firmware meanwhile; other ports are not affected |
 | CLI commands where Python crashes | The CLI thread dies, and the process exits within 60 s | Answered as errors | [Section 4.3.8](#438-cli-commands) |
 | Syslog identity | Changes with import order | Always `ycable` | C5 |
-| Issues in [Section 3.7](#37-known-issues) | Present | Fixed: every known-issue test passes ([Section 6.3](#63-black-box-component-tests)) | ycabled-rs ships with the fixes, whether or not Python gets them (open question 4 in [Section 9](#9-open-questions)) |
+| Issues in [Section 3.7](#37-known-issues) | Present | Fixed in the daemon's code: every known-issue test passes ([Section 6.3](#63-black-box-component-tests)) | ycabled-rs ships with the fixes, whether or not Python gets them (open question 4 in [Section 9](#9-open-questions)) |
 
 Most of the fixes only keep ycabled running and serving where Python crashes, deadlocks or drops requests. These also change what other components receive:
 
@@ -674,6 +674,8 @@ Most of the fixes only keep ycabled running and serving where Python crashes, de
   - 31: an active-standby port whose read side is 0 or -1 is published and probed as `unknown`, not `standby`.
   - 32: a `MUX_CABLE` port whose state is outside the YANG enum is skipped with a warning, and the other ports are served.
 - **Telemetry, TLS and configuration:** 4 (`peer_eye_height_lane2` comes from lane 2), 7 (`auth_level=client`, the YANG value, enables mutual TLS as `mutual` does) and 25 (`XCVRD_LOG` keys other than `Y_CABLE` are ignored).
+
+Some issues are not in the daemon's code, and need changes of their own whichever implementation runs: the YANG model for 8, Python's unit tests for 12, and for 14 the `nice -n -20` in the supervisord command, which ycabled-rs keeps. For 7, ycabled-rs accepts both values; which one the YANG model and the code keep is open question 5.
 
 ### 4.6 Build, packaging and selection
 
@@ -868,7 +870,7 @@ Until the harness of [#915](https://github.com/sonic-net/sonic-platform-daemons/
 | 3 | Turn on by default for the dualtor HwSKUs, in their device files | Release sign-off |
 | 4 | Retire Python ycabled, one release after phase 3 | Agreement of the owners |
 
-Changes to Python ycabled during phases 0-3 must be made in both implementations, and the parity tests enforce this. The fixes of the issues in [Section 3.7](#37-known-issues) are the exception: ycabled-rs has them already, and Python gets them only if the maintainers decide so (open question 4 in [Section 9](#9-open-questions)). At any phase, removing the key and restarting pmon goes back to Python.
+Changes to Python ycabled during phases 0-3 must be made in both implementations, and the parity tests enforce this. The fixes of the issues in [Section 3.7](#37-known-issues) that are in the daemon's code are the exception: ycabled-rs has them already, and Python gets them only if the maintainers decide so (open question 4 in [Section 9](#9-open-questions)). At any phase, removing the key and restarting pmon goes back to Python.
 
 ## 8 Risks and mitigations
 
@@ -887,7 +889,7 @@ Changes to Python ycabled during phases 0-3 must be made in both implementations
 1. Is STATE_DB `TRANSCEIVER_INFO` acceptable as the presence source for active-active ports (D3), or must presence come from the platform API? The boot measurement of [Section 5.2](#52-how-to-measure) informs the answer.
 2. Should vendor drivers be reached through a ycabled-local bridge, or through a Y-cable facade added to sonic-platform-common's generated platform API ([#768](https://github.com/sonic-net/sonic-platform-common/pull/768))?
 3. gRPC: tonic with derived connectivity states (D5), or the grpcio crate, which uses grpc-core? Its semantics would be closer to Python's, though not identical: its last release (0.13.0, August 2023) has C core 1.56, and Python ycabled requires grpcio 1.71.
-4. Which issues in [Section 3.7](#37-known-issues) should be fixed in Python too? ycabled-rs ships with the fixes ([Section 4.5](#45-deliberate-behavior-differences)), so the port does not wait for them, but Python stays the default until phase 3 of [Section 7](#7-rollout-and-migration). The P0 issues (17, 18, 20 and 24) are the first candidates.
+4. Which issues in [Section 3.7](#37-known-issues) should be fixed in Python too? ycabled-rs ships with the fixes in the daemon's code ([Section 4.5](#45-deliberate-behavior-differences)), so the port does not wait for them, but Python stays the default until phase 3 of [Section 7](#7-rollout-and-migration). The P0 issues (17, 18, 20 and 24) are the first candidates.
 5. `GRPCCLIENT|config.auth_level`: should YANG (`server`, `client`) or the code (`server`, `mutual`) change?
 6. Is keeping the tables on stop (C7), which is what Python does in practice, the intended behavior, rather than deleting them as `deinit()` was written to do?
 7. Is `pmon_daemon_control.json` enough to select the implementation, or do labs need an override that does not edit device files?
