@@ -96,20 +96,19 @@ requirements are defined in
 
 The proposed integration should:
 
-1. Make the SONiC community the owner of the final production Dockerfile.
+1. Keep the final production Dockerfile under SONiC community control.
 2. Keep vendor integration simple.
-3. Avoid parsing, concatenating, or rewriting arbitrary vendor Dockerfiles.
-4. Allow the vendor to control how its binaries are started without allowing
+3. Allow the vendor to control how its binaries are started without allowing
    it to replace the container's main Supervisor configuration.
-5. Provide a common health interface for Kubernetes probes.
-6. Support repository-local and external integration inputs, including
+4. Provide a common health interface for Kubernetes probes.
+5. Support repository-local and external integration inputs, including
    proprietary binary-only packages, through one platform configuration.
-7. Pin external input revisions and verify every artifact bundle.
-8. Preserve a clear path for vendor-specific dependencies and initialization.
-9. Build through normal SONiC Make targets, without a pipeline preparation
+6. Pin external input revisions and verify every artifact bundle.
+7. Preserve a clear path for vendor-specific dependencies and initialization.
+8. Build through normal SONiC Make targets, without a pipeline preparation
    step or a separate Python build orchestrator.
-10. Support a public, vendor-free default and optional reviewed vendor
-    integrations without requiring private repositories or credentials.
+9. Support a public, vendor-free default and optional reviewed vendor
+   integrations without requiring private repositories or credentials.
 
 ### Non-goals
 
@@ -117,9 +116,6 @@ The proposed integration should:
 - SONiC maintainers do not need to understand the internal implementation of
   every vendor process.
 - SONiC maintainers do not need to rewrite the vendor's development Dockerfile.
-- The framework should not attempt to infer semantic health solely from whether
-  a process exists.
-- The framework should not merge two Dockerfiles textually.
 
 ---
 
