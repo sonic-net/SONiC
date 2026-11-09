@@ -35,9 +35,10 @@ managed at runtime. The proposed model is:
   vendor may use the same executable for all three checks.
 - The SONiC framework supplies the on-demand HTTP health server and Kubernetes
   probe integration.
-- SONiC Make rules build a checked-in example by default through the local
-  source path, without external vendor inputs. Vendor integrations are
-  explicitly selected and may be contributed through normal upstream PRs.
+- When a live-addon build is explicitly requested, SONiC Make rules default to
+  a checked-in example through the local source path, without external vendor
+  inputs. Vendor integrations are explicitly selected and may be contributed
+  through normal upstream PRs.
 
 The vendor may maintain its own Dockerfile for independent
 development and testing, but that Dockerfile should not define the production
@@ -52,8 +53,7 @@ image published by the SONiC build pipeline.
 This proposal covers image construction and runtime support for vendor- or
 platform-specific diagnostics: source acquisition, artifact validation and
 installation, process supervision, health interfaces, and image metadata.
-The implementation target is `sonic-buildimage`; the target SONiC release is to
-be agreed during community review.
+The implementation target is `sonic-buildimage`.
 
 Live-addon-specific files, profiles, and commands in these documents describe
 the proposed implementation layout, not files already available upstream.
@@ -64,9 +64,16 @@ integration already implements the proposal.
 
 The framework does not propose new SONiC database schemas, SAI APIs, CLI
 commands, or YANG models. Any such changes needed by a vendor feature require
-separate review. Image construction does not automatically install or enable
-the addon. Deployment and release orchestration remain separate responsibilities
-as described in section 7.8.
+separate review.
+
+Live-addon is an optional diagnostic and troubleshooting mechanism, not an
+always-on part of normal SONiC operation. The operator responsible for a SONiC
+deployment decides whether to build or select an addon image and when, where,
+and for how long to deploy it, based on the issue being investigated. Live-addon
+images are built only when explicitly requested and are not included in normal
+SONiC installer images by default. Building an image does not install or enable
+the addon. Deployment and release orchestration remain separate operator
+responsibilities, as described in section 7.8.
 
 Warm-restart compatibility of individual vendor programs is not guaranteed by
 this framework. It must be assessed during integration and deployment
@@ -678,13 +685,17 @@ system. No standalone build orchestrator or pipeline-specific preparation
 step is required; the normal Make prerequisites own these dependencies.
 
 This follows the upstream regular recipe in `slave.mk` and the registration
-pattern in `rules/docker-eventd.mk`. Image build registration is separate from
-`SONIC_INSTALL_DOCKER_IMAGES`: building the framework does not automatically
-install, enable or deploy a live-addon service on every SONiC platform.
+pattern in `rules/docker-eventd.mk`. Registration makes the image available as a
+Make target, separate from `SONIC_INSTALL_DOCKER_IMAGES`. Do not add live-addon to
+default installer Docker lists or to `EXTRA_DOCKER_TARGETS` by default; build it
+only for an explicit live-addon target or selected diagnostic build job.
+Building the framework does not automatically install, enable or deploy a
+live-addon service.
 
 ### 9.2 Checked-in example default and optional vendor selection
 
-`LIVE_ADDON_PLATFORM` defaults to `example`, selecting `platform/example.ini`
+For an explicitly requested live-addon build, `LIVE_ADDON_PLATFORM` defaults to
+`example`, selecting `platform/example.ini`
 with `[source] path=dockers/docker-live-addon/platform/example`. This path is
 relative to the `sonic-buildimage` repository root. The sample source provides
 a deterministic artifact build script and small health-check commands, using
@@ -916,7 +927,8 @@ as their source of expected acceptance and rejection rules.
     and the framework health server remain running. Sample health checks produce HTTP
     200 on success and HTTP 503 on failure. The example requires no privileged
     operation, host PID namespace or host-filesystem mounts and is not
-    automatically installed, enabled or deployed.
+    automatically installed, enabled or deployed. Normal SONiC installer builds
+    do not build or include live-addon unless explicitly selected.
 28. Explicit vendor selection uses the same Make target without a pipeline
     preparation step. Invalid selections fail rather than silently producing
     the default image. Switching between two vendors and back to `example`

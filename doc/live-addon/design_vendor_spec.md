@@ -131,7 +131,7 @@ Supervisor, health, and manifest contract. Repository-local source is not copied
 directly into the image.
 A prebuilt binary bundle is permitted; a vendor-supplied production Docker image
 is not. Optional private integrations must not become prerequisites of the
-public default build.
+public example live-addon build.
 
 ## 4. Artifact Build Script
 
@@ -432,9 +432,9 @@ make LIVE_ADDON_PLATFORM=cisco-8000 target/docker-live-addon.gz
 ```
 
 `LIVE_ADDON_PLATFORM` selects the addon profile, not SONiC's ASIC/build
-`PLATFORM`. The public default builds the checked-in example without external
-vendor inputs or credentials. An invalid selection fails; it does not fall back
-to that example.
+`PLATFORM`. For an explicitly requested live-addon build, omitting this
+selection builds the checked-in example without external vendor inputs or
+credentials. An invalid selection fails; it does not fall back to that example.
 
 Before submission, verify that:
 
