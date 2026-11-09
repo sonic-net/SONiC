@@ -1,296 +1,94 @@
-# gNOI HLD for Healthz API #
+# gNOI Healthz High Level Design
 
-# High Level Design Document
+## Revision
 
-#### Rev 0.1
+| Rev | Date | Change |
+|-----|------|--------|
+| 0.1 | 2025-06-16 | Initial diagnostic collection design |
+| 0.2 | 2026-09-26 | DLDD fault events, durable host catalog, OpenConfig component health, standard RPC lifecycle, and separate legacy diagnostic compatibility |
+| 0.3 | 2026-09-28 | Made Healthz a producer-independent event and artifact service; assigned fault reconciliation and rule collection to DLDD and bounded archive packaging/storage to host Healthz. |
+| 0.4 | 2026-09-28 | Reduced FAULT_INFO Healthz state to one scalar artifact ID; removed transition replay persistence and accepted explicitly reported, unrecoverable stream gaps. |
+| 0.5 | 2026-10-08 | Rechecked pinned and current upstream contracts; specified acknowledged-first archive reclamation and final publication/artifact safety checks. |
 
-## Table of Contents
-- [Table of Contents](#table-of-contents)
-- [Revision](#revision)
-- [Scope](#scope)
-- [Definition/Abbreviation](#definitionabbreviation)
-- [Overview](#overview)
-- [Requirements](#2-requirements)
-- [Architecture Design](#3-architecture-design)
-- [High Level Design](#4-high-level-design)
-- [SAI API](#sai-api)
-- [Warmboot and Fastboot Design Impact](#warmboot-and-fastboot-design-impact)
-- [Restrictions/Limitations](#restrictionslimitations)
-- [Testing Requirements/Design](#testing-requirementsdesign)
-- [Open/Action items - if any](#openaction-items---if-any)
+## Scope and authority
 
-### Revision
+Healthz is a host service for component assessments, retained events, acknowledgement, and diagnostic archives from any authorized producer. This ownership correction supersedes the older DLDD-specific stream, host `FAULT_INFO` reconciliation, and DLDD-owned archive parts of the 2026-09-26 integration plan. DLDD is one producer; its [HLD](../../device_local_diagnosis/device-local-diagnosis-daemon.md) owns rule evaluation, `FAULT_INFO`, fault reconciliation, vendor queries, action output, and concrete-file handoff. The wire and lifecycle contracts are the [gNOI Healthz v0.3.0 proto](https://github.com/openconfig/gnoi/blob/97f56280571337f6122b8c30c6bdd93368c57b54/healthz/healthz.proto) and [Healthz design](https://github.com/openconfig/gnoi/blob/97f56280571337f6122b8c30c6bdd93368c57b54/healthz/README.md), the version pinned by `sonic-gnmi`, together with [platform health state](https://github.com/openconfig/public/blob/master/release/models/platform/openconfig-platform-healthz.yang) and [platform faults](https://github.com/openconfig/public/blob/master/release/models/platform/openconfig-platform-healthz-fault.yang). The general [gNMI server design](SONiC_GNMI_Server_Interface_Design.md) and [Docker-to-host D-Bus design](../Docker%20to%20Host%20communication.md) define the existing management boundary.
 
-| Rev  | Rev Date   | Author(s)          | Change Description |
-|------|------------|--------------------|--------------------|
-| v0.1 | 06/16/2025 | Neha Das (Google)   | Initial version |
+The October 7 comparison against [upstream main](https://github.com/openconfig/gnoi/blob/b56005d832064c0d6b4268410e4d72567e2f3f83/healthz/healthz.proto) found the same RPC messages as pinned v0.3.0; only the import path differs. Neither version supplies arbitrary log paths through `Check`. The reserve/submit methods below are a private SONiC producer API over D-Bus, not new OpenConfig RPC fields.
 
-## Scope
+Healthz `Get`, `List`, and `Acknowledge` operate on recorded events; they do not run vendor queries. `Artifact` streams a Healthz-owned archive, possibly waiting within a bounded deadline while packaging completes. Standard `Check` for DLDD components remains `Unimplemented` until a component-specific assessment procedure exists. The nonstandard diagnostic-selector route and reads of old DLDD archives remain separate compatibility paths.
 
-This document describes the high level design of adding the capability to support gNOI APIs for the Healthz service in the gNMI server. 
-It provides the definition as well as the front end and back end implementation for the gNOI service needed in the SONIC framework. The details of the underlying gNMI server design are captured [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/gnmi/SONiC_GNMI_Server_Interface_Design.md) and the host service DBUS communication is captured in a separate [HLD](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md).
-The original OpenConfig Healthz Streaming RPC design and motivation is covered [here](https://github.com/openconfig/gnoi/blob/main/healthz/README.md)
+## Architecture and ownership
 
-The Healthz RPCs covered in this doc include: Get, Acknowledge, Artifact 
+| Owner | Responsibility |
+|-------|----------------|
+| Producers, including `sonic-host-services/dldd` | Own their source assessment. DLDD owns complete `FAULT_INFO` rows, startup scanning for its fault lifecycle, rule-specific queries and custom logging. It publishes a generic bounded transition on first state, status change, or new published rule winner on an already active key; it reserves an artifact ID only for a selected fault about to be published and later submits concrete files. `FAULT_INFO` stores only scalar `healthz_artifact_id` as Healthz-specific state, without transition replay fields or a sidecar. |
+| `sonic-host-services/host_modules/healthz.py` | Consume generic transitions without reading `FAULT_INFO`; own source membership, bounded durable event/acknowledgement catalog, component aggregates, stream checkpoint/gaps, bounded archive packaging/storage/retention, and focused D-Bus methods. |
+| `sonic-gnmi/gnmi_server/gnoi_healthz*.go` | Implement the gNOI Healthz service: authenticate, validate OpenConfig paths, map host metadata to protobufs, and stream contained host archives. It neither executes vendor commands nor maintains a second catalog. |
+| `sonic-mgmt-common/translib` | Map `COMPONENT_HEALTH_INFO` to OpenConfig component `healthz/state` for GET and ON_CHANGE; retain the separate `FAULT_INFO` fault-subtree translation. |
 
-## Definitions/Abbreviations
+The host module uses Python `sqlite3` under a root-owned `/var/lib/sonic/healthz/` directory. It durably stores events, acknowledgement, generic source membership, component aggregate state, and the consumed stream checkpoint. Host-owned archives live under `/var/lib/sonic/healthz/artifacts/`. Neither gNMI server instance owns this catalog. The gNMI container needs read-only access through its host mount; metadata crosses the existing `sonic_service_client` D-Bus boundary. Vendor commands and ASIC diagnostic shells remain with the source producer on the host. Packaging already collected files is not an on-demand component health assessment.
 
-- [gNOI](https://github.com/openconfig/gnoi) : gRPC Network Operations Interface
-- API : Application Programming Interface
-- SONiC: Software for Open Networking in the Cloud
-- UMF : Unified Management Framework
-- SAI: Switch Abstraction Interface
-- FE: Frontend
-- BE: Backend
+### Publication and aggregate state
 
-## Overview
+DLDD replaces `FAULT_INFO` and appends a transition record (no `kind` field) to the generic bounded `HEALTHZ_TRANSITIONS` Redis stream on the first published fault state, including inactive-only local recovery, every actual status change, and a change of published `rule_id` while the same component/symptom key remains `ACTIVE`. The transition has `producer`, `source_key`, a per-publication UUID `transition_id`, `component`, `component_type`, `symptom`, `active` (`1` or `0`), `observed_at` (Unix epoch seconds), and optional `artifact_id` **only for a new reserved archive**. An `INACTIVE` transition can also carry optional `last_unhealthy_at` (epoch seconds) from the last confirmed asserted sample, distinct from the recovery event's `observed_at`; an inactive retained source may include `retain_until` to expire membership without fabricating a clear. The transition ID and time exist only in the stream and host catalog: DLDD persists no transition replay fields and creates no sidecar. `FAULT_INFO` carries only optional scalar `healthz_artifact_id` as Healthz-specific state. A new published winner represents a new rule fault: DLDD drops the previous winner's artifact reference and reserves a fresh ID if the selected rule requests an archive. The fault's `origin_time` and `occurrences` stay unchanged across this active-to-active handoff. A confirmed asserted sample of an already active fault that advances `last_detection_time` appends `kind=observation` with `producer`, `source_key`, `component`, and `observed_at`; this updates `last-unhealthy` without creating an event or changing status/count. Metadata-only refresh of the same winner creates no event. DLDD scans `FAULT_INFO` at startup for its own fault lifecycle, but emits no Healthz replay from retained rows. The stream has exact `MAXLEN 10000`. DLDD uses Redis `WATCH`/`MULTI`/`EXEC`, pre-encodes values, validates the watched stream type, and rejects insufficient stream-ID capacity for the complete transaction batch before queuing mutation. Fault expiry or contention aborts the watched transaction and uses a bounded retry; maxmemory rejection aborts the whole transaction before execution. With supported key/stream state and stable command permissions, the row and stream become visible together. Redis does not roll back arbitrary execution-time errors: an administrator changing command ACLs after queueing can force a partial write. That concurrent administrative change is outside the supported publication contract and requires operator repair; it does not justify Lua or a replay sidecar. Atomic visibility does not establish durability after power loss or Redis restart; the configured Redis persistence determines that boundary. The final isolated Redis tests did not inject disconnects or crashes. Lost unconsumed entries follow the explicit history-gap contract below.
 
-gNOI defines a set of gRPC-based microservices for executing operational commands on network devices as an alternative to using CLI commands for the same. 
-These RPC services are supported through OpenConfig and are defined through protobuf in [OpenConfig](https://github.com/openconfig/gnoi)
-The target device will listen on a specific TCP port(s) to expose the collection of gNOI services. The standard port for gNOI is 9339, which is the same as the gNMI server.
+One bounded host worker consumes transition records idempotently by `(producer, source_key, transition_id)`. It commits event, source membership, acknowledgement-independent aggregate, and stream checkpoint in one SQLite transaction; failed `COMPONENT_HEALTH_INFO` projection retries from the catalog. An observation record is deduplicated by its Redis stream checkpoint; it advances `last-unhealthy` only when that `(producer, source_key)` is currently active for the component and the aggregate is `UNHEALTHY`. Unknown or stale source observations are checkpointed but ignored; no observation inserts an event or changes status/count. The generic optional `last_unhealthy_at` on an `INACTIVE` transition advances the component timestamp to the maximum known asserted sample without changing status or count. The worker republishes known aggregate state after restart without scanning `FAULT_INFO`. A Healthz initialization failure is logged and leaves its D-Bus endpoint unavailable while unrelated host modules continue to start. The host module exposes `get`, `list`, and `ack` metadata methods through the existing D-Bus server; they take JSON request strings and return an `int32` result code plus a JSON response string. A synchronous `submit_artifact` contends with metadata calls on the shared D-Bus loop. A 49 MiB archive and concurrent Get/List/Ack calls each completed in under two seconds on the 2026-09-30 DUT; heavier host-load latency remains unverified. An active source creates an `UNHEALTHY` event. A first unhealthy state, or later `HEALTHY` to `UNHEALTHY` transition, increments `unhealthy-count`; overlapping active sources and a new rule winner on an already active source create separate `UNHEALTHY` events without another component count increment. Clearing the final active source creates a `HEALTHY` event. A first inactive-only transition creates a `HEALTHY` event without inventing earlier unhealthy history. If another source is active, a first inactive-only transition with a new archive creates an `UNHEALTHY` event with that archive ID and no count increment; a carried older archive creates no duplicate event. `last-unhealthy` comes from a confirmed asserted sample, including a sample carried on recovery, never clear time. The projected `COMPONENT_HEALTH_INFO|<URI-escaped component>` row contains `status` and `unhealthy_count`, plus `last_unhealthy` (Unix epoch nanoseconds) when known.
 
-The Healthz service provides a means by which a user may initiate health check or a system may report the results of a check that it has initiated of its own accord. Healthz also allows a component inside of a system to report its health.
+The stream size must cover the supported host-backend outage window. Redis 8 Stream support was confirmed on the 2026-09-30 DUT; first-start trimming is detected from `entries-added > length` when `max-deleted-entry-id` stays `0-0` after `XADD MAXLEN`. Healthz checks the retained stream head before and after a read; if trimming passes the checkpoint, Redis loses unconsumed records, or the durable checkpoint is newer than the retained stream tail after reset, it durably records an explicit, unrecoverable history gap, preserves catalogued events and the last known aggregate, and never fabricates missing transitions or a recovery. A malformed timestamp is skipped with a durable gap so later valid records can proceed. DLDD has no startup Healthz replay, and `FAULT_INFO` contains no transition ID or sidecar from which to reconstruct a lost entry. A missing or expired row is no proof of recovery; a complete active/clear cycle may be lost during a longer outage. Healthz never scans or parses `FAULT_INFO`; `COMPONENT_HEALTH_INFO` is published only for components with a known assessment.
 
-## Requirements
+The fault `origin_time` remains fixed for the life of a retained row. `last_detection_time` identifies the latest sample that confirmed the underlying condition asserted; a clear observation does not update it. An earlier locally vendored `openconfig-platform-healthz-fault.yang` description included clear time; the vendored model is aligned to this asserted-sample contract for this integration. The health-state YANG defines `status`, `last-unhealthy`, and `unhealthy-count` with ON_CHANGE telemetry.
 
-Any client should be able to connect to gNOI services at the IP of the target device and the port of the service, provided they have the necessary authentication and authorization privileges. 
+### Event IDs, artifacts, and retention
 
-## Architecture Design
+The host catalog assigns Healthz event identity once per source transition. A **new** reserved archive ID is both `ComponentStatus.id` and the first `ArtifactHeader.id` when the final regular file exists. Without a new archive, Healthz allocates and persists an opaque `hz-<uuid>` event ID; the stream's `transition_id` is a separate ingestion deduplication key stored only by Healthz. A retained `INACTIVE` DLDD row may still carry an older scalar `healthz_artifact_id`; its recovery event gets a distinct opaque ID and does not advertise that archive again. New catalog events choose their event and artifact association once at insertion; no later archive is attached to an existing opaque-ID event. Migrated legacy events may retain unequal event and artifact IDs. Preserve those records and qualify their `Get`/`List`/`Artifact` behavior separately rather than rewriting IDs. `ComponentStatus.created` records the stored observation time.
 
-This feature does not change the SONiC Architecture but leverages the existing gNMI/telemetry server interface design. gNOI requests made by clients are verified and serviced by the gNMI UMF server after which they are sent to the corresponding Backend entity to process through DBUS communication to the host service. The details of the Docker to Host communication through DBUS are added [here](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Docker%20to%20Host%20communication.md)
+The catalog retains events and acknowledgement across service and device restarts within a disk bound. It prunes older events before a component's newest event, preferring acknowledged events within that set, so a retained older event cannot make `Get` contradict the known aggregate. Acknowledgement never deletes an archive. Healthz now owns bounded archive storage under `/var/lib/sonic/healthz/artifacts/`, while the old `/var/lib/sonic/dldd/artifacts/` archive tree remains read-only compatibility. Standard `Get` and `List` advertise an `ArtifactHeader` only while the final regular file exists: no header during pending packaging, a header after atomic no-clobber publication, and no header after garbage collection. A caller that already knows the reserved archive ID, for example from DLDD's native `FAULT_INFO`, may use `Artifact`'s bounded wait while packaging is pending; standard `Get` and `List` do not discover pending artifact IDs. Using the archive ID as the event ID is this design's local convention, not a gNOI proto requirement. The historical event may remain after archive removal. `ComponentStatus.expires` stays unset unless an actual deletion deadline is known. At archive capacity, reclamation prefers archives whose retained events are acknowledged, then the oldest other archives. A missing or pruned catalog record carries no known acknowledgement. Archive reclamation retains event rows and acknowledgement; Acknowledge itself never deletes an archive. If pending reservations exhaust capacity or the catalog cannot be read, reservation fails without evicting completed archives.
 
-![gnoi_dbus](https://github.com/user-attachments/assets/2b33a978-36b7-439f-810f-65339d0355f7)
+The `org.SONiC.HostService.healthz` D-Bus JSON API has `reserve_artifact({})` returning `artifact_id`, `requested_at`, and `location`; new IDs are `healthz-<32 hex digits>.tar.gz`. A producer later calls `submit_artifact({"artifact_id":id,"paths":[{"path":"/absolute/concrete/file","name":"archive/relative/name"}],"metadata":{...}})` with already collected files. Healthz does not run vendor queries or expand rule log globs. Submission packages synchronously, accepts at most 128 files and 64 KiB of JSON, bounds input and archive to 50 MiB, and publishes a staged root-owned mode-0600 archive with atomic no-clobber `os.link` before removing the stage. A durable `.healthz-<uuid>.tar.gz.pending` marker expires after 24 hours; at most 20 archives and pending reservations are held, with acknowledged-first, then oldest-first archive pruning at reserve. `artifact_status({"artifact_id":id})` reports `PENDING`, `COMPLETED`, or `MISSING`; idempotent `fail_artifact({"artifact_id":id})` marks a failed reservation without removing a completed archive. After rule arbitration and the final post-action recheck, DLDD reserves only for the selected fault it is about to publish, then stages selected logs and rule-specific query/action output in private temporary files, submits those concrete paths, and cleans the stage afterward. Reservation is synchronous and may delay fault publication up to its current five-second D-Bus timeout; on failure, DLDD records the request error and publishes without an archive ID. Focused retention tests cover acknowledged preference, unacknowledged fallback, preserved event rows, and capacity/catalog-read failures; installed behavior is qualified separately from these repository tests.
 
-In the above picture “SONiC Host Service” and “DBUS” are entities executing directly on the host (as opposed to within a container). DBUS is a system daemon facilitating IPC between processes and is used for communication between containers and the SONiC Host Service. SONiC Host Service is a host process fulfilling container requests that require host access. The host service is python based and has a module plugin style architecture. The Redis database is used as an IPC mechanism between containers.
+Additive schema migration preserves old SQLite events, acknowledgements, aggregates, and active membership. The new `HEALTHZ_TRANSITIONS` checkpoint starts fresh; any unconsumed tail of old `DLDD_FAULT_TRANSITIONS` is not replayed. Record a durable, explicit one-time migration history gap. DLDD does not replay current fault rows as Healthz transitions, so the old tail cannot be recovered from `FAULT_INFO`. Do not invent or duplicate unseen transitions. Existing `dldd-<32 hex digits>.tar.gz` archives remain readable through the contained resolver during migration; new archives are written only to the Healthz directory.
 
-## High-Level Design for gNOI Healthz
+## Standard RPC contract
 
-The [Healthz](https://github.com/openconfig/gnoi/blob/main/healthz/healthz.proto) proto defines gNOI RPCs used for Healthz specific services on the target. Out of the following, Get, Acknowledge and Artifact will be initially supported.
+All path-bearing standard Healthz requests use the complete component path `/components/component[name=X]`, with the component name key. The `healthz` subtree and diagnostic selectors are not part of a standard component path. Healthz protobuf status is an assessment: successful file collection alone cannot establish `STATUS_HEALTHY`. The methods retain existing gNOI authentication and authorization. Read-only gNMI mode permits `Get`, `List`, and `Artifact` reads while gating `Acknowledge` and `Check` as writes.
 
-```
-// The Healthz service provides access to the status of a path on the
-// system. Addtitionally it allows the implementor to provide path specific
-// diagnositic data into the status return.
-//
-// Healthz is expected to work in conjunction with the component OC model.
-service Healthz {
-  // Get will get the latest health status for a gNMI path.  If no status is
-  // available for the requested path an error will be returned.
-  rpc Get(GetRequest) returns (GetResponse) {}
+| RPC | Behavior |
+|-----|---------------|
+| `Get` | Read the latest stored event for the requested component and include known child statuses only through published OpenConfig platform parent relationships. If only children have events, return a parent wrapper with `STATUS_UNSPECIFIED`, no event ID, `created`, artifact, or acknowledgement, and child statuses in `subcomponents`; this does not assert parent health. Return `NotFound` when neither parent nor children have status. If a component type has no published parent relationship, exact-component retrieval is the tested scope. |
+| `List` | Read retained events for the requested component. Exclude acknowledged events by default; include them when `include_acknowledged` is true. Reject a null host event list as a protocol error. |
+| `Acknowledge` | Validate path and event ID, idempotently mark that `(component, event)` as acknowledged, and return the updated `ComponentStatus`. It does not delete an artifact. |
+| `Check` | Return `Unimplemented` for a standard DLDD component path, with or without `event_id`, until a defined component procedure exists. A future event-specific procedure may add diagnostics but must preserve prior artifacts and derive status from validation, not collection completion. |
+| `Artifact` | Stream a contained, allowlisted completed Healthz archive as header, one or more data frames, and trailer. A pending new Healthz ID may wait within the existing bound for its final file even when `Get`/`List` omit `ArtifactHeader`; a known `MISSING` ID returns `NotFound` promptly. Retain size/SHA-256 metadata and cancellation. Use a basename for `FileArtifactType.name` and `application/gzip` for `.tar.gz`. Resolve new Healthz IDs in the Healthz archive tree and old DLDD IDs in the legacy tree. |
 
-  // Acknowledge will set the acknowledged field for the event.
-  // This is an idempotent operation.
-  rpc Acknowledge(AcknowledgeRequest) returns (AcknowledgeResponse) {}
+`Get` returns the latest event even when that event has been acknowledged; `List` applies the acknowledged filter. A later recovery event is separate from the earlier unhealthy event, so `List` can retain both while `Get` reports the latest. For a parent `Get`, names are never parsed to invent descendant relationships.
 
-  // Artifact will stream the artifact contents for the provided artifact id.
-  rpc Artifact(ArtifactRequest) returns (stream ArtifactResponse) {}
+Archive reads reject symlinked path ancestors as well as symlinked final files, and use the same opened regular file for header metadata, hashing, and streaming. Hashing and streaming use the initial size, check cancellation between reads, and reject truncation; file growth does not extend the operation indefinitely. Both new `healthz-` IDs and retained `dldd-` IDs consult host artifact status so absent archives return `NotFound` promptly. Only an actual pending reservation receives a bounded packaging wait. The frame order is header, one or more data frames, then trailer, including a data frame for an empty file.
 
-  // Initially unsupported.
-  // Check will invoke the healthz on the provided component path. This RPC
-  // can be expensive depending on the vendor implementation.
-  rpc Check(CheckRequest) returns (CheckResponse) {}
+### Legacy diagnostic compatibility
 
-  // List returns all events for the provided component path.
-  rpc List(ListRequest) returns (ListResponse) {}
-}
-```
+`/components/component[name=X]/healthz/alert-info`, `/critical-info`, and `/all-info` are nonstandard diagnostic selectors. Existing `sonic-gnmi` code accepts them through `Check` and calls host `debug_info.collect`; `Get` does not collect on these paths. Keep this route separate from standard component paths and preserve contained reads of legacy absolute `/tmp/dump` artifacts and old DLDD archives. The diagnostic collector is synchronous while its D-Bus caller has a ten-second timeout. Longer collection needs a separate bounded change. Collection success must not be reported as a healthy component assessment.
 
-Sequence following a health check:
-- A caller can use the Get RPC to discover the health "events" (expressed as a ComponentStatus message) that are associated with a component and its corresponding subcomponents. Each event reflects a collection of data that is required to debug or further root cause the fault that occurs with an entity in the system.
-- The Artifact RPC is used to retrieve specific artifacts that are listed by the target system in the Get RPC.
-- Once retrieved, an event - which corresponds to a series of artifacts - can be 'acknowledged' by the client of the RPC. 
-Acknowledged events are no longer returned in the list of events by default. The device may use the acknowledged status as a hint to allow garbage collection of artifacts that are no longer relevant.
-- The device itself is responsible for garbage collection any may, if necessary, garbage collect artifacts that are not yet acknowledged. It is expected that events are persisted across restarts of the system or its hardware and software components, and they are removed only for resource management reasons.
+The in-repository `sonic-gnmi` tests use a legacy selector and the CLI accepts arbitrary Healthz path JSON. The `sonic-mgmt` port-debug Healthz helper is currently a stub. These sources do not establish whether deployed or external consumers use the selectors; retain compatibility until that question has been checked in the deployed environment.
 
-Healthz works in conjunction with telemetry streamed via gNMI. OpenConfig paths for a specific component are streamed to indicate when components become unhealthy, allowing the receiving system to determine that further inspection of the component's health is required. 
-Wherever a gNMI path (gnoi.types.Path) is used in Healthz, the path specified should be the complete path to a specific component, for example, `/components/component[name=FOO]`.
+## Impact and verification
 
-Example
-```
-Path: &types.Path{
-    Origin: "openconfig",
-    Elem: []*types.PathElem{
-        {
-            Name: "components",
-        },
-        {
-            Name: "component",
-            Key: map[string]string{
-                "name": "healthz",
-            },
-        },
-    },
-}
+No SAI API change is required. The host catalog preserves events, source membership, acknowledgement, aggregate and checkpoint across service/device restarts within retention bounds; Redis loss or stream trimming can still produce an explicit gap. The backend republishes known aggregate state after restart, and a gNMI restart does not reset IDs or acknowledgement. DLDD restores a matching retained active assessment while bootstrap correlation is pending, without a false clear/reassert pair or a new asserted sample. Fresh truth/lookback is evaluated first; confirmed positives refresh the existing fault `events` field with supporting branches. Same-timestamp snapshot changes append nothing. Error/late owned rechecks retain usable context and uncertainty, including post-action candidates; publication and artifact reservation retain their existing gate. Definitive rule-logic `NO_MATCH` still produces recovery.
 
-```
+Focused verification covers producer isolation, scalar-only FAULT_INFO, generic transition/observation idempotence, overlap and inactive-only recovery, timestamps, stored RPC lifecycle, acknowledgement and bounded retention, projection retry, durable stream gaps, contained archive reads, bounded cancellable hashing/streaming, pending/missing IDs and legacy compatibility. Private Redis 8.0.2 tests verified whole-batch stream-ID capacity, wrong-type preflight and whole-transaction maxmemory rejection. Host baseline commit `49402b82add74823e9910baaf21be77bfcdc34f4` passed 148 focused, 1069 full (13 deselected, 22 warnings), and 13 integration tests plus scoped Ruff/compilation; local DLDD tests passed 63 focused and 251 total. Focused Linux Go tests and normal SONiC Make gNMI package/image targets passed.
 
-The system can add its debug and health check data to a specified location in any format. Vendors can implement their healthz data as they please since parts of this data might be platform specific.
+Final live qualification on 2026-10-08 used host wheel SHA256 `b9ec1c26f62ad67cdd7316a27c74c089b96f372c342a2ef8f950f19a23089bfa` and the corrected official gNMI image `sha256:736b6ab3ec9997018e68bcbf579dcd5de7a25d43c1eb1fdfc82fee66ec30ce27`. Immutable source/runtime checks, retained Get/List/Artifact, repeated Acknowledge without archive deletion, the controlled DLDD archive/recovery flow, restart/reconnect checks, synchronized ON_CHANGE and 23 TLS role/trust probes passed. ON_CHANGE observed activation, an asserted timestamp-only observation and recovery with two events and one unhealthy-count increment. The final catalog held 82 events, 13 acknowledgements and 18 archives, exactly four controlled events, one acknowledgement and one archive above baseline; prior state and files were preserved. Temporary TLS resources were removed and required services remained healthy.
 
+A native same-image reboot passed earlier on image `sha256:5dff9c66686804b847cb768c36beb5fa50637c7ad747ed79954ea8b8c1e3b322` with the same host wheel. Events, acknowledgement and archives survived. Redis loss produced an explicit durable history gap while known PORT UNHEALTHY/count 6 was republished before an RPC, without invented events or recovery. That reboot does not qualify the corrected `736b6ab3` image. The official unsigned whitebox Cisco installer Make and embedded payload contract audit also passed; the installer was not installed or booted. Its original strict inspector exit 1 is retained, with timestamp-only wheel/digest differences and an internal Regex-module double count independently resolved. Image-upgrade, secure-boot and crash/power-loss durability remain unverified. The full sonic-mgmt harness was excluded; focused live checks do not claim framework execution. Earlier September deployments remain historical evidence for their own source and packages.
 
-### Healthz.Get
+The 2026-10-09 publication review added host commit `1c817fe2ffad56f2d7ee88a031064f62ed00cd20`: rejected metadata refreshes preserve a failed recovery's pending retry by propagating the existing backend result. Its regression fails without the fix and verifies exactly one recovery after retry. Exact-source Linux tests passed 149 focused, 1070 full (13 deselected, 22 warnings), and 13 integration cases plus scoped Ruff/compilation. Both image repositories reference the correction. The earlier live and installer qualification remains specific to host baseline `49402b82`; this follow-up has not been deployed or included in a rebuilt full installer.
 
-```
-message GetRequest {
-  // Path defines the component to try to fetch healthz state for. Get
-  // retrieves the latest healthz results for a specific component
-  // that have been collected as a result of a call to Check, or by
-  // the target itself.
-  types.Path path = 1;
-}
+## Implementation file map
 
-message GetResponse {
-  ComponentStatus component = 1;
-}
-
-message ComponentStatus {
-  gnoi.types.Path path = 1; // path of subcomponent.
-  // Subcomponents that are aggregated by this status.
-  repeated ComponentStatus subcomponents = 2;
-  // Status of this component.
-  Status status = 3;
-  // Opaque data for how the healthcheck is implemented.  This can be any proto
-  // defined by the vendor.  This could be the equivalent to outputs like
-  // "show tech" or core files or any other diagnostic data.
-  google.protobuf.Any healthz = 4 [deprecated=true];
-  // Artifacts provides links to all artifacts contained in this event.
-  // The individual artifacts can be retrieved via the Artifact() RPC.
-  repeated ArtifactHeader artifacts = 5;
-  // ID is the unique key for this event in the system.
-  string id = 6;
-  // Acknowledged is set when at least one caller has processed the event.
-  bool acknowledged = 7;
-  // Created is the timestamp when this event was created.
-  google.protobuf.Timestamp created = 8;
-  // Expires is the timestamp when the system will clean up the
-  // artifact. If unset, the artifact is not scheduled for garbage
-  // collection.
-  google.protobuf.Timestamp expires = 9;
-}
-```
-![Healthz.Get](https://github.com/user-attachments/assets/199c098d-e191-42c6-9a5a-494b685ad4f3)
-
-
-Supported Paths for Get:
-```
-/components/component[name=healthz]/alert-info
-/components/component[name=healthz]/critical-info
-/components/component[name=healthz]/all-info
-```
-Get Sequence Flow
-
-1. The Get RPC handler translates the incoming gNMI Path in the Get request to the correct component and derives the related information for the log level indicated. 
-2. For the above supoorted paths, a call to HealthzCollect is made through the DBUS client with the component name, log level, and a persistent_storage flag to indicate if the artifacst should be stored in persistent storage. This in turn invokes the DBUS endpoint of the host service via the module `debug_info`.
-3. The host service module `debug_info.collect` collects all the artifacts for a given board type. Depending on the log level and board type input, the relevant log files, DB snapshots, counters, record files, and various command outputs are collected for multiple components and aggregated under a specified artifact directory in the host. Once complete, the directory is compressed to a `*.tar.gz` file ready to be streamed.
-4. In. the meantime, the frontend keeps polling for the artifact to be ready with a call to HealthzCheck through the DBUS client `debug_info.check`.
-5. Once the artifact tar file is ready, the artifact details (filename, size, checksum) with the unique ID string are sent in the Get response back to the client.
-
-
-### Healthz.Artifact
-```
-message ArtifactRequest {
-  // Artifact ID to be streamed.
-  string id = 1;
-}
-
-message ArtifactResponse {
-  oneof contents {
-    // Header is the first message in the stream. It contains
-    // the id of the artifact and metadata for the artifact
-    // based on the type of the artifact.
-    // OC defines FileArtifactType and ProtoArtifactType.
-    ArtifactHeader header = 1;
-    ArtifactTrailer trailer = 2;
-    bytes bytes = 3;
-    google.protobuf.Any proto = 4;
-  }
-}
-
-message ArtifactHeader {
-  // ID of the artifact.
-  string id = 1;
-  // Artifact type describes data contents in the artifact.
-  // File artifacts should use the defined FileArtifactType.
-  // Proto artifacts should either use the generic ProtoArtifactType
-  // which means the artifact is made up a sequence of proto.Any
-  // messages which can be deserialized directly into thier message
-  // types. Otherwise the implementer can provide a specific artifact type
-  // which can add any additional metadata the implementor wants and define
-  // a custom format for the message stream.
-  oneof artifact_type {
-    FileArtifactType file = 101;
-    ProtoArtifactType proto = 102;
-    google.protobuf.Any custom = 103;
-  }
-}
-
-message FileArtifactType {
-  // Local file name of the artifact.
-  string name = 1;
-  // Path to file on the local file system. (optional)
-  string path = 2;
-  // Mimetype of the file.
-  string mimetype = 3;
-  // Size of the file.
-  int64 size = 4;
-  // Hash of the file.
-  gnoi.types.HashType hash = 5;
-}
-```
-
-The Artifact RPC initiates the system's debugging artifact collection. The input ID string is the same unique id received from the Get Response. 
-The RPC handler packages the artifact header information and streams the file to the caller.
-
-### Healthz.Acknowledge
-
-```
-message AcknowledgeRequest {
-  types.Path path = 1;
-  // Healthz event id.
-  string id = 2;
-}
-
-message AcknowledgeResponse {
-  ComponentStatus status = 1;
-}
-```
-The Acknowledge RPC removes the artifact associated with the path and ID provided in the backend and returns the status of the component.
-
-
-### SAI API
-
-No change in SAI API.
-
-
-### Warmboot and Fastboot Design Impact
-
-No effect on warm/fast boot
-
-### Restrictions/Limitations
-
-### Testing Requirements/Design
-
-In this section, we discuss both manual and automated testing strategies.
-
-#### Manual Tests
-CLI
-- The gNMI server has a gnoi_client CLI tool which can be used to invoke service RPCs on the switch. This would include adding support for both JSON and proto formats of requests.
-
-#### Automated Tests
-Unit Tests
-- For gNOI logic implementation in UMF, we will use the existing unit test and component test infrastructure for testing by adding unit tests for individual API per supported gNOI service.
-
-- TestHealthzServer
-- HealthzGetFailsForInvalidComponent
-- HealthzGetForInvalidPaths
-- HealthzGetForDebugDataFailsForHostServiceError
-- HealthzGetForDebugDataFailsForHostServiceErrorCode
-- HealthzGetForDebugDataFailsForNotExistingFile
-- HealthzGetForDebugDataFailsForCheckError
-- HealthzArtifactForDebugDataFailsForNotExistingFile
-- HealthzAcknowledgeForDebugDataForHostServiceError
-- HealthzAcknowledgeForDebugDataForHostServiceErrorCode
-- HealthzAcknowledgeForDebugDataFailsForNotExistingFile
-- HealthzGetForDebugDataSucceeds
-
-
-### Open/Action items - if any
+| Repository | Files | Role |
+|------------|-------|------|
+| `sonic-host-services` | `dldd/telemetry.py`, `dldd/orchestrator.py`, `dldd/artifacts.py` | DLDD fault publication, stream-only transition ID, scalar FAULT_INFO artifact ID, rule-specific collection, and host artifact API client |
+| `sonic-host-services` | `host_modules/healthz.py`, `host_modules/healthz_catalog.py`, `host_modules/healthz_artifacts.py`, `scripts/sonic-host-server`, host-module tests | Generic stream/catalog, D-Bus metadata/artifact API, bounded archive store, aggregate projection |
+| `sonic-gnmi` | `gnmi_server/gnoi_healthz.go`, `gnoi_healthz_artifact.go`, `gnoi_healthz_artifact_resolver.go`, `sonic_service_client/dbus_client.go` and tests | Thin authenticated Healthz RPCs, new and legacy contained archive streaming |
+| `sonic-mgmt-common` | `models/yang/common/openconfig-platform-healthz*.yang`, `translib/pfm_healthz.go`, `translib/pfm_fault.go` and tests | Component health state GET/ON_CHANGE and existing fault subtree mapping |
+| `sonic-buildimage`, `whitebox-sonic-buildimage`, `sonic-mgmt` | Package/gitlink pins and focused qualification | Update after producer tests and DUT verification; keep public and whitebox equivalents synchronized |
