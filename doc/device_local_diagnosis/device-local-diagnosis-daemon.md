@@ -918,6 +918,13 @@ normal child processes in the same systemd cgroup. CPU, memory, and task
 accounting are enabled. Full memory-pressure, swap, and group-OOM behavior
 requires the corresponding cgroup-v2 controllers on the target image.
 
+The host kernel OOM policy is a deployment prerequisite. With
+`vm.panic_on_oom=2`, even a `MemoryMax`-scoped cgroup OOM panics the entire host;
+`OOMPolicy=kill`, Docker isolation, and systemd failure actions cannot override
+that policy. Unit-local OOM recovery requires a qualified platform policy that
+does not panic on cgroup OOM. DLDD does not change this host-wide setting.
+Do not perform memory-exhaustion qualification while it is `2`.
+
 These limits do not cover generic Healthz packaging and catalog work in the
 separate shared `sonic-hostservice.service`. That service retains its own host
 policy; qualify its CPU, memory, and metadata latency independently during
@@ -936,8 +943,9 @@ pipeline.
 
 The zero-swap default prevents diagnostic workloads from adding swap I/O and
 long stalls under memory pressure. It applies only to this unit, not to host
-swap globally. The tradeoff is an earlier DLDD-local OOM/restart rather than
-additional swap headroom. It is independent of the RAM ceiling; a platform can
+swap globally. The tradeoff is reaching the memory limit sooner rather than
+using additional swap headroom; the kernel policy above determines whether
+this results in a unit restart or a host panic. It is independent of the RAM ceiling; a platform can
 qualify a bounded swap allowance through a systemd drop-in. On a host without
 swap, this setting has no additional effect.
 
@@ -969,13 +977,13 @@ not itself request that those dependencies stop.
 | A source, evaluator, or local action raises a runtime exception | Isolate/report the affected execution through existing rule/source diagnostics; retain local-action wait/recheck semantics. |
 | A monitor thread exits unexpectedly | The primary recreates that monitor with its existing plan and records a service diagnostic. |
 | The daemon exits non-zero or is terminated by an unexpected fatal signal, including a native-hook crash | Systemd cleans up the unit and applies `Restart=on-failure` after `RestartSec=10`; FEATURE's `auto_restart` drop-in remains authoritative. |
-| The unit cannot reclaim enough memory below `MemoryMax` | Cgroup OOM handling is confined to the affected unit; `OOMPolicy=kill` treats its processes as one workload rather than leaving a partially killed daemon. The normal restart policy then applies. |
+| The unit cannot reclaim enough memory below `MemoryMax` | When the platform permits cgroup-local OOM handling, `OOMPolicy=kill` treats the unit's processes as one workload and the normal restart policy applies. `vm.panic_on_oom=2` instead causes a host panic; this is a deployment blocker for service-only memory-fault containment. |
 | Stop/restart leaves threads or command children running | `KillMode=control-group` targets the unit's processes; `TimeoutStopSec=30` bounds the graceful stop phase before `SendSIGKILL=yes` forces remaining killable processes to exit. |
 
 The packaged unit sets `FailureAction=none` and `StartLimitAction=none`: a DLDD
 failure or exhausted systemd start limit must not trigger a host reboot,
 power-off, or another unit through these actions. Existing manager start-rate
-policy still applies. Unit cleanup is not a per-command timeout or a rollback
+policy and kernel panic policy still apply. Unit cleanup is not a per-command timeout or a rollback
 of hardware changes. Recovery uses the existing active rules and retained-fault
 reconciliation; runtime failures do not roll back to an older rules generation.
 Service failure diagnostics belong in systemd/journald and DLDD process status,
@@ -1669,7 +1677,7 @@ Tier 2 keeps one representative for each distinct end-to-end lifecycle. Tier 1 a
 
 **Service-Level State Testing**: Validate service-level BROKEN|FATAL state by loading a rules file with multiple rules and simulating failures that cause enough unique rule IDs to break to exceed default `broken_rules_max_threshold` (default: 5). Verify that multiple broken work keys from one high-fanout rule count once, `process_state` transitions to `state: BROKEN|FATAL` only when the unique broken rule-ID count is greater than the configured threshold, the service continues running but publishes critical state to the controller, and all broken records are listed with diagnostics in the `process_state.broken_rules` array.
 
-**Resource and Process-Failure Testing**: Check the installed unit's effective CPU, memory, task, OOM, cleanup, and failure-action settings, including platform drop-ins. Qualify normal and peak inventory/action load against the configured profile. In an explicitly authorized disposable lab unit, inject CPU pressure, scoped memory/task exhaustion, a fatal process signal, and a lingering child; verify bounded resource use, unit-local cleanup, restart/reconciliation behavior, and unchanged unrelated service lifetimes. Record relevant control/data-plane health and the host core-retention behavior. These are distinct failure-boundary tests, not coverage permutations. Source-level unit tests do not prove kernel enforcement or live forwarding isolation.
+**Resource and Process-Failure Testing**: Check the installed unit's effective CPU, memory, task, OOM, cleanup, and failure-action settings, including platform drop-ins and `vm.panic_on_oom`. Abort memory-exhaustion tests when the kernel policy can panic on cgroup OOM; never change a host-wide kernel setting as test setup. Qualify normal and peak inventory/action load against the configured profile. In an explicitly authorized disposable lab unit on a compatible platform, inject CPU pressure, scoped memory/task exhaustion, a fatal process signal, and a lingering child; verify bounded resource use, unit-local cleanup, restart/reconciliation behavior, and unchanged unrelated service lifetimes. Record relevant control/data-plane health and the host core-retention behavior. These are distinct failure-boundary tests, not coverage permutations. Source-level unit tests do not prove kernel enforcement or live forwarding isolation.
 
 **Configuration Error Handling**: Use representative malformed syntax, exact-schema, semantic, and missing installed-hook cases to verify the complete file is rejected with bounded diagnostics and no partial plan. Separately verify that post-activation get, compare, expansion, and action exceptions remain localized and contribute to process exception counts.
 
