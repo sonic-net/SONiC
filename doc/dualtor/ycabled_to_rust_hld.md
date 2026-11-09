@@ -317,8 +317,9 @@ On an active-standby cable, the upper ToR reads read_side 1 and the lower ToR 2.
 
 #### 3.4.3 Platform API
 
-- **Presence:** `chassis.get_sfp(i).get_presence()`, falling back to sfputil. Always true on VS.
-- **Transceiver info:** `chassis.get_sfp(i).get_transceiver_info()`, falling back to sfputil. Empty on VS.
+- **Presence:** `chassis.get_sfp(i).get_presence()`. Always true on VS.
+- **Transceiver info:** `chassis.get_sfp(i).get_transceiver_info()`. Empty on VS.
+- **Fallback:** if either raises `NotImplementedError`, ycabled calls `get_presence()` or `get_transceiver_info_dict()` on its sfputil object. Only the legacy sfputil plugin, loaded when the platform API is not, has these methods. With the platform API loaded, the object is `SfpUtilHelper`, which has neither, so the call raises.
 - **Port mapping:** `SfpUtilHelper` reads CONFIG_DB `PORT` (`index`) through sonic-config-engine's `get_port_config`, and `port_config.ini` only if `PORT` is empty.
 
 ### 3.5 DB schema
@@ -361,7 +362,7 @@ ycabled also writes to CONFIG_DB. At every start it sets `XCVRD_LOG|Y_CABLE` `lo
 | TRANSCEIVER_INFO | \<PORT\> | | in, from xcvrd | SET means inserted, DEL means removed |
 | HW_MUX_CABLE_TABLE | \<PORT\> | state | out, to orchagent | `active`, `standby` or `unknown` |
 | | | read_side | | active-standby: `1`, `2` or `-1` (`0` if the cable reports the NIC side, then `state` is `standby`). active-active: `0`, `1` or `-1` |
-| | | active_side | | active-standby: `0` (no ToR), `1`, `2` or `-1`. active-active: `active`, `standby` or `unknown` |
+| | | active_side | | active-standby: `0` (no ToR), `1`, `2` or `-1`. active-active: `active`, `standby` or `unknown`, and `-1` after a cable removal, as for active-standby |
 | HW_MUX_CABLE_TABLE_PEER | \<PORT\> | state, read_side, active_side | out, to linkmgrd | The peer's side, active-active only |
 | MUX_CABLE_INFO | \<PORT\> | [Section 3.5.4](#354-mux_cable_info-and-mux_cable_static_info) | out, to linkmgrd, CLI and telemetry | Cable or SoC telemetry |
 | MUX_CABLE_STATIC_INFO | \<PORT\> | [Section 3.5.4](#354-mux_cable_info-and-mux_cable_static_info) | out, to the CLI | active-standby only |
@@ -562,7 +563,7 @@ flowchart TB
 - **active-active (no Python):**
   - present if STATE_DB has `TRANSCEIVER_INFO|<port>` (D3)
   - always present on VS, as in Python
-- **active-standby:** the bridge makes the same calls as Python, `chassis.get_sfp(i).get_presence()` and `get_transceiver_info()` with the sfputil fallback, so driver selection does not change.
+- **active-standby:** the bridge makes the same calls as Python, `chassis.get_sfp(i).get_presence()` and `get_transceiver_info()`, so driver selection does not change. If they raise `NotImplementedError`, the cable counts as absent (present on VS), where Python's fallback raises ([Section 3.4.3](#343-platform-api)); the legacy sfputil plugin is not supported ([Section 4.8](#48-restrictions-and-limitations)).
 
 #### 4.3.6 Y-cable bridge (embedded Python)
 
