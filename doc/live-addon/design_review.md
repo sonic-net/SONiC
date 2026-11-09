@@ -392,11 +392,9 @@ executables.
 
 ### 7.2 Why on-demand checks
 
-A periodic monitor with a cached status file would require a separate
-scheduler, startup state machine, atomic file updates, freshness rules, and
-stale-result handling. Kubernetes already schedules probes and manages startup,
-retries, and failure policy. The proposed framework invokes the corresponding
-vendor command on demand, avoiding a second health scheduler or state machine.
+Kubernetes already decides when to request health checks. The health server
+runs the vendor checks when requested, avoiding a separate background monitor
+and saved results that could be out of date.
 
 ### 7.3 On-demand health architecture
 
