@@ -206,7 +206,7 @@ The targets are proposals, to be confirmed against baselines measured on the phy
 | N1 | A slow or unreachable SoC, or a slow cable, does not delay requests for other ports | Toggle and probe response for healthy ports p99 < 100 ms with 4 of 32 SoCs not responding (Python: up to 2 s) |
 | N2 | Requests for one port are processed in the order their notifications arrive. As with `SubscriberStateTable`, a request is a row read when its notification is handled, so a row written again before then is handled with its latest value. | |
 | N3 | Ports are initialized in parallel | All active-active ports initialized within 1 s with every SoC unreachable (Python: ports × 0.5 s) |
-| N4 | Memory | Device with only active-active ports: RSS ≤ 15 MB. Device with active-standby ports: RSS ≤ 70% of Python's on the same device. |
+| N4 | Memory | Device with only active-active ports: RSS ≤ 15 MB. Device with active-standby ports: RSS at least 10 MB below Python's on the same device ([Section 5.3](#53-measured-results)). |
 | N5 | Threads and DB connections bounded, independent of the port count | ≤ 16 threads besides those of driver calls in flight (at most 3 per active-standby port, a firmware download included), ≤ 48 Redis connections per namespace |
 | N6 | CPU | Idle CPU no higher than Python's |
 | N7 | Every external call (gRPC, vendor driver, Redis) has a deadline, or runs where it can only block its own port | |
@@ -954,6 +954,8 @@ flowchart TB
   - ycabled-rs wraps the connector (`Endpoint::connect_with_connector`) to see connection attempts, established connections and closed connections. A connection counts as established only once TLS, when configured, and the HTTP/2 handshake have completed, as in grpc-core; one that fails or does not complete them within the RPC deadline counts as failed.
   - From those events a per-port state machine derives `CONNECTING`, `READY`, `TRANSIENT_FAILURE` and `IDLE`. Entering `TRANSIENT_FAILURE` or `IDLE` writes `FORWARDING_STATE_RESPONSE` `response=failure`, and every state is recorded for `grpc_connection_status`.
   - No reconnect timer: a failed or closed connection is set up again by the port's next RPC. grpc-core retries in the background with backoff and, while it waits, fails RPCs at once. ycabled-rs lets each RPC wait for its 0.5 s deadline instead. For a SoC that accepts no HTTP/2 connection, ycabled-rs answers up to 0.5 s later than Python, but only on that port ([Section 5.3](#53-measured-results)).
+  - **What linkmgrd does with `failure`** (sonic-linkmgrd `MuxPort::handleProbeMuxState` and `ActiveActiveStateMachine`): on an active-active port, `failure` is not a mux state. `handleProbeMuxFailure` logs `lost gRPC connection` and, unless linkmgrd is already waiting for a probe's answer, probes the forwarding state. The answer to that probe sets the state; `failure` itself changes no state and causes no switchover. linkmgrd also probes every 10 s once it has initialized (`handleAdminForwardingStateSyncUp`), when the peer ToR asks, and with backoff while the state is unknown. So a `failure` that ycabled-rs writes later than Python, or not at all, delays a probe by at most 10 s (C2).
+  - **A SoC that stops answering while its channel is idle:** no RPC is in flight, so only the HTTP/2 keepalive notices: a ping goes out within 4 s, and 8 s without its answer close the connection, which writes `failure`. An RPC sent before then fails at its deadline and is answered `unknown`. grpc-core's keepalive, with the same options, gives Python the same timing. A black-box test to add: blackhole an idle SoC, and expect `failure` within 12 s from both implementations.
   - The black-box tests run a SoC double that accepts, drops, refuses and blackholes connections, and check the resulting writes for both implementations.
 - **GracefulRestart:** one task per port with a SoC IP, with the same request, re-subscription timing and log-only handling ([Section 3.3.6](#336-gracefulrestart)).
 
@@ -976,12 +978,12 @@ flowchart TB
   Rust never holds a Python object, so each operation crosses the language boundary once. This is the same principle as the platform API facade ([#768](https://github.com/sonic-net/sonic-platform-common/pull/768)), and the module can move there if sonic-platform-common adds a Y-cable facade.
 - **Threads:** each call runs on one of tokio's blocking threads, which are started when needed and stop after 10 s idle, and takes the GIL. Drivers release it during I2C I/O, so different ports can make progress at the same time. Each port makes one call at a time (its call lock, [Section 4.3.3](#433-router-and-port-actors)).
 - **Shared-bus limit:** the calls of active-standby telemetry passes run one at a time across the ports, as the calls of Python's serial pass do, to avoid overloading shared I2C buses. A pass never waits for the limit while it holds its port's call lock, or for the lock while it holds the limit. So a port held by a long request delays only its own pass, where Python's pass waits for it, and so do the ports after it; and a call that hangs holds up the other ports' telemetry, not their requests. Toggles, probes and CLI commands are not counted against it.
-- **Watchdog:** Python calls cannot be cancelled. A call still running after 5 s is logged at WARNING, and its end at NOTICE. A stuck call blocks its own port and one blocking thread, unless it keeps the GIL ([Section 4.8](#48-restrictions-and-limitations)). A port has at most three calls in flight, one from its actor, one from its telemetry pass and one firmware download, and up to 512 threads can run, so stuck calls on some ports never leave the others without a thread. In Python, one stuck call stops every port served by the same thread.
+- **Watchdog:** Python calls cannot be cancelled. A call still running after 5 s is logged at WARNING, and its end at NOTICE. The watchdog only logs: it does not end the call, and the port stays blocked until the call returns. A stuck call blocks its own port and one blocking thread, unless it keeps the GIL ([Section 4.8](#48-restrictions-and-limitations)). A port has at most three calls in flight, one from its actor, one from its telemetry pass and one firmware download, so there are at most three blocking threads per active-standby port, well under the runtime's limit of 512: stuck calls on some ports never leave the others without a thread. In Python, one stuck call stops every port served by the same thread.
 - **Driver logger:** the logger passed to the drivers forwards to the Rust logger (D7).
 
 #### 4.3.7 Telemetry
 
-- **Timing:** each actor gets its own 60 s timer, and its first pass is 60 s after the actor starts, as Python's first pass is 60 s after startup. A tick that comes while the port's previous pass still runs is skipped.
+- **Timing:** each actor gets its own 60 s timer, and its first pass is 60 s after the actor starts, as Python's first pass is 60 s after startup. A tick that comes while the port's previous pass still runs is skipped. Ports that start together run their passes together, but the burst is bounded: at most 16 active-active passes run at once, each making its 4 RPCs one after another to its own SoC, and active-standby calls take turns on the bridge's shared-bus limit. Python's pass also queries the ports back to back, so the timers are not spread out.
 - **Writes:** each pass reads its own port's cable or SoC and writes that port's `MUX_CABLE_INFO` row, in one `HSET`; no task collects the values of several ports. The actor keeps handling the port's requests meanwhile, and a pass that overlapped an initialization, a removal or a change of cable type is dropped ([Section 4.3.3](#433-router-and-port-actors)).
 - **Contents:** the same tables and fields as Python ([Section 3.5.4](#354-mux_cable_info-and-mux_cable_static_info)).
 - **Disable:** stopped while `disable_telemetry` is `True`.
@@ -1011,7 +1013,7 @@ flowchart TB
 2. Write `XCVRD_LOG|Y_CABLE` `log_verbosity=notice`, as Python does. Build the port map, and per namespace determine read_side from Loopback3 (looked up again when an active-active cable is initialized while it is still unknown, as Python does), apply `grpc_secrets.json` to CONFIG_DB and read the `MUX_CABLE` ports.
 3. Start the Y-cable bridge if any port is active-standby.
 4. Create an actor for every `MUX_CABLE` port and subscribe to `TRANSCEIVER_INFO`, then initialize all actors in parallel. A cable inserted or removed meanwhile is handled right after its port's initialization. Startup waits until every port is initialized, for at most 30 s.
-5. Start the subscriptions of the request tables if the namespace has mux ports. Each first delivers the rows that already exist, so requests written during startup are handled then, as in Python.
+5. Start the subscriptions of the request tables if the namespace has mux ports. Each first delivers the rows that already exist, so requests written during startup are handled then, as in Python. Requests for a port still initializing wait in its mailbox, one per table, and run when its initialization ends ([Section 4.3.3](#433-router-and-port-actors)).
 6. Start the GracefulRestart tasks if any port is active-active, with the read side known then: like Python, look Loopback3 up again if it is still unknown.
 
 **Toggles of two ports, one SoC not responding.** Compare with the serial case in [Section 3.3.3](#333-active-active-toggle-self-and-peer):
@@ -1048,15 +1050,16 @@ sequenceDiagram
 | Concurrency | Every port in one thread, one request at a time | One actor per port | N1 |
 | Startup | Ports initialized one by one; threads start after the last port | Ports initialized in parallel; the request subscriptions start after the last port, as in Python, or after 30 s | N3; a hung driver call holds up only its port |
 | Cable removed during startup | Missed: `TRANSCEIVER_INFO` is subscribed to after initialization, and its first rows do not include the removed cable | Handled after the port's initialization | `TRANSCEIVER_INFO` is subscribed to before initialization |
+| Requests notified again before they are handled | Handled once per notification, each time with the latest row: a port toggled twice before the first toggle is handled is toggled twice, and `MUX_METRICS_TABLE` gets two start and end pairs | Handled once, since a port keeps one pending request per table: one toggle and one pair | Bounded mailboxes ([Section 4.3.3](#433-router-and-port-actors)); the cable and the DB end in the same state, timestamps aside |
 | Order across tables | Within one select wake-up, a fixed table order; cable insertion and removal in another thread | The order redis delivered the notifications, for all of a namespace's tables | A toggle written after a cable insertion runs after it ([Section 4.3.2](#432-db-access)) |
 | Shutdown | Never ends by itself; tables kept | Exits within 2 s; tables kept | N9, C7 |
 | Thread or task failure | Process killed within 60 s | Process exits at once | N8 |
 | Redis not answering at startup | Exits; after four failed starts supervisord gives up | Waits for redis | A restart after a lost subscription may find redis still down ([Section 4.3.1](#431-process-runtime-and-supervision)) |
 | Telemetry | Every 60 s after the previous pass over all ports ends; a port busy with a request holds up the ports after it | Every 60 s per port; a port busy with a request holds up only its own pass | Independent of port count, SoC health and the other ports' requests |
-| Presence of active-active cables | Platform API | STATE_DB `TRANSCEIVER_INFO` | D3 |
+| Presence of active-active cables | Platform API | STATE_DB `TRANSCEIVER_INFO`. Until xcvrd writes it, after a cold boot for instance, the port's initial state is `unknown`, but requests still reach the SoC: the first one sets up the channel ([Section 3.3.5](#335-grpc-channel-lifecycle)) | D3; the delay is measured on hardware ([Section 5.2](#52-how-to-measure)) |
 | Redis connections | 125 with 24 active-standby ports, 199 with 32 active-active ports ([Section 5.3](#53-measured-results)) | 4 per namespace | N5, D9 |
 | RPCs to a SoC that accepts no HTTP/2 connection | Fail at once between grpc-core's connection attempts | Wait for the 0.5 s deadline | No reconnect timer ([Section 4.3.4](#434-soc-grpc-client)); affects only that port |
-| `response=failure` when a channel is created | Written, because a new channel reports `IDLE` | Not written | No connection has failed yet; the first failed connection writes it |
+| `response=failure` | Written when a channel is created, because it reports `IDLE`, and after each failed background connection attempt of grpc-core | Written when a connection an RPC asked for fails, or an established one closes | linkmgrd only probes sooner on a `failure`, and probes every 10 s anyway: fewer `failure`s delay a probe by at most 10 s and change no state ([Section 4.3.4](#434-soc-grpc-client)) |
 | Slow driver calls | Not logged | Logged after 5 s | [Section 4.3.6](#436-y-cable-bridge-embedded-python) |
 | Firmware download requests | A new thread for every request, without limit | One download per port at a time; another request is answered `-1` | Hung downloads cannot use up the threads of other ports |
 | Firmware activation | The CLI thread waits 5 s after `activate_firmware`; the port's toggles go on | The port's actor waits 5 s, toggles of that port included | The cable restarts its firmware meanwhile; other ports are not affected |
@@ -1078,7 +1081,7 @@ Most of the fixes only keep ycabled running and serving where Python crashes, de
 ### 4.6 Build, packaging and selection
 
 - **Source:** `sonic-ycabled-rs` in sonic-platform-daemons (D1). Dependencies: tokio, redis (D9), tonic and prost with rustls, and PyO3. No swss-common and no C++ library.
-- **Build:** in sonic-slave-trixie (Rust 1.98.1, protoc 3.21). PyO3 links the libpython of pmon's base image (Python 3.13). Until the package rules exist, `sonic-ycabled-rs/build.sh` builds and runs the unit tests in an image based on docker-sonic-vs (Debian 12, Python 3.11), the image the black-box suite runs in.
+- **Build:** in sonic-slave-trixie (Rust 1.98.1, protoc 3.21). PyO3 links the libpython of the build environment, which must be the Python of pmon's base image (3.13). A check in `sonic-pmon-daemons-rs.mk` fails the build if they differ, so a change of pmon's Python version fails the build, not the DUT. Until the package rules exist, `sonic-ycabled-rs/build.sh` builds and runs the unit tests in an image based on docker-sonic-vs (Debian 12, Python 3.11), the image the black-box suite runs in.
 - **Package:** `sonic-ycabled-rs`, which contains `/usr/bin/ycabled-rs` (the bridge module is compiled in). It is built by `rules/sonic-pmon-daemons-rs.mk` from [#29860](https://github.com/sonic-net/sonic-buildimage/pull/29860) and installed in pmon next to the Python wheel.
 - **Selection** (`docker-pmon.supervisord.conf.j2`, inside its `DualToR` condition); everything else in the entry stays as it is:
 
@@ -1105,10 +1108,10 @@ command=nice -n -20 {{ ycabled }}
 ### 4.8 Restrictions and limitations
 
 - The vendor drivers stay Python, so devices with active-standby ports keep an embedded interpreter and save less memory.
-- Connectivity states are derived from connection events ([Section 4.3.4](#434-soc-grpc-client)). There is no reconnect timer, so a `failure` is written when a connection fails or is lost, not again on every background attempt as grpc-core may.
+- Connectivity states are derived from connection events ([Section 4.3.4](#434-soc-grpc-client)). There is no reconnect timer, so a `failure` is written when a connection fails or is lost, not again on every background attempt as grpc-core may. linkmgrd's own probes find the same state, at most 10 s later.
 - A Python driver call cannot be cancelled. A hung call blocks only its own port and one blocking thread, unless it keeps the GIL: then every active-standby port stops, as it does in Python.
 - Active-standby ports need the platform API (`sonic_platform`). The legacy `sfputil` plugin, which Python ycabled falls back to, is not supported.
-- ycabled-rs must be built for the Python version of pmon's base image.
+- ycabled-rs must be built for the Python version of pmon's base image; the build checks it ([Section 4.6](#46-build-packaging-and-selection)).
 
 ## 5 Performance and memory
 
@@ -1122,7 +1125,7 @@ The baselines are in [Section 1.2.2](#122-resource-usage). The active-active num
 | Startup, N active-active ports, SoCs unreachable | N × 0.5 s plus channel setup | About 0.5 s | Parallel initialization |
 | Telemetry pass, 32 unreachable SoCs | 64 s, longer than the 60 s period | About 2 s per port, in parallel | Per-port timers |
 | RSS, active-active only | 41 MB (dev VM, 32 channels) | ≤ 15 MB | No interpreter |
-| RSS, active-standby | 53-54 MB (KVM, 24 ports) | ≤ 37 MB (70%) | Interpreter only for the drivers, no per-thread DB connectors |
+| RSS, active-standby | 53-54 MB (KVM, 24 ports) | ≤ 43 MB (10 MB less) | Interpreter only for the drivers, no per-thread DB connectors |
 | Threads | 5, plus about 1 per active-active channel (53 with 32 channels) | ≤ 16, plus one per driver call in flight | tokio; blocking threads only while a driver call runs |
 | Redis connections | 124 (KVM, 24 ports) | ≤ 48 per namespace (4 by design) | One connection per database and one pub/sub connection for all subscriptions (D9) |
 | Idle CPU | 0.7-0.8% of one core (KVM, 24 active-standby ports) | No higher than Python's | Event-driven, no 100 ms select loop |
@@ -1137,6 +1140,7 @@ Run both implementations on the same DUT and image, switching with `use_rust_yca
   - probes: time from the command write to the response write, in the test harness
 - **Fault injection:** make K SoCs unreachable with nic_simulator or by dropping their traffic with iptables.
 - **Startup:** from supervisord's "spawned" message to the last `HW_MUX_CABLE_TABLE` row written.
+- **Boot** (active-active): after a cold boot and after `config reload`, the time from ycabled's start to each port's first `HW_MUX_CABLE_TABLE` `active` or `standby`. With ycabled-rs it includes waiting for xcvrd's `TRANSCEIVER_INFO` (D3).
 - **CPU:** utime plus stime over one idle hour, and during telemetry passes.
 
 ### 5.3 Measured results
@@ -1164,7 +1168,7 @@ Run both implementations on the same DUT and image, switching with `use_rust_yca
 | First telemetry pass of 32 active-active ports, first write to last | SoCs connected, telemetry RPCs hang | 62.3 s | 2.0 s |
 | | SoCs blackholed | 0.04 s | 2.0 s |
 
-- **Memory:** an active-active device runs no Python, so ycabled-rs needs a fifth of Python's memory. With active-standby ports, the embedded interpreter and the driver modules account for most of it: 38.3 MB is 76% of Python's 50.3 MB, short of the 70% target of [Section 5.1](#51-expected-results). Every other target is met.
+- **Memory:** an active-active device runs no Python, so ycabled-rs needs a fifth of Python's memory. With active-standby ports, the embedded interpreter and the driver modules account for most of it, and Python loads them too: ycabled-rs saves 12 MB, 38.3 MB against Python's 50.3 MB (76%). On hardware, both also load the vendor's `sonic_platform`, which raises the share without reducing the saving, so N4 sets the saving, at least 10 MB, rather than a share. Every target of [Section 5.1](#51-expected-results) is met.
 - **Threads:** the runtime's 2 workers and the main thread. Threads for driver calls come and go. Python's count grows with the active-active ports: grpcio polls each channel's connectivity in a thread of its own.
 - **CPU:** the active-active difference is grpcio's polling threads. With active-standby ports, both are idle.
 - **Latency:** Python's single request loop makes the healthy ports wait for the 4 hanging ones' 0.5 s deadlines, and initializes ports one after another. Probe latency is the fake cable's round trip for both.
@@ -1240,6 +1244,7 @@ Until the harness of [#915](https://github.com/sonic-net/sonic-platform-daemons/
 - **KVM, with each implementation:**
   - active-standby: the `dualtor` set of sonic-mgmt's `pr_test_scripts.yaml`, which sonic-buildimage's PR check `kvmtest-dualtor-t0` runs on the `dualtor` topology with the mux simulator
   - active-active, which has no upstream KVM PR check: `vms-kvm-dual-vpp-t0-2` (`dualtor-aa-vpp`, with nic_simulator) or `vms-kvm-dual-mixed` (`dualtor-mixed`)
+- **A SoC unreachable from boot** (active-active, with each implementation): make one SoC unreachable, reboot, run `dualtor_io` on the other ports, then make the SoC reachable again. The other ports must match the baseline, and linkmgrd must see the recovered port's state within 10 s, one sync-up interval, of when it does with Python. This bounds the delay of fewer `failure` writes ([Section 4.3.4](#434-soc-grpc-client)); safety does not depend on it.
 - **By hand:** CLI commands that no suite runs, such as firmware download, activate and rollback with an image the vendor has approved, and PRBS and loopback.
 
 ### 6.5 Performance, fault and soak tests
@@ -1253,6 +1258,7 @@ Until the harness of [#915](https://github.com/sonic-net/sonic-platform-daemons/
 - All unit, parity and black-box tests pass. The black-box tests pass on both implementations.
 - On each physical testbed, the dualtor suite results with Rust match the Python baseline over 3 runs, and every difference has a known cause. The log analyzer reports nothing new.
 - The targets in [Section 2.3](#23-non-functional) are met, or the reviewers accept the difference.
+- On a physical active-active testbed, ycabled-rs meets N4, and after a cold boot it takes no longer than Python to publish each port's first `active` or `standby` ([Section 5.2](#52-how-to-measure)), or the reviewers accept the difference.
 - The soak run has no restarts, no growth in memory and no port stuck in `unknown`.
 
 ## 7 Rollout and migration
@@ -1260,7 +1266,7 @@ Until the harness of [#915](https://github.com/sonic-net/sonic-platform-daemons/
 | Phase | What | Exit criteria |
 | --- | --- | --- |
 | 0 | Merge the crate, the package and the supervisord switch, with `use_rust_ycabled` off everywhere | CI passes; the image builds on all platforms |
-| 1 | KVM dualtor tests with both implementations ([Section 6.4](#64-system-tests)); acceptance on the physical testbeds | [Section 6.6](#66-acceptance-criteria) |
+| 1 | KVM dualtor tests with both implementations ([Section 6.4](#64-system-tests)); acceptance on the physical testbeds | [Section 6.6](#66-acceptance-criteria), including memory and boot time on a physical active-active testbed |
 | 2 | Turn on in the nightly dualtor test plans | 4 weeks without regressions caused by ycabled |
 | 3 | Turn on by default for the dualtor HwSKUs, in their device files | Release sign-off |
 | 4 | Retire Python ycabled, one release after phase 3 | Agreement of the owners |
@@ -1272,16 +1278,16 @@ Changes to Python ycabled during phases 0-3 must be made in both implementations
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | The shared framework ([#915](https://github.com/sonic-net/sonic-platform-daemons/pull/915), [#29860](https://github.com/sonic-net/sonic-buildimage/pull/29860)) changes or merges late | Rework, or a blocked merge | Keep ycabled's dependency on pmon-common narrow. If needed, build in a workspace of its own as [#936](https://github.com/sonic-net/sonic-platform-daemons/pull/936) does, and move later. |
-| tonic's connections behave differently from grpc-core's connectivity states | linkmgrd sees `failure` at different times | Connector wrapper and state machine ([Section 4.3.4](#434-soc-grpc-client)); parity tests with a fault-injecting SoC double; fall back to the grpcio crate if the gap cannot be closed |
+| tonic's connections behave differently from grpc-core's connectivity states | linkmgrd sees `failure` at different times, so a probe can come up to 10 s later ([Section 4.3.4](#434-soc-grpc-client)) | Connector wrapper and state machine ([Section 4.3.4](#434-soc-grpc-client)); parity tests with a fault-injecting SoC double; fall back to the grpcio crate if the gap cannot be closed |
 | Embedded Python: the GIL, drivers that start threads or call `openlog`, signal handling | Hangs, or a changed log identity | Interpreter without signal handlers; logging owned by the bridge; a worker pool and a watchdog |
 | Python ycabled keeps changing | The Rust version falls behind | Parity tests in CI; changes made in both until Python is retired; freeze Python before phase 3 |
-| `TRANSCEIVER_INFO` as the active-active presence source (D3) | Different behavior while xcvrd has not posted yet | Insertion events are already handled; parity test with a late `TRANSCEIVER_INFO`; fall back to the platform API |
+| `TRANSCEIVER_INFO` as the active-active presence source (D3) | Different behavior while xcvrd has not posted yet | Insertion events are already handled; parity test with a late `TRANSCEIVER_INFO`; measure the boot delay on hardware, a phase 1 exit criterion ([Section 6.6](#66-acceptance-criteria)); fall back to the platform API |
 | Access to physical testbeds and cables from several vendors | Acceptance takes longer | Book the testbeds early; test day to day on the KVM testbeds ([Section 6.4](#64-system-tests)) |
 | Review bandwidth: the Rust pmon PRs have been open since September 2026 | Slow merges | Small PRs, one per component; coordinate with the owners of the Rust pmon daemons |
 
 ## 9 Open questions
 
-1. Is STATE_DB `TRANSCEIVER_INFO` acceptable as the presence source for active-active ports (D3), or must presence come from the platform API?
+1. Is STATE_DB `TRANSCEIVER_INFO` acceptable as the presence source for active-active ports (D3), or must presence come from the platform API? The boot measurement of [Section 5.2](#52-how-to-measure) informs the answer.
 2. Should vendor drivers be reached through a ycabled-local bridge, or through a Y-cable facade added to sonic-platform-common's generated platform API ([#768](https://github.com/sonic-net/sonic-platform-common/pull/768))?
 3. gRPC: tonic with derived connectivity states (D5), or the grpcio crate, which uses grpc-core? Its semantics would be closer to Python's, though not identical: its last release (0.13.0, August 2023) has C core 1.56, and Python ycabled requires grpcio 1.71.
 4. Which issues in [Section 3.7](#37-known-issues) should be fixed in Python too? ycabled-rs ships with the fixes ([Section 4.5](#45-deliberate-behavior-differences)), so the port does not wait for them, but Python stays the default until phase 3 of [Section 7](#7-rollout-and-migration). The P0 issues (17, 18, 20 and 24) are the first candidates.
@@ -1289,7 +1295,7 @@ Changes to Python ycabled during phases 0-3 must be made in both implementations
 6. Is keeping the tables on stop (C7), which is what Python does in practice, the intended behavior, rather than deleting them as `deinit()` was written to do?
 7. Is `pmon_daemon_control.json` enough to select the implementation, or do labs need an override that does not edit device files?
 8. When should Python ycabled be retired after Rust becomes the default?
-9. GracefulRestart `tor`: Python sends `UPPER_TOR` from the lower ToR (read_side 0) and `LOWER_TOR` from the upper ToR. That is the opposite of the ToR names and of the enum's values, which follow the port ids (`LOWER_TOR = 0`, `UPPER_TOR = 1`). The proto does not define the sides, and sonic-mgmt's NIC simulator does not implement the service. Which side does the SoC expect? Until its owners confirm, ycabled-rs sends what Python sends.
+9. GracefulRestart `tor`: Python sends `UPPER_TOR` from the lower ToR (read_side 0) and `LOWER_TOR` from the upper ToR. That is the opposite of the ToR names and of the enum's values, which follow the port ids (`LOWER_TOR = 0`, `UPPER_TOR = 1`). The proto does not define the sides, and sonic-mgmt's NIC simulator does not implement the service. Which side does the SoC expect? Until its owners confirm, ycabled-rs sends what Python sends. Owner: Longxiang Lyu, with the owners of the SoC's gRPC service; to be answered before phase 2 of [Section 7](#7-rollout-and-migration).
 10. Is inserting or removing a cable, or changing `MUX_CABLE`, after ycabled starts a supported scenario? Python ycabled has a thread for cable insertion and removal, but the issues in [Section 3.7.5](#375-cable-insertion-and-removal-after-startup) show that this path is incomplete. If the procedure for replacing a cable restarts ycabled instead, those issues need no Python fix; 18 and 24 still do, for startup. ycabled-rs handles these changes either way.
 
 ## 10 References
