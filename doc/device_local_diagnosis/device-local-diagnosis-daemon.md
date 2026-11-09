@@ -918,6 +918,12 @@ normal child processes in the same systemd cgroup. CPU, memory, and task
 accounting are enabled. Full memory-pressure, swap, and group-OOM behavior
 requires the corresponding cgroup-v2 controllers on the target image.
 
+These limits do not cover generic Healthz packaging and catalog work in the
+separate shared `sonic-hostservice.service`. That service retains its own host
+policy; qualify its CPU, memory, and metadata latency independently during
+artifact collection. DLDD's cgroup is not a budget for the complete artifact
+pipeline.
+
 | Setting | Default | Effect |
 | --- | --- | --- |
 | `CPUQuota` | `100%` | Aggregate CPU-time ceiling equivalent to one logical CPU, not all host CPUs. |
