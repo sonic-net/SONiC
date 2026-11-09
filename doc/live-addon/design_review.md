@@ -208,7 +208,8 @@ The detected bundle format selects the validator and approved installation
 tooling: Debian package tools, `tar`, or `unzip`. A declared/detected format
 mismatch fails the build.
 
-Static control and payload inspection can occur before image generation.
+Before building the image, the framework can check the package metadata and
+files without installing the package or running vendor code.
 Debian checks requiring the installed package database or dependency solver run
 in a SONiC-owned validation stage based on the approved base image:
 
