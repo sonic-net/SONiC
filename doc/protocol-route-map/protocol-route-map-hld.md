@@ -139,11 +139,11 @@ A second common use case, made possible by the accompanying `set_src` route-map 
 | Component | Repository / file | Purpose |
 |---|---|---|
 | YANG module | `sonic-yang-models/yang-models/sonic-protocol-route-map.yang` (new) | Schema for the `PROTOCOL_ROUTE_MAP` table. |
-| Route-map schema addition | `sonic-yang-models/yang-models/sonic-route-map.yang` (edit) | New `set_src` leaf on `ROUTE_MAP_SET_LIST` so a route-map can carry a `set src <addr>` clause via CONFIG_DB (feature parity with the traditional `RM_SET_SRC` behavior). |
+| Route-map schema addition | `sonic-yang-models/yang-models/sonic-route-map.yang` (edit) | New `set_src` leaf on `ROUTE_MAP_LIST` so a route-map can carry a `set src <addr>` clause via CONFIG_DB (feature parity with the traditional `RM_SET_SRC` behavior). |
 | Boot-render template | `dockers/docker-fpm-frr/frr/zebra/zebra.protocol_route_map.conf.j2` (new) | Walks the `PROTOCOL_ROUTE_MAP` CONFIG_DB table and emits `ip\|ipv6 protocol <PROTO> route-map <NAME>` grouped by VRF. |
 | frr.conf include | `sonic-frr-mgmt-framework/templates/frr/frr.conf.j2` (edit) | Pulls the template above into the `frrcfgd`-owned frr config. |
 | Route-map template render | `sonic-frr-mgmt-framework/templates/bgpd/bgpd.conf.db.route_map.j2` (edit) | Emit `set src <addr>` in the route-map body when `set_src` is populated. |
-| Runtime handler | `sonic-frr-mgmt-framework/frrcfgd/frrcfgd.py` (edit) | `protocol_route_map_handler` + `'PROTOCOL_ROUTE_MAP': ['mgmtd']` in `TABLE_DAEMON`; plus `set_src` entry in the route-map key map for runtime `set src <addr>` rendering. |
+| Runtime handler | `sonic-frr-mgmt-framework/frrcfgd/frrcfgd.py` (edit) | `protocol_route_map_handler` + `'PROTOCOL_ROUTE_MAP': ['mgmtd']` in `TABLE_DAEMON`; `ROUTE_MAP` and `PREFIX` lines also sent to `mgmtd` so they reach zebra; plus `set_src` entry in the route-map key map for runtime `set src <addr>` rendering. |
 
 ---
 
@@ -169,10 +169,8 @@ module sonic-protocol-route-map {
         type enumeration {
             enum any;
             enum bgp;
-            enum connected;
             enum eigrp;
             enum isis;
-            enum kernel;
             enum nhrp;
             enum ospf;
             enum ospf6;
@@ -180,7 +178,6 @@ module sonic-protocol-route-map {
             enum ripng;
             enum sharp;
             enum static;
-            enum table;
         }
     }
 
@@ -219,11 +216,13 @@ module sonic-protocol-route-map {
 }
 ```
 
-Additive edit to `sonic-route-map.yang`: a new `set_src` leaf on `ROUTE_MAP_SET_LIST` so an operator can define a route-map that stamps FIB installs with a specific source address (the classic `RM_SET_SRC` behavior, now expressible via CONFIG_DB):
+The `protocol` enum is the set of keywords FRR's `ip|ipv6 protocol` command accepts. FRR does not offer `kernel`, `connected`, `local` or `table` there (FRR commit fb8e399e4f, "Remove System routes from ip protocol route map choices"), so they are left out: a row naming one would pass YANG while FRR rejected the rendered line.
+
+Additive edit to `sonic-route-map.yang`: a new `set_src` leaf on `ROUTE_MAP_LIST` (the per-statement list keyed by route-map name and sequence number) so an operator can define a route-map that stamps FIB installs with a specific source address (the classic `RM_SET_SRC` behavior, now expressible via CONFIG_DB):
 
 ```yang
 leaf set_src {
-    type inet:ip-address;
+    type inet:ip-address-no-zone;
     description
         "Set the source IP address (IPv4 or IPv6) that zebra uses when
          installing matched routes into the kernel FIB. The address must
@@ -232,7 +231,7 @@ leaf set_src {
 }
 ```
 
-`inet:ip-address` is already imported by `sonic-route-map.yang`, so no new imports are required.
+`ietf-inet-types` is already imported by `sonic-route-map.yang`, so no new imports are required. The `-no-zone` type is used because FRR's `set src` rejects an address with a zone suffix (`fe80::1%Ethernet0`).
 
 ### 7.2 Boot-time Rendering (Jinja Template)
 
@@ -320,9 +319,15 @@ class BGPConfigDaemon:
 
 The handler is registered against `'mgmtd'` in `TABLE_DAEMON`, not `'zebra'`. The FRR `ip|ipv6 protocol <P> route-map <RM>` command is a `DEFPY_YANG`, which mgmtd's northbound owns; targeting `['zebra']` directly returns "Unknown command."
 
+zebra treats a bound route-map it does not have as deny-all, so binding before the route-map exists would drop every route of that protocol until it arrived (a `config load` can write `PROTOCOL_ROUTE_MAP` before `ROUTE_MAP`). The handler therefore holds a binding whose route-map `frrcfgd` has not pushed yet, and applies it from the `ROUTE_MAP` add path once the route-map is configured. A later update or delete of the row replaces or drops the held binding.
+
+A raw CONFIG_DB write skips YANG, so the handler also checks the key itself: a malformed key, an unsupported address family, an invalid VRF name, a protocol FRR does not accept for the address family, or a route-map name with spaces is logged and ignored.
+
 A per-key state cache (`self.protocol_route_map_state`) is populated from the initial CONFIG_DB table on startup. It lets DELETE emit the matching `no ip|ipv6 protocol <PROTO> route-map <NAME>` using the last-applied name (the CONFIG_DB row is already gone by the time the handler runs), and lets idempotent re-sets short-circuit. State is only advanced AFTER the vtysh command succeeds, so a transient failure leaves the cache in sync with FRR and the next event retries cleanly.
 
 The `frrcfgd` route-map key map is extended with a `set_src` entry so a runtime SET on `ROUTE_MAP` carrying a `set_src` field emits `set src <addr>` inside the route-map body. This mirrors the template-side change and makes the `set src` action available through both the boot and runtime paths.
+
+zebra's route-maps and prefix-lists are owned by mgmtd: zebra's own vty has no route-map or prefix-list commands. So `frrcfgd` sends `ROUTE_MAP` and `PREFIX` lines to `mgmtd` (alongside `bgpd` and `ospfd`), not to `zebra`. Otherwise a route-map created through CONFIG_DB would never reach zebra, and a `PROTOCOL_ROUTE_MAP` binding naming it would deny every route. `mgmtd` is last in those daemon lists, so a failed send to it cannot stop the line from reaching `bgpd` and `ospfd`. `set src` goes to `mgmtd` only; `match source-protocol` goes to both `bgpd` and `mgmtd`, since bgpd keeps its own copy of the route-map.
 
 ### 7.4 FRR Zebra Route-Map Evaluation
 
@@ -448,8 +453,8 @@ The feature relies on the same code path that already handles `route-map`, `pref
 
 Unit tests live alongside each touched component and cover:
 
-- **YANG model.** Positive load of valid `PROTOCOL_ROUTE_MAP` rows (default and named VRF, multiple AFI/protocol combinations); negative cases for leafref violations against `ROUTE_MAP_SET` / `VRF_LIST`, out-of-enum protocol values, the mandatory `route_map` constraint, and every AFI/protocol incompatibility enforced by the `must` expression. Positive test for a `ROUTE_MAP` row carrying `set_src`, and a negative test for a non-IP `set_src` value.
-- **`frrcfgd`.** For `protocol_route_map_handler`: exact `vtysh` command shape for SET and DELETE in default and non-default VRFs across both AFIs; idempotent re-set short-circuiting; upsert when the same key is re-bound to a different route-map; rejection of malformed CONFIG_DB keys, unsupported AFIs, and rows missing `route_map`; per-key state tracking so deleting one row leaves siblings intact; events routed via `mgmtd` (not `zebra`) per `TABLE_DAEMON`; the per-key state cache advanced only when the underlying vtysh invocation succeeds so transient failures stay retryable. For `set_src`: the route-map render emits `set src <addr>` exactly when the field is present.
+- **YANG model.** Positive load of valid `PROTOCOL_ROUTE_MAP` rows (default and named VRF, multiple AFI/protocol combinations); negative cases for leafref violations against `ROUTE_MAP_SET` / `VRF_LIST`, out-of-enum protocol values, the mandatory `route_map` constraint, and every AFI/protocol incompatibility enforced by the `must` expression. Positive tests for `ROUTE_MAP` rows carrying an IPv4 and an IPv6 `set_src`, and negative tests for a non-IP `set_src` value and one with a zone suffix.
+- **`frrcfgd`.** For `protocol_route_map_handler`: exact `vtysh` command shape for SET and DELETE in default and non-default VRFs across both AFIs; idempotent re-set short-circuiting; upsert when the same key is re-bound to a different route-map; rejection of malformed CONFIG_DB keys, unsupported AFIs, and rows missing `route_map`; per-key state tracking so deleting one row leaves siblings intact; events routed via `mgmtd` (not `zebra`) per `TABLE_DAEMON`; the per-key state cache advanced only when the underlying vtysh invocation succeeds so transient failures stay retryable; a binding held until its route-map is configured, then applied; rejection of invalid VRF names and of protocols FRR does not accept. For `set_src`: the route-map render emits `set src <addr>` exactly when the field is present, and the runtime line goes to `mgmtd`. The boot template is rendered for default and named VRFs, string and tuple keys, and an empty table.
 
 ### 11.2 sonic-mgmt Tests
 
