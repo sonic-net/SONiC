@@ -200,11 +200,6 @@ Network access may be used for documented dependency downloads. The script must
 not modify unrelated CI resources, access unrelated credentials, or require
 host-control privileges.
 
-The CI owner is responsible for providing an appropriately controlled execution
-environment, limiting resource use, and cleaning up build processes and
-temporary files. The framework validates the resulting artifact and fails the
-build on execution errors or invalid output.
-
 ### 5.3 Validation and layer-safe installation
 
 The framework enforces the format, payload, control metadata, and dependency

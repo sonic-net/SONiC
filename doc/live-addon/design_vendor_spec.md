@@ -162,7 +162,7 @@ directory, not the source tree, and must match exactly one file.
 The script must use documented, version-pinned build dependencies. Network
 access may be used for documented dependency downloads. The script must not
 modify unrelated CI resources, access unrelated credentials, or require
-host-control privileges. CI execution responsibilities are defined in
+host-control privileges. Build script isolation requirements are defined in
 [framework design section 5.2](./design_review.md#52-build-script-isolation).
 
 ## 5. Artifact, Payload, and Dependency Restrictions
