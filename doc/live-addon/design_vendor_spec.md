@@ -15,8 +15,10 @@ vendor contract. Release and runtime deployment settings are outside the vendor
 profile; [framework section 7.8](./design_review.md#78-kubernetes-deployment-boundary)
 defines the image's deployment interface.
 
-The vendor supplies source and declarative inputs, not the production Dockerfile
-or a prebuilt production image. A vendor may maintain a Dockerfile for its own
+The vendor may supply source or prebuilt binary artifacts with declarative
+integration inputs; proprietary program source is not required for binary-only
+integrations. The vendor does not supply the production Dockerfile or a prebuilt
+production image. A vendor may maintain a Dockerfile for its own
 development and testing, but the SONiC build does not use it to define the final
 image. SONiC owns the base image, installation policy, main Supervisor
 configuration, entrypoint, and generic HTTP health server.
@@ -28,16 +30,17 @@ Each integration is selected by `platform/<platform>.ini` under
 
 | Section | Vendor input |
 |---|---|
-| `[source]` | A repository-local source path or an external repository and revision |
-| `[vendor-build]` | Working directory and deterministic artifact build script |
+| `[source]` | A repository-local input path or an external input repository and revision |
+| `[vendor-build]` | Working directory and deterministic artifact preparation script (build or copy) |
 | `[artifact]` | Bundle format, output glob, approved installation root, and archive options |
 | `[supervisor]` | Explicit list of process configuration fragments; may be empty |
 | `[addon]` | Optional approved OS packages required by the integration |
 | `[manifest]` | Addon release identity and Feature Manager service/container values |
 | `[health]` | Startup, liveness, and readiness commands and execution limits |
 
-The source must contain the declared build script, Supervisor fragments, and
-the code or inputs needed to produce the artifact and installed health commands.
+The selected input directory must contain the declared script, Supervisor
+fragments, and either buildable source or a prebuilt artifact bundle, including
+the inputs needed to supply the installed health commands.
 The vendor does not supply a separate runtime `health.ini`, main
 `supervisord.conf`, raw manifest JSON, or container entrypoint.
 
@@ -87,6 +90,10 @@ defaults or an automatic grant of runtime privileges.
 
 ## 3. Source Selection
 
+`[source]` selects the integration input directory. It may contain source code
+or prebuilt binary bundles with their copy script and declarative configuration;
+it does not require access to proprietary program source.
+
 Use exactly one of the following forms.
 
 ### 3.1 Repository-local source
@@ -105,8 +112,8 @@ inside that repository. No separate Git checkout is performed.
 
 ### 3.2 External source
 
-Integrations that keep their source in a separate repository, including
-proprietary integrations, use:
+Integrations that keep their inputs in a separate repository, including
+proprietary source or prebuilt binary packages, use:
 
 ```ini
 [source]
@@ -122,15 +129,18 @@ final Docker context.
 The two forms are mutually exclusive. Both must satisfy the same artifact,
 Supervisor, health, and manifest contract. Repository-local source is not copied
 directly into the image.
-An external vendor supplies source, not a separately published artifact or
-Docker image. Optional private integrations must not become prerequisites of
-the public default build.
+A prebuilt binary bundle is permitted; a vendor-supplied production Docker image
+is not. Optional private integrations must not become prerequisites of the
+public default build.
 
 ## 4. Artifact Build Script
 
-Provide one deterministic, non-interactive artifact build script. The framework
-invokes it from the configured working directory and passes an absolute output
-directory:
+Provide one deterministic, non-interactive artifact preparation script through
+`build-script`. It may build from supplied source or simply copy the vendor's
+prebuilt package or archive into the output directory. A copy-only script does
+not require proprietary program source and is not an installation hook.
+The framework invokes it from the configured working directory and passes an
+absolute output directory:
 
 ```text
 ./build-live-addon-artifact.sh --output /workspace/vendor-artifacts
@@ -409,11 +419,11 @@ the declared service and privilege values.
 
 ## 9. Submission and Qualification
 
-A vendor integration PR supplies the reviewed platform profile, repository-local
-source or pinned external reference, artifact build script, declared Supervisor
-fragments, health commands, and integration tests. Additional source or toolchain
-prerequisites belong in normal reviewed Make rules and are activated only for
-the selected integration.
+A vendor integration PR supplies the reviewed platform profile, the location of
+source or prebuilt binary inputs, a build-or-copy preparation script, declared
+Supervisor fragments, health commands, and integration tests. Additional source
+or toolchain prerequisites belong in normal reviewed Make rules and are
+activated only for the selected integration.
 
 After normal SONiC build setup, the proposed selection is:
 

@@ -24,8 +24,9 @@ live-addon design defines how those inputs are incorporated into an image and
 managed at runtime. The proposed model is:
 
 - The SONiC community owns the final Dockerfile and image policy.
-- The vendor supplies source code, a deterministic artifact build script, and
-  declarative artifact installation metadata.
+- The vendor supplies source code or prebuilt binary artifacts, a deterministic
+  script to build or copy the artifact, and declarative installation metadata.
+  Binary-only integrations do not require disclosure of proprietary source code.
 - The vendor supplies an explicit set of platform-specific Supervisor program
   fragments.
 - The SONiC framework supplies the main Supervisor configuration and fixed
@@ -78,9 +79,9 @@ compatibility.
 |---|---|
 | Live-addon | The proposed container framework for vendor- or platform-specific diagnostics |
 | Framework | SONiC-owned build, validation, installation, supervision, and health infrastructure |
-| Vendor | Provider of the platform-specific source, programs, and declarative integration inputs |
+| Vendor | Provider of diagnostic source or prebuilt binaries and declarative integration inputs |
 | Platform profile | `platform/<platform>.ini`, selecting one integration independently of SONiC's ASIC/build `PLATFORM` |
-| Artifact bundle | The vendor build's package or archive, validated before installation |
+| Artifact bundle | A source-built or prebuilt vendor package or archive, validated before installation |
 | Supervisor | Process supervisor that runs as container PID 1 and manages the declared programs |
 | SBOM | Software Bill of Materials identifying the image's installed software |
 
@@ -96,9 +97,9 @@ The proposed integration should:
 4. Allow the vendor to control how its binaries are started without allowing
    it to replace the container's main Supervisor configuration.
 5. Provide a common health interface for Kubernetes probes.
-6. Support both repository-local and external proprietary source through one
-   platform configuration and build path.
-7. Pin external source revisions and verify every generated package.
+6. Support repository-local and external integration inputs, including
+   proprietary binary-only packages, through one platform configuration.
+7. Pin external input revisions and verify every artifact bundle.
 8. Preserve a clear path for vendor-specific dependencies and initialization.
 9. Build through normal SONiC Make targets, without a pipeline preparation
    step or a separate Python build orchestrator.
@@ -124,7 +125,7 @@ The proposed integration should:
 | Final production Dockerfile | Yes | No |
 | Base image | Yes | No |
 | OS package installation policy | Yes | Declares requirements |
-| Source and artifact build | Runs and validates | Provides |
+| Artifact preparation | Runs and validates | Supplies source or prebuilt binaries |
 | Artifact installation implementation | Owns and executes | Declares format and destination |
 | Main `/etc/supervisor/supervisord.conf` | Yes | No |
 | Supervisor program fragments | Validates and installs | Produces and declares |
@@ -150,6 +151,11 @@ artifact, validation, Supervisor, health, and image-generation path. Whether
 the source is stored in this repository or an external repository affects only
 how the framework resolves the source root.
 
+`[source]` locates integration inputs, not necessarily program source code.
+The artifact script may compile supplied source or simply copy a prebuilt binary
+bundle into the clean output directory. Both use the same sandbox, validation,
+and installation path; proprietary program source need not be provided.
+
 The profile schema and complete example are defined in
 [vendor specification section 2](./design_vendor_spec.md#2-integration-inputs-and-platform-configuration).
 Source selection, artifact production, and payload restrictions are defined in
@@ -164,8 +170,8 @@ input contract.
 1. Read and validate the selected profile before running source-provided code.
 2. Resolve a repository-local source path without a Git checkout, or fetch the
    external repository and record the concrete commit selected by its revision.
-3. Invoke the declared artifact build in the sandbox described below, passing
-   an absolute output directory from the framework.
+3. Invoke the declared artifact preparation script, whether build or copy, in
+   the sandbox described below, passing the framework's absolute output directory.
 4. Validate the resulting bundle and declared runtime configuration.
 5. Prepare the approved image inputs and install the validated bundle through
    the shared SONiC-owned Dockerfile.
@@ -664,7 +670,7 @@ This recipe does not build a separately managed `Dockerfile.buildinfo`.
 Do not add `# SKIP_HOOK`, copy a vendor Dockerfile,
 or duplicate the shared Docker build/save recipe.
 
-Make owns source acquisition, sandboxed artifact building, validation, and
+Make owns input acquisition, sandboxed artifact preparation, validation, and
 context preparation as explicit prerequisites of the image target. Small
 Python helpers may validate INI files, artifacts, paths and generated metadata;
 they do not render the final Dockerfile or invoke Make/Docker as a second build
@@ -727,7 +733,7 @@ Make resolves and validates the selected profile
               |
               +--> external vendor: fetch the declared repo and pinned ref
               |
-              +--> build the selected artifact in a sandbox
+              +--> build or copy the selected artifact in a sandbox
               +--> validate one bundle and declared runtime configuration
               +--> stage approved snapshot sources, locks and metadata
               |
@@ -741,6 +747,9 @@ target/docker-live-addon.gz + version records + final SBOM
 
 Declare configuration, source revision, artifact build inputs, validators,
 framework files, snapshot sources and locks as dependencies and cache inputs.
+Prebuilt bundle content digests are cache inputs too: changing a binary bundle
+must invalidate artifact and image outputs even if its path and profile are
+unchanged.
 Changing profiles, including switching back to `example`, must invalidate both
 the output archive and SONiC's image cache. Isolate staged inputs by profile,
 release and architecture, and prevent concurrent builds from modifying the
@@ -875,7 +884,8 @@ as their source of expected acceptance and rejection rules.
     configuration, and `package.name` matches the container name in
     `live-addon.vars`. The inspected `package.version` matches the declared
     `package-version`.
-18. Artifact builds follow the invocation and isolation contract in
+18. Artifact preparation, including copy-only scripts, follows the invocation
+    and isolation contract in
     [vendor specification section 4](./design_vendor_spec.md#4-artifact-build-script)
     and fail explicitly on errors.
 19. Artifact collection rejects missing or ambiguous output from the newly
@@ -912,6 +922,9 @@ as their source of expected acceptance and rejection rules.
     the default image. Switching between two vendors and back to `example`
     rebuilds the correct context, manifest and image without stale outputs or
     cross-profile cache reuse.
+29. A binary-only integration produces a validated image from a prebuilt bundle
+    and copy script without requiring proprietary program source. Replacing
+    that bundle invalidates the artifact and image caches.
 
 ---
 
