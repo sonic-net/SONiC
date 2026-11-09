@@ -15,8 +15,6 @@ This document describes a Rust implementation of ycabled, the dual ToR mux cable
 - the current design, workflows and DB contract of Python ycabled,
 - the design of Rust ycabled, its tests and its rollout.
 
-Two appendices give the details of Python ycabled: [its workflows](ycabled_python_workflows.md) (appendix A) and [its known issues](ycabled_python_known_issues.md) (appendix B).
-
 linkmgrd, orchagent, xcvrd, the `muxcable` CLI, the SoC gRPC services and the vendor Y-cable drivers do not change.
 
 ## Content
@@ -42,6 +40,16 @@ linkmgrd, orchagent, xcvrd, the `muxcable` CLI, the SoC gRPC services and the ve
     - [3.1 Position in the dual ToR system](#31-position-in-the-dual-tor-system)
     - [3.2 Threads and lifecycle](#32-threads-and-lifecycle)
     - [3.3 Workflows](#33-workflows)
+      - [3.3.1 Active-standby toggle](#331-active-standby-toggle)
+      - [3.3.2 Active-standby probe](#332-active-standby-probe)
+      - [3.3.3 Active-active toggle (self and peer)](#333-active-active-toggle-self-and-peer)
+      - [3.3.4 Active-active forwarding state probe](#334-active-active-forwarding-state-probe)
+      - [3.3.5 gRPC channel lifecycle](#335-grpc-channel-lifecycle)
+      - [3.3.6 GracefulRestart](#336-gracefulrestart)
+      - [3.3.7 Cable insertion and removal](#337-cable-insertion-and-removal)
+      - [3.3.8 Telemetry](#338-telemetry)
+      - [3.3.9 CLI commands](#339-cli-commands)
+      - [3.3.10 Runtime knobs](#3310-runtime-knobs)
     - [3.4 External interfaces](#34-external-interfaces)
       - [3.4.1 SoC gRPC service](#341-soc-grpc-service)
       - [3.4.2 Vendor Y-cable drivers](#342-vendor-y-cable-drivers)
@@ -54,6 +62,12 @@ linkmgrd, orchagent, xcvrd, the `muxcable` CLI, the SoC gRPC services and the ve
       - [3.5.5 CLI command tables](#355-cli-command-tables)
     - [3.6 Existing tests](#36-existing-tests)
     - [3.7 Known issues](#37-known-issues)
+      - [3.7.1 Found by reading the code](#371-found-by-reading-the-code)
+      - [3.7.2 Found by the black-box tests](#372-found-by-the-black-box-tests)
+      - [3.7.3 State the threads share](#373-state-the-threads-share)
+      - [3.7.4 Found by reviewing the unit tests](#374-found-by-reviewing-the-unit-tests)
+      - [3.7.5 Cable insertion and removal after startup](#375-cable-insertion-and-removal-after-startup)
+      - [3.7.6 Tests that reproduce the issues](#376-tests-that-reproduce-the-issues)
     - [3.8 Current design improvements](#38-current-design-improvements)
   - [4 Rust design](#4-rust-design)
     - [4.1 Design decisions](#41-design-decisions)
@@ -249,7 +263,7 @@ A switchover runs through every component in the loop:
 
 | Thread | Started | Waits on | Work |
 | --- | --- | --- | --- |
-| main (`DaemonYcable`) | always | stop event, 60 s timeout | Initializes every mux port, as for a cable insertion ([Section 3.3.7](ycabled_python_workflows.md#337-cable-insertion-and-removal)). Every 60 s, checks that the threads are alive; if one has ended it SIGKILLs its own process. |
+| main (`DaemonYcable`) | always | stop event, 60 s timeout | Initializes every mux port, as for a cable insertion ([Section 3.3.7](#337-cable-insertion-and-removal)). Every 60 s, checks that the threads are alive; if one has ended it SIGKILLs its own process. |
 | `YcableInfoUpdateTask` | always | 60 s timer | `MUX_CABLE_INFO` of every mux port, one after another, unless telemetry is disabled |
 | `YcableStateUpdateTask` | always | STATE_DB `TRANSCEIVER_INFO` (select, 100 ms timeout) | Cable insertion and removal |
 | `YCableTableUpdateTask` | if any mux cable is found at startup | APPL_DB `HW_MUX_CABLE_TABLE`, `MUX_CABLE_COMMAND_TABLE`, `FORWARDING_STATE_COMMAND`, `HW_FORWARDING_STATE_PEER` (select, 1 s) | Toggles, probes and peer toggles, one at a time |
@@ -259,18 +273,309 @@ A switchover runs through every component in the loop:
 
 ### 3.3 Workflows
 
-[Appendix A](ycabled_python_workflows.md) describes each workflow of Python ycabled, with what it writes on success and on failure:
+#### 3.3.1 Active-standby toggle
 
-- [3.3.1 Active-standby toggle](ycabled_python_workflows.md#331-active-standby-toggle)
-- [3.3.2 Active-standby probe](ycabled_python_workflows.md#332-active-standby-probe)
-- [3.3.3 Active-active toggle (self and peer)](ycabled_python_workflows.md#333-active-active-toggle-self-and-peer)
-- [3.3.4 Active-active forwarding state probe](ycabled_python_workflows.md#334-active-active-forwarding-state-probe)
-- [3.3.5 gRPC channel lifecycle](ycabled_python_workflows.md#335-grpc-channel-lifecycle)
-- [3.3.6 GracefulRestart](ycabled_python_workflows.md#336-gracefulrestart)
-- [3.3.7 Cable insertion and removal](ycabled_python_workflows.md#337-cable-insertion-and-removal)
-- [3.3.8 Telemetry](ycabled_python_workflows.md#338-telemetry)
-- [3.3.9 CLI commands](ycabled_python_workflows.md#339-cli-commands)
-- [3.3.10 Runtime knobs](ycabled_python_workflows.md#3310-runtime-knobs)
+1. orchagent writes APPL_DB `HW_MUX_CABLE_TABLE:<port>` `state` = `active` or `standby`.
+2. ycabled reads `read_side` from STATE_DB `HW_MUX_CABLE_TABLE` and calls `toggle_mux_to_tor_a()` (upper ToR) or `toggle_mux_to_tor_b()` (lower ToR): active with read_side 1 means the upper ToR, active with read_side 2 means the lower ToR, and standby means the other one. If read_side is not 1 or 2, it calls `get_read_side()` first.
+3. It writes STATE_DB `MUX_METRICS_TABLE` `xcvrd_switch_<state>_start` and `_end`, then STATE_DB `HW_MUX_CABLE_TABLE` `state`, `read_side` and `active_side`. The mux direction is not read back after the toggle.
+   - **Success:** `state` is the requested state, `active_side` the side the mux was toggled to (1 for the upper ToR, 2 for the lower ToR), and `read_side` is unchanged.
+   - **Failure:** the driver returns anything but `True`, raises, or the port has no driver. `state` is `unknown`, in the metrics field names too (`xcvrd_switch_unknown_start` and `_end`), and `active_side` is -1. `read_side` keeps its value, unless the cable is absent or its read side had to be read again and could not be; then it is -1 too. Nothing is retried.
+
+```mermaid
+sequenceDiagram
+    participant L as linkmgrd
+    participant O as orchagent
+    participant Y as ycabled (YCableTableUpdateTask)
+    participant P as Platform API
+    participant D as Vendor driver and Y-cable
+    L->>O: APPL_DB MUX_CABLE_TABLE Ethernet0 state=standby
+    Note over O: MuxCableOrch reprograms neighbors and routes
+    O->>Y: APPL_DB HW_MUX_CABLE_TABLE Ethernet0 state=standby
+    Y->>Y: read_side from STATE_DB HW_MUX_CABLE_TABLE
+    Y->>P: get_presence()
+    opt read_side is not 1 or 2
+        Y->>D: get_read_side()
+    end
+    Y->>D: toggle_mux_to_tor_a() or toggle_mux_to_tor_b()
+    D-->>Y: True or False
+    Note over Y: STATE_DB MUX_METRICS_TABLE<br/>xcvrd_switch_standby_start, xcvrd_switch_standby_end
+    Y-->>O: STATE_DB HW_MUX_CABLE_TABLE state=standby<br/>(unknown if absent or failed), read_side, active_side
+    Note over O: MuxStateOrch compares it with its own state
+    O-->>L: STATE_DB MUX_CABLE_TABLE state=standby (unknown if they differ)
+```
+
+#### 3.3.2 Active-standby probe
+
+linkmgrd writes APPL_DB `MUX_CABLE_COMMAND_TABLE:<port>` `command=probe`. ycabled reads `read_side` from STATE_DB `HW_MUX_CABLE_TABLE`, calls `get_mux_direction()`, and writes APPL_DB `MUX_CABLE_RESPONSE_TABLE` `response`:
+
+- **Success:** the direction is 1 or 2. `response` is `active` if it equals read_side, `standby` if not.
+- **Failure:** the cable is absent, the port has no driver, or `get_mux_direction()` raises or returns anything but 1 or 2. `response` is `unknown`. Nothing is retried.
+- **Read side not 1 or 2:** 0 (the NIC side) or -1 (not readable) never equals the direction, so `response` is `standby` (issue 31 in [Section 3.7](#37-known-issues)).
+- **Ignored:** a command other than `probe`, or a port without a STATE_DB `HW_MUX_CABLE_TABLE` entry. Nothing is written.
+
+```mermaid
+sequenceDiagram
+    participant L as linkmgrd
+    participant Y as ycabled (YCableTableUpdateTask)
+    participant P as Platform API
+    participant D as Vendor driver and Y-cable
+    L->>Y: APPL_DB MUX_CABLE_COMMAND_TABLE Ethernet0 command=probe
+    Y->>Y: read_side from STATE_DB HW_MUX_CABLE_TABLE
+    Y->>P: get_presence()
+    Y->>D: get_mux_direction()
+    D-->>Y: 1 (upper ToR) or 2 (lower ToR)
+    Y-->>L: APPL_DB MUX_CABLE_RESPONSE_TABLE Ethernet0<br/>response=active if it equals read_side, else standby (unknown on error)
+```
+
+#### 3.3.3 Active-active toggle (self and peer)
+
+- **Self:** APPL_DB `HW_MUX_CABLE_TABLE:<port>` `state` → `SetAdminForwardingPortState(portid=[read_side], state=[1 or 0])`, with read_side from STATE_DB `HW_MUX_CABLE_TABLE`.
+- **Peer:** APPL_DB `HW_FORWARDING_STATE_PEER:<port>` `state` → the same with `portid=[1 - read_side]`, with read_side from STATE_DB `HW_MUX_CABLE_TABLE_PEER`.
+- **Written:** STATE_DB `MUX_METRICS_TABLE` `xcvrd_switch_self_<state>_start` and `_end` (`peer` for a peer toggle), then `state`, `read_side` and `active_side` in the STATE_DB table read_side came from. `read_side` is written back unchanged. Unlike active-standby, `active_side` is the state the SoC reports, not a side number.
+- **Success:** the reply names the requested port id. `state` is the requested state, and `active_side` the reported one, `active` or `standby`. If the SoC reports the opposite of the request, `state` is still the requested one.
+- **Failure:** the RPC fails or reaches its 0.5 s deadline, or the reply is empty or names another port id. `state` and `active_side` are `unknown`, in the metrics field names too (`xcvrd_switch_self_unknown_start` and `_end`). Nothing is retried.
+- **No channel:** ycabled tries once to set it up again. If that fails, it writes the same as for a failed RPC, without calling the SoC.
+- **Read side -1** (no usable Loopback3): the request still goes to the SoC, with port id -1, or 2 for the peer (issue 30).
+- **Ignored:** a state other than `active` or `standby`, or a port without an entry in the table. Nothing is written.
+
+```mermaid
+sequenceDiagram
+    participant L as linkmgrd
+    participant O as orchagent
+    participant Y as ycabled (YCableTableUpdateTask)
+    participant S as NIC SoC
+    alt Self toggle
+        L->>O: APPL_DB MUX_CABLE_TABLE Ethernet0 state=standby
+        O->>Y: APPL_DB HW_MUX_CABLE_TABLE Ethernet0 state=standby
+        Y->>Y: read_side from STATE_DB HW_MUX_CABLE_TABLE
+        Y->>S: SetAdminForwardingPortState(portid=[read_side], state=[0])
+        S-->>Y: AdminReply(portid, state)
+        Note over Y: STATE_DB MUX_METRICS_TABLE xcvrd_switch_self_standby_*
+        Y-->>O: STATE_DB HW_MUX_CABLE_TABLE state, read_side, active_side
+        O-->>L: STATE_DB MUX_CABLE_TABLE state
+    else Peer toggle
+        L->>Y: APPL_DB HW_FORWARDING_STATE_PEER Ethernet0 state=standby
+        Y->>Y: read_side from STATE_DB HW_MUX_CABLE_TABLE_PEER
+        Y->>S: SetAdminForwardingPortState(portid=[1 - read_side], state=[0])
+        S-->>Y: AdminReply(portid, state)
+        Note over Y: STATE_DB MUX_METRICS_TABLE xcvrd_switch_peer_standby_*
+        Y-->>L: STATE_DB HW_MUX_CABLE_TABLE_PEER state, read_side, active_side
+    end
+    Note over Y,S: No channel: set it up again once, otherwise write unknown
+```
+
+Because one thread handles every port, a SoC that does not answer delays the toggles of the other ports:
+
+```mermaid
+sequenceDiagram
+    participant L as linkmgrd
+    participant O as orchagent
+    participant Y as ycabled (YCableTableUpdateTask)
+    participant S0 as SoC of Ethernet0 (not responding)
+    participant S4 as SoC of Ethernet4
+    L->>O: APPL_DB MUX_CABLE_TABLE Ethernet0, Ethernet4 = standby
+    O->>Y: APPL_DB HW_MUX_CABLE_TABLE Ethernet0 = standby
+    O->>Y: APPL_DB HW_MUX_CABLE_TABLE Ethernet4 = standby
+    Y->>S0: SetAdminForwardingPortState
+    Note over Y,S0: thread blocked until the 0.5 s deadline
+    Y-->>O: STATE_DB HW_MUX_CABLE_TABLE Ethernet0 = unknown
+    Y->>S4: SetAdminForwardingPortState (0.5 s late)
+    S4-->>Y: reply
+    Y-->>O: STATE_DB HW_MUX_CABLE_TABLE Ethernet4 = standby
+    O-->>L: STATE_DB MUX_CABLE_TABLE Ethernet4 = standby
+```
+
+#### 3.3.4 Active-active forwarding state probe
+
+linkmgrd writes APPL_DB `FORWARDING_STATE_COMMAND:<port>` `command=probe`. ycabled reads `read_side` from STATE_DB `HW_MUX_CABLE_TABLE`, calls `QueryAdminForwardingPortState(portid=[0, 1], state=[0, 0])`, and writes APPL_DB `FORWARDING_STATE_RESPONSE` `response` for this ToR and `response_peer` for the peer:
+
+- **Success:** the reply has two port ids and two states. `response` is `active` if `state[read_side]` is true and `standby` if it is false, and `response_peer` likewise from `state[1 - read_side]`. The port ids in the reply are not checked.
+- **Failure:** the RPC fails or reaches its 0.5 s deadline, or the reply does not have two port ids and two states. Both are `unknown`. Nothing is retried.
+- **No channel:** ycabled tries once to set it up again. If that fails, both are `unknown`, without calling the SoC.
+- **Read side -1** (no usable Loopback3): the RPC is still made, and both are `unknown`.
+- **Probe counters:** every RPC, successful or not, increments the counters that telemetry publishes in `MUX_CABLE_INFO`.
+- **Ignored:** a command other than `probe`, or a port without a STATE_DB `HW_MUX_CABLE_TABLE` entry. Nothing is written.
+
+```mermaid
+sequenceDiagram
+    participant L as linkmgrd
+    participant Y as ycabled (YCableTableUpdateTask)
+    participant S as NIC SoC
+    L->>Y: APPL_DB FORWARDING_STATE_COMMAND Ethernet0 command=probe
+    Y->>Y: read_side from STATE_DB HW_MUX_CABLE_TABLE
+    Y->>S: QueryAdminForwardingPortState(portid=[0, 1])
+    S-->>Y: AdminReply(state=[ToR 0, ToR 1])
+    Y-->>L: APPL_DB FORWARDING_STATE_RESPONSE Ethernet0<br/>response=state[read_side], response_peer=state[1 - read_side]
+    Note over Y: The probe counters that telemetry<br/>publishes in MUX_CABLE_INFO go up by one
+```
+
+#### 3.3.5 gRPC channel lifecycle
+
+- **Target:** `soc_ipv4` from `MUX_CABLE`, or `soc_ipv6` if there is no IPv4 address, without the prefix length. IPv6 is written as `[addr]:50075`.
+- **Creation:** channels are created at startup, when a cable is inserted, and by a toggle or probe of a port without one, which tries once. They are not recreated when CONFIG_DB changes.
+- **Connectivity:** a callback records every state change (`READY`, `CONNECTING`, `IDLE`, `TRANSIENT_FAILURE`, `SHUTDOWN`) for `MUX_CABLE_INFO.grpc_connection_status`. On `TRANSIENT_FAILURE` or `IDLE` it also writes APPL_DB `FORWARDING_STATE_RESPONSE` `response=failure`, which linkmgrd handles as a connection failure.
+
+```mermaid
+sequenceDiagram
+    participant Y as ycabled
+    participant G as grpcio channel
+    participant S as NIC SoC
+    participant L as linkmgrd
+    Note over Y: At startup, on insertion, or at the first<br/>toggle or probe of a port without a channel
+    Y->>Y: target soc_ipv4 (or soc_ipv6) port 50075 from CONFIG_DB MUX_CABLE,<br/>TLS settings from CONFIG_DB GRPCCLIENT
+    Y->>G: create the channel, subscribe to connectivity changes
+    G->>S: connect on the first RPC
+    loop every connectivity change
+        G-->>Y: callback(state), on a grpcio thread
+        Note over Y: grpc_connection_status = state, published in MUX_CABLE_INFO
+        opt TRANSIENT_FAILURE or IDLE
+            Y-->>L: APPL_DB FORWARDING_STATE_RESPONSE Ethernet0 response=failure
+        end
+    end
+```
+
+#### 3.3.6 GracefulRestart
+
+For each `MUX_CABLE` port with a SoC address (active-standby ports too, once any port is active-active), ycabled calls `NotifyGracefulRestartStart(tor)`, with `tor` = `UPPER_TOR` if read_side is 0 and `LOWER_TOR` otherwise, and reads the stream. When the stream ends, it waits `period` seconds from the last response (20 s if there was none or the call failed) and subscribes again. Responses are only logged; nothing is written to the DB.
+
+```mermaid
+sequenceDiagram
+    participant Y as ycabled (YCableAsyncNotificationTask)
+    participant S as NIC SoC
+    Note over Y: One asyncio client per MUX_CABLE port with a SoC address
+    loop forever
+        Y->>S: NotifyGracefulRestartStart(tor)<br/>tor = UPPER_TOR if read_side is 0, else LOWER_TOR
+        loop while the stream lasts
+            S-->>Y: GracefulAdminResponse(guid, msgtype, notifytype, period)
+            Note over Y: logged only
+        end
+        Note over Y,S: The stream is over, or the call failed
+        Y->>Y: wait period of the last response, 20 s if there was none
+    end
+```
+
+#### 3.3.7 Cable insertion and removal
+
+ycabled subscribes to STATE_DB `TRANSCEIVER_INFO`, written by xcvrd:
+
+- **SET (inserted):** ignored if the port's driver is already initialized ([#882](https://github.com/sonic-net/sonic-platform-daemons/pull/882)); otherwise the port is initialized as at startup, with its cable type read again from CONFIG_DB `MUX_CABLE`.
+- **DEL (removed):** STATE_DB `HW_MUX_CABLE_TABLE` gets `state=unknown` and `active_side=-1`, and the driver instance is dropped. `MUX_CABLE_INFO` and `MUX_CABLE_STATIC_INFO` are kept.
+
+```mermaid
+sequenceDiagram
+    participant X as xcvrd
+    participant Y as ycabled (YcableStateUpdateTask)
+    participant P as Platform API
+    participant D as Vendor driver and Y-cable
+    participant S as NIC SoC
+    participant T as STATE_DB
+    alt Inserted
+        X->>Y: STATE_DB TRANSCEIVER_INFO Ethernet0 SET
+        alt Driver already initialized
+            Note over Y: ignored
+        else active-standby
+            Y->>P: get_presence(), get_transceiver_info()
+            Note over Y: vendor and model select the driver module
+            Y->>D: create the driver, get_vendor()
+            Y->>D: get_read_side(), get_mux_direction()
+            Y->>T: HW_MUX_CABLE_TABLE, MUX_CABLE_STATIC_INFO,<br/>and MUX_CABLE_INFO for the first cable
+        else active-active
+            Note over Y: nothing more if the port already has a channel (issue 21)
+            Y->>S: create the channel, QueryAdminForwardingPortState
+            Y->>T: HW_MUX_CABLE_TABLE, HW_MUX_CABLE_TABLE_PEER, placeholder MUX_CABLE_INFO
+        end
+    else Removed
+        X->>Y: STATE_DB TRANSCEIVER_INFO Ethernet0 DEL
+        Y->>T: HW_MUX_CABLE_TABLE state=unknown, active_side=-1
+        Note over Y: drop the driver, keep<br/>MUX_CABLE_INFO and MUX_CABLE_STATIC_INFO
+    end
+```
+
+#### 3.3.8 Telemetry
+
+Every 60 s after the previous pass ends, for every port whose `MUX_CABLE.state` is valid, unless `XCVRD_LOG|Y_CABLE.disable_telemetry` is `True`:
+
+- **active-standby:** 27 `MUX_CABLE_INFO` fields from the vendor driver (mux direction, switch counts, eye heights, temperatures, voltages, link status, firmware versions). If the port has no driver, nothing is written, and ERR "Error: Could not get port instance for muxcable info for Y cable port \<port\>" is logged. While a firmware download runs on the port, the firmware versions are copied from what `MUX_CABLE_INFO` already holds instead of being read from the cable; the other fields are still read from the cable.
+- **active-active:** 4 RPCs (`QueryLinkState`, `QueryOperationPortState`, `QueryAdminForwardingPortState`, `QueryServerVersion`) fill 15 `MUX_CABLE_INFO` fields. The probe counters written are the counts before this pass, `unknown` until the first query of that kind.
+- **Cable absent (either type):** the 27 active-standby fields are written with placeholder values (`unknown` or `N/A`).
+
+`MUX_CABLE_STATIC_INFO` (read_side and 30 cursor values, active-standby only) is written at initialization only.
+
+```mermaid
+sequenceDiagram
+    participant Y as ycabled (YcableInfoUpdateTask)
+    participant D as Vendor driver and Y-cable
+    participant S as NIC SoC
+    participant T as STATE_DB MUX_CABLE_INFO
+    loop 60 s after the previous pass
+        loop each port whose MUX_CABLE state is valid, unless telemetry is disabled
+            alt Cable absent
+                Y->>T: 27 active-standby fields with placeholder values
+            else active-standby
+                Y->>D: mux direction, switch counts, eye heights, temperatures,<br/>voltages, link status, firmware versions
+                D-->>Y: values
+                Y->>T: 27 active-standby fields
+            else active-active
+                Y->>S: QueryLinkState, QueryOperationPortState,<br/>QueryAdminForwardingPortState, QueryServerVersion
+                S-->>Y: replies
+                Y->>T: 15 active-active fields
+            end
+        end
+    end
+    Note over Y,D: During a firmware download, the versions<br/>come from MUX_CABLE_INFO, not the cable
+```
+
+#### 3.3.9 CLI commands
+
+1. The CLI deletes old entries in the command, argument, response and result tables of the command.
+2. For some commands, it writes the arguments to APPL_DB `<CMD>_ARG:<port>`.
+3. It writes APPL_DB `<CMD>:<port>` with `<command field>=<value>`.
+4. It waits on STATE_DB `<RSP>|<port>` for the response field, with a timeout of 1 s to 1000 s depending on the command.
+5. ycabled calls the vendor driver. For an active-active `hwmode muxdirection` it answers the state it last published in STATE_DB `HW_MUX_CABLE_TABLE`, and asks the SoC only if there is none. It writes any result rows to STATE_DB `<RES>|<port>`, then the response field, then deletes the command key.
+
+**Firmware versions during a download:** the vendor driver sets its `download_firmware_status` attribute to in progress when `download_firmware()` starts, and to finished or failed when it ends; ycabled only reads it. While it is in progress, `show muxcable firmware version` and telemetry ([Section 3.3.8](#338-telemetry)) do not call `get_firmware_version()`. They answer the nine `version_<nic|self|peer>_<active|inactive|next>` fields from STATE_DB `MUX_CABLE_INFO`: `N/A` if the port has no entry, `None` for a missing field. The values are therefore those of the last telemetry pass before the download. The command still reads the read side from the cable, to tell self from peer. Once the download has finished or failed, versions are read from the cable again; a failed download is also logged at ERR.
+
+The command tables are listed in [Section 3.5.5](#355-cli-command-tables).
+
+```mermaid
+sequenceDiagram
+    participant C as show or config muxcable
+    participant Y as ycabled (YCableCliUpdateTask)
+    participant D as Vendor driver, or the SoC
+    C->>C: delete old command, argument, response and result entries
+    opt Commands with arguments
+        C->>Y: APPL_DB XCVRD_*_CMD_ARG Ethernet0 arguments
+    end
+    C->>Y: APPL_DB XCVRD_*_CMD Ethernet0 command field=value
+    Note over C: waits for the response, 1 s to 1000 s depending on the command
+    Y->>D: the command's driver calls
+    D-->>Y: result
+    Note over Y,D: active-active hwmode muxdirection answers from STATE_DB<br/>HW_MUX_CABLE_TABLE, and asks the SoC only if there is none
+    opt Commands with results
+        Y-->>C: STATE_DB XCVRD_*_RES Ethernet0 rows
+    end
+    Y-->>C: STATE_DB XCVRD_*_RSP Ethernet0 response field
+    Y->>Y: delete APPL_DB XCVRD_*_CMD Ethernet0
+```
+
+#### 3.3.10 Runtime knobs
+
+CONFIG_DB `XCVRD_LOG|Y_CABLE`:
+
+- `log_verbosity` = `debug` or `notice` sets the log level.
+- `disable_telemetry` = `True` or `False` stops or resumes telemetry. It is written by `config muxcable telemetry`.
+
+```mermaid
+sequenceDiagram
+    participant A as config muxcable telemetry, or an operator
+    participant Y as ycabled (YCableCliUpdateTask)
+    participant T as ycabled (YcableInfoUpdateTask)
+    Note over A,Y: At startup, ycabled sets log_verbosity=notice
+    A->>Y: CONFIG_DB XCVRD_LOG Y_CABLE log_verbosity, disable_telemetry
+    Y->>Y: set the log level to debug or notice
+    Y->>T: disable_telemetry flag, a process global
+    Note over T: Each port of the next pass checks the flag
+```
 
 ### 3.4 External interfaces
 
@@ -339,7 +644,7 @@ On an active-standby cable, the upper ToR reads read_side 1 and the lower ToR 2.
 | DEVICE_METADATA | localhost | platform | Detects VS |
 | PORT | \<PORT\> | index | Port map ([Section 3.4.3](#343-platform-api)) |
 | CONFIG_DB_INITIALIZED | (plain key) | | Waited for at startup, through `sonic_py_common` |
-| XCVRD_LOG | Y_CABLE | log_verbosity, disable_telemetry | Runtime knobs, subscribed ([Section 3.3.10](ycabled_python_workflows.md#3310-runtime-knobs)) |
+| XCVRD_LOG | Y_CABLE | log_verbosity, disable_telemetry | Runtime knobs, subscribed ([Section 3.3.10](#3310-runtime-knobs)) |
 
 ycabled also writes to CONFIG_DB. At every start it sets `XCVRD_LOG|Y_CABLE` `log_verbosity=notice`, and copies the `GRPCCLIENT` fields from `/etc/sonic/grpc_secrets.json` that CONFIG_DB lacks.
 
@@ -418,11 +723,109 @@ Command and argument tables are in APPL_DB; response and result tables are in ST
 
 ### 3.7 Known issues
 
-[Appendix B](ycabled_python_known_issues.md) lists the 32 known issues of Python ycabled, with their priority, impact and proposed fix, and the black-box tests that reproduce them. This document refers to them by number. Issues 17, 18, 20 and 24 are P0: after a trigger that occurs in normal operation, ycabled stops serving every port. ycabled-rs has the fixes of the issues in the daemon's code ([Section 4.5](#45-deliberate-behavior-differences)); whether Python gets them is open question 4 ([Section 9](#9-open-questions)).
+Issues keep their numbers in the tables below, which group them by how they were found ([Sections 3.7.1](#371-found-by-reading-the-code) to [3.7.4](#374-found-by-reviewing-the-unit-tests)) or, for cable changes after startup, by trigger ([Section 3.7.5](#375-cable-insertion-and-removal-after-startup)). ycabled-rs has the fixes of the issues in the daemon's code ([Section 4.5](#45-deliberate-behavior-differences)); whether Python gets them is open question 4 ([Section 9](#9-open-questions)).
+
+Each table lists its issues by priority:
+
+- **P0:** ycabled stops serving every port (it exits, restarts in a loop or deadlocks) after a trigger that occurs in normal operation: a cable error, a state orchagent writes, or a missing TLS file. Issues 17, 18, 20 and 24.
+- **P1:** a port gets a wrong state or is not served; or every port is, but only after an uncommon trigger (a misconfiguration, an unusual CLI command, a cable or `MUX_CABLE` change after startup); or the logs that tests rely on are wrong. Issues 2, 3, 5, 15, 16, 19, 21, 26 to 28 and 30 to 32.
+- **P2:** no effect on toggles, probes or the state of a working port. The other 15 issues.
+
+#### 3.7.1 Found by reading the code
+
+| # | Priority | Issue | Where | Impact | Proposal |
+| :---: | :---: | --- | --- | --- | --- |
+| 2 | P1 | The syslog identity changes with import order. `openlog` is process-wide, and any module that creates a `Logger` later replaces `ycable`; for example `sonic_platform_base/bmc_base.py`. | `sonic_py_common` logger | ycabled messages appear as `pmon#bmc_base`, and sonic-mgmt's `pmon#ycable` ignore rules do not match them | Rust uses a fixed identity. Raise the problem separately for the Python daemons. |
+| 3 | P1 | `logical_port_name` undefined in an error path | `get_muxcable_info_for_active_active` | `NameError` ends the telemetry thread, and the process is killed within 60 s, after every restart while the port has no SoC address | Fix in Python |
+| 1 | P2 | SIGTERM never completes. `run()` joins worker threads whose stop events are never set. | `ycable.py` `run()` | Every stop waits until supervisord or the container kills the process. `deinit()` never runs. | Rust exits in ≤ 2 s and keeps the tables (C7). A Python fix must keep them too, so it cannot simply let `deinit()` run. |
+| 4 | P2 | `peer_eye_height_lane2` is written from lane 1 | `post_port_mux_info_to_db` | Wrong telemetry value | Fix in Python |
+| 6 | P2 | `break` instead of `continue` for a port that is not active-active | `YCableTableUpdateTask` | None observed. The entries after that port stay in the subscriber's buffer, and are handled one more pass of the loop later: swsscommon's `Select` keeps a subscriber with more than one entry pending in its ready set, so the next `select()` returns it at once. | Fix in Python |
+| 7 | P2 | `auth_level` values differ: `server` or `client` in YANG, `server` or `mutual` in the code | `get_grpc_credentials`, `sonic-grpcclient.yang` | Mutual TLS needs a value YANG rejects | Align the two ([Section 9](#9-open-questions)) |
+| 8 | P2 | `XCVRD_LOG\|Y_CABLE.disable_telemetry` is missing from YANG | `sonic-xcvrd-log.yang` | YANG validation rejects what `config muxcable telemetry` writes | Add it to the YANG model |
+| 9 | P2 | The global `GRPC_CLIENT_OPTIONS` list gets another target-name override for every secure channel, and insecure channels are created with it too | `create_channel` | The option list grows with the number of channels. No other effect is observable, because every secure channel has the same target name and insecure channels ignore it. | Fix in Python |
+| 10 | P2 | `XCVRD_DOWN_FW_STATUS_CMD` is in the select set but never popped, and nothing writes it | `YcableCliUpdateTableHelper`, `YCableCliUpdateTask` | Dead. A write would make select return it on every call. | Remove |
+| 11 | P2 | Dead code: `setup_grpc_channels` has no caller, and `hook_grpc_nic_simulated` uses undefined names | `y_cable_helper.py` | | Remove |
+| 12 | P2 | 27 tests never run because of duplicate names | `tests/` | Lost coverage | Rename |
+| 13 | P2 | 124 Redis connections on a 24-port KVM DUT; 166 with 16 active-active ports in the black-box tests | measured | The count grows with the number of active-active ports | Rust: bounded (N5). Attribute the Python count on a physical testbed. |
+| 14 | P2 | `nice -n -20` fails: "cannot set niceness: Permission denied" | supervisord log, KVM | The intended high priority is not applied, at least on KVM | Check on hardware |
+
+#### 3.7.2 Found by the black-box tests
+
+Issues 18 and 24 also occur when a cable is inserted after startup.
+
+| # | Priority | Issue | Where | Impact | Proposal |
+| :---: | :---: | --- | --- | --- | --- |
+| 17 | P0 | An active-standby toggle request with a state other than `active` or `standby` | `y_cable_helper.py` `toggle_mux_direction` | orchagent writes `init` after a failed first switch; `TypeError` ends the toggle thread | Ignore other states, as for active-active |
+| 18 | P0 | An exception from a vendor driver's constructor is not caught | `check_identifier_presence_and_update_mux_table_entry` | ycabled exits at startup; at insertion the thread dies | Fix in Python |
+| 20 | P0 | A secure `GRPCCLIENT` config that yields no channel (missing file, target name or client key) gives the GracefulRestart task a `None` channel | `YCableAsyncNotificationTask` | The task dies and the process is killed within 60 s, after every restart | Fix in Python |
+| 24 | P0 | After a `get_vendor()` exception, the port lock is taken again while it is held | `check_identifier_presence_and_update_mux_table_entry` → `read_y_cable_and_update_statedb_port_tbl` | Startup deadlocks: no port is published or served, while supervisord sees a running process. A transient EEPROM error at boot is enough. At insertion, the insertion thread deadlocks instead, and no later insertion or removal of any port is handled. | Fix in Python |
+| 19 | P1 | `config muxcable firmware rollback` for a port without a driver takes a lock that does not exist | `handle_config_firmware_roll_cmd_arg_tbl_notification` | After answering, `KeyError` ends the CLI thread | Fix in Python |
+| 23 | P2 | Multi-ASIC: namespace connections are opened before `SonicDBConfig.initializeGlobalConfig()`, and the default namespace `''` is resolved to an ASIC index | `ycable.py` `DaemonYcable.__init__`; `apply_grpc_secrets_configuration`, `wait_for_state_change`, `process_loopback_interface_and_get_read_side` and `delete_ports_status_for_y_cable` | ycabled cannot start on a multi-ASIC platform | Rust keeps the namespaces; fix Python only if multi-ASIC dual ToR is planned |
+| 25 | P2 | `XCVRD_LOG` changes are handled as key `Y_CABLE`, whatever their key | `YCableCliUpdateTask` | The fields of any `XCVRD_LOG` key set the log level and the telemetry flag | Fix in Python |
+
+#### 3.7.3 State the threads share
+
+Found by a review of the state ycabled's threads share. Issues 27 to 29, found by the same review, are in [Section 3.7.5](#375-cable-insertion-and-removal-after-startup).
+
+| # | Priority | Issue | Where | Impact | Proposal |
+| :---: | :---: | --- | --- | --- | --- |
+| 26 | P1 | Active-standby toggles and probes call the cable without the port lock, which insertion, telemetry and the CLI take | `y_cable_toggle_mux_torA`, `y_cable_toggle_mux_torB` and `toggle_mux_tor_direction_and_update_read_side` (toggle), `update_appdb_port_mux_cable_response_table` (probe) | A toggle or probe interleaves its cable access with another thread's call to the same cable, unless the vendor driver serializes them itself | Rust: the port actor ([Section 4.3.3](#433-router-and-port-actors)). Python: take the port lock in toggles and probes. |
+
+#### 3.7.4 Found by reviewing the unit tests
+
+Found by a review of the unit tests against the code.
+
+| # | Priority | Issue | Where | Impact | Proposal |
+| :---: | :---: | --- | --- | --- | --- |
+| 30 | P1 | Without a usable Loopback3 address, read_side is -1, and active-active toggles still go to the SoC: `portid=[-1]` for this ToR, `[2]` for the peer | `handle_hw_mux_cable_table_grpc_notification` | The SoC gets port ids that name neither side. A SoC that indexes its port list with them toggles the wrong side, or fails. | Do not call the SoC; answer `unknown` |
+| 31 | P1 | An active-standby cable read from the NIC side (read side 0) is published and probed as `standby`, but a toggle treats the read side as invalid and writes `unknown`. A probe also answers `standby` when the read side could not be read (-1). | `read_y_cable_and_update_statedb_port_tbl`, `update_appdb_port_mux_cable_response_table` | Neither read side tells which ToR this is, so the state answered is a guess, and the paths disagree | `unknown` on every path |
+| 32 | P1 | A `MUX_CABLE` state outside the YANG enum (auto, manual, detach, active, standby) makes `check_mux_cable_port_type` return `None` instead of a tuple | `check_mux_cable_port_type` and its callers | Every caller dies unpacking it: at startup ycabled exits, and supervisord restarts it into the same failure. YANG validation keeps such values out, except for writes that bypass it. | Skip the port with a warning |
+
+#### 3.7.5 Cable insertion and removal after startup
+
+These issues only occur when a cable is inserted or removed, or a `MUX_CABLE` entry changes, after ycabled has started; issues 18 and 24 ([Section 3.7.2](#372-found-by-the-black-box-tests)) occur then too. Without such changes they are rare: xcvrd deletes `TRANSCEIVER_INFO` only when the platform reports the transceiver removed, when the port is removed from CONFIG_DB, or when it starts and finds the transceiver absent, and it keeps the table when it restarts. Whether Python must handle these changes is open question 10 ([Section 9](#9-open-questions)). Issue 5 was found by reading the code, 15, 16, 21 and 22 by the black-box tests, and 27 to 29 by the review of the state the threads share.
+
+| # | Priority | Issue | Where | Impact | Proposal |
+| :---: | :---: | --- | --- | --- | --- |
+| 5 | P1 | STATE_DB `HW_MUX_CABLE_TABLE` keys are read once when the toggle thread starts | `YCableTableUpdateTask` | Toggles and probes for ports that get an entry later are dropped until restart. Initialization writes an entry for every mux port it initializes, but it skips a port whose `MUX_CABLE` entry has no `state`, which YANG defaults to `auto`. If the state is set later, the next insertion of that cable initializes the port, and its requests are then dropped. | Fix in Python |
+| 15 | P1 | The first `TRANSCEIVER_INFO` event without fields (a DEL, or a SET whose row is already gone) uses `fvp_dict` before it is assigned | `ycable.py` `YcableStateUpdateTask.task_worker` | `UnboundLocalError` ends the thread, and the process is killed within 60 s. A later event without fields reuses the previous event's `fvp_dict`; that has no effect, because the handler does not use it. | Fix in Python |
+| 16 | P1 | The toggle, probe and CLI threads start only if a cable initialized at startup | `ycable.py` `run()` | Cables inserted later are initialized but never toggled, probed or served until restart | Fix in Python |
+| 21 | P1 | A re-inserted active-active cable keeps its channel and returns early | `check_identifier_presence_and_setup_channel` | `HW_MUX_CABLE_TABLE` stays `unknown` until the next toggle | Query the SoC again |
+| 27 | P1 | The toggle thread and the insertion and removal thread write a port's `HW_MUX_CABLE_TABLE` entry in no defined order; each calls the cable, then writes | `YCableTableUpdateTask` (toggle), `read_y_cable_and_update_statedb_port_tbl` (insertion), `check_identifier_presence_and_delete_mux_table_entry` (removal) | A toggle that finishes after a removal leaves `active` or `standby` for a cable that is gone. An insertion that read the direction before a toggle overwrites the toggle's result, so the entry disagrees with the cable. Most likely when a cable is pulled, which can bring a removal and a toggle at once. | Rust: the port actor. Python: hold the port lock from the cable call to the write, removal included. |
+| 28 | P1 | Insertion publishes the driver before `get_vendor()` verifies it and before it creates the port lock, and replaces the lock of a port that had one | `check_identifier_presence_and_update_mux_table_entry` | Toggles can go through a driver that is then rejected. A thread that still holds the old lock overlaps the insertion's calls. For a port without a lock, telemetry or the CLI would hit `KeyError` between the two steps, which ends the thread and gets the process killed within 60 s; no test reproduces this, as no call holds that moment open. | Rust: the port actor. Python: create each port's lock once, and publish the driver after the check. Removal already leaves the lock in place: its check for a driver runs after the driver has been dropped. |
+| 22 | P2 | Removing a port that has no `HW_MUX_CABLE_TABLE` entry (active-active without a SoC address) | `check_identifier_presence_and_delete_mux_table_entry` | Creates the entry with `read_side` `None` | Fix in Python |
+| 29 | P2 | Telemetry and the CLI fetch the driver once, then keep calling it after the cable's removal has been handled | `get_muxcable_info`, CLI handlers | Calls go to a cable that is gone, and telemetry can write `MUX_CABLE_INFO` for it | Rust: the port actor. Python: look the driver up for each call, under the port lock. |
+
+#### 3.7.6 Tests that reproduce the issues
+
+The black-box tests ([Section 6.3](#63-black-box-component-tests)) that reproduce these issues, by test file in `sonic-ycabled/blackbox/tests`. Each test describes its issue in its `known_issue` reason and docstring, without referring to this document.
+
+| Test file | Issue: test |
+| --- | --- |
+| `test_lifecycle.py` | 1 `test_sigterm_exits_promptly`, 2 `test_syslog_identity`, 32 `test_mux_cable_state_outside_yang_enum` |
+| `test_active_standby.py` | 17 `test_toggle_to_other_state_is_ignored`, 18 `test_driver_constructor_failure`, 24 `test_get_vendor_failure`, 31 `test_read_side_nic` |
+| `test_active_active.py` | 7 `test_tls_auth_level_client`, 20 `test_tls_misconfiguration_keeps_running`, 30 `test_no_toggle_without_read_side`; requirements N1 `test_slow_soc_does_not_delay_other_ports`, N3 `test_parallel_startup_with_unreachable_socs` |
+| `test_insert_remove.py` | 5 `test_port_initialized_after_startup_is_served`, 15 `test_first_transceiver_event_without_fields`, 16 `test_first_cable_inserted_after_startup`, 21 `test_reinsert_active_active_refreshes_state`, 22 `test_remove_port_without_state` |
+| `test_telemetry.py` | 3 `test_active_active_port_without_soc_address`, 4 `test_peer_eye_height_lane2` |
+| `test_cli.py` | 19 `test_rollback_firmware_without_driver` |
+| `test_config.py` | 13 `test_redis_connections_bounded`, 25 `test_log_verbosity_other_key_is_ignored` |
+| `test_multi_asic.py` | 23 `test_multi_asic` |
+| `test_concurrency.py` | 26 `test_toggle_waits_for_call_in_progress`; 27 `test_removal_during_toggle_leaves_unknown`, `test_toggle_during_insertion_keeps_cable_direction`; 28 `test_no_toggle_through_unverified_driver`, `test_insertion_waits_for_call_in_progress`; 29 `test_no_cable_calls_after_removal` |
 
 ### 3.8 Current design improvements
 
-[Appendix B](ycabled_python_known_issues.md#38-current-design-improvements) also proposes improvements to the design of Python ycabled, independent of the port, such as ready-table dispatch and per-port state ownership.
+These are improvement candidates for the current Python daemon, independent of the Rust port. They complement the concrete bugs in [Section 3.7](#37-known-issues); implementing all of them in Python is not a prerequisite for the port.
+
+| Improvement | Proposed change | Safeguard |
+| --- | --- | --- |
+| Ready-table dispatch instead of table scans | Register each subscription with its ASIC and handler, then dispatch only the ready table. Use one registry for registration and dispatch rather than separate lists of subscriptions and `pop()` blocks ([Section 4.3.2](#432-db-access)). | Preserve startup replay, pending events, namespace isolation and fairness between ready tables. |
+| Use the main thread for coordination | Replace the mostly idle liveness loop with lightweight event dispatch, timer scheduling and supervision. Consolidate redundant listener threads where practical. | Isolate blocking work first. Do not run a full telemetry sweep or firmware operation inline; preserve signal handling, worker-failure detection and the active-active asyncio notification loop. |
+| Isolate slow work by port | Use asynchronous RPCs or a bounded worker pool instead of serial operations across all ports or a new thread for each firmware request. Schedule telemetry separately from latency-sensitive toggles and probes. | Preserve per-port ordering and driver locks. Test slow-port isolation and pool saturation; adding a pool alone does not guarantee either. |
+| Reuse DB access infrastructure | Consolidate table helpers and reuse read/write connectors per DB and namespace where safe, rather than duplicating them for every task. | Keep subscriber-owned connections required by swsscommon. Do not share a connector across threads without a defined ownership or serialization model; measure the actual connection reduction. |
+| Structured shutdown and supervision | Stop accepting work, signal every worker, cancel asynchronous streams and use bounded waits with explicit failure reporting. Surface worker failures promptly instead of waiting for the 60 s health check. | Keep DB tables on exit (C7). A vendor call cannot be forcibly cancelled inside a Python thread; retain supervisor/watchdog handling for stuck calls. |
+| Explicit per-port state ownership | Encapsulate driver instances, locks, gRPC channels, connectivity and probe counters in a port context instead of unrelated module-global dictionaries. Serialize updates and take consistent telemetry snapshots. | Preserve externally visible DB fields and counter semantics; this is an ownership cleanup, not a schema change. |
+
+Start with ready-table dispatch as a focused cleanup. Treat thread consolidation and concurrency changes separately, with parity and black-box tests. Compare empty-table checks, CPU/RSS, thread and Redis connection counts, and healthy-port toggle/probe latency before and after each change; fewer dispatch blocks alone do not establish resource savings.
 
 ## 4 Rust design
 
@@ -525,13 +928,13 @@ flowchart TB
 | Message | Source | Handling |
 | --- | --- | --- |
 | Init | Startup, or `TRANSCEIVER_INFO` SET for a port not yet initialized | Load the driver or create the channel, then write the initial state ([Section 3.2](#32-threads-and-lifecycle)) |
-| Remove | `TRANSCEIVER_INFO` DEL | [Section 3.3.7](ycabled_python_workflows.md#337-cable-insertion-and-removal) |
-| Toggle(state) | APPL_DB `HW_MUX_CABLE_TABLE` | [Section 3.3.1](ycabled_python_workflows.md#331-active-standby-toggle) or the self case of [Section 3.3.3](ycabled_python_workflows.md#333-active-active-toggle-self-and-peer) |
-| PeerToggle(state) | APPL_DB `HW_FORWARDING_STATE_PEER` | Peer case of [Section 3.3.3](ycabled_python_workflows.md#333-active-active-toggle-self-and-peer) |
-| MuxProbe | APPL_DB `MUX_CABLE_COMMAND_TABLE` | [Section 3.3.2](ycabled_python_workflows.md#332-active-standby-probe) |
-| ForwardingProbe | APPL_DB `FORWARDING_STATE_COMMAND` | [Section 3.3.4](ycabled_python_workflows.md#334-active-active-forwarding-state-probe) |
+| Remove | `TRANSCEIVER_INFO` DEL | [Section 3.3.7](#337-cable-insertion-and-removal) |
+| Toggle(state) | APPL_DB `HW_MUX_CABLE_TABLE` | [Section 3.3.1](#331-active-standby-toggle) or the self case of [Section 3.3.3](#333-active-active-toggle-self-and-peer) |
+| PeerToggle(state) | APPL_DB `HW_FORWARDING_STATE_PEER` | Peer case of [Section 3.3.3](#333-active-active-toggle-self-and-peer) |
+| MuxProbe | APPL_DB `MUX_CABLE_COMMAND_TABLE` | [Section 3.3.2](#332-active-standby-probe) |
+| ForwardingProbe | APPL_DB `FORWARDING_STATE_COMMAND` | [Section 3.3.4](#334-active-active-forwarding-state-probe) |
 | Telemetry tick | The port's 60 s timer, in the actor's loop | Starts a pass in a task of its own ([Section 4.3.7](#437-telemetry)) |
-| Cli(command) | APPL_DB `XCVRD_*_CMD` | [Section 3.3.9](ycabled_python_workflows.md#339-cli-commands) |
+| Cli(command) | APPL_DB `XCVRD_*_CMD` | [Section 3.3.9](#339-cli-commands) |
 
 - **Port state:** each actor owns its port's name, physical index, cable type, initialization state, and driver handle or gRPC client. As in Python, the read side is kept in STATE_DB `HW_MUX_CABLE_TABLE`, and active-active ports share their namespace's read side from Loopback3. An actor shares only its call lock, epoch and probe counters with its own telemetry pass, and its channel's connectivity state with the connection monitor, which writes `response=failure` itself ([Section 4.3.4](#434-soc-grpc-client)). No other state is shared between ports.
 - **One operation at a time:** insertion and removal, toggles, probes and CLI commands for a port all go through its actor, which finishes each one, including its writes to the port's DB entries, before it starts the next. The cross-thread races of Python ycabled (issues 26 to 29 in [Section 3.7](#37-known-issues)) cannot occur, and `test_concurrency.py` checks it ([Section 6.3](#63-black-box-component-tests)).
@@ -545,7 +948,7 @@ flowchart TB
   - **Any other request** joins the end, so a changed toggle, and a `TRANSCEIVER_INFO` removal followed by an insertion, run in their order. A port whose driver call never returns therefore holds a few requests: the probes linkmgrd repeats and the toggles orchagent repeats merge, and only changed requests, cable events and CLI commands add to the queue.
   - **Limit:** a port's mailbox holds at most 1,000 requests. Reaching the limit means the actor has been stuck for a long time behind a driver call that never returns. ycabled-rs then logs an error naming the port and exits 1 (N8): the restart ends that call and replays every row, so no request is lost. Routing checks the length without waiting, so the router never blocks. The other ports are interrupted for the length of a restart, which is better than a port that stays stuck for good.
   - **Other ports:** routing never waits for a mailbox, so other ports are not affected. Requests for ports that are not in `MUX_CABLE` are dropped, as Python does. CLI commands for such ports get Python's answer for a port without a Y-cable driver, or without a cable if `TRANSCEIVER_INFO` has none.
-- **Long-running work:** a firmware download runs in its own task, so toggles for that port are not held up for minutes. A port has at most one download in flight, until its call returns, across cable changes too; another download request for the port is answered `-1`, as Python answers a failed download, and logged. Telemetry and the CLI read the driver's `download_firmware_status` and, while it is in progress, report the last known firmware versions, as Python does ([Section 3.3.9](ycabled_python_workflows.md#339-cli-commands)). So the driver must accept other calls while `download_firmware` runs. Python ycabled relies on this too: it calls `download_firmware` without the port lock.
+- **Long-running work:** a firmware download runs in its own task, so toggles for that port are not held up for minutes. A port has at most one download in flight, until its call returns, across cable changes too; another download request for the port is answered `-1`, as Python answers a failed download, and logged. Telemetry and the CLI read the driver's `download_firmware_status` and, while it is in progress, report the last known firmware versions, as Python does ([Section 3.3.9](#339-cli-commands)). So the driver must accept other calls while `download_firmware` runs. Python ycabled relies on this too: it calls `download_firmware` without the port lock.
 - **Startup:** `TRANSCEIVER_INFO` is subscribed to before the ports initialize, so a cable inserted or removed meanwhile is handled right after its port's initialization. The request tables are subscribed to without waiting for the initializations, and each subscription first delivers the rows that already exist ([Section 4.4](#44-workflows)). A port's requests wait in its mailbox behind its own initialization, so a driver call that never returns holds up only its port, and every other port is served as soon as it is initialized.
 
 #### 4.3.4 SoC gRPC client
@@ -560,7 +963,7 @@ flowchart TB
   - **What linkmgrd does with `failure`** (sonic-linkmgrd `MuxPort::handleProbeMuxState` and `ActiveActiveStateMachine`): on an active-active port, `failure` is not a mux state. `handleProbeMuxFailure` logs `lost gRPC connection` and, unless linkmgrd is already waiting for a probe's answer, probes the forwarding state. The answer to that probe sets the state; `failure` itself changes no state and causes no switchover. linkmgrd also probes every 10 s once it has initialized (`handleAdminForwardingStateSyncUp`), when the peer ToR asks, and with backoff while the state is unknown. So a `failure` that ycabled-rs writes later than Python, or not at all, delays a probe by at most 10 s (C2).
   - **A SoC that stops answering while its channel is idle:** no RPC is in flight, so only the HTTP/2 keepalive notices: a ping goes out within 4 s, and 8 s without its answer close the connection, which writes `failure`. An RPC sent before then fails at its deadline and is answered `unknown`. Python sets the same keepalive options, but grpc-core 1.71, in the oldest grpcio Python ycabled accepts, arms the keepalive timeout only when that timer is already pending ([`writing.cc`](https://github.com/grpc/grpc/blob/v1.71.0/src/core/ext/transport/chttp2/transport/writing.cc#L758-L774)), so the 60 s default ping timeout applies instead, and Python may write `failure` up to a minute later. Meanwhile, RPCs fail at their deadline with either implementation. A black-box test to add: blackhole an idle SoC, expect `failure` within 12 s from ycabled-rs, and record Python's time and grpcio version.
   - The black-box tests run a SoC double that accepts, drops, refuses and blackholes connections, and check the resulting writes for both implementations.
-- **GracefulRestart:** one task per port with a SoC IP, with the same request, re-subscription timing and log-only handling ([Section 3.3.6](ycabled_python_workflows.md#336-gracefulrestart)).
+- **GracefulRestart:** one task per port with a SoC IP, with the same request, re-subscription timing and log-only handling ([Section 3.3.6](#336-gracefulrestart)).
 
 #### 4.3.5 Port map, presence and transceiver info
 
@@ -620,7 +1023,7 @@ flowchart TB
 6. Subscribe to the request tables if the namespace has mux ports, without waiting for the initializations. Each subscription first delivers the rows that already exist, so requests written before or during startup are handled, as in Python. A port's requests wait in its mailbox until its initialization ends ([Section 4.3.3](#433-router-and-port-actors)).
 7. Start the GracefulRestart tasks if any port is active-active, with the read side known then: like Python, look Loopback3 up again if it is still unknown.
 
-**Toggles of two ports, one SoC not responding.** Compare with the serial case in [Section 3.3.3](ycabled_python_workflows.md#333-active-active-toggle-self-and-peer):
+**Toggles of two ports, one SoC not responding.** Compare with the serial case in [Section 3.3.3](#333-active-active-toggle-self-and-peer):
 
 ```mermaid
 sequenceDiagram
@@ -660,7 +1063,7 @@ sequenceDiagram
 | Thread or task failure | Process killed within 60 s | Process exits at once, or when 11 s have passed since its start for an earlier failure | N8 |
 | Failure soon after a start | Exits, and after four failed starts in a row supervisord gives up (`FATAL`); redis not answering is one such failure | Waits for redis; for any other failure, exits when 11 s have passed since the start, so supervisord keeps restarting it | N8: a restart after a lost subscription may find redis still down ([Section 4.3.1](#431-process-runtime-and-supervision)) |
 | Telemetry | Every 60 s after the previous pass over all ports ends; a port busy with a request holds up the ports after it | Every 60 s per port; a port busy with a request holds up only its own pass | Independent of port count, SoC health and the other ports' requests |
-| Presence of active-active cables | Platform API | STATE_DB `TRANSCEIVER_INFO`. Until xcvrd writes it, after a cold boot for instance, the port's initial state is `unknown`, but requests still reach the SoC: the first one sets up the channel ([Section 3.3.5](ycabled_python_workflows.md#335-grpc-channel-lifecycle)) | D3; the delay is measured on hardware ([Section 5.2](#52-how-to-measure)) |
+| Presence of active-active cables | Platform API | STATE_DB `TRANSCEIVER_INFO`. Until xcvrd writes it, after a cold boot for instance, the port's initial state is `unknown`, but requests still reach the SoC: the first one sets up the channel ([Section 3.3.5](#335-grpc-channel-lifecycle)) | D3; the delay is measured on hardware ([Section 5.2](#52-how-to-measure)) |
 | Redis connections | 125 with 24 active-standby ports, 199 with 32 active-active ports ([Section 5.3](#53-measured-results)) | 4 per namespace | N5, D9 |
 | RPCs to a SoC that accepts no HTTP/2 connection | Fail at once between grpc-core's connection attempts | Wait for the 0.5 s deadline | No reconnect timer ([Section 4.3.4](#434-soc-grpc-client)); affects only that port |
 | `response=failure` | Written when a channel is created, because it reports `IDLE`, and after each failed background connection attempt of grpc-core | Written when a connection an RPC asked for fails, or an established one closes | linkmgrd only probes sooner on a `failure`, and probes every 10 s anyway: fewer `failure`s delay a probe by at most 10 s and change no state ([Section 4.3.4](#434-soc-grpc-client)) |
@@ -822,7 +1225,7 @@ Until the harness of [#915](https://github.com/sonic-net/sonic-platform-daemons/
   - A mux simulator serves the real `y_cable_simulated` driver on VS.
   - A syslog sink on `/dev/log` records the logs.
 - **Checks on every test:** redis MONITOR records every command of the daemon. A test fails if the daemon writes a table, field or value outside a machine-readable DB contract (200 entries, from [Section 3.5](#35-db-schema)), if it logs a crash, or if it exits unexpectedly.
-- **Known issues:** each issue in [Section 3.7](#37-known-issues) that a test can observe has a test that asserts the correct behavior; [Section 3.7.6](ycabled_python_known_issues.md#376-tests-that-reproduce-the-issues) names the tests. These tests are strict xfails on Python ycabled, so they flag a fix in Python, and must pass on Rust. N1 and N3 have such tests too. Each test explains its issue in its `known_issue` reason and docstring, so the suite does not depend on this document. Only an `AssertionError` counts as the expected failure: the harness raises a `RuntimeError` when it cannot do what a test asks, and every test has a time limit (300 s), so a harness error, a timeout or a hang cannot pass as the issue.
+- **Known issues:** each issue in [Section 3.7](#37-known-issues) that a test can observe has a test that asserts the correct behavior; [Section 3.7.6](#376-tests-that-reproduce-the-issues) names the tests. These tests are strict xfails on Python ycabled, so they flag a fix in Python, and must pass on Rust. N1 and N3 have such tests too. Each test explains its issue in its `known_issue` reason and docstring, so the suite does not depend on this document. Only an `AssertionError` counts as the expected failure: the harness raises a `RuntimeError` when it cannot do what a test asks, and every test has a time limit (300 s), so a harness error, a timeout or a hang cannot pass as the issue.
 - **Results on Python ycabled:** 307 tests pass and 29 are expected failures (27 for 25 known issues, N1, N3), in about 14 minutes.
   - The tests exercise all 200 DB contract entries. A run of the whole suite on Python ycabled fails if one is not exercised, so the contract cannot keep entries no test reaches or accesses ycabled no longer makes.
   - They cover 87% of ycabled's lines and branches (90% of its statements). The unit tests reach 81%.
@@ -902,7 +1305,7 @@ Changes to Python ycabled during phases 0-3 must be made in both implementations
 7. Is `pmon_daemon_control.json` enough to select the implementation, or do labs need an override that does not edit device files?
 8. When should Python ycabled be retired after Rust becomes the default?
 9. GracefulRestart `tor`: Python sends `UPPER_TOR` from the lower ToR (read_side 0) and `LOWER_TOR` from the upper ToR. That is the opposite of the ToR names and of the enum's values, which follow the port ids (`LOWER_TOR = 0`, `UPPER_TOR = 1`). The proto does not define the sides, and sonic-mgmt's NIC simulator does not implement the service. Which side does the SoC expect? Until its owners confirm, ycabled-rs sends what Python sends. Owner: Longxiang Lyu, with the owners of the SoC's gRPC service; to be answered before phase 2 of [Section 7](#7-rollout-and-migration).
-10. Is inserting or removing a cable, or changing `MUX_CABLE`, after ycabled starts a supported scenario? Python ycabled has a thread for cable insertion and removal, but the issues in [Section 3.7.5](ycabled_python_known_issues.md#375-cable-insertion-and-removal-after-startup) show that this path is incomplete. If the procedure for replacing a cable restarts ycabled instead, those issues need no Python fix; 18 and 24 still do, for startup. ycabled-rs handles these changes either way.
+10. Is inserting or removing a cable, or changing `MUX_CABLE`, after ycabled starts a supported scenario? Python ycabled has a thread for cable insertion and removal, but the issues in [Section 3.7.5](#375-cable-insertion-and-removal-after-startup) show that this path is incomplete. If the procedure for replacing a cable restarts ycabled instead, those issues need no Python fix; 18 and 24 still do, for startup. ycabled-rs handles these changes either way.
 
 ## 10 References
 
