@@ -224,6 +224,9 @@ Both packages are gated behind `ENABLE_PY2_MODULES`, which is off for bullseye, 
 - `rules/swsssdk-py2.mk` and `rules/swsssdk-py2.dep`
 - `rules/redis-dump-load-py2.mk` and `rules/redis-dump-load-py2.dep`
 - the `SWSSSDK_PY2` dependency lines in `rules/sonic-py-common.mk` and `rules/swsssdk-py3.mk`
+- the `REDIS_DUMP_LOAD_PY2` synthetic dependency block in `rules/redis-dump-load-py3.mk`
+- the `REDIS_DUMP_LOAD_PY2` entry in the installer prerequisites in `slave.mk`
+- the `redis_dump_load_py2_wheel_path` export in `slave.mk`, which nothing reads
 
 ##### 7.1.7 Kubernetes master
 
