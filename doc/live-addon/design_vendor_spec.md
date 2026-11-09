@@ -3,14 +3,17 @@
 ## 1. Purpose and Scope
 
 This document defines the proposed integration contract for vendors adding
-live-addon functionality to SONiC: required inputs, supported options, payload
-restrictions, process configuration, health commands, and release metadata.
-These requirements describe the target design, not the current implementation.
+diagnostic functionality to SONiC through live-addon: required inputs, supported
+options, payload restrictions, process configuration, health commands, and
+release metadata.
+These requirements describe the proposed contract, not an implemented upstream
+feature. Paths and examples refer to the planned `sonic-buildimage` integration.
 
 The [framework and build design](./design_review.md) explains how SONiC builds,
 validates, packages, and runs these inputs. It is not a second definition of the
-vendor contract. Release and runtime deployment settings are covered separately
-in the deployment design.
+vendor contract. Release and runtime deployment settings are outside the vendor
+profile; [framework section 7.8](./design_review.md#78-kubernetes-deployment-boundary)
+defines the image's deployment interface.
 
 The vendor supplies source and declarative inputs, not the production Dockerfile
 or a prebuilt production image. A vendor may maintain a Dockerfile for its own
@@ -38,7 +41,8 @@ the code or inputs needed to produce the artifact and installed health commands.
 The vendor does not supply a separate runtime `health.ini`, main
 `supervisord.conf`, raw manifest JSON, or container entrypoint.
 
-For example:
+The following vendor-specific example illustrates the proposed contract; it
+does not imply an existing implementation or a dependency of the public build:
 
 ```ini
 [source]
@@ -88,8 +92,8 @@ Use exactly one of the following forms.
 ### 3.1 Repository-local source
 
 Open-source integrations may contribute their source directly to
-`sonic-buildimage` and select it through `path`. For example, the checked-in
-sample uses:
+`sonic-buildimage` and select it through `path`. The proposed checked-in sample
+uses:
 
 ```ini
 [source]
@@ -117,7 +121,7 @@ final Docker context.
 
 The two forms are mutually exclusive. Both must satisfy the same artifact,
 Supervisor, health, and manifest contract. Repository-local source is not copied
-directly into the image and does not use the legacy `live-addon.yaml` path.
+directly into the image.
 An external vendor supplies source, not a separately published artifact or
 Docker image. Optional private integrations must not become prerequisites of
 the public default build.
@@ -367,9 +371,10 @@ different check types may execute concurrently. The server does not maintain
 startup state or gate liveness and readiness execution. Kubernetes handles
 normal probe ordering, retries, and restart/readiness policy.
 
-KubeSonic does not provide inter-container dependency ordering. A startup check
-may therefore test required SONiC dependencies, with a probe window long enough
-for expected initialization; see [probe dependencies](./probe-dependency-design.md).
+A startup check may test required SONiC dependencies rather than assume they
+are ready when the addon starts. Deployment owners must allow a probe window
+long enough for expected initialization; see
+[framework section 7.6](./design_review.md#76-kubernetes-probe-semantics).
 
 The framework generates `/etc/live-addon/health.ini` from the profile and owns
 the HTTP server. Its bind address `127.0.0.1` and port `50200` are not
@@ -438,6 +443,6 @@ Before submission, verify that:
 Invalid source selections, missing inputs, build failures, unsafe artifacts,
 invalid fragments or health configuration, failed integrity checks, and
 installation failures fail the build. Container publication, qualification,
-node selection, mounts, privileges, and rollout are coordinated through the
-separate deployment design, not additional fields in
-the platform profile.
+node selection, mounts, privileges, and rollout are coordinated by deployment
+owners, not additional fields in the platform profile. The interface is defined
+in [framework section 7.8](./design_review.md#78-kubernetes-deployment-boundary).

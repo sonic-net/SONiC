@@ -1,29 +1,27 @@
 # Live-Addon Framework and Build Design
 
 This document describes the proposed SONiC-owned framework, image build, and
-runtime implementation. The [vendor integration specification](./design_vendor_spec.md)
+runtime implementation in `sonic-buildimage`. The
+[vendor integration specification](./design_vendor_spec.md)
 is the authoritative definition of vendor inputs, options, and restrictions.
-The deployment design covers release and rollout.
-These documents describe the target design; implementation will follow.
+Release and rollout orchestration are outside the image build; section 7.8
+defines the deployment interface.
+
+| Revision | Date | Description |
+|---|---|---|
+| 0.1 | 2026-11-09 | Initial community proposal |
 
 ## 1. Executive Summary
 
-The current checkout integration [ref: design.md](./design.md) treats the
-vendor Dockerfile as the complete definition of the final image.
+Live-addon is a proposed container framework for running vendor- or
+platform-specific diagnostic programs on SONiC switches. It provides a consistent
+way to build, validate, package, supervise, and health-check those programs while
+keeping the production image and runtime policy under SONiC community ownership.
 
-For Cisco 8000, the pipeline checks out the vendor repository,
-selects `docker-cisco-utility/Dockerfile.standalone`, copies
-it into the `docker-live-addon` build context, and publishes the resulting image
-as `docker-live-addon.gz`.
-
-This makes `docker-live-addon` a generic build target and output name rather
-than a SONiC-owned wrapper image. As a result, the vendor Dockerfile
-controls the base image, installed packages, Supervisor configuration,
-entrypoint, users, permissions, and other runtime details.
-
-That ownership model is not ideal when the SONiC community maintains the
-framework used to package, qualify, secure, and deploy vendor binary packages.
-The recommended model is:
+The framework separates diagnostic functionality from container infrastructure.
+Vendors define their diagnostic programs and semantic health checks; the SONiC
+live-addon design defines how those inputs are incorporated into an image and
+managed at runtime. The proposed model is:
 
 - The SONiC community owns the final Dockerfile and image policy.
 - The vendor supplies source code, a deterministic artifact build script, and
@@ -40,83 +38,57 @@ The recommended model is:
   source path, without external vendor inputs. Vendor integrations are
   explicitly selected and may be contributed through normal upstream PRs.
 
-The vendor may continue to maintain its own Dockerfile for independent
+The vendor may maintain its own Dockerfile for independent
 development and testing, but that Dockerfile should not define the production
 image published by the SONiC build pipeline.
 
 ---
 
-## 2. Current Design
+## 2. Scope and Terminology
 
-The framework currently supports two integration patterns:
+### 2.1 Scope
 
-| Pattern | Source | Dockerfile owner | Final image policy owner |
-|---|---|---|---|
-| In-Repo | `platform/<name>/live-addon.yaml` | SONiC framework | SONiC community |
-| Checkout | External vendor repository | Vendor | Vendor |
+This proposal covers image construction and runtime support for vendor- or
+platform-specific diagnostics: source acquisition, artifact validation and
+installation, process supervision, health interfaces, and image metadata.
+The implementation target is `sonic-buildimage`; the target SONiC release is to
+be agreed during community review.
 
-For the checkout pattern, `build.py`:
+Live-addon-specific files, profiles, and commands in these documents describe
+the proposed implementation layout, not files already available upstream.
+Repository-relative build paths refer to `sonic-buildimage`, not this
+documentation repository. Vendor-specific examples illustrate the contract;
+they do not establish a dependency on a particular vendor or claim that its
+integration already implements the proposal.
 
-1. Reads `platform/checkout/<platform>.ini`.
-2. Checks out or copies the vendor repository.
-3. Applies optional scripts from
-   `platform/checkout/patches/<platform>/`.
-4. Selects the vendor Dockerfile configured by `dockerfile=`.
-5. Copies the vendor Dockerfile to `dockers/docker-live-addon/Dockerfile`.
-6. Adds `# SKIP_HOOK` to the Dockerfile and copies it to
-   `Dockerfile.buildinfo`.
-7. Copies the vendor build context into `dockers/docker-live-addon/`.
-8. Allows the SONiC `SONIC_SIMPLE_DOCKER_IMAGES` rule to build and package it.
+The framework does not propose new SONiC database schemas, SAI APIs, CLI
+commands, or YANG models. Any such changes needed by a vendor feature require
+separate review. Image construction does not automatically install or enable
+the addon. Deployment and release orchestration remain separate responsibilities
+as described in section 7.8.
 
-For Cisco 8000, the selected file is:
+Warm-restart compatibility of individual vendor programs is not guaranteed by
+this framework. It must be assessed during integration and deployment
+qualification; a successful build or health check is not evidence of that
+compatibility.
 
-```ini
-[addon]
-dockerfile=docker-cisco-utility/Dockerfile.standalone
-```
+### 2.2 Terminology
 
-Therefore, the Cisco utility is not embedded into a SONiC-owned live-addon
-image. The Cisco image is built directly and then tagged and packaged using the
-generic `docker-live-addon` target name.
-
-This already uses SONiC's build orchestration and image packaging. However,
-`# SKIP_HOOK` makes `prepare_docker_buildinfo.sh` return immediately, bypassing
-its base-image digest handling, version-lock preparation, and in-image
-build/SBOM collection setup. The redesign switches to SONiC's regular-image
-recipe, makes preparation a Make prerequisite, and removes this bypass after
-making the generated context hook-compatible.
-
-Relevant implementation:
-
-- `.pipelines/template-kube.yml`: checks out the Cisco repository and runs
-  `build.py --platform cisco-8000 --checkout-only`.
-- `platform/checkout/cisco-8000.ini`: selects the vendor Dockerfile.
-- `build.py::_checkout_only_checkout()`: copies the vendor Dockerfile and build
-  context.
-- `rules/docker-live-addon.mk`: registers the generic image target.
-- `slave.mk`: builds `Dockerfile.buildinfo` and saves
-  `target/docker-live-addon.gz`.
-
-### Current design concern
-
-The checkout pattern gives the SONiC build responsibility for the resulting
-image without giving SONiC maintainers clear ownership of the image definition.
-This creates ambiguity around:
-
-- Entrypoint and signal handling.
-- Main Supervisor configuration.
-- Package sources and base-image updates.
-- User and filesystem permissions.
-- Health behavior.
-- Security hardening and vulnerability remediation.
-- Image labels and deployment metadata.
-- Consistency across different vendors.
+| Term | Meaning |
+|---|---|
+| Live-addon | The proposed container framework for vendor- or platform-specific diagnostics |
+| Framework | SONiC-owned build, validation, installation, supervision, and health infrastructure |
+| Vendor | Provider of the platform-specific source, programs, and declarative integration inputs |
+| Platform profile | `platform/<platform>.ini`, selecting one integration independently of SONiC's ASIC/build `PLATFORM` |
+| Artifact bundle | The vendor build's package or archive, validated before installation |
+| Supervisor | Process supervisor that runs as container PID 1 and manages the declared programs |
+| SBOM | Software Bill of Materials identifying the image's installed software |
 
 ---
 
 ## 3. Design Goals
 
-The redesigned integration should:
+The proposed integration should:
 
 1. Make the SONiC community the owner of the final production Dockerfile.
 2. Keep vendor integration simple.
@@ -135,6 +107,7 @@ The redesigned integration should:
 
 ### Non-goals
 
+- Hosting general-purpose vendor applications unrelated to diagnostics.
 - SONiC maintainers do not need to understand the internal implementation of
   every vendor process.
 - SONiC maintainers do not need to rewrite the vendor's development Dockerfile.
@@ -171,7 +144,7 @@ The vendor-facing deliverables are defined in
 
 ## 5. Source, Artifact Build, and Installation
 
-The redesigned framework has one platform model. Every platform, including the
+The proposed framework has one platform model. Every platform, including the
 default example, is described by `platform/<platform>.ini` and follows the same
 artifact, validation, Supervisor, health, and image-generation path. Whether
 the source is stored in this repository or an external repository affects only
@@ -207,9 +180,8 @@ every invocation, then evaluates the artifact glob there. This prevents stale
 output from a previous build from being collected. Missing or invalid profiles
 and inputs fail explicitly rather than falling back to the example image.
 
-The default example uses the same path; see section 9.2. The legacy
-`live-addon.yaml` and checkout-specific construction paths are removed. Existing
-platforms such as VS migrate to the common profile and artifact contract.
+The default example uses the same path; see section 9.2. Source location does
+not select a different Dockerfile or runtime-generation mechanism.
 
 ### 5.2 Build script isolation
 
@@ -424,16 +396,13 @@ The framework therefore defines how checks are invoked and interpreted, while
 the vendor provides the platform-specific startup, liveness, and readiness
 executables.
 
-### 7.2 Existing framework behavior
+### 7.2 Why on-demand checks
 
-The existing `framework/health_server.py` reads a status file and returns HTTP
-200 when it contains `healthy`. The VS implementation uses `vs_monitor.py` to
-produce that file periodically.
-
-The redesigned cross-vendor contract should not use that cached-status model.
-It requires a separate scheduler, startup state machine, atomic file updates,
-freshness rules, and stale-result handling that duplicate behavior already
-provided by Kubernetes.
+A periodic monitor with a cached status file would require a separate
+scheduler, startup state machine, atomic file updates, freshness rules, and
+stale-result handling. Kubernetes already schedules probes and manages startup,
+retries, and failure policy. The proposed framework invokes the corresponding
+vendor command on demand, avoiding a second health scheduler or state machine.
 
 ### 7.3 On-demand health architecture
 
@@ -481,8 +450,8 @@ must explicitly set `host: 127.0.0.1` and `port: 50200`. Because a
 host-networked Pod shares the SONiC node's network namespace, the health server
 and the host kubelet use the same loopback interface.
 
-Port `50200` is reserved by the KubeSonic live-addon deployment for this
-health server. Qualification must verify that no other host-network service on
+The proposed deployment reserves port `50200` for this health server.
+Qualification must verify that no other host-network service on
 the node uses that address and port. Binding the server to `0.0.0.0` is not
 permitted because it would expose unauthenticated endpoints that execute vendor
 commands through every applicable switch interface. The bind address and port
@@ -557,19 +526,21 @@ Kubernetes controls invocation frequency, retries, and failure policy:
 | `livenessProbe` | Does the running container require restart? | Container is restarted |
 | `readinessProbe` | Can this instance currently provide its function? | Pod is marked not ready |
 
-The probe YAML and deployment timing examples are maintained in
-[deployment design section 4](./design_deployment.md#4-kubernetes-health-probes),
-not generated by the image build.
+Deployment owners configure probe periods, timeouts, and failure thresholds;
+the image build does not generate deployment YAML. Every HTTP probe must target
+`127.0.0.1:50200` and its corresponding endpoint. The command timeout must leave
+margin below the probe timeout, as specified in section 7.5.
 
 The kubelet invokes `startup-command` once per startup probe request. After one
 startup probe succeeds, Kubernetes stops sending startup probes and begins
 normal liveness and readiness probing. The server does not need to detect or
 cache that transition.
 
-KubeSonic does not provide inter-container dependency ordering. A vendor
-startup command may therefore test required SONiC dependencies. The startup
-probe window must be long enough for expected initialization, as described in
-`probe-dependency-design.md`.
+Deployment must not assume that required SONiC services are ready when the addon
+starts. A vendor startup command may test those dependencies. The startup probe
+window must be long enough for expected dependency and vendor initialization.
+This checks readiness to start; it does not impose startup ordering on other
+containers.
 
 ### 7.7 Supervisor integration
 
@@ -591,25 +562,25 @@ If the health server exits unexpectedly, Supervisor restarts it. Probe
 connection failures during that interval are treated as health failures by
 Kubernetes.
 
-### 7.8 KubeSonic deployment boundary
+### 7.8 Kubernetes deployment boundary
 
-KubeSonic release and deployment configuration is outside the live-addon build
-framework. Container-registry publication, `SonicContainerQualification.xml`,
-DaemonSet templates, node selection, volume mounts, and rollout configuration
-remain owned by the KubeSonic release process. They are not represented in
+Release and deployment configuration is outside the live-addon build framework.
+Container-registry publication, qualification, DaemonSet templates, node
+selection, volume mounts, and rollout configuration remain deployment-owner
+responsibilities. They are not represented in
 `platform/<platform>.ini` and are not generated by the image build.
 
 The build framework provides only the image-side contract needed by that
 deployment: the packaged image, Feature Manager metadata, fixed health
 endpoints, and documented runtime requirements. The separately maintained
-KubeSonic configuration must target those interfaces and must be updated when
+deployment configuration must target those interfaces and must be updated when
 an image-side contract changes.
 
 ---
 
 ## 8. SONiC Feature Manager Image Manifest
 
-The framework preserves the existing Feature Manager integration through
+The framework uses SONiC's existing Feature Manager image metadata through
 SONiC's shared manifest generation and `com.azure.sonic.manifest` image label.
 The declared `[manifest]` values and their validation rules are defined in
 [vendor specification section 8](./design_vendor_spec.md#8-feature-manager-metadata).
@@ -665,10 +636,10 @@ sudo docker image inspect <image:tag> \
   | jq -r '.package.version'
 ```
 
-The `sonic-mgmt` live-addon `version_matrix` check reads this nested
-`package.version`, not the Docker image tag. Version-filtered compatibility
-rows cannot match when it is missing. The top-level manifest `version` remains
-the schema version (`1.0.0`).
+Qualification checks must read the nested `package.version`, not the Docker
+image tag, when evaluating version-filtered compatibility. A missing release
+version must fail qualification. The top-level manifest `version` remains the
+schema version (`1.0.0`).
 
 Feature Manager reads this image metadata from the host. The label does not
 install Feature Manager components inside the container and does not itself
@@ -689,16 +660,16 @@ Register `docker-live-addon.gz` in `SONIC_DOCKER_IMAGES` through
 The shared regular-image recipe renders that template to `Dockerfile`,
 generates the manifest, injects build hooks into the generated Dockerfile in
 place, invokes Docker, collects version records, and saves the image.
-Unlike the current simple-image path, this recipe does not build a separate
-`Dockerfile.buildinfo`. Do not add `# SKIP_HOOK`, copy a vendor Dockerfile,
+This recipe does not build a separately managed `Dockerfile.buildinfo`.
+Do not add `# SKIP_HOOK`, copy a vendor Dockerfile,
 or duplicate the shared Docker build/save recipe.
 
 Make owns source acquisition, sandboxed artifact building, validation, and
 context preparation as explicit prerequisites of the image target. Small
 Python helpers may validate INI files, artifacts, paths and generated metadata;
 they do not render the final Dockerfile or invoke Make/Docker as a second build
-system. Remove `build.py` from the redesigned build path and remove the
-pipeline's `--checkout-only` pre-step once Make owns these dependencies.
+system. No standalone build orchestrator or pipeline-specific preparation
+step is required; the normal Make prerequisites own these dependencies.
 
 This follows the upstream regular recipe in `slave.mk` and the registration
 pattern in `rules/docker-eventd.mk`. Image build registration is separate from
@@ -856,7 +827,7 @@ restriction in [vendor specification section 7](./design_vendor_spec.md#7-health
 
 ## 11. Framework Validation and Acceptance Criteria
 
-The redesign is complete when:
+The implementation must satisfy the following acceptance criteria:
 
 The example and vendor profiles share the artifact and health contract;
 addon-program lifecycle criteria apply to declared addon programs.
@@ -867,9 +838,9 @@ as their source of expected acceptance and rejection rules.
    `platform/example.ini` selects the checked-in default through `[source] path`.
 2. Repository-local and external source use the same build path after source
    resolution.
-3. The legacy `live-addon.yaml` path and its separate YAML-based Dockerfile
-   and Supervisor generation are removed.
-4. The final Cisco image is built from a SONiC-owned Dockerfile.
+3. Every profile uses the same framework-owned Dockerfile and runtime
+   configuration generation.
+4. Every live-addon image is built from a SONiC-owned Dockerfile.
 5. The vendor Dockerfile is not used by the production pipeline.
 6. The repository-owned framework `supervisord.conf` is installed as
    `/etc/supervisor/supervisord.conf` and enables foreground operation,
@@ -877,7 +848,7 @@ as their source of expected acceptance and rejection rules.
    socket, and inclusion of `/etc/supervisor/conf.d/*.conf`.
 7. The image entrypoint explicitly starts that main configuration with
    Supervisor foreground mode enabled, leaving Supervisor as container PID 1.
-8. Every declared Cisco fragment is copied to
+8. Every declared vendor fragment is copied to
    `/etc/supervisor/conf.d/<basename>`, and no undeclared vendor fragment is
    copied.
 9. Fragment validation rejects inputs that violate
@@ -930,9 +901,9 @@ as their source of expected acceptance and rejection rules.
     mismatched inputs fail the build.
 27. After normal SONiC setup, `make target/docker-live-addon.gz` builds the
     checked-in example through its local source path and normal artifact build,
-    without external vendor inputs, private credentials, or `build.py`. The
-    explicitly empty fragment list is accepted; only Supervisor and the
-    framework health server remain running. Sample health checks produce HTTP
+    without external vendor inputs, private credentials, or a separate build
+    orchestrator. The explicitly empty fragment list is accepted; only Supervisor
+    and the framework health server remain running. Sample health checks produce HTTP
     200 on success and HTTP 503 on failure. The example requires no privileged
     operation, host PID namespace or host-filesystem mounts and is not
     automatically installed, enabled or deployed.
@@ -954,7 +925,7 @@ implementation, and Kubernetes probe behavior.
 Use a regular SONiC image recipe with Make-owned prerequisites, a checked-in
 example built through the local source path by default, and opt-in vendor
 contributions through upstream PRs. Keep focused validation helpers, not a
-separate `build.py` orchestrator.
+separate build orchestrator.
 
 Keep the [vendor integration specification](./design_vendor_spec.md) as the
 single definition of vendor deliverables and restrictions; this document
@@ -964,3 +935,15 @@ This is a small and explicit integration contract. It avoids requiring
 SONiC maintainers to know the vendor's internal startup sequence while ensuring
 that the SONiC build and deployment framework remains in control of the image
 it builds, signs, publishes, and deploys.
+
+---
+
+## 13. References
+
+- [Live-Addon Vendor Integration Specification](./design_vendor_spec.md)
+- [SONiC buildimage repository](https://github.com/sonic-net/sonic-buildimage):
+  shared image recipes, build hooks, and manifest generation.
+- [Kubernetes startup, liveness, and readiness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/):
+  deployment-side probe behavior.
+- [Supervisor configuration](https://supervisord.org/configuration.html):
+  process supervision and configuration semantics.
