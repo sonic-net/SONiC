@@ -204,10 +204,10 @@ The targets are proposals, to be confirmed against baselines measured on the phy
 | ID | Requirement | Proposed target |
 | --- | --- | --- |
 | N1 | A slow or unreachable SoC, or a slow cable, does not delay requests for other ports | Toggle and probe response for healthy ports p99 < 100 ms with 4 of 32 SoCs not responding (Python: up to 2 s) |
-| N2 | Requests for one port are processed in arrival order | |
+| N2 | Requests for one port are processed in the order their notifications arrive. As with `SubscriberStateTable`, a request is a row read when its notification is handled, so a row written again before then is handled with its latest value. | |
 | N3 | Ports are initialized in parallel | All active-active ports initialized within 1 s with every SoC unreachable (Python: ports × 0.5 s) |
 | N4 | Memory | Device with only active-active ports: RSS ≤ 15 MB. Device with active-standby ports: RSS ≤ 70% of Python's on the same device. |
-| N5 | Threads and DB connections bounded, independent of the port count | ≤ 16 threads, ≤ 48 Redis connections per namespace |
+| N5 | Threads and DB connections bounded, independent of the port count | ≤ 16 threads besides those of driver calls in flight (at most 2 per active-standby port), ≤ 48 Redis connections per namespace |
 | N6 | CPU | Idle CPU no higher than Python's |
 | N7 | Every external call (gRPC, vendor driver, Redis) has a deadline, or runs where it can only block its own port | |
 | N8 | If an internal task fails, the process exits non-zero and supervisord restarts it, as with Python | Exit immediately (Python: within 60 s) |
@@ -906,7 +906,7 @@ flowchart TB
 - **Library:** the `redis` crate with tokio (D9). One module, `db.rs`, gives it swss-common's semantics, and the rest of the code uses a `Db` trait with an in-memory mock for unit tests:
   - DB IDs, separators, host and port come from `database_config.json`, or `database_global.json` for the namespaces, as swss-common reads them. Like Python's `daemon_base.db_connect`, ycabled-rs connects over TCP.
   - `set` is one multi-field `HSET`, which merges fields as swss-common's `Table::set` does.
-  - A subscription is what `SubscriberStateTable` does: `PSUBSCRIBE __keyspace@<db>__:<table><sep>*`, then the rows that already exist (`KEYS` and `HGETALL`), then one `HGETALL` per notification. A `del` notification is a DEL; a notification for a row that is gone again is skipped.
+  - A subscription is what `SubscriberStateTable` does: `PSUBSCRIBE __keyspace@<db>__:<table><sep>*`, then the rows that already exist (`KEYS` and `HGETALL`), then one `HGETALL` per notification. A `del` notification is a DEL; a notification for a row that is gone again is skipped. A notification carries no value, so a row written several times before its notification is handled is read with its latest value each time, as with `SubscriberStateTable`: requests are states, not events (N2).
   - Waiting for `CONFIG_DB_INITIALIZED` subscribes to its keyspace notification instead of polling.
   - If the subscription connection is lost, ycabled-rs logs an error and exits 1, and supervisord restarts it (N8).
 - **Ready-table dispatch:** each keyspace notification names its table and key, so the namespace's subscription task reads that row only and passes the change to the namespace's routing task, which sends it to the port's actor. Both handle the notifications in the order redis delivered them, whatever the table, so a port's requests reach its actor in that order: a toggle written after a cable insertion runs after it. A notification never makes ycabled-rs look at another table.
@@ -935,9 +935,9 @@ flowchart TB
   - active-standby: the port's call lock, a fair mutex, covers every call to the cable: driver calls, presence checks, and loading and unloading the driver. A request holds it while it runs, and the pass takes it for one call at a time. A toggle waits for at most one call of the pass, no call of the pass comes between the calls of a request, and two calls to one cable never overlap. Python takes its port lock per call.
   - active-active: RPCs share the port's HTTP/2 channel and do not wait for each other, as in Python, whose threads share one stub.
   - A pass that overlaps an initialization, a removal or a change of cable type of its port, while it waits for its turn or while it runs, is not written, because its values may be stale.
-- **Mailboxes:** unbounded, so no request is dropped: a port that cannot keep up queues its requests, in order, as Python's subscriber tables do, and a backlog of 256 is logged. Routing never waits for a mailbox, so other ports are not affected. Requests for ports that are not in `MUX_CABLE` are dropped, as Python does. CLI commands for such ports get Python's answer for a port without a Y-cable driver, or without a cable if `TRANSCEIVER_INFO` has none.
+- **Mailboxes:** bounded without losing anything. A port keeps at most one pending request per table: a newer notification for the same table replaces the pending one in its place, since both would read the same latest row ([Section 4.3.2](#432-db-access)). A `TRANSCEIVER_INFO` removal followed by an insertion is kept as both, so a swapped cable is removed, then initialized. A port whose driver call never returns therefore holds a few requests, not an ever-growing queue. Routing never waits for a mailbox, so other ports are not affected. Requests for ports that are not in `MUX_CABLE` are dropped, as Python does. CLI commands for such ports get Python's answer for a port without a Y-cable driver, or without a cable if `TRANSCEIVER_INFO` has none.
 - **Long-running work:** a firmware download runs in its own task, so toggles for that port are not held up for minutes. Telemetry and the CLI read the driver's `download_firmware_status` and, while it is in progress, report the last known firmware versions, as Python does ([Section 3.3.9](#339-cli-commands)). So the driver must accept other calls while `download_firmware` runs. Python ycabled relies on this too: it calls `download_firmware` without the port lock.
-- **Startup:** the subscriptions start once every port is initialized, or after 30 s, and first deliver the rows that already exist ([Section 4.4](#44-workflows)). A port's requests wait behind its own initialization, so a driver call that never returns holds up only its port.
+- **Startup:** `TRANSCEIVER_INFO` is subscribed to before the ports initialize, so a cable inserted or removed meanwhile is handled right after its port's initialization. The request subscriptions start once every port is initialized, or after 30 s. Each subscription first delivers the rows that already exist ([Section 4.4](#44-workflows)). A port's requests wait behind its own initialization, so a driver call that never returns holds up only its port.
 
 #### 4.3.4 SoC gRPC client
 
@@ -945,7 +945,7 @@ flowchart TB
 - **Requests and replies:** the same requests, and the same reply parsing by read_side, as Python ([Section 3.4.1](#341-soc-grpc-service)).
 - **TLS:** from `GRPCCLIENT`: the CA from `ca_crt`, a client identity from `client_crt` and `client_key` for mutual authentication, and the domain name from `grpc_ssl_credential`. Files are read when the channel is created, as in Python, and `/etc/sonic/grpc_secrets.json` is applied to CONFIG_DB at startup.
 - **Connectivity:** tonic does not report gRPC connectivity states, but linkmgrd depends on when `response=failure` is written (C2).
-  - ycabled-rs wraps the connector (`Endpoint::connect_with_connector`) to see connection attempts, successful connections and closed connections.
+  - ycabled-rs wraps the connector (`Endpoint::connect_with_connector`) to see connection attempts, established connections and closed connections. A connection counts as established only once TLS, when configured, and the HTTP/2 handshake have completed, as in grpc-core; one that fails or does not complete them within the RPC deadline counts as failed.
   - From those events a per-port state machine derives `CONNECTING`, `READY`, `TRANSIENT_FAILURE` and `IDLE`. Entering `TRANSIENT_FAILURE` or `IDLE` writes `FORWARDING_STATE_RESPONSE` `response=failure`, and every state is recorded for `grpc_connection_status`.
   - No reconnect timer: a failed or closed connection is set up again by the port's next RPC. grpc-core retries in the background with backoff and, while it waits, fails RPCs at once. ycabled-rs lets each RPC wait for its 0.5 s deadline instead. For a SoC that accepts no HTTP/2 connection, ycabled-rs answers up to 0.5 s later than Python, but only on that port ([Section 5.3](#53-measured-results)).
   - The black-box tests run a SoC double that accepts, drops, refuses and blackholes connections, and check the resulting writes for both implementations.
@@ -1004,8 +1004,8 @@ flowchart TB
 1. Connect to the default namespace's databases and wait for `CONFIG_DB_INITIALIZED`. Read `DEVICE_METADATA` to detect VS, and find the namespaces.
 2. Write `XCVRD_LOG|Y_CABLE` `log_verbosity=notice`, as Python does. Build the port map, and per namespace determine read_side from Loopback3 (looked up again when an active-active cable is initialized while it is still unknown, as Python does), apply `grpc_secrets.json` to CONFIG_DB and read the `MUX_CABLE` ports.
 3. Start the Y-cable bridge if any port is active-standby.
-4. Create an actor for every `MUX_CABLE` port. All actors initialize in parallel, and startup waits until every port is initialized, for at most 30 s.
-5. Start the subscriptions: `TRANSCEIVER_INFO`, and the request tables if the namespace has mux ports. Each first delivers the rows that already exist, so requests written during startup are handled then, as in Python.
+4. Create an actor for every `MUX_CABLE` port and subscribe to `TRANSCEIVER_INFO`, then initialize all actors in parallel. A cable inserted or removed meanwhile is handled right after its port's initialization. Startup waits until every port is initialized, for at most 30 s.
+5. Start the subscriptions of the request tables if the namespace has mux ports. Each first delivers the rows that already exist, so requests written during startup are handled then, as in Python.
 6. Start the GracefulRestart tasks if any port is active-active, with the read side known then: like Python, look Loopback3 up again if it is still unknown.
 
 **Toggles of two ports, one SoC not responding.** Compare with the serial case in [Section 3.3.3](#333-active-active-toggle-self-and-peer):
@@ -1040,7 +1040,8 @@ sequenceDiagram
 | Area | Python | Rust | Reason |
 | --- | --- | --- | --- |
 | Concurrency | Every port in one thread, one request at a time | One actor per port | N1 |
-| Startup | Ports initialized one by one; threads start after the last port | Ports initialized in parallel; subscriptions start after the last port, as in Python, or after 30 s | N3; a hung driver call holds up only its port |
+| Startup | Ports initialized one by one; threads start after the last port | Ports initialized in parallel; the request subscriptions start after the last port, as in Python, or after 30 s | N3; a hung driver call holds up only its port |
+| Cable removed during startup | Missed: `TRANSCEIVER_INFO` is subscribed to after initialization, and its first rows do not include the removed cable | Handled after the port's initialization | `TRANSCEIVER_INFO` is subscribed to before initialization |
 | Order across tables | Within one select wake-up, a fixed table order; cable insertion and removal in another thread | The order redis delivered the notifications, for all of a namespace's tables | A toggle written after a cable insertion runs after it ([Section 4.3.2](#432-db-access)) |
 | Shutdown | Never ends by itself; tables kept | Exits within 2 s; tables kept | N9, C7 |
 | Thread or task failure | Process killed within 60 s | Process exits at once | N8 |
@@ -1103,7 +1104,7 @@ The baselines are in [Section 1.2.2](#122-resource-usage). The active-active num
 | Telemetry pass, 32 unreachable SoCs | 64 s, longer than the 60 s period | About 2 s per port, in parallel | Per-port timers |
 | RSS, active-active only | 41 MB (dev VM, 32 channels) | ≤ 15 MB | No interpreter |
 | RSS, active-standby | 53-54 MB (KVM, 24 ports) | ≤ 37 MB (70%) | Interpreter only for the drivers, no per-thread DB connectors |
-| Threads | 5, plus about 1 per active-active channel (53 with 32 channels) | ≤ 16 while no driver call hangs | tokio; blocking threads only while a driver call runs |
+| Threads | 5, plus about 1 per active-active channel (53 with 32 channels) | ≤ 16, plus one per driver call in flight | tokio; blocking threads only while a driver call runs |
 | Redis connections | 124 (KVM, 24 ports) | ≤ 48 per namespace (4 by design) | One connection per database and one pub/sub connection for all subscriptions (D9) |
 | Idle CPU | 0.7-0.8% of one core (KVM, 24 active-standby ports) | No higher than Python's | Event-driven, no 100 ms select loop |
 
@@ -1111,9 +1112,9 @@ The baselines are in [Section 1.2.2](#122-resource-usage). The active-active num
 
 Run both implementations on the same DUT and image, switching with `use_rust_ycabled`:
 
-- **Memory:** RSS and PSS from `/proc/<pid>/smaps_rollup`, threads from `/proc/<pid>/status`, Redis connections with `ss -tanp`. Measure 10 minutes after startup and again after a toggle storm.
+- **Memory:** RSS and PSS from `/proc/<pid>/smaps_rollup`, threads from `/proc/<pid>/status`, Redis connections with `ss -tanp`. Measure 10 minutes after startup and again after a toggle storm, and record the peak thread count during startup and the storm.
 - **Latency:**
-  - toggles: `MUX_METRICS_TABLE` `xcvrd_switch_*` start and end
+  - toggles: from orchagent's write of the request to ycabled's STATE_DB `HW_MUX_CABLE_TABLE` write, which includes the time a request waits behind others; `MUX_METRICS_TABLE` `xcvrd_switch_*` cover only the handling
   - probes: time from the command write to the response write, in the test harness
 - **Fault injection:** make K SoCs unreachable with nic_simulator or by dropping their traffic with iptables.
 - **Startup:** from supervisord's "spawned" message to the last `HW_MUX_CABLE_TABLE` row written.
