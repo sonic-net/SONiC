@@ -946,7 +946,7 @@ pipeline.
 | `CPUQuota` | `100%` | Aggregate CPU-time ceiling equivalent to one logical CPU, not all host CPUs. |
 | `CPUWeight` | `10` | Lower relative CPU share under contention; not a percentage or a reservation. |
 | `MemoryHigh` | `256M` | Begin aggressive reclaim/throttling when the unit exceeds 256 MiB. |
-| `MemoryMax` | `512M` | Hard backstop for cgroup-accounted memory. |
+| `MemoryMax` | `1G` | Hard backstop for cgroup-accounted memory. |
 | `MemorySwapMax` | `0` | Disallow swap consumption by the unit. |
 | `TasksMax` | `128` | Bound the combined number of threads and processes in the unit. |
 | `LimitNOFILE` | `1024` | Per-process open-file-descriptor limit. |
