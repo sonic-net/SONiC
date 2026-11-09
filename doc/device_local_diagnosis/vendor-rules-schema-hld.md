@@ -35,6 +35,7 @@ The schema is designed to be:
 | 0.4 | 2026-08-25 | Gregory Boudreau | Focused schema tests on representative wire behavior and security boundaries rather than exhaustive low-risk permutations or coverage targets. |
 | 0.5 | 2026-09-03 | Gregory Boudreau | Made activation validation atomic, made missing installed hooks file-fatal, moved discovery cadence into common DLDD, separated action completion from recovery success, and reduced artifact ownership to trigger plus reference publication. |
 | 0.6 | 2026-09-20 | Gregory Boudreau | Clarified candidate-wide validation failures, aligned the per-signature event limit with the 999 unique event IDs, and documented deterministic normalization of configured static-log patterns before artifact collection. |
+| 0.7 | 2026-11-08 | Gregory Boudreau | Clarified built-in file/sysfs sampling bounds and the runtime default for omitted artifact-query timeouts. |
 
 ## Document Authority
 
@@ -339,6 +340,8 @@ path:
 
 The Pydantic path contract requires `file` and `format` to be non-empty strings and permits optional `scaling` and `unit`. During shared activation preflight, the built-in file/sysfs adapter supports `text`, `string`, `raw`, `json`, `yaml`, `integer`, `int`, `float`, and `boolean`; another format fails adapter validation for that rule.
 
+At runtime, built-in file/sysfs samples are limited to 128 matched files, 1 MiB per file, and 4 MiB aggregate raw input before each file is decoded or parsed. Exceeding a bound fails the sample rather than truncating it. Symlinks to regular files and zero-size sysfs attributes are supported; FIFO and device targets are rejected after a nonblocking open. These fixed runtime safeguards add no wire fields and do not guarantee a deadline for glob traversal or kernel-driver reads.
+
 **Sysfs Path Structure:**
 ```yaml
 path:
@@ -572,7 +575,7 @@ For `type: i2c` local actions, `path.bus`, `path.chip_addr`, `path.command`, and
 
 Vendors may add implementation-specific action/query types only when the platform validator advertises support for those types. An unknown action/query type rejects the complete candidate, with the diagnostic attached to the affected rule.
 
-For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, the complete candidate is rejected, with the diagnostic attached to that action. For log queries, `timeout` is optional and is not defaulted by the schema; if omitted, DLDD does not impose a schema-level query timeout, while the DLDD artifact client's retention and storage policies still bound stored output.
+For local actions, omitted `timeout` values are filled from the top-level `local_action_default_timeout` when it is present. If an action omits `timeout` and the rules source omits `local_action_default_timeout`, the complete candidate is rejected, with the diagnostic attached to that action. For log queries, `timeout` is optional and omission remains unchanged by schema validation; the runtime applies a 30-second default, independently of `local_action_default_timeout`. The effective timeout is passed to the CLI runner and bounds DLDD's wait for a vendor callback. A timed-out callback retains its bounded call slot until it returns; capacity exhaustion fails fast, and callback-thread startup failure releases the slot. This does not forcibly terminate an in-process callback or roll back its side effects.
 
 **Remote Actions (Required):**
 The action list uses OpenConfig Healthz fault remediation identities. OpenConfig identity values are extensible, so DLDD requires each entry to be a non-empty string but does not restrict it to a locally maintained enum. Standard or vendor-defined identities are preserved unchanged for the controller. Vendor identities use `<yang-module>:<identity>` and must be present in the platform's compiled YANG model for UMF export. `time_window` defines how long, in seconds, the controller should retain the fault history for escalation decisions; if the fault remains active throughout this window, the controller may progress to the next action in `action_list` according to controller policy.

@@ -47,6 +47,7 @@ The service provides:
 | 1.2 | 2026-09-28 | Gregory Boudreau | Kept only a scalar Healthz artifact ID in FAULT_INFO, removed persisted transition replay state and sidecars, and specified durable reporting of unrecoverable stream gaps. |
 | 1.3 | 2026-10-08 | Gregory Boudreau | Rechecked the independent Healthz boundary against pinned/current upstream; aligned archive reclamation and publication/artifact safety contracts with final qualification. |
 | 1.4 | 2026-10-30 | Gregory Boudreau | Added systemd resource budgets and documented service crash recovery, cgroup cleanup, and the limits of host-process containment. |
+| 1.5 | 2026-11-08 | Gregory Boudreau | Bounded Redis waits, file samples, and artifact queries; added monitor progress supervision and a primary-loop systemd watchdog. |
 
 ## Scope
 
@@ -466,8 +467,8 @@ DLDD Process (PID: main)
 - **Inter-Thread Payloads**: Communication between threads relies on `MonitorWorkItem` descriptors (orchestrator to monitor), `FaultEvidenceEvent` objects (monitor to orchestrator), and `MonitorControlCommand` objects (orchestrator to monitor), keeping the data flow self-describing and serialization-friendly. Runtime `state_by_key` changes are applied by the owning monitor thread after it drains its command queue.
 - **Bounded Primary Intake**: The shared FIFO holds at most 4,096 `FaultEvidenceEvent` and `DSEExpansionEvent` objects. The primary drains at most 128 per processing batch before running timers and lifecycle work, preventing a busy source from starving actions, rechecks, and telemetry.
 - **Worker Separation**: Async event collection uses the dedicated eight-worker priority pool. Local action sequences use four sequence workers and four bounded call slots. DLDD's two artifact workers run rule queries and stage files; host Healthz packages submitted files. These pools do not execute signature correlation or publish monitor evidence.
-- **Supervision and Configuration**: A daemon config-listener thread forwards complete `DLDD_CONFIG|global` snapshots to the primary owner. The service supervises monitor threads and restarts a monitor that exits unexpectedly, recording a service diagnostic.
-- **Heartbeat**: The primary refreshes compact process status every 30 seconds; the published key uses a 120-second TTL.
+- **Supervision and Configuration**: A daemon config-listener thread forwards complete `DLDD_CONFIG|global` snapshots to the primary owner. The service restarts a monitor that exits unexpectedly, recording a service diagnostic. Each monitor records monotonic progress at cycle boundaries and between work items and DSE templates. More than 120 seconds without owner progress is a fatal process failure: the primary attempts to publish `BROKEN|FATAL` with the reason and exits non-zero. It never starts another owner while the old monitor thread remains alive.
+- **Heartbeat and Watchdog**: The primary refreshes compact process status every 30 seconds; the published key uses a 120-second TTL. Independently, only the primary loop sends systemd watchdog notifications, scheduled with an interval capped at 30 seconds; see [Service Failure Containment and Recovery](#service-failure-containment-and-recovery).
 - **Deterministic Ordering**: The FIFO buffer preserves enqueue ordering of `FaultEvidenceEvent` payloads. Signature correlation uses event timestamps, not enqueue order. OpenConfig requires a singular fault instance per component/symptom, so DLDD publishes at most one `FAULT_INFO|<component>|<symptom>` record. If multiple signatures are active for the same component and symptom, the published fault is determined first by rule severity and then by priority (lower numeric priority takes precedence). If component instance, symptom, severity, and priority are the same, the published fault is based on first detected fault. Non-winning active signatures remain in DLDD internal event history and may become the published record if the current winning signature clears while they remain active. A winner change while the component/symptom remains continuously active preserves `origin_time` and `occurrences`; only a transition of the singular fault from `INACTIVE` to `ACTIVE` increments `occurrences`.
 
 ### Rule Evaluation Workflow
@@ -519,6 +520,7 @@ Normative publication order:
 - **Sequence completion**: The ordered local action sequence stops at the first execution error or timeout and reports `EXECUTION_ERROR` or `TIMED_OUT`; otherwise it reports `COMPLETED`. Completion does not mean remediation succeeded. The failure does not skip artifact triggering, `wait_period`, or the complete post-action signature recheck.
 - **Action output**: Built-in CLI actions retain bounded stdout and stderr. A DSE or vendor action may return `ActionOutput(stdout=..., stderr=..., result=...)`; an ordinary non-`None` return is retained as a generic result without being interpreted as remediation success. When `log_collection` is configured, DLDD stages these values as ordered `actions/NNN/` entries for host Healthz packaging. Routine `FAULT_INFO` action telemetry remains limited to type, completion state, timestamps, and error. Existing actions returning `None` require no change.
 - **Action timeouts**: Each local action may override the default timeout from the rules source. If omitted, DLDD applies the top-level `local_action_default_timeout` from the active rules source. A timeout marks that action and the sequence failed, records the result in DLDD status/audit telemetry, stops later actions in the sequence, releases the action-sequence worker, and allows the primary thread to continue to the post-action recheck path. The selected fault triggers configured Healthz artifact collection immediately before publication, without waiting for artifact completion. The underlying timed-out vendor call may continue and retain one of the four bounded call slots until it returns; after all four slots are occupied, later calls fail fast with capacity exhaustion.
+- **Query timeouts**: An artifact query uses its explicit `timeout`, or a 30-second runtime default when omitted. DLDD passes that effective timeout to the CLI runner and bounds waiting for vendor callbacks through the artifact query call gate. A timed-out callback retains its bounded slot until it returns, so repeated timeouts cannot create unbounded callback threads; exhausted capacity fails fast. Both action and query gates release admission slots if callback-thread startup fails.
 - **Wait periods**: A long `wait_period` is a vendor diagnostic/remediation choice, not a DLDD error. DLDD should expose action state in telemetry so operators can distinguish an intentional vendor wait from a hung service.
 - **Single execution per active fault**: Once local actions are scheduled for an active `FaultRecord`, DLDD suppresses duplicate local action runs for that same rule/component/symptom lifetime. A new local action run is allowed only after the record has cleared to `INACTIVE` and later becomes `ACTIVE` again, unless a later schema version adds explicit retry semantics.
 - **Post-action recheck**: The primary thread owns post-action rechecks. It sends `RECHECK_ONCE` after the vendor `wait_period` to the contributing keys needed to evaluate the complete per-instance signature.
@@ -619,6 +621,10 @@ Below are some examples of how type specific adapters will function:
 - **CLIAdapter**: Executes vendor CLI commands through the schema-defined `argv` structure without invoking a shell, normalizes stdout to the expected format, and returns parsed content.
 - **SysfsAdapter**: Reads sysfs paths exposed by the host kernel and normalizes numeric or text values according to the rule's path and `value_configs` metadata. Sysfs work is scheduled by the common monitor.
 - **FileAdapter**: Reads file paths or glob patterns, normalizes data into a buffer for later comparison as defined in the rules.
+
+Default Redis read and write clients share five-second socket connect and read-inactivity timeouts. Modern redis-py transport retries are disabled; redis-py 3.5 retains its compatible no-timeout-retry behavior. These are socket-wait bounds, not an overall transaction or DNS deadline; repeated partial responses can extend an operation.
+
+Built-in file and sysfs sampling accepts at most 128 matched files, 1 MiB per file, and 4 MiB aggregate raw input per sample, checked before decoding or parsing each file. An exceeded bound fails the sample rather than evaluating truncated content. The adapter follows symlinks to regular files, including readable sysfs attributes that advertise zero size, and opens nonblocking before rejecting FIFO or device targets. These input bounds do not bound filesystem glob internals or a slow kernel-driver read.
 
 Each adapter adheres to the same lifecycle hooks (`validate()`, `collect()`, etc.), which keeps the evaluation pipeline agnostic to the underlying transport while still allowing vendor-specific implementations behind the interface. DSE discovery itself is an additional monitor-owned `expand(template)` operation; it does not run on the primary thread.
 
@@ -738,6 +744,7 @@ Evaluation failures are considered fatal for the rule only when they indicate a 
 | **Unexpected Query Error** | Monitor thread during `collect()` | Retry and track consecutive failures; mark `DEGRADED` while failure count is less than or equal to threshold and `BROKEN` once it exceeds threshold outside graceful-maintenance windows | Affected keys remain in immutable monitor plan but are skipped when `BROKEN`; intentionally paused keys use `SUSPENDED` | Added to `broken_rules` after threshold is exceeded |
 | **Evaluation Error** | Monitor thread during `collect()` | Mark broken immediately if caused by invalid evaluator/schema/DSE contract | Affected keys remain in immutable monitor plan but are marked `BROKEN` until fresh process start or rule generation reevaluation | Added to `broken_rules` immediately |
 | **Action Execution Error** | Async action worker during local action execution | Record `EXECUTION_ERROR` or `TIMED_OUT`, continue to the normal wait/recheck, then collect an artifact for the selected fault when configured | Action status says whether execution completed, not whether the repair worked; recheck alone determines recovery | Fault action metadata |
+| **Monitor Owner Makes No Progress** | Primary observes more than 120 seconds without monitor progress | Attempt fatal process-status publication and exit non-zero for systemd recovery; never overlap a live owner with a replacement | Process failure, not candidate-file rejection or rules-generation rollback | `BROKEN|FATAL` process reason when Redis remains writable |
 
 #### Broken Rule Reporting
 
@@ -962,7 +969,7 @@ Operators can inspect effective limits and usage with
 `CPUUsageNSec` is cumulative CPU time, so utilization requires two samples and
 their elapsed time. Accounting does not itself raise a resource alarm. FEATURE
 health checks service activity; the 30-second process telemetry refresh and its
-120-second TTL are separate liveness signals, not an execution watchdog.
+120-second TTL are separate from the execution watchdog described below.
 
 ### Service Failure Containment and Recovery
 
@@ -976,6 +983,8 @@ not itself request that those dependencies stop.
 | --- | --- |
 | A source, evaluator, or local action raises a runtime exception | Isolate/report the affected execution through existing rule/source diagnostics; retain local-action wait/recheck semantics. |
 | A monitor thread exits unexpectedly | The primary recreates that monitor with its existing plan and records a service diagnostic. |
+| A live monitor makes no owner progress for more than 120 seconds | The primary attempts fatal process telemetry and exits non-zero; it does not create a competing owner or reject/roll back the active rules. |
+| The primary loop, daemon startup, or the Python GIL stalls for the watchdog interval | Systemd's external watchdog sends `SIGKILL` and applies normal unit cleanup/restart; no watchdog-kill core dump is produced. |
 | The daemon exits non-zero or is terminated by an unexpected fatal signal, including a native-hook crash | Systemd cleans up the unit and applies `Restart=on-failure` after `RestartSec=10`; FEATURE's `auto_restart` drop-in remains authoritative. |
 | The unit cannot reclaim enough memory below `MemoryMax` | When the platform permits cgroup-local OOM handling, `OOMPolicy=kill` treats the unit's processes as one workload and the normal restart policy applies. `vm.panic_on_oom=2` instead causes a host panic; this is a deployment blocker for service-only memory-fault containment. |
 | Stop/restart leaves threads or command children running | `KillMode=control-group` targets the unit's processes; `TimeoutStopSec=30` bounds the graceful stop phase before `SendSIGKILL=yes` forces remaining killable processes to exit. |
@@ -991,15 +1000,24 @@ not fabricated hardware `FAULT_INFO` records. Native crash dumps follow the
 host's existing core-collection and retention policy; the resource profile does
 not establish a separate DLDD core-storage quota.
 
+The packaged unit uses `NotifyAccess=main`, `WatchdogSec=120`, and
+`WatchdogSignal=SIGKILL`. Only the primary loop sends notifications, scheduled
+every 30 seconds for this unit. Delayed primary work can miss that cadence;
+the 120-second watchdog remains the failure boundary. A helper thread cannot
+mask a stuck primary or daemon startup that exceeds 120 seconds. This external
+supervision also covers a native hook that freezes the Python GIL. It is
+separate from Redis status TTL expiry.
+
 This is resource and process-failure containment, not a security sandbox or an
 absolute guarantee against wider effects. Trusted hooks still have the host
 permissions needed for device access. Privileged commands, shared SDK/driver
 state, kernel faults, and external work outside the cgroup can affect the host.
-A Python timeout cannot forcibly stop an in-process vendor thread; a thread
-that remains alive but is stuck is not repaired by monitor liveness checks.
-No watchdog or universal subprocess isolation is implied. Such hooks require
-their own bounded operation or a suitable trusted helper-process boundary.
-Uninterruptible kernel work may also outlast userspace stop deadlines.
+A Python timeout cannot forcibly stop an in-process vendor thread. Monitor
+progress supervision and the external watchdog recover the process; they do
+not roll back hardware effects or provide universal subprocess isolation.
+Such hooks still require their own bounded operation or a suitable trusted
+helper-process boundary. `SIGKILL` cannot immediately terminate uninterruptible
+kernel `D`-state work, which may outlast watchdog and userspace stop deadlines.
 
 ### Enable/Disable Service
 
@@ -1675,9 +1693,9 @@ Tier 2 keeps one representative for each distinct end-to-end lifecycle. Tier 1 a
 
 **Operator State Reset Testing**: Verify default `config dldd clear-state` stops and restarts DLDD only when active, removes local broken-rule state and daemon status/rule keys, preserves rules/configuration and `FAULT_INFO`, and causes DLDD startup reconciliation of retained active faults without Healthz replay. Verify `--all` emits a new explicit inactive transition for each active DLDD source before removing only DLDD-owned `FAULT_INFO` rows and legacy DLDD archive files; retained inactive rows are removed without replay. A transition publication failure must leave its active fault row in place. Verify no old archive is re-advertised and that unrelated producer rows, generic Healthz archives/events/acknowledgement, and configuration/rules files are preserved.
 
-**Service-Level State Testing**: Validate service-level BROKEN|FATAL state by loading a rules file with multiple rules and simulating failures that cause enough unique rule IDs to break to exceed default `broken_rules_max_threshold` (default: 5). Verify that multiple broken work keys from one high-fanout rule count once, `process_state` transitions to `state: BROKEN|FATAL` only when the unique broken rule-ID count is greater than the configured threshold, the service continues running but publishes critical state to the controller, and all broken records are listed with diagnostics in the `process_state.broken_rules` array.
+**Service-Level State Testing**: Validate service-level BROKEN|FATAL state by loading a rules file with multiple rules and simulating failures that cause enough unique rule IDs to break to exceed default `broken_rules_max_threshold` (default: 5). Verify that multiple broken work keys from one high-fanout rule count once, this failure class transitions `process_state` to `state: BROKEN|FATAL` only when the unique broken rule-ID count is greater than the configured threshold, the service continues running but publishes critical state to the controller, and all broken records are listed with diagnostics in the `process_state.broken_rules` array.
 
-**Resource and Process-Failure Testing**: Check the installed unit's effective CPU, memory, task, OOM, cleanup, and failure-action settings, including platform drop-ins and `vm.panic_on_oom`. Abort memory-exhaustion tests when the kernel policy can panic on cgroup OOM; never change a host-wide kernel setting as test setup. Qualify normal and peak inventory/action load against the configured profile. In an explicitly authorized disposable lab unit on a compatible platform, inject CPU pressure, scoped memory/task exhaustion, a fatal process signal, and a lingering child; verify bounded resource use, unit-local cleanup, restart/reconciliation behavior, and unchanged unrelated service lifetimes. Record relevant control/data-plane health and the host core-retention behavior. These are distinct failure-boundary tests, not coverage permutations. Source-level unit tests do not prove kernel enforcement or live forwarding isolation.
+**Resource and Process-Failure Testing**: Check the installed unit's effective CPU, memory, task, OOM, cleanup, watchdog, and failure-action settings, including platform drop-ins and `vm.panic_on_oom`. Abort memory-exhaustion tests when the kernel policy can panic on cgroup OOM; never change a host-wide kernel setting as test setup. Qualify normal and peak inventory/action load against the configured profile. In an explicitly authorized disposable lab unit on a compatible platform, inject CPU pressure, scoped memory/task exhaustion, a fatal process signal, and a lingering child; verify bounded resource use, unit-local cleanup, restart/reconciliation behavior, and unchanged unrelated service lifetimes. Separately verify monitor nonprogress publishes a fatal process reason without overlapping owners, and stalled primary/GIL/startup work triggers the external watchdog without a core dump. Record relevant control/data-plane health and the host core-retention behavior. These are distinct failure-boundary tests, not coverage permutations. Source-level unit tests do not prove kernel enforcement or live forwarding isolation.
 
 **Configuration Error Handling**: Use representative malformed syntax, exact-schema, semantic, and missing installed-hook cases to verify the complete file is rejected with bounded diagnostics and no partial plan. Separately verify that post-activation get, compare, expansion, and action exceptions remain localized and contribute to process exception counts.
 
