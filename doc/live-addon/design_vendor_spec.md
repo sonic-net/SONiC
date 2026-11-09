@@ -159,17 +159,11 @@ selects the script invoked from that directory. The working directory and script
 must exist. The artifact `glob` is evaluated relative to a newly created output
 directory, not the source tree, and must match exactly one file.
 
-The build runs in a SONiC-approved sandbox with read-only source, an empty
-writable output directory, and a documented, pinned toolchain. It has no access
-to unrelated workspaces or host filesystems, the Docker daemon socket, or
-repository, registry, signing, publishing, or deployment credentials. Resource
-use and execution time are bounded. The profile cannot select or weaken the
-sandbox.
-
-Network access is disabled by default. Any required exception must be documented
-and restricted to SONiC-approved, version-pinned sources. Toolchain and
-artifact-build dependencies must be documented and pinned as part of the
-integration.
+The script must use documented, version-pinned build dependencies. Network
+access may be used for documented dependency downloads. The script must not
+modify unrelated CI resources, access unrelated credentials, or require
+host-control privileges. CI execution responsibilities are defined in
+[framework design section 5.2](./design_review.md#52-build-script-isolation).
 
 ## 5. Artifact, Payload, and Dependency Restrictions
 

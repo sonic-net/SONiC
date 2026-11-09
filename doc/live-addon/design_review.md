@@ -154,8 +154,9 @@ how the framework resolves the source root.
 
 `[source]` locates integration inputs, not necessarily program source code.
 The artifact script may compile supplied source or simply copy a prebuilt binary
-bundle into the clean output directory. Both use the same sandbox, validation,
-and installation path; proprietary program source need not be provided.
+bundle into the clean output directory. Both use the same controlled build
+environment, validation, and installation path; proprietary program source need
+not be provided.
 
 The profile schema and complete example are defined in
 [vendor specification section 2](./design_vendor_spec.md#2-integration-inputs-and-platform-configuration).
@@ -172,15 +173,16 @@ input contract.
 2. Resolve a repository-local source path without a Git checkout, or fetch the
    external repository and record the concrete commit selected by its revision.
 3. Invoke the declared artifact preparation script, whether build or copy, in
-   the sandbox described below, passing the framework's absolute output directory.
+   the controlled environment described below, passing the framework's absolute
+   output directory.
 4. Validate the resulting bundle and declared runtime configuration.
 5. Prepare the approved image inputs and install the validated bundle through
    the shared SONiC-owned Dockerfile.
 
 Source acquisition is separate from artifact building. Private-source
-credentials remain in acquisition, outside the sandbox and final Docker
-context. After acquisition, local and external source use identical build
-prerequisites. Neither source tree is copied directly into the image.
+credentials remain in acquisition, outside the artifact build environment and
+final Docker context. After acquisition, local and external source use identical
+build prerequisites. Neither source tree is copied directly into the image.
 
 The artifact-build prerequisite recreates its isolated output directory before
 every invocation, then evaluates the artifact glob there. This prevents stale
@@ -192,36 +194,16 @@ not select a different Dockerfile or runtime-generation mechanism.
 
 ### 5.2 Build script isolation
 
-The artifact build script is source-provided executable code and must not run
-with unrestricted access to the SONiC CI worker. The framework must execute
-it in a disposable SONiC-controlled sandbox.
+The artifact build script must use documented, version-pinned build dependencies
+and produce the declared artifact in the framework-provided output directory.
+Network access may be used for documented dependency downloads. The script must
+not modify unrelated CI resources, access unrelated credentials, or require
+host-control privileges.
 
-The sandbox must provide:
-
-- The resolved source tree as a read-only input.
-- One empty writable artifact-output directory.
-- Only the documented and pinned build toolchain.
-- No access to unrelated pipeline workspaces or host filesystems.
-- No Docker daemon socket or equivalent host-control interface.
-- No repository, registry, publishing, signing, or deployment credentials.
-- Bounded CPU, memory, process count, disk use, and execution time.
-- Termination of the complete process tree when the build finishes or times
-  out.
-
-Network access should be disabled by default. If a build requires network
-access for approved dependencies, that exception must be documented and
-restricted to SONiC-approved, version-pinned sources.
-
-After the script exits, the framework discards the sandbox and validates only
-the newly created artifact-output directory. A sandbox violation, timeout,
-unexpected output, or non-zero exit fails the build. These controls protect
-the CI environment and artifact provenance; they do not change the runtime
-permissions of the resulting container image.
-
-The isolation mechanism may be an ephemeral container, disposable virtual
-machine, or equivalent controlled build environment. The implementation is
-SONiC-owned; the platform configuration does not select or weaken the
-sandbox.
+The CI owner is responsible for providing an appropriately controlled execution
+environment, limiting resource use, and cleaning up build processes and
+temporary files. The framework validates the resulting artifact and fails the
+build on execution errors or invalid output.
 
 ### 5.3 Validation and layer-safe installation
 
@@ -676,7 +658,7 @@ This recipe does not build a separately managed `Dockerfile.buildinfo`.
 Do not add `# SKIP_HOOK`, copy a vendor Dockerfile,
 or duplicate the shared Docker build/save recipe.
 
-Make owns input acquisition, sandboxed artifact preparation, validation, and
+Make owns input acquisition, controlled artifact preparation, validation, and
 context preparation as explicit prerequisites of the image target. Small
 Python helpers may validate INI files, artifacts, paths and generated metadata;
 they do not render the final Dockerfile or invoke Make/Docker as a second build
@@ -743,7 +725,7 @@ Make resolves and validates the selected profile
               |
               +--> external vendor: fetch the declared repo and pinned ref
               |
-              +--> build or copy the selected artifact in a sandbox
+              +--> build or copy the selected artifact in a controlled environment
               +--> validate one bundle and declared runtime configuration
               +--> stage approved snapshot sources, locks and metadata
               |
