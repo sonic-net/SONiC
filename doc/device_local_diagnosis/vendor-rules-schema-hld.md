@@ -37,6 +37,7 @@ The schema is designed to be:
 | 0.6 | 2026-09-20 | Gregory Boudreau | Clarified candidate-wide validation failures, aligned the per-signature event limit with the 999 unique event IDs, and documented deterministic normalization of configured static-log patterns before artifact collection. |
 | 0.7 | 2026-11-08 | Gregory Boudreau | Clarified built-in file/sysfs sampling bounds and the runtime default for omitted artifact-query timeouts. |
 | 0.8 | 2026-11-09 | Gregory Boudreau | Corrected scalar artifact-reference publication, final-recheck collection timing, and the 999-event validation limit. |
+| 0.9 | 2026-11-09 | Gregory Boudreau | Distinguished ordinary applicability filtering from fatal static vendor validation, bounded/redacted parser diagnostics, preserved rule identities across diagnostic budgets, and clarified bounded partial CLI timeout output. |
 
 ## Document Authority
 
@@ -538,7 +539,7 @@ local_actions:
 | `wait_period` | Integer | Yes | Time in seconds to wait after local actions before the primary thread requests a recheck and before remote action escalation is relied on. This is a nonblocking timer for DLDD; the primary thread continues telemetry publication and monitoring of unaffected correlation keys. | Strict integer 0-4294967295 seconds | `60` |
 | `action_list` | List | Yes | Ordered sequence of vendor-defined remediation actions scheduled locally by DLDD on action worker context. Each list entry is a wrapper object containing one `action` object. The wrapped action object contains a `type` field specifying the execution method and type-specific fields for the operation. Actions are executed sequentially until the list completes or the first action fails or times out; actions after the first failure are not attempted. | List of `action` wrapper objects. Supported wrapped action types: `dse`, `cli`, `i2c`, and explicit vendor-supported action types. CLI actions use `argv`. DSE actions use `command`. Direct I2C actions use `path`. | See example above |
 
-Each action may specify `timeout` as a strict integer from 1 through 4294967295 seconds. If omitted, DLDD uses the top-level `local_action_default_timeout`. A sequence result is `COMPLETED`, `EXECUTION_ERROR`, or `TIMED_OUT`; command return values are vendor-owned and do not claim recovery success. An execution error or timeout stops later actions, but DLDD still triggers configured artifact collection and performs the configured wait and post-action recheck. That recheck alone determines whether the fault recovered.
+Each action may specify `timeout` as a strict integer from 1 through 4294967295 seconds. If omitted, DLDD uses the top-level `local_action_default_timeout`. Built-in CLI timeout output retains only bounded stdout/stderr already drained before timeout when cleanup completes within the fixed one-second outer allowance; the configured child execution timeout is unchanged. No output is promised if cleanup exceeds that allowance. Vendor/DSE callbacks keep their existing exact wait and bounded-slot behavior. A sequence result is `COMPLETED`, `EXECUTION_ERROR`, or `TIMED_OUT`; command return values are vendor-owned and do not claim recovery success. An execution error or timeout stops later actions, but DLDD still triggers configured artifact collection and performs the configured wait and post-action recheck. That recheck alone determines whether the fault recovered.
 
 `local_actions` are executed by DLDD at most once per active fault lifetime for the same rule/component/symptom fault identity. Repeated event matches while the fault remains active refresh internal event history but do not start another identical local action sequence. If `local_actions` are configured, DLDD must complete the local action sequence and the subsequent `wait_period` recheck before publishing controller-visible `FAULT_INFO` fault telemetry for that fault lifetime. A clear result publishes the fault as `INACTIVE` with local action metadata so controllers can observe that DLDD detected and recovered the condition. A continued match publishes the fault as `ACTIVE` with the configured remote remediation recommendations. A new local action run is allowed only after the fault has cleared and later becomes active again, unless a future schema version defines explicit retry or cooldown fields.
 
@@ -625,7 +626,7 @@ DLDD translates vendor rules into the Redis `FAULT_INFO` payload before UMF expo
 - `metadata.error_type` maps to `FAULT_INFO.error_type`. UMF owns the OpenConfig translation for this value; vendors must keep the category stable for a given rule version.
 - `remote_actions.action_list[]` maps to `repair_actions[]` in `FAULT_INFO`. List position is the remediation index, and the target defaults to the resolved affected component.
 - `log_collection` maps to Healthz artifact creation. DLDD publishes an artifact identifier in `FAULT_INFO` when artifact generation is triggered, even though the artifact content may still be collected asynchronously.
-- `origin_time` and `last_detection_time` are generated by DLDD at runtime and published as whole Unix epoch seconds using mathematical floor. `last_detection_time` is the last detected fault state change for the record. UMF converts these timestamps to the nanosecond representation required by OpenConfig. Internal monotonic scheduling retains full precision; durations and intervals are not rounded or floored.
+- `origin_time` and `last_detection_time` are generated by DLDD at runtime and published as whole Unix epoch seconds using mathematical floor. `origin_time` stays fixed for the retained fault lifetime. `last_detection_time` is the latest sample that confirmed the underlying condition asserted; a clear or uncertain retained assessment does not advance it. UMF converts these timestamps to the nanosecond representation required by OpenConfig. Internal monotonic scheduling retains full precision; durations and intervals are not rounded or floored.
 
 #### Log Collection Structure
 
@@ -1000,7 +1001,7 @@ The generated JSON Schema is derivative, is not a second runtime authority, and 
 
 Before Pydantic validation, DLDD bounds the source text, rejects duplicate JSON and YAML mapping keys, rejects YAML aliases and unsafe tags, uses the YAML safe loader, and bounds parsed document depth, node count, collection size, and scalar values/keys. Pydantic field and model validation then enforces signature/event counts, logic-expression size/nesting, regular-expression size/nesting, strict numeric ranges, and bounded vendor payload types. The current document limits are a 4 MiB source, depth 64, 100,000 document nodes, 10,000 entries in any collection, 1 MiB per string scalar or mapping key, 1,024 signatures, and 999 events per signature. Direct internal validation of an already constructed Python mapping applies the same document limits and strict model contract. Parsing preserves source line information for diagnostics.
 
-Raw Pydantic errors are never published directly. DLDD normalizes them and custom semantic failures into stable issue codes, file/rule scope, canonical JSON-style paths containing the signature index, source lines when available, and rule ID/name when identifiable. Diagnostics are deterministically ordered, redact raw input, and are bounded per rule and per candidate so dependency-specific error formatting cannot become an operator-facing API or an unbounded telemetry payload.
+Raw parser and Pydantic errors are never published directly. Parser failures use stable DLDD messages and source positions when available, excluding dependency-rendered snippets, values, and duplicate-key text. Duplicate JSON/YAML keys report the mapping-key error without echoing the key; YAML can identify the second key's line, while JSON duplicate-key hooks supply no line offset. DLDD normalizes them and custom semantic failures into stable issue codes, file/rule scope, canonical JSON-style paths containing the signature index, source lines when available, and rule ID/name when identifiable. Diagnostics are deterministically ordered, redact raw input, and are bounded per rule and per candidate so dependency-specific error formatting cannot become an operator-facing API or an unbounded telemetry payload.
 
 Representative normalization is owned by DLDD rather than by Pydantic message text:
 
@@ -1018,13 +1019,16 @@ Representative normalization is owned by DLDD rather than by Pydantic message te
 
 The normalizer removes model and union-branch implementation names, uses wire aliases, prepends the signature index, and emits canonical paths such as `$.signatures[2].signature.conditions.events[0].event.sampling_interval`. It excludes raw input and dependency documentation URLs from the published result.
 
-Schema `0.0.1` returns at most 64 Pydantic issues per rule and 4,096 issues
-per candidate, bounds each message to 1,024 bytes and each published path to
-2,048 bytes, and keeps compact serialized candidate diagnostics within 1 MiB.
-Long paths and diagnostic identities include a short SHA-256 suffix so
-distinct fields remain distinct after truncation. When raw issues exceed a
-per-rule or per-candidate budget, each affected rule retains a stable
-`validation_issues_truncated` marker.
+Schema `0.0.1` groups validation issues by signature before retaining at most
+64 detail issues per rule. Candidate projection reserves bounded rule-scoped
+markers before admitting details under the 4,096-issue candidate ceiling and
+1 MiB combined compact `file_errors` plus `broken_rules` budget. It continues
+identifying later affected rules after detail retention stops, so one noisy rule
+cannot hide another invalid rule's identity. Each message is bounded to 1,024
+bytes and each published path to 2,048 bytes. Long paths and diagnostic identities
+use a short SHA-256 suffix; identities are compacted further if markers alone
+would exceed the byte budget. Affected rules retain the stable
+`validation_issues_truncated` marker when their details are omitted.
 
 The complete safety contract therefore requires: no network schema retrieval; no rule-selected schema/module/class/callable; no duplicate-key ambiguity or YAML object construction; no silent core-field dropping; no lax scalar coercion or non-finite values; bounded source, document, logic, regular-expression, vendor-payload, and diagnostic complexity; no hardware/source reads or side effects during normal activation; no raw rule payload in diagnostics; no mutable vendor data in runtime structures; no malformed built-in accepted through vendor fallback; and no version accepted by semantic-version proximity.
 
@@ -1034,7 +1038,7 @@ Validation is atomic for each candidate generation:
 
 1. **Document gate**: Validates the root, exact registered `schema_version`, every nested signature, configured bounds, and cross-signature identity uniqueness. Any error rejects the complete candidate.
 2. **Semantic conversion**: Converts the fully valid DTO document into immutable domain rules. Any context-free semantic error rejects the complete candidate.
-3. **Shared preflight**: Checks platform compatibility, resolves all referenced installed DSE/action/query hooks, builds the work plan, and calls adapter configuration validation without sampling sources or executing operations. A missing hook or invalid static contract rejects the complete candidate.
+3. **Shared preflight**: Checks platform compatibility, resolves all referenced installed DSE/action/query hooks, builds the work plan, and calls adapter configuration validation without sampling sources or executing operations. Product/software mismatch is an explicit `RuleNotApplicable` outcome: normal multi-platform filtering excludes that rule with its rule-scoped diagnostic. Missing required platform identity, invalid applicable static vendor options, a missing hook, or another true static contract failure rejects the complete candidate, with no partial ruleset or plan. A vendor validation error must not be converted into ordinary applicability filtering.
 4. **Runtime isolation**: After activation, expansion, get, comparison, collection, and action errors affect only their runtime rule/source and are reported through process telemetry. They never invalidate the file or trigger automatic rollback.
 
 Normal activation does not call adapter source-read/collection methods, DSE expansion/source/comparison runtime functions, or local actions. Resolution and validation hooks must be side-effect-free. A DSE template is valid before any instance is discovered, and an instance that is absent from current successful expansion is simply not monitored. An unresolved referenced hook or invalid returned static contract rejects the candidate; later operation failures are localized runtime failures.
@@ -1063,6 +1067,8 @@ The validation CLI exposes progressively stronger, explicit modes:
 8. **Qualification Modes**: Invoke configured source-read or collection paths only when an operator explicitly requests hardware-probe or end-to-end validation. End-to-end validation expands every applicable DSE template and subjects every discovered DSE instance to the same collection, dynamic-comparator, normalization, comparison, and rule-logic path as direct rules. It must not report a rule as passed merely because its DSE template was skipped or produced no instances. These paths are vendor-selected and must be reviewed for their intended read-only qualification behavior.
 
 #### Test Tiers
+
+The [fresh-review hardening record](https://github.com/gregoryboudreau/sonic-mgmt/blob/2019a49083c0bc4b5472a03d6ea6b74251a15532/tests/gnmi/healthz_qualification.md#fresh-review-hardening-2026-11-09-utc) identifies the final parser, strict-validation, preflight and installed-source follow-up with its exact source snapshots. Its controlled callbacks and emulated I2C do not qualify physical vendor remediation or a new full SONiC image.
 
 The schema implementation participates in the same three-tier strategy defined by the daemon HLD:
 
