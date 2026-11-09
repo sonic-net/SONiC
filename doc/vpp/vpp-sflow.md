@@ -1,5 +1,55 @@
 # sFlow Support in SONiC-VPP — High Level Design
 
+## Revision History
+
+| Rev | Date | Author(s) | Changes |
+|-----|------|-----------|---------|
+| v1.0 | 06/23/2026 | Yue Gao (yuega2@cisco.com) | Initial draft of sflow with packet sampling feature |
+| v1.1 | 11/06/2026 | Yue Gao (yuega2@cisco.com) | Add drop monitoring to sflow. NET_DM `IN_PORT` is a nested attribute carrying the linux-cp ifIndex |
+| v1.2 | 11/09/2026 | Yue Gao (yuega2@cisco.com) | Report against the port the packet arrived on (sonic_ext's captured `orig_rx_sw_if_index`) rather than the bond / BVI / sub-interface it was rewritten to (§4.7). Drop monitoring is switch-wide: `sflow-drop` is on every interface while it is on, independent of per-port sampling (§4.8). |
+| v1.3 | 11/09/2026 | Yue Gao (yuega2@cisco.com) | Drop notification rate limiting (§4.6). Notifications are metered by the VPP policer vpplib already creates for the `drop_monitor_limit` SAI policer, bound by name with the new `sflow_drop_policer_set` API and resolved once per FIFO drain, instead of a separate token bucket; the policer is otherwise handled like any other, including its stats. SAI mapping and work items updated for the TAM bind and for re-pointing the TAM → POLICER chain (§4.8.4, §4.8.5). Notes VPP's 9 KB minimum bucket (36 notifications for a pps policer). |q
+
+## Table of Contents
+
+- [Revision History](#revision-history)
+- [1. Objectives](#1-objectives)
+- [2. Scope](#2-scope)
+- [3. Feature Description](#3-feature-description)
+  - [3.1 What SONiC sFlow expects from the platform](#31-what-sonic-sflow-expects-from-the-platform)
+  - [3.2 What VPP's `sflow` plugin provides](#32-what-vpps-sflow-plugin-provides)
+  - [3.3 Capability gap matrix](#33-capability-gap-matrix)
+  - [3.4 Architecture overview](#34-architecture-overview)
+- [4. Solution Proposal](#4-solution-proposal)
+  - [4.1 SAI APIs to implement in vpplib](#41-sai-apis-to-implement-in-vpplib)
+  - [4.2 Mapping to VPP APIs](#42-mapping-to-vpp-apis)
+  - [4.3 ifindex coherence — reporting Linux netdev ifindex](#43-ifindex-coherence--reporting-linux-netdev-ifindex)
+  - [4.4 Per-port sample rate](#44-per-port-sample-rate)
+  - [4.5 Per-port sampling direction](#45-per-port-sampling-direction)
+  - [4.6 Drop notification rate limiting](#46-drop-notification-rate-limiting)
+  - [4.7 Drop monitor — NET_DM ingress port encoding](#47-drop-monitor--net_dm-ingress-port-encoding)
+  - [4.8 Drop monitoring — SAI plumbing](#48-drop-monitoring--sai-plumbing)
+  - [4.9 docker-sflow / hsflowd integration](#49-docker-sflow--hsflowd-integration)
+  - [4.10 VPP plugin enablement](#410-vpp-plugin-enablement)
+- [5. Implementation Plan](#5-implementation-plan)
+  - [Phase 1 — Basic sFlow functionality](#phase-1--basic-sflow-functionality)
+  - [Phase 2 — ifindex coherence](#phase-2--ifindex-coherence)
+  - [Phase 3 — Per-port sample rate and direction](#phase-3--per-port-sample-rate-and-direction)
+  - [Phase 4 — sonic-mgmt regression](#phase-4--sonic-mgmt-regression)
+  - [Phase 5 (optional) — bump hsflowd / enable mod_vpp](#phase-5-optional--bump-hsflowd--enable-mod_vpp)
+- [6. SONiC sFlow Configuration Guide (sonic-vpp specifics)](#6-sonic-sflow-configuration-guide-sonic-vpp-specifics)
+  - [6.1 Enable sFlow globally and add a collector](#61-enable-sflow-globally-and-add-a-collector)
+  - [6.2 Per-port configuration](#62-per-port-configuration)
+  - [6.3 Drop monitor (Phase 1.5+)](#63-drop-monitor-phase-15)
+  - [6.4 Validation from inside the device — loopback collector](#64-validation-from-inside-the-device--loopback-collector)
+  - [6.5 Troubleshooting](#65-troubleshooting)
+- [7. Test Plan](#7-test-plan)
+  - [7.1 VPP plugin patch tests](#71-vpp-plugin-patch-tests)
+  - [7.2 sonic-mgmt regression (Phase 4)](#72-sonic-mgmt-regression-phase-4)
+  - [7.3 Negative / robustness tests](#73-negative--robustness-tests)
+- [8. References](#8-references)
+
+---
+
 ## 1. Objectives
 
 Provide standards-conformant sFlow (RFC 3176 / sFlow v5) support on the
@@ -190,7 +240,7 @@ VPP ships `src/plugins/sflow/` (already present in
 | PSAMPLE delivery to `hsflowd` | Yes, but ifindex = hw_if_index | Mismatch with Linux netdev / SONiC port name | (a) substitute LCP-resolved Linux ifindex into PSAMPLE message, or (b) use `mod_vpp` over usersock |
 | `SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET` (psample genetlink hostif) | Family is kernel-provided + VPP plugin emits | None functional; SAI shim is bookkeeping no-op | SAI shim accepts trap creates and tracks state |
 | Drop monitor on/off | Yes | None | Direct mapping |
-| Trap policer (drop notifications) | No rate limit in plugin | Yes | Token-bucket in plugin slow path |
+| Trap policer (drop notifications) | No rate limit in plugin | Yes | Meter through the SAI policer's VPP policer in the plugin slow path |
 | SAI samplepacket attributes (`SAMPLE_RATE`, `TYPE = SLOW_PATH`) | n/a | None | Translate to VPP API calls |
 | Per-port interface counters in COUNTERS_DB | Already provided by SAI shim → COUNTERS_DB → `mod_sonic` | None | No change |
 
@@ -292,7 +342,7 @@ Add a vpplib `SaiVppSflow` translator. The following SAI handlers must be wired:
 | `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE` set | If new value is `SAI_NULL_OBJECT_ID`: call VPP `sflow_enable_disable(sw_if_index, 0)`; clear per-port state. Else: bind port to the samplepacket OID, call `sflow_enable_disable(sw_if_index, 1)`, recompute GCD and per-port sub-sampling. |
 | `SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE` set | (Optional, Phase 4) Same as above for egress arc; VPP supports it but mainline SONiC rarely uses it. |
 | `SAI_HOSTIF_TRAP_TYPE_SAMPLEPACKET` create / set | Bookkeeping only. Track `PACKET_ACTION` (TRAP/COPY/DROP), `TRAP_GROUP`. If action becomes DROP, gate per-port enable off. |
-| `SAI_HOSTIF_TRAP_GROUP` with `POLICER` | Translate policer `pir` (pps) and `cbs` (burst) → call new VPP API `sflow_drop_rate_limit_set(pps, burst)` if the trap is `SAMPLEPACKET` and applies to drop monitoring. For ingress sampling, VPP's intrinsic 1-in-N is the rate-limiter. |
+| `SAI_HOSTIF_TRAP_GROUP` with `POLICER` | The policer is a VPP policer like any other; when it is the drop monitor's (§4.6), bind it by name with new VPP API `sflow_drop_policer_set(name)`. For ingress sampling, VPP's intrinsic 1-in-N is the rate-limiter. |
 | `SAI_OBJECT_TYPE_HOSTIF` of type `GENETLINK` with name `psample`, group `packets` | No-op: kernel module + VPP plugin own this channel. Just allocate OID and return success. |
 | `SAI_OBJECT_TYPE_HOSTIF_TABLE_ENTRY` binding `SAMPLEPACKET` trap → psample hostif | No-op: binding is implicit in VPP. |
 
@@ -312,7 +362,7 @@ API), reusing the same path as ACL/route programming:
 | Set polling interval | `sflow_polling_interval_set { polling_S }` |
 | Set header bytes | `sflow_header_bytes_set { header_B }` |
 | Drop monitoring on/off | `sflow_drop_monitoring_set { drop_M }` (global flag; see §4.8) |
-| Drop rate limit | **New API** `sflow_drop_rate_limit_set { max_pps, burst }` (Phase 1.5) |
+| Drop rate limit | **New API** `sflow_drop_policer_set { name }` (Phase 1.5) |
 | Per-port sub-sampling factor | **New API** `sflow_interface_subsample_set { hw_if_index, sub_factor, desired_rate }` (Phase 3) |
 | Per-port sampling direction | **New API** `sflow_interface_direction_set { hw_if_index, direction }`, where `direction ∈ { ingress, egress, both, none }`. Replaces (per port) what the global `sflow_direction_set` does today. (Phase 3) |
 
@@ -602,19 +652,65 @@ attaching the wrong arc.
 
 ### 4.6 Drop notification rate limiting
 
-Add a token-bucket guard in the plugin's drop-send slow path
-(`send_packet_dropmon`):
+SONiC caps drop notifications at `drop_monitor_limit` per second. On an ASIC
+the policer orchagent builds for it (§4.8.1) meters the mirrored drops; in VPP
+nothing did, so the only ceiling was the 4-deep per-worker drop FIFO drained
+every 1 ms.
+
+vpplib already turns every SAI policer into a VPP policer (`createPolicer()`
+names it `copp-policer-<oid>`), so the plugin (patch 0028) meters the
+notifications with that policer rather than with a limiter of its own. The
+drop monitor policer is then created, replaced, removed and counted exactly
+like every other policer; only how it is attached differs. A CoPP policer
+meters packets through a classify session on the punt path; this one is
+bound to the sflow plugin by name, and the main-thread FIFO drain
+(`read_worker_fifos`) runs each discard through it before
+`send_discard_sample()`, as the sonic_ext `copp-ip2me` node does for punted
+packets:
 
 ```c
-if (smp->drop_max_pps) {
-    refill_tokens(smp);
-    if (smp->drop_tokens <= 0) { smp->drop_rate_limited++; continue; }
-    smp->drop_tokens--;
-}
+if (!sflow_drop_police (vm, smp, &sample))
+  {
+    dropmon_rate_limited++;
+    continue;
+  }
 ```
 
-Programmed by vpplib from the SAI policer attached to the `SAMPLEPACKET` trap
-group's policer (`SAI_POLICER_ATTR_PIR`, `SAI_POLICER_ATTR_CBS`).
+- `sflow_drop_police()` calls `vnet_police_packet()` and suppresses the
+  notification if the policer's action for the verdict is drop. The
+  verdict is added to the policer's own conform/exceed/violate counters,
+  so `getPolicerStats()` reports the drop monitor policer like any other.
+- A pps policer is metered at the policer plugin's fixed 256-byte packet
+  size, so it counts notifications; a byte-rate one at the sampled packet
+  size. VPP floors every bucket at 9 KB (`QOS_POL_MIN_BURST_BYTE`), so a
+  pps policer always allows a burst of at least 36 notifications, whatever
+  `CBS` asks for - the same as for every other VPP pps policer.
+- Enforced on the main thread, so it is one exact switch-wide limit with no
+  cross-thread state, and as nothing else polices through this policer it
+  needs no lock. Workers still copy the header into the FIFO; the FIFO
+  depth bounds that cost.
+- The policer is bound by name and resolved once per FIFO drain (at most
+  once per 1 ms poll, and only when a drop was dequeued), not per
+  notification. Policer add/update/delete and the binding API run on the
+  main thread too and the drain never suspends, so the policer cannot change
+  mid-drain, and any change is picked up by the next poll. It may therefore
+  be bound before it exists and replaced in place or deleted afterwards. While the
+  name does not resolve, or none is bound (the default), notifications are
+  unlimited. The policer plugin is reached through
+  `vlib_get_plugin_symbol()`, so sflow does not need it loaded.
+- Suppressed discards are counted in the `sflow DROPMON rate-limited` node
+  counter and as "drop samples rate-limited" in `show sflow`.
+- Configured by `sflow_drop_policer_set { name }`, read back by
+  `sflow_drop_policer_get` (which also returns the rate-limited count), and
+  by the CLI `sflow drop-monitoring policer <name>|none`.
+
+vpplib binds the VPP policer of the SAI policer at the end of the TAM chain:
+TAM `EVENT_OBJECTS_LIST` → TAM_EVENT (`PACKET_DROP`) `COLLECTOR_LIST` →
+TAM_COLLECTOR `HOSTIF_TRAP` → HOSTIF_USER_DEFINED_TRAP `TRAP_GROUP` →
+HOSTIF_TRAP_GROUP `POLICER`. A limit change re-sets `CIR`/`CBS` on that
+policer, which `setPolicer()` turns into an in-place replace of the same VPP
+policer, so nothing needs re-binding. A chain that does not resolve, or a
+policer VPP has no policer for, binds none.
 
 ### 4.7 Drop monitor — NET_DM ingress port encoding
 
@@ -665,7 +761,31 @@ correcting the PSAMPLE path would break `mod_vpp`'s `evt_psample`, whose
 lookup is keyed by VPP index.
 
 Implemented in `vppbld/patches/`:
-`0027-sflow-report-linux-cp-ifindex-in-drop-monitor-in-port.patch`.
+`0028-sflow-switch-wide-drop-monitoring-for-sonic.patch`.
+
+**Mismatch 3 — drop monitor is enabled only on interfaces sflow is enabled.**
+SONiC drop monitor is enabled globally. SflowDropMonitor::enableDropMonitor 
+creates a TAM (telemetry and monitoring) object with bind point 
+SAI_TAM_BIND_POINT_TYPE_SWITCH. It then sets that object on the switch through SAI_SWITCH_ATTR_TAM_OBJECT_ID. That means every drop on the box.
+VPP on the other hand only enables drop monitor on the interfaces that 
+sflow_enable_disable_interface are called. Particularly, SONiC only enables
+sflow on physical interfaces. So drop monitor will never be enabled on 
+PortChannel, Vlan etc. Drops in those interfaces will never be reported by
+DM.
+
+The proposed solution is that drop monitor enabled on all interfaces, where 
+sflow-drop node is added to error-drop arc to send DM message to SONiC. 
+
+**Mismatch 4 — Virtual interface as RX interface index in vpp DM.**
+VPP slow sends the current RX interface index in the DM message. The RX index
+is changed to virtual interface after nodes like bond-input. SONiC expects it
+always uses the original RX physical interface.
+
+The proposed solution is using orig_rx_sw_if_index in sonic_ext_buffer_opaque_t
+if it is available. 
+
+Implemented in `vppbld/patches/`:
+`0028-sflow-switch-wide-drop-monitoring-for-sonic.patch`.
 
 ### 4.8 Drop monitoring — SAI plumbing
 
@@ -768,6 +888,11 @@ computed in `sflow_enable_disable_interface()`. Two consequences:
   `sflow_enable_disable_all()`, so enabling drop monitoring before or after
   per-port sampling converges to the same state.
 
+This is the mismatch 3 mentioned above. We will change the behavior in vpp
+to match SONiC semantics. When sflow_enable_disable_interface is called, 
+sflow-drop node will be added to error-drop arc of all interfaces so drop
+can be collected anywhere in the system.
+
 The relevant plugin surface:
 
 | Binary API | CLI |
@@ -779,10 +904,11 @@ The relevant plugin surface:
 
 | SAI event | vpplib action |
 |---|---|
-| `SAI_SWITCH_ATTR_TAM_OBJECT_ID` set, `objlist.count > 0` | `vpp_sflow_drop_monitoring_set(true)` |
-| `SAI_SWITCH_ATTR_TAM_OBJECT_ID` set, `objlist.count == 0` | `vpp_sflow_drop_monitoring_set(false)` |
+| `SAI_SWITCH_ATTR_TAM_OBJECT_ID` set, `objlist.count > 0` | resolve the MOD policer, `vpp_sflow_drop_policer_set(<its VPP policer name>)`, then `vpp_sflow_drop_monitoring_set(true)` |
+| `SAI_SWITCH_ATTR_TAM_OBJECT_ID` set, `objlist.count == 0` | `vpp_sflow_drop_monitoring_set(false)`, then `vpp_sflow_drop_policer_set("")` |
 | `TAM_*` / `HOSTIF_USER_DEFINED_TRAP` create / remove | bookkeeping only (`create_internal`) |
-| `POLICER` `CIR`/`CBS` on the MOD policer | drop-rate limit, see §4.6 |
+| `POLICER` create / set / remove / stats, MOD policer included | the common policer path: VPP policer add / in-place replace / delete / counters; see §4.6 |
+| chain link re-pointed while bound (`TAM` events, collector trap, trap's group, group's policer) | re-resolve the policer; re-bind by name if it changed |
 
 The switch-attribute bind is the right hook because it is the one point
 SONiC uses for both enable and disable, it carries no ambiguity (empty list
@@ -807,8 +933,16 @@ nothing to program. They exist only to satisfy the SONiC state machine.
 - `vslib/vpp/SwitchVppSflow.cpp`: add `sflowDropMonitoringSet(bool)`.
 - `vslib/vpp/SwitchVpp.cpp`: handle `SAI_SWITCH_ATTR_TAM_OBJECT_ID` in the
   switch-attribute `set()` path.
+- Drop notification policer (§4.6): `vpp_sflow_drop_policer_set(name)` in
+  vppxlate; `sflowDropMonitorPolicer()` / `sflowDropPolicerApply()` in
+  `SwitchVppSflow.cpp`, called from the `TAM_OBJECT_ID` handler, and
+  `sflowDropMonitorChainSet()`, called by `set()` only for the chain's
+  linking object types (`TAM`, `TAM_COLLECTOR`, `HOSTIF_USER_DEFINED_TRAP`,
+  `HOSTIF_TRAP_GROUP`), re-binding when a link change leaves a different
+  policer at the end. The policer
+  itself needs no special casing.
 
-All four are confined to `sonic-sairedis`; no SAI header extension and no
+All of these are confined to `sonic-sairedis`; no SAI header extension and no
 SONiC change is required.
 
 ### 4.9 docker-sflow / hsflowd integration
@@ -956,8 +1090,8 @@ Deliverables:
   - `platform/vpp/vppbld/patches/sflow-per-port-rate.patch`
   - `platform/vpp/vppbld/patches/sflow-per-port-direction.patch`
 
-Optional sub-step (3.5): drop-rate limiter (token bucket in slow path),
-programmed from `SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER`.
+Optional sub-step (3.5): drop-rate limiter (VPP policer in the slow path),
+bound from `SAI_HOSTIF_TRAP_GROUP_ATTR_POLICER`.
 
 Exit criteria:
 
@@ -1120,8 +1254,8 @@ Cover the per-port sub-sampling, per-port direction, drop rate limit, and
   while preserving the global rate sent on the wire.
 - Per-port direction independently attaches `device-input` and
   `interface-output` arcs.
-- Drop-monitor rate limiter caps NET_DM messages at the configured
-  pps/burst and exposes a `drop_rate_limited` counter.
+- The drop monitor policer caps NET_DM messages at its rate and bucket,
+  counts them in its own stats, and the rest in a `rate_limited` counter.
 - (Option B only) PSAMPLE / NET_DM messages carry the LCP-resolved Linux
   netdev ifIndex when `report-linux-ifindex` is on.
 
