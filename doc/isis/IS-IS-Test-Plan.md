@@ -24,6 +24,55 @@ are not a separate expansion into SRv6 or changes to FRR.
 
 ## Test setup and observations
 
+### Local VS image with incremental packages
+
+When a Linux builder or hardware DUT is unavailable, use an official SONiC VS
+image with the same FRR/libyang revisions and install the changed Python wheels
+and routing-container templates. Keep the base disk read-only and use a separate
+qcow2 overlay for each node. Build utilities inside the guest against its actual
+SONiC dependencies. Build a derived BGP image containing both the shared YANG/model
+package and frrcfgd, docker_init.sh, gen_frr.conf.j2 and supervisor templates;
+recreating the container must retain the changes.
+
+The local reference run uses VS master build `1267969` (`df8f211dd8`), FRR 10.7.1,
+libyang 3.12.2, and two QEMU x86-64 guests on an ARM64 Mac using TCG. Each guest
+has 6 GiB RAM and four virtual CPUs. Use distinct device MACs, NET system IDs and
+loopback addresses. Loopback TCP socket backends connect the two data interfaces;
+the attempted macOS UDP multicast backend transmitted frames but delivered none
+to the peer, so it was not used for protocol acceptance.
+
+Check native swsscommon as well as legacy redis-py: current ConfigDBConnector
+returns a native DBConnector without an eval method. Run the isolated Redis
+regression in `src/sonic-yang-models/tests/test_isis_atomic_sdk.py` with
+`ISIS_TEST_REDIS_SOCKET` pointing to a dedicated disposable Redis server, never
+the DUT's ConfigDB server. Verify list/empty-row round trips and rejection of
+concurrent inserts and field changes without partial writes.
+
+Record cold-start failure separately from recovery after explicit retry. In this
+TCG environment, service initialization exceeded the 30-second attempt deadline;
+`supervisorctl signal HUP frrcfgd` restored convergence after services were ready.
+That result does not qualify automatic cold-start timing or hardware forwarding.
+The reduced two-node topology supplements, rather than replaces, the seven-node
+Force10 and multi-ASIC cases below.
+
+### Pinned FRR multi-area lifecycle regression
+
+With two active same-VRF areas, attempt to disable and delete one through CLI
+and GCU. Require rejection before any ConfigDB write or native mutation. Include
+a native planner case with a surviving foreign area. Do not use sequential area
+deletion as test cleanup: explicitly shut down all active areas atomically, or
+discard the disposable guest. An inactive area's removal and retirement of a
+VRF's sole active area remain valid. Different VRFs are independent.
+
+Replace disjoint NET lists sharing the same system ID, including three-to-three
+replacement. Verify every intermediate native operation retains one to three
+NETs. Verify the operational system ID, learned routes and sustained IPv4/IPv6
+traffic after reconvergence; immediate ping can succeed using cached routes and
+does not establish correctness. A missing system ID in runtime summary must
+fail confirmation even when running-config still matches desired configuration.
+
+### CLI setup
+
 Use commands from the [HLD](IS-IS-CLI-Configuration.md). Minimal setup:
 
 ```shell
@@ -55,7 +104,7 @@ native readback; adjacency and forwarding must be checked independently.
 | B5: delete ordering | Remove routed-interface row then unbind; repeat unbind then routed-interface removal | Native binding is removed in either order. Cleanup of a stale binding succeeds; no default binding is recreated. Repeated unbind/delete is harmless. |
 | B6: prefix-only events | Add/remove IPv4/IPv6 prefix rows | Base VRF/binding does not change. Native routing reacts to addressing without an invented rebind. |
 | B7: independent AFs | Exercise all four combinations and transitions, with passive/metric overrides | Only selected AFs are bound. Removing the last AF removes the circuit; enabling an AF recreates it with retained values. AF reset restores false, not true. |
-| B8: parent lifecycle | Disable then enable parent without replaying interfaces; attempt deletion with active and disabled bindings | Disable retains all desired values and removes native circuits before parent. Enable restores settings. Parent deletion refuses all remaining binding references without partial mutation. |
+| B8: parent lifecycle | With no surviving same-VRF sibling, disable then enable parent without replaying interfaces; attempt deletion with active and disabled bindings | Disable retains all desired values and removes native circuits before parent. Enable restores settings. Parent deletion refuses all remaining binding references without partial mutation. |
 | B9: partial failure | Inject timeout/nonzero native reply before and after part of a rebind | No false confirmation. Durable pending ownership covers potentially applied objects. Bounded retries use fresh readback, preserving unrelated native configuration. |
 | B10: failure then delete | Remove desired binding after B9 partial application | Reconciliation removes owned stale/partial state, does not recreate it and never deletes foreign objects. |
 | B11: startup/offline changes | Save/restart bgp; separately stop frrcfgd, change/delete desired rows, restart frrcfgd | Startup/runtime defaults agree. Durable ownership permits cleanup of offline deletions; changed desired state is not mistaken for previously applied state. |
@@ -85,8 +134,8 @@ convergence; this plan does not assert unmeasured timing or scale limits.
 ## Recovery and coexistence
 
 The Force10 integration test adapts gs1571's offline UPDATE/DELETE and BGP
-continuity checks from sonic-mgmt #29119 to named instances. Restart/reload and
-failure-injection cases below remain additional native acceptance work. The
+continuity checks from sonic-mgmt #29119 to named instances. Record the native
+results for each restart/reload and failure-injection case independently. The
 SRv6 setup is not imported, and its custom-fixture results do not qualify this image.
 
 1. Inject missed notifications, daemon downtime, native socket disconnects,

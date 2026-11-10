@@ -187,6 +187,27 @@ the pinned callback. Rebinding therefore needs ordered teardown and recreation,
 with failure reporting. AF transitions must preserve metric/passive/level settings
 even if removing the last AF causes FRR to destroy and recreate the circuit.
 
+FRR 10.7.1 clears the shared VRF system ID when destroying an area, even if
+another area survives. Until the pinned FRR is fixed, CLI and GCU reject deleting
+or disabling an active area while another active area in the same VRF survives.
+The native planner also refuses this transition, including when the surviving
+area is not owned by this feature. It does not rebuild sibling areas as a
+workaround. Removing an inactive area, retiring the sole active area, and an
+explicit atomic shutdown of all active areas remain supported. Interface
+disable/unbind does not itself retire its parent area.
+
+Replacing NETs with an unchanged system ID retains at least one NET throughout
+the native update and never exceeds FRR's three-NET limit. Native confirmation
+checks the operational system ID as well as configuration: configured NETs with
+a missing or inconsistent runtime system ID cannot be reported as applied.
+Interface VRF identity is read from Zebra because the isisd configuration writer
+can omit it. Direct unvalidated Redis writes are not a supported API; the planner
+refuses an unsafe native transition even if a bypassing writer changes ConfigDB.
+The existing generic `config load`/`sonic-cfggen --write-to-db` path does not run
+the IS-IS transition validator. Such a write may change desired rows, but the
+planner refuses unsafe live retirement and reports failure rather than modifying
+FRR. Use the IS-IS CLI or GCU for rejection before ConfigDB mutation.
+
 ### CLI Reference
 
 Commands require `sudo` or equivalent privilege. For multi-ASIC configuration use

@@ -1,9 +1,11 @@
 # IS-IS Northbound Configuration Redesign HLD
 
-> Status: design proposal, not implemented. CLI examples and ConfigDB names below
-> describe the proposed contract, not commands available in the current PRs.
-> This document supplements the [current integration HLD](IS-IS-CLI-Configuration.md)
-> and [current test plan](IS-IS-Test-Plan.md). It does not change their implementation status.
+> Status: implemented on local branches; native SONiC acceptance is in progress.
+> CLI examples and ConfigDB names describe the local implementation, which has
+> not been pushed to the current PRs. This document supplements the
+> [integration HLD](IS-IS-CLI-Configuration.md) and
+> [test plan](IS-IS-Test-Plan.md). See the verification checkpoint below for evidence
+> and outstanding acceptance work.
 
 - [Revision](#revision)
 - [Scope](#scope)
@@ -37,26 +39,60 @@ adapted from gs1571's `f7b6ef84dfb0ff8ffcdeb032cd17867c31298baa`, with provenanc
 in the source. The default-instance projection is adapted for composite identity;
 no SRv6 feature or modified FRR dependency is imported.
 
-Local verification currently covers the framework source suite (174 tests), Click
-commands against an isolated real Redis server (23 tests), and 37 positive/negative
+Local verification currently covers the framework source suite (194 tests), Click
+commands against an isolated real Redis server (25 tests), and 37 positive/negative
 schema fixtures using the repository harness with native libyang 3.12.2 and
 the SONiC-patched Python 3.1.0 binding. All seven committed Force10 topology
 profiles pass configuration/projection/cleanup checks in the local CLI harness.
 The YANG-model and framework pure-Python wheels build locally and contain the
-new shared module, models, recovery adapter and startup template. Utilities
-wheel generation stops at its existing missing `sonic-config-engine` dependency
-check; its Linux dependency stack has not been replaced with fake packages. These are source/contract checks, not
-native FRR lifecycle or DUT forwarding acceptance. Linux SONiC package/container
-builds and seven-node execution remain unexecuted. No push or remote PR update is
-part of this work. The HLD and test plan describe the implemented contract and
-separately identify the acceptance work requiring a matching SONiC image.
+new shared module, models, recovery adapter and startup template. Utilities now
+also builds inside an official SONiC VS guest against its actual Linux/SONiC
+dependencies; no fake dependency packages are used. A derived BGP image installs
+the model/framework wheels and startup/supervisor templates without rebuilding FRR.
+
+Two VS guests based on build `1267969` (`df8f211dd8`, FRR 10.7.1/libyang 3.12.2)
+provide native integration evidence. This exposed and fixed an SDK mismatch:
+current swsscommon returns a native DBConnector, so atomic Lua operations use its
+RedisCommand/RedisReply bindings; older redis-py connectors keep their eval path.
+Four isolated native-SDK tests pass, including concurrent-change rejection and
+zero-write rejection of an unsafe area retirement within a multi-row batch.
+All 44 GCU generic-updater tests pass in the native SONiC environment.
+The initial baseline had two Up adjacencies per peer and passed IPv4/IPv6 remote-loopback traffic.
+Native readback equals desired state after AF combinations, per-level metric/Hello
+and LSP/SPF changes, instance options/reset, IETF SPF backoff, IPv6 MT, disable/enable,
+delete reference guards, multiple NETs, and same-VRF multi-area creation/rebinding.
+Subsequent delayed traffic checks exposed FRR 10.7.1 clearing the shared system ID
+on area deletion; the earlier area-deletion result is withdrawn. The northbound
+contract now rejects active-area deletion/disable with a surviving same-VRF area,
+without rebuilding siblings. Operational system-ID confirmation and NET update
+ordering also protect against false success and transient last-NET removal.
+The damaged disposable guest was recovered only after confirming it had exactly
+one native/configured area; its operational system ID and bidirectional dual-stack
+traffic were then verified. Native CLI and GCU delete/disable attempts with two active same-VRF areas
+were rejected without ConfigDB changes; both areas, the runtime system ID and
+bidirectional IPv4/IPv6 traffic remained intact.
+Offline desired update/delete and a whole isisd outage also pass: failure is
+bounded, explicit retry reconverges, and the BGP PID, connection counters and
+learned prefix remain unchanged. IPv4/IPv6 connected redistribution also passes
+publication (metric 50 plus link cost 10), route-map filtering, re-advertisement
+and withdrawal. All other allowed protocol policies are accepted and removed by
+the pinned native daemon; injecting real source routes for each protocol remains
+a separate full-topology gate.
+
+Automatic cold-start timing has not passed in the ARM64 TCG lab: daemon startup
+exceeded the 30-second recovery deadline. Explicit retry after readiness converges
+without discarding the journal. Record that separately from an automatic startup
+pass. Full SONiC build-system packaging, seven-node execution, multi-ASIC isolation
+and hardware forwarding remain outstanding. No push or remote PR update is part
+of this work. See the [test plan](IS-IS-Test-Plan.md#local-vs-image-with-incremental-packages)
+for the incremental-image setup and its limits.
 
 Local implementation commits (not pushed):
 
 | Repository | Commit |
 | ---------- | ------ |
-| sonic-buildimage | `f78d3eca0` |
-| sonic-utilities | `9bb54224` |
+| sonic-buildimage | `98877c334` |
+| sonic-utilities | `52fbc3d1` |
 | sonic-mgmt | `0b9444cbb` |
 
 The buildimage utilities gitlink points to the local utilities commit above.
@@ -482,41 +518,46 @@ following maps the agreed requirements to inspected evidence and missing gates.
 
 | Requirement | Evidence available | Still unverified |
 | ----------- | ------------------ | ---------------- |
-| R1 identity | Named-instance projection/readback tests; composite-parent and shared-system-ID native YANG cases | Native multi-area creation, changes and isolation |
-| R2 lifecycle | Retained parent/interface settings and disabled-edit CLI tests | Native restoration of all settings |
-| R3 deletion | Active/disabled reference guard and cascade CLI tests | Native withdrawal on DUT |
-| R4 binding | Explicit-binding/VRF-move planner tests and all seven profile command checks | Actual old-VRF withdrawal/new-VRF forwarding |
-| R5 AF transitions | All 16 transitions in default and named VRFs (32 planner cases); four-state startup/readback coverage | Native circuit recreation and peer behavior |
-| R6 MT | Independent AF/MT CLI controls and model restrictions | MT and single-topology peer interoperability |
-| R7 levels | Per-level defaults, reset and both-level atomic Redis tests | Native effective values after all transitions |
-| R8 MTU/timers | Native YANG defaults/ranges/relationships; shared renderer tests | Pinned FRR accepts coupled timer transitions |
+| R1 identity | Source/YANG identity tests; native VS multiple NETs, same-VRF multi-area creation and rebinding | Same-tag isolation across multiple VRFs |
+| R2 lifecycle | Source/CLI tests and native VS disable/enable with readback equality | Other routed interface types |
+| R3 deletion | Reference guards/cascade CLI tests; native VS reference guards; active-area retirement with a surviving same-VRF area is rejected | Hardware/topology-scale withdrawal |
+| R4 binding | Planner/profile checks; native VS default → VrfBlue → default with explicit rebind, new-VRF dual-stack traffic and baseline restoration | Other routed interface types and hardware |
+| R5 AF transitions | All 16 transitions in default and named VRFs (32 planner cases); four-state startup/readback coverage; native VS AF combinations restore adjacency/traffic | Exhaustive 16-transition matrix against native FRR |
+| R6 MT | Source model checks; native VS single-topology/MT switch, reset and dual-stack traffic | Mixed-vendor interoperability |
+| R7 levels | Source/Redis tests; native VS metric/Hello set/reset and both-level readback | Mixed L1/L2 topology behavior |
+| R8 MTU/timers | Native YANG checks; native VS coupled LSP timer changes/reset and MTU readback | Large-LSP fragmentation on the full topology |
 | R9 overload | Range/schema and command/readback checks | Transit-path effect and startup timer expiry |
-| R10 SPF | Complete tuple, relationship, per-level minimum interval and reset checks; pinned scheduler source inspected | Native scheduling under topology events |
-| R11 redistribution | AF/protocol/level validation, native YANG route-map references, command ordering | Advertisements, metrics, filtering and withdrawal |
-| R12 recovery | Contributor kernel/transport tests, durable ownership/offline-delete source test; adapted DUT test exists | Restart/reload/partial failure on native daemons |
-| R13 configuration | 37 native schema fixtures; real Redis graph compare-and-commit checks | Complete SONiC config-load/GCU integration |
-| R14 operation | Show scope/error tests; seven topology profiles exercise setup/reset/cleanup CLI | Real IPv4/IPv6 route installation and traffic |
-| R15 coexistence | Full framework source suite passes; BGP callbacks independent of IS-IS worker; DUT check exists | Native BGP continuity during recovery/faults |
+| R10 SPF | Native VS minimum-SPF and IETF backoff set/reset; validation and pinned scheduler source checks | Native scheduling under topology events |
+| R11 redistribution | Native VS IPv4/IPv6 connected publication, metric 50 plus link cost 10, route-map deny withdrawal, re-advertisement/removal; all allowed protocol policy syntax accepted | Source-route injection for other allowed protocols and full topology |
+| R12 recovery | Native VS offline update/delete recovery, isisd outage → bounded failure → explicit retry; journal and native equality checked | Automatic cold start under TCG failed timing; full reload and partial-mutation fault matrix |
+| R13 configuration | 37 native schema fixtures; native Redis atomic checks; 44 GCU tests and real CLI/GCU unsafe-area rejection | General config-load/GCU integration beyond tested transitions |
+| R14 operation | Source show tests; seven profile CLI checks; native dual-stack routes and bidirectional VS Loopback traffic | Seven-node, multi-ASIC and hardware traffic |
+| R15 coexistence | Native established BGP retains PID, 1 connection established, 0 drops and learned prefix during offline IS-IS updates and isisd outage/retry | Continuous hardware forwarding and broader failure matrix |
 
-All 174 framework tests, 23 native-Redis Click tests and 37 native schema cases
-have passed in their stated environments. Only the framework suite was expanded
-and rerun in this audit; earlier CLI/schema evidence remains tied to unchanged
-implementation files. No remote PR/CI result is asserted.
+All 194 framework tests, 25 native-Redis Click tests, 37 native schema cases
+and four native swsscommon/Redis integration cases have passed in their stated
+environments. Native VS testing exposed the SDK eval mismatch and the isisd
+writer's omitted interface VRF. The adapter now reads actual VRF ownership from
+Zebra and rejects changes during the observation window; native named-VRF
+adjacency, dual-stack forwarding and return-to-default retests pass. Native
+three-to-three NET replacement with a live sibling area also preserves the shared
+system ID and bidirectional traffic. No remote PR/CI result is asserted.
 
-The workstation has no Docker, Podman, Colima, Lima, QEMU or Apple container
-runtime installed. Its SSH configuration contains generic includes but no named
-SONiC builder/DUT target. A concrete Linux builder and routing lab are needed to
-close the remaining native gates. Utilities packaging still fails its existing
-missing SONiC dependency check. No new runtime or large image cache was installed
-as a substitute for a known test environment.
+The workstation now runs QEMU 11.1.2 with a pinned official VS base and separate
+qcow2 overlays. Utilities builds in the guest and the routing delta is packaged
+as a derived BGP container image. ARM64 TCG startup exceeded the existing
+30-second attempt deadline; explicit retry passed, but automatic cold-start
+acceptance remains open. The full seven-node and hardware gates still need the
+corresponding lab. The reduced VS lab is not reported as equivalent coverage.
 
 ### Open Action Items
 
-1. Run native pinned-FRR acceptance for multiple areas, rebind, coupled timers,
-   overload expiry, redistribution and operational output; record actual readback.
-2. Build the matching Linux wheels/completion deb/container and run the DUT cases
-   in the test plan, including recovery and concurrent BGP traffic.
-3. Keep native/DUT acceptance distinct from the source and schema test results.
+1. Finish acceptance gates that require the full topology: overload transit/expiry,
+   topology-driven SPF scheduling, fragmentation, same-tag VRF isolation and scale.
+2. Build the matching completion deb and standard SONiC release targets on a Linux
+   builder; wheel installation and a derived VS BGP image do not replace that gate.
+3. Run automatic startup/reload, partial native-mutation failures, seven-node and
+   multi-ASIC hardware cases; keep explicit retry distinct from cold-start success.
 
 #### Existing contributor work reviewed
 
