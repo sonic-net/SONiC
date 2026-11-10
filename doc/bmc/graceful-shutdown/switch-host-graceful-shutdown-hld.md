@@ -43,7 +43,7 @@
 | Rev | Date | Author | Change Description |
 | --- | --- | --- | --- |
 | 0.1 | 2026-08-12 | William Tsai | Initial version |
-| 0.2 | 2026-11-09 | William Tsai | Align with the implementation: queue lanes and preemption ([§7.6](#76-concurrency-and-preemption)), a critical trigger's `graceful_shutdown` dispatched as `POWER_OFF`, the gNOI handshake on one bounded helper thread, the leak gate re-read before every raise, the result and reason tables, `GNMI_CLIENT\|certs` with credentials provisioned by deployment, no `bmc_pairing` key and no DPU timeout fallback, the host-side checks of [§7.2](#72-host-side-reboot--p) with the pre-reboot hook skipped, no CLI upper limit, and the timing and watchdog items closed |
+| 0.2 | 2026-11-09 | William Tsai | Align with the implementation: queue lanes and preemption ([§7.6](#76-concurrency-and-preemption)), a critical trigger's `graceful_shutdown` dispatched as `POWER_OFF`, the gNOI handshake on one bounded helper thread, the leak gate re-read before every raise, the result and reason tables, `GNMI_CLIENT\|certs` with credentials provisioned by deployment, no `bmc_pairing` key and no DPU timeout fallback, the host-side checks of [§7.2](#72-host-side-reboot--p) with the pre-reboot hook skipped, no CLI upper limit, the timing and watchdog items closed, `GRACEFUL_RESTART` deferred ([§14](#14-openaction-items)), and one new `show` column, `Result` |
 
 ### 2. Scope
 
@@ -55,9 +55,10 @@ This design lets the BMC ask the host to prepare first, wait a bounded time, and
 adds:
 
 - a graceful leg to the existing `GRACEFUL_SHUT` command — ask, wait, then remove power;
-- a new `GRACEFUL_RESTART` command — the same shutdown, a short pause, then power on;
-- an extension of the existing critical-leak check to `POWER_CYCLE`, which is ungated today, and a
-  re-read of that state before the platform call. `POWER_ON` is gated on its three other entry points already;
+- a new `GRACEFUL_RESTART` command — the same shutdown, a short pause, then power on. Its delivery is
+  deferred ([§14](#14-openaction-items)); the design stays in this document;
+- a re-read of the existing critical-leak check before the platform call of every power raise, which
+  extends the check to `POWER_CYCLE`, ungated today. `POWER_ON` is gated on its three other entry points already;
   the startup power-on on a non-liquid-cooled chassis is not. The re-read reaches that call site, but there
   power is raised at daemon start with no delay, so it can run before any leak publisher has written anything.
   The gap is not vacuous — the leak gate is cooling-agnostic and includes a rack-level trigger, so an
@@ -116,7 +117,7 @@ plaintext, and a check that the report it reads answers its own request ([§7.3]
 
 | # | Requirement |
 | --- | --- |
-| 1 | Graceful shutdown from CLI `config chassis modules shutdown` and from the Rack-Manager `GRACEFUL_SHUT` command; graceful restart from a new `GRACEFUL_RESTART` command |
+| 1 | Graceful shutdown from CLI `config chassis modules shutdown` and from the Rack-Manager `GRACEFUL_SHUT` command; graceful restart from a new `GRACEFUL_RESTART` command (deferred, [§14](#14-openaction-items)) |
 | 2 | The wait is bounded by the existing `graceful_shutdown_timeout`, and power is removed when it expires. `0` means remove power immediately |
 | 3 | Power removal is attempted on every outcome `bmcctld` handles — timeout, RPC failure, preemption. The daemon's own death abandons the operation instead ([§12](#12-restrictionslimitations)) |
 | 4 | An operation is recorded as graceful only when the host confirmed it finished. Anything unproved is recorded as forced |
@@ -152,14 +153,14 @@ The only new traffic on the BMC-host link is gNOI over mTLS.
 
 | Component | Repository | Change |
 | --- | --- | --- |
-| `bmcctld` | sonic-platform-daemons | Send `HALT`, poll `RebootStatus`, remove power on every outcome it handles, add `GRACEFUL_RESTART`, add the queue lanes and preemption of [§7.6](#76-concurrency-and-preemption) |
+| `bmcctld` | sonic-platform-daemons | Send `HALT`, poll `RebootStatus`, remove power on every outcome it handles, add the queue lanes and preemption of [§7.6](#76-concurrency-and-preemption). `GRACEFUL_RESTART` is deferred |
 | `scripts/reboot` | sonic-utilities | Accept `-p` on a switch-host. Today the option is DPU-only |
 | `host_modules/reboot.py` | sonic-host-services | Report failure when a completion check cannot be answered, carry the requester's tag on every terminal report, read `switch_host_halt_services_timeout`, and write the graceful reboot cause after the check |
-| `show chassis modules status` | sonic-utilities | New status columns |
+| `show chassis modules status` | sonic-utilities | New `Result` column |
 | `determine-reboot-cause` | sonic-host-services | The one display rule of [§7.7](#77-reboot-cause) |
 | `sonic-gnmi-client.yang` | sonic-buildimage | The optional BMC client certificate-path table of [§9.3](#93-config-db-enhancements) |
 | mTLS material | deployment tooling | Certificates, gNMI authorization and the CACL rule are provisioned, not seeded by the image |
-| Redfish bridge | sonic-redfish | Map `GracefulShutdown` and `GracefulRestart`. Optional — the release can ship without it |
+| Redfish bridge | sonic-redfish | Map `GracefulRestart`, together with the deferred `GRACEFUL_RESTART`. `GracefulShutdown` is mapped today |
 
 No platform code changes. The one per-platform item is the optional `platform.json` key of
 [§9.3](#93-config-db-enhancements).
@@ -440,6 +441,11 @@ value is per-device configuration ([§9.3](#93-config-db-enhancements)).
 
 #### 7.5. Graceful restart
 
+**Deferred.** This release does not accept `GRACEFUL_RESTART`: no Redfish action maps to it yet, and a
+`RACK_MANAGER_COMMAND` row that carries it is closed `FAILED` with `UNKNOWN_COMMAND`. This section, and
+every statement about a restart in the other sections, is the design for the follow-up
+([§14](#14-openaction-items)).
+
 ```mermaid
 flowchart LR
     Q["shutdown leg"] --> CC{"power off confirmed?"}
@@ -551,8 +557,8 @@ the shutdown reports its result.
 
 What keeps a host off while a leak stands is the gate, not the queue: every raise re-reads it on the action
 loop immediately before its platform call, so a blocking event published after admission is not raced,
-however long the raise waited; a Rack-Manager raise, `GRACEFUL_RESTART` included, is also refused at
-admission while a blocking event stands, so that a host is not taken down only to have its raise refused.
+however long the raise waited; a Rack-Manager `POWER_ON` is also refused at admission while a blocking
+event stands, as it is today.
 
 #### 7.7. Reboot cause
 
@@ -573,8 +579,10 @@ landing Reference 9.
 #### 7.8. Failure handling
 
 No operation is resumed across a `bmcctld` restart: an operation left open is
-recorded `ABANDONED`, and a Rack-Manager row left `IN_PROGRESS` is closed `FAILED` before the event
-thread starts. The recorded power state is refreshed from the live status in one direction only: `ONLINE`
+recorded `ABANDONED`. A stopping daemon writes no Rack-Manager row, so the row of a command that was
+running or queued stays `IN_PROGRESS` while the daemon is down; the next start closes it `FAILED` with
+result `ABANDONED` before the event thread starts.
+The recorded power state is refreshed from the live status in one direction only: `ONLINE`
 records a power-on; `OFFLINE` records a power-off only when one was already recorded or nothing was, and
 any other label is kept.
 
@@ -735,25 +743,25 @@ value, because the command runs on the BMC and can read neither the host's resid
 watchdog value, so none of the bounds of [§7.4](#74-timing) can be checked there. Rule 2's binding check
 is the host's own readback ([§7.2](#72-host-side-reboot--p)); rule 1's ceiling has no run-time check at
 all ([§12](#12-restrictionslimitations)), so both are release-time contracts. The default is 120 s and
-`0` means forced. `show chassis modules status` on the BMC gains `Result` and `Request-Id` columns;
+`0` means forced. `show chassis modules status` on the BMC gains a `Result` column;
 existing columns and their order do not change.
 
 ```
 bmc$ config chassis modules shutdown SWITCH-HOST
 bmc$ show chassis modules status
-  Name         Description  Oper-Status  Admin-Status  Serial   Power-On-Delay (sec)  Shutdown-Timeout (sec)  Result            Request-Id
-  SWITCH-HOST  Switch Host  Online       down          SN12345  0                     120                     -                 3f2b1c8a-...-9d41
-  SWITCH-HOST  Switch Host  Offline      down          SN12345  0                     120                     SUCCESS_GRACEFUL  3f2b1c8a-...-9d41
+  Name         Description  Oper-Status  Admin-Status  Serial   Power-On-Delay (sec)  Shutdown-Timeout (sec)  Result
+  SWITCH-HOST  Switch Host  Online       down          SN12345  0                     120                     -
+  SWITCH-HOST  Switch Host  Offline      down          SN12345  0                     120                     SUCCESS_GRACEFUL
 host (next boot)$ show reboot-cause
   graceful shutdown from BMC
 ```
 
-`GRACEFUL_RESTART` has no CLI verb in this release; it arrives as a Rack-Manager command or over
-Redfish. From the CLI the same result is `shutdown`, then `startup`.
+`GRACEFUL_RESTART` is deferred ([§14](#14-openaction-items)) and has no CLI verb. From the CLI a
+restart is `shutdown`, then `startup`.
 
 `sonic-gnmi-client.yang` models the optional BMC client certificate paths of
 [§9.3](#93-config-db-enhancements). `sonic-utilities` `doc/Command-Reference.md` is updated with the new
-columns and the timeout's meaning.
+column and the timeout's meaning.
 
 #### 9.3. Config DB Enhancements
 
@@ -823,9 +831,10 @@ No new table. `HOST_STATE|switch-host` gains `op_result`, `op_reason`, `op_trigg
 the four fields [§7.11](#711-serviceability) records — and reuses the existing
 `device_power_state` values: a graceful shutdown goes `GRACEFUL_SHUTTING_DOWN`, `POWERING_OFF`,
 `POWERED_OFF`, and a restart continues to `POWERING_ON`, `POWERED_ON`.
-`RACK_MANAGER_COMMAND|CMD_<id>` gains `GRACEFUL_RESTART` as a `command` value; on a `FAILED` row, `result`
-is the operation's result ([§7.3](#73-knowing-the-host-finished)), `POWER_DOWN_POLICY_CONFIGURED_EVENT_ACTIVE`
-for a raise refused by the gate, or `ABANDONED`.
+`RACK_MANAGER_COMMAND|CMD_<id>` keeps its fields. On a `FAILED` row, `result` is `ERROR`,
+`UNKNOWN_COMMAND`, `POWER_DOWN_POLICY_CONFIGURED_EVENT_ACTIVE` for a `POWER_ON` refused at admission, or
+the new `ABANDONED`, written at the next start on a row a stopped daemon left `IN_PROGRESS`
+([§7.8](#78-failure-handling)). The operation's own result is in `HOST_STATE|switch-host`.
 
 No APP_DB, ASIC_DB, COUNTERS_DB or LOGLEVEL_DB change.
 
@@ -893,7 +902,8 @@ operation finishes. When the feature is unused, memory consumption is unchanged.
 
 #### 13.1. Unit Test cases
 
-Against injected fakes, asserting the outcome, the state sequence and the power calls:
+Against injected fakes, asserting the outcome, the state sequence and the power calls. The cases that
+name a restart, here and in [§13.2](#132-system-test-cases), belong to the deferred `GRACEFUL_RESTART`:
 
 - **Happy paths** — graceful shutdown; graceful restart; host already off.
 - **No graceful leg** — `timeout = 0`; missing or invalid credentials.
@@ -950,6 +960,7 @@ sequences are asserted unchanged apart from the pre-check fixes and the result-m
 | 1 | **Closed.** `graceful_shutdown_timeout` defaults to 120 s, `switch_host_halt_services_timeout` to 60 s, and the restart pause is 10 s; the CLI keeps no upper limit. A platform owner qualifies the two timeouts as a pair against [§7.4](#74-timing), by measurement |
 | 2 | **Closed.** The host requests 180 s and fails the pre-shutdown unless the readback is at least 180 s ([§7.2](#72-host-side-reboot--p)); no new platform setting or protocol field |
 | 3 | **gNOI authorization granularity** ([§7.10](#710-security)). Either a security review accepts the current role for the BMC-link CA, or per-RPC authorization lands in `sonic-gnmi`. This gates enablement and needs an owner |
+| 4 | **`GRACEFUL_RESTART` is deferred.** The design of [§7.5](#75-graceful-restart) stays. `bmcctld` accepts the command when the Redfish bridge maps `GracefulRestart` to it; until then a restart is `config chassis modules shutdown`, then `startup` |
 
 ### 15. References
 
