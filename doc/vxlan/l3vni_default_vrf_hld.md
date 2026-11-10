@@ -92,7 +92,7 @@ Each layer continues to use its native representation of the default VRF. The in
 7. Support add, delete, restart, reload, and supported reboot flows idempotently.
 8. Preserve existing named-VRF behavior and configuration compatibility.
 9. Reject an in-place change from one nonzero VNI to another at the supported configuration interfaces. Updating the VNI requires removal of the existing mapping, completion of its dependent cleanup, and a fresh add, consistent with named-VRF behavior. Because APP_DB represents desired state rather than transaction history, `VRFOrch` may observe that valid delete-and-add sequence as a coalesced nonzero-to-nonzero transition and shall reconcile it by removing the old mapping before adding the new mapping.
-10. Support the default VRF and named tenant VRFs concurrently, using a distinct L3VNI for each VRF. Reject a request to associate a VNI that is already assigned to another VRF, leaving the existing mapping and operational state unchanged.
+10. Support the default VRF and named tenant VRFs concurrently, using a distinct L3VNI for each VRF. Supported configuration interfaces reject a permanent request to associate a VNI that is already assigned to another VRF before changing CONFIG_DB. If an ownership conflict reaches SWSS during a possible SET-before-DEL transfer, keep the new request pending without partial programming until the old owner releases the VNI.
 11. Support both existing routing-management modes: render the default-VRF VNI through `frrcfgd` when `frr_mgmt_framework_config` is enabled, and preserve the existing independently managed FRR configuration when it is disabled.
 12. Require FRR policy that exports only intended overlay prefixes as RT-5, prevents EVPN-imported routes from being advertised to underlay peers, and prevents VTEP or underlay endpoint reachability from resolving through an imported EVPN route.
 
@@ -114,8 +114,10 @@ sequenceDiagram
     User->>CDB: SET VRF|default with vni
     CDB->>VM: VRF configuration update
     VM->>VM: Validate range, ownership, and update semantics
-    alt Invalid range or conflicting VNI ownership
+    alt Invalid VNI
         VM-->>CDB: Reject without side effects
+    else VNI currently owned by another VRF
+        Note over VM: Keep pending without partial APP_DB state
     else Accepted add, removal, or coalesced replacement
         Note over VM: Do not create an additional Linux type vrf netdevice
         VM->>ADB: Publish VRF_TABLE:default state
@@ -318,7 +320,7 @@ Example configuration:
 }
 ```
 
-The configuration is rejected if VNI 5000 is already assigned as an L3VNI to another VRF.
+The supported CLI rejects the configuration before changing CONFIG_DB if VNI 5000 is already assigned as an L3VNI to another VRF. If an equivalent conflict reaches `vrfmgrd` through a direct CONFIG_DB update during a possible ownership transfer, the request remains pending without partial APP_DB state and converges after the old owner releases the VNI.
 
 In `frrcfgd` mode, the SONiC CONFIG_DB entry is the source for both the SWSS/SAI mapping and the FRR `vrf default` VNI, avoiding a separately entered VNI. In split mode, the SONiC and FRR L3VNI configurations remain independently managed and must specify the same VNI. A split-mode mismatch is an operator configuration error that can cause the control-plane VNI and hardware tunnel mapping to diverge, resulting in loss of forwarding. Operators can compare the SONiC VRF-to-VNI show output with FRR EVPN VNI operational state when troubleshooting.
 
