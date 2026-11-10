@@ -206,6 +206,13 @@ SRv6 setup is not imported, and its custom-fixture results do not qualify this i
 5. Verify startup ownership-registration failure logs an error while rendering
    other protocols from the same frozen snapshot. Do not silently claim IS-IS is
    applied. Measure restart disruption; cold recovery is not warmboot support.
+6. Verify repeated snapshots reuse the dedicated reader process but observe new
+   ConfigDB values on every request. Inject a stalled helper, EOF, truncated or
+   malformed JSON, an incorrect request identity and an oversized response. Each
+   failed request must discard the helper without supplying an empty desired
+   configuration; the next request must create a new helper and obtain fresh
+   state. Retain the five-second limit including helper startup, and verify worker
+   shutdown reaps the helper. Record cold-start and steady-state timings separately.
 
 ## Cleanup and reporting
 
@@ -217,9 +224,11 @@ adjacency or advertisement remains; preserve unrelated configured objects.
 
 Record image and commit identifiers, namespace, topology, individual case results,
 configuration/readback, journal/log evidence and traffic observations. Source
-framework/CLI tests and native libyang fixtures have run locally; Linux package,
-native FRR lifecycle and DUT cases in this plan are **not run** on this workstation.
-Mark missing cases explicitly. Do not infer full acceptance from unit tests.
+framework/CLI tests, native libyang fixtures and selected packaged VS lifecycle
+cases have run locally; their evidence and remaining gaps are listed in the
+redesign document's completion audit. Seven-node acceptance and hardware/DUT
+coverage remain incomplete. Mark missing cases explicitly and do not infer full
+acceptance from unit tests or from passing cases on a smaller topology.
 
 #### Explicit recovery retry
 

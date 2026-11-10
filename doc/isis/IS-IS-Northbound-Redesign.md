@@ -461,6 +461,15 @@ Startup rendering adds work proportional to configured objects. The recovery wor
 snapshot/native calls and a 30-second attempt deadline. Measure boot overhead with the feature absent,
 disabled and enabled; no numerical performance claim is available yet.
 
+The ConfigDB reader reuses a dedicated SDK subprocess to avoid repeated Python
+and SDK initialization on every observation. Each request takes a fresh atomic
+snapshot; desired state is never cached. The five-second request deadline includes
+helper startup when needed. A timeout, EOF, malformed/incomplete response, wrong
+request identity or response exceeding 16 MiB discards the helper. A later request
+starts a new helper; failure is never interpreted as empty configuration. Worker
+shutdown closes the helper. This retains an independent Redis connection and does
+not change the 30-second recovery attempt or explicit-retry policy.
+
 ### Memory Consumption
 
 Expected configuration bookkeeping grows with instances, bindings, levels and
