@@ -327,6 +327,7 @@ In `frrcfgd` mode, the SONiC CONFIG_DB entry is the source for both the SWSS/SAI
 ### 7.8 Failure handling and serviceability
 
 - A missing dependency leaves the operation pending and identifies the missing object in logs.
+- If a VNI ownership conflict reaches `vrfmgrd`, the request remains pending and `vrfmgrd` emits one warning when the request starts waiting. The warning identifies the requested VRF, VNI, and current owner. Repeated retries of the same conflict do not flood the log. Resolution, deletion, or a change in the conflicting request clears the reporting state, so a later waiting episode is reported again.
 - A partial tunnel-map failure rolls back objects created by that operation or retries from a consistent state.
 - Show commands display the mapping as `default` and expose whether configuration is pending or operational.
 - Counters and logs use the logical VRF name `default` and the configured VNI.
@@ -404,6 +405,7 @@ The feature adds one logical VRF record, existing tunnel-map entries, and normal
 5. Exercise VRF and NVO configuration in different orders and verify idempotent APP_DB publication and cleanup. Verify that an update to an existing NVO does not retarget an established VRF-to-VNI mapping.
 6. Configure named- and default-VRF L3VNI mappings on one NVO, request NVO deletion while dependent VXLAN maps keep the `vxlanmgrd` path pending, and verify `vrfmgrd` independently withdraws both VRF mappings. Remove the remaining dependencies, verify the VXLAN path converges, and recreate the NVO on another tunnel to verify stale state is not retained.
 7. Delete `VRF|default` while its DEL remains pending on `VRF_OBJECT_TABLE|default`, then re-add it with another VNI. Verify the new SET supersedes the stale DEL and that subsequent retries do not remove the new APP_DB VRF or VXLAN-VRF mapping.
+8. Submit a direct CONFIG_DB request for a VNI currently owned by another VRF. Verify that the request remains pending, emits one warning identifying the requested VRF, VNI, and current owner, and does not repeat that warning on each retry. Release the VNI and verify convergence; recreate the conflict and verify the new waiting episode is reported once.
 
 ### 13.3 `VRFOrch` tests
 
@@ -445,7 +447,7 @@ The feature adds one logical VRF record, existing tunnel-map entries, and normal
 1. Permute the ordering of VNI-to-VLAN, NVO, tunnel, default-VRF mapping, and route updates; verify either a clean pending state or convergence when the dependency appears.
 2. Attempt to remove the tunnel, NVO, or VNI-to-VLAN map while the default-VRF mapping is active; verify dependency enforcement and no partial cleanup.
 3. Delete a pending mapping, replay stale events, and rapidly delete/re-add with another VNI; verify the final database and ASIC_DB state matches the latest valid configuration.
-4. Configure VNI ownership conflicts in both orders—tenant first and default first. Verify that the supported CLI rejects a permanent duplicate before changing CONFIG_DB, while a direct CONFIG_DB or APP_DB SET that can represent a valid SET-before-DEL ownership transfer remains pending without partial programming and converges after the old owner releases the VNI.
+4. Configure VNI ownership conflicts in both orders—tenant first and default first. Verify that the supported CLI rejects a permanent duplicate before changing CONFIG_DB, while a direct CONFIG_DB or APP_DB SET that can represent a valid SET-before-DEL ownership transfer remains pending without partial programming and converges after the old owner releases the VNI. Verify the pending CONFIG_DB conflict is reported once without retry log flooding.
 
 ### 13.8 SpyTest scenarios
 
