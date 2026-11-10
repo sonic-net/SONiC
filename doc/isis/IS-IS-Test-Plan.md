@@ -22,6 +22,35 @@ are not a separate expansion into SRv6 or changes to FRR.
 - Select the same ASIC namespace for configuration and observation. Confirm the
   other ASIC remains unchanged. Run disruptive recovery cases on a dedicated lab.
 
+### Seven-node forwarding prerequisites
+
+Use P1–P4 and PE1–PE3 with the twelve links in `topo_force10-7nodes.yml`.
+The existing profiles number the fabric links with IPv6; enabling the IPv4 IS-IS
+AF alone does not provide a verified IPv4 next-hop setup. The integration fixture
+adds consecutive /31s from `198.19.0.0/27` to the same twelve links, preflights
+all seven nodes for collisions before writing, preserves exact pre-existing
+addresses, and removes only addresses it added, including after setup failure.
+Original IPv6 addressing and BGP configuration remain the baseline.
+
+The profiles also redistribute connected IPv6 prefixes into BGP. During the
+P1↔PE3 forwarding case, temporarily suppress that redistribution on P1 and PE3,
+without stopping their BGP sessions, then restore the original values even on
+failure. Require exact-prefix native routes with protocol IS-IS, selected and
+installed state, and active FIB next hops in both directions before pinging.
+A route merely present in the IS-IS RIB or a ping forwarded by BGP is not a pass.
+The BGP coexistence case runs after restoring the baseline advertisements.
+
+For an official-image-only local lab, retain those seven roles, twelve fabric
+links, IPv6 interface/Loopback0 addresses and direct BGP peer relationships. The
+community SRv6 profiles additionally contain VPN/SRv6 fields that the pinned
+official image does not model. Generate a separate IS-IS acceptance configuration
+rather than changing the shared profiles or disabling config validation. Use
+supported BGP network entries for dedicated Loopback100 prefixes so the BGP
+coexistence check has real learned routes without competing for IS-IS Loopback0
+forwarding. Document this baseline explicitly; it is not SRv6/VPN acceptance.
+Validate every generated configuration with the same full YANG entry point used
+by `config reload` before deploying any role.
+
 ## Test setup and observations
 
 ### Local VS image with incremental packages
