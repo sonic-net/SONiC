@@ -37,7 +37,7 @@ adapted from gs1571's `f7b6ef84dfb0ff8ffcdeb032cd17867c31298baa`, with provenanc
 in the source. The default-instance projection is adapted for composite identity;
 no SRv6 feature or modified FRR dependency is imported.
 
-Local verification currently covers the framework source suite (142 tests), Click
+Local verification currently covers the framework source suite (174 tests), Click
 commands against an isolated real Redis server (23 tests), and 37 positive/negative
 schema fixtures using the repository harness with native libyang 3.12.2 and
 the SONiC-patched Python 3.1.0 binding. All seven committed Force10 topology
@@ -55,7 +55,7 @@ Local implementation commits (not pushed):
 
 | Repository | Commit |
 | ---------- | ------ |
-| sonic-buildimage | `880832c47` |
+| sonic-buildimage | `f78d3eca0` |
 | sonic-utilities | `9bb54224` |
 | sonic-mgmt | `0b9444cbb` |
 
@@ -472,6 +472,43 @@ follow changed contracts; they are not unrelated feature expansion.
 Run schema, translator/template and Click tests before package builds. Native FRR
 and DUT tests are necessary for capability/lifecycle claims that mocks cannot
 establish. Distinguish source tests, native package tests and DUT results in reports.
+
+### Completion audit (local evidence)
+
+The local implementation is not yet a completed native acceptance result. The
+following maps the agreed requirements to inspected evidence and missing gates.
+`test_isis.py` below is the framework suite; Click cases are in utilities
+`tests/isis_test.py`. Native schema cases use the repository's libyang harness.
+
+| Requirement | Evidence available | Still unverified |
+| ----------- | ------------------ | ---------------- |
+| R1 identity | Named-instance projection/readback tests; composite-parent and shared-system-ID native YANG cases | Native multi-area creation, changes and isolation |
+| R2 lifecycle | Retained parent/interface settings and disabled-edit CLI tests | Native restoration of all settings |
+| R3 deletion | Active/disabled reference guard and cascade CLI tests | Native withdrawal on DUT |
+| R4 binding | Explicit-binding/VRF-move planner tests and all seven profile command checks | Actual old-VRF withdrawal/new-VRF forwarding |
+| R5 AF transitions | All 16 transitions in default and named VRFs (32 planner cases); four-state startup/readback coverage | Native circuit recreation and peer behavior |
+| R6 MT | Independent AF/MT CLI controls and model restrictions | MT and single-topology peer interoperability |
+| R7 levels | Per-level defaults, reset and both-level atomic Redis tests | Native effective values after all transitions |
+| R8 MTU/timers | Native YANG defaults/ranges/relationships; shared renderer tests | Pinned FRR accepts coupled timer transitions |
+| R9 overload | Range/schema and command/readback checks | Transit-path effect and startup timer expiry |
+| R10 SPF | Complete tuple, relationship, per-level minimum interval and reset checks; pinned scheduler source inspected | Native scheduling under topology events |
+| R11 redistribution | AF/protocol/level validation, native YANG route-map references, command ordering | Advertisements, metrics, filtering and withdrawal |
+| R12 recovery | Contributor kernel/transport tests, durable ownership/offline-delete source test; adapted DUT test exists | Restart/reload/partial failure on native daemons |
+| R13 configuration | 37 native schema fixtures; real Redis graph compare-and-commit checks | Complete SONiC config-load/GCU integration |
+| R14 operation | Show scope/error tests; seven topology profiles exercise setup/reset/cleanup CLI | Real IPv4/IPv6 route installation and traffic |
+| R15 coexistence | Full framework source suite passes; BGP callbacks independent of IS-IS worker; DUT check exists | Native BGP continuity during recovery/faults |
+
+All 174 framework tests, 23 native-Redis Click tests and 37 native schema cases
+have passed in their stated environments. Only the framework suite was expanded
+and rerun in this audit; earlier CLI/schema evidence remains tied to unchanged
+implementation files. No remote PR/CI result is asserted.
+
+The workstation has no Docker, Podman, Colima, Lima, QEMU or Apple container
+runtime installed. Its SSH configuration contains generic includes but no named
+SONiC builder/DUT target. A concrete Linux builder and routing lab are needed to
+close the remaining native gates. Utilities packaging still fails its existing
+missing SONiC dependency check. No new runtime or large image cache was installed
+as a substitute for a known test environment.
 
 ### Open Action Items
 
