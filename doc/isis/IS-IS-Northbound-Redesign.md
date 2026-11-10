@@ -30,77 +30,15 @@
 | 0.1 | Nov 10 2026 | Draft interface contract, FRR capability boundaries, build scope and contributor assessment |
 | 0.2 | Nov 10 2026 | Adopt existing PR history and gs1571 contributions as the implementation baseline; organize remaining work as incremental changes |
 
-#### Local implementation checkpoint (Nov 10 2026)
+#### Contributor provenance
 
-The five-table model and CLI below are implemented locally. The original gs1571
-commits `c6bc0e681`, `e01033a2b`, `63a644b1` and `c0b6238d` remain unchanged in
-history, including author and sign-off. Recovery kernel and native transport are
-adapted from gs1571's `f7b6ef84dfb0ff8ffcdeb032cd17867c31298baa`, with provenance
-in the source. The default-instance projection is adapted for composite identity;
-no SRv6 feature or modified FRR dependency is imported.
-
-Local verification currently covers the framework source suite (194 tests), Click
-commands against an isolated real Redis server (25 tests), and 37 positive/negative
-schema fixtures using the repository harness with native libyang 3.12.2 and
-the SONiC-patched Python 3.1.0 binding. All seven committed Force10 topology
-profiles pass configuration/projection/cleanup checks in the local CLI harness.
-The YANG-model and framework pure-Python wheels build locally and contain the
-new shared module, models, recovery adapter and startup template. Utilities now
-also builds inside an official SONiC VS guest against its actual Linux/SONiC
-dependencies; no fake dependency packages are used. A derived BGP image installs
-the model/framework wheels and startup/supervisor templates without rebuilding FRR.
-
-Two VS guests based on build `1267969` (`df8f211dd8`, FRR 10.7.1/libyang 3.12.2)
-provide native integration evidence. This exposed and fixed an SDK mismatch:
-current swsscommon returns a native DBConnector, so atomic Lua operations use its
-RedisCommand/RedisReply bindings; older redis-py connectors keep their eval path.
-Four isolated native-SDK tests pass, including concurrent-change rejection and
-zero-write rejection of an unsafe area retirement within a multi-row batch.
-All 44 GCU generic-updater tests pass in the native SONiC environment.
-The initial baseline had two Up adjacencies per peer and passed IPv4/IPv6 remote-loopback traffic.
-Native readback equals desired state after AF combinations, per-level metric/Hello
-and LSP/SPF changes, instance options/reset, IETF SPF backoff, IPv6 MT, disable/enable,
-delete reference guards, multiple NETs, and same-VRF multi-area creation/rebinding.
-Subsequent delayed traffic checks exposed FRR 10.7.1 clearing the shared system ID
-on area deletion; the earlier area-deletion result is withdrawn. The northbound
-contract now rejects active-area deletion/disable with a surviving same-VRF area,
-without rebuilding siblings. Operational system-ID confirmation and NET update
-ordering also protect against false success and transient last-NET removal.
-The damaged disposable guest was recovered only after confirming it had exactly
-one native/configured area; its operational system ID and bidirectional dual-stack
-traffic were then verified. Native CLI and GCU delete/disable attempts with two active same-VRF areas
-were rejected without ConfigDB changes; both areas, the runtime system ID and
-bidirectional IPv4/IPv6 traffic remained intact.
-Offline desired update/delete and a whole isisd outage also pass: failure is
-bounded, explicit retry reconverges, and the BGP PID, connection counters and
-learned prefix remain unchanged. IPv4/IPv6 connected redistribution also passes
-publication (metric 50 plus link cost 10), route-map filtering, re-advertisement
-and withdrawal. All other allowed protocol policies are accepted and removed by
-the pinned native daemon; injecting real source routes for each protocol remains
-a separate full-topology gate.
-
-Automatic cold-start timing has not passed in the ARM64 TCG lab: daemon startup
-exceeded the 30-second recovery deadline. Explicit retry after readiness converges
-without discarding the journal. Record that separately from an automatic startup
-pass. Full SONiC build-system packaging, seven-node execution, multi-ASIC isolation
-and hardware forwarding remain outstanding. No push or remote PR update is part
-of this work. See the [test plan](IS-IS-Test-Plan.md#local-vs-image-with-incremental-packages)
-for the incremental-image setup and its limits.
-
-Local implementation commits (not pushed):
-
-| Repository | Commit |
-| ---------- | ------ |
-| sonic-buildimage | `98877c334` |
-| sonic-utilities | `52fbc3d1` |
-| sonic-mgmt | `4ab9c04dc` |
-
-The buildimage utilities gitlink points to the local utilities commit above.
-A separate builder must receive that commit locally before resolving the submodule;
-it is not yet available from the upstream remote. The four original gs1571
-AF/MT/MTU commits retain their exact IDs and sign-offs. Adapted recovery source
-and tests identify their original commits/authors rather than attributing that
-work to the new northbound adapter.
+The original gs1571 commits `c6bc0e681`, `e01033a2b`, `63a644b1` and
+`c0b6238d` retain their authors and sign-offs. Recovery and native transport
+are adapted from `f7b6ef84dfb0ff8ffcdeb032cd17867c31298baa`, with source
+attribution. No SRv6 feature or modified FRR dependency is imported.
+Matching utilities and framework/model packages are required; updating the
+buildimage utilities gitlink is a separate integration step after the matching
+utilities revision is available from the configured remote.
 
 ### Scope
 
@@ -461,14 +399,19 @@ Startup rendering adds work proportional to configured objects. The recovery wor
 snapshot/native calls and a 30-second attempt deadline. Measure boot overhead with the feature absent,
 disabled and enabled; no numerical performance claim is available yet.
 
-The ConfigDB reader reuses a dedicated SDK subprocess to avoid repeated Python
-and SDK initialization on every observation. Each request takes a fresh atomic
-snapshot; desired state is never cached. The five-second request deadline includes
-helper startup when needed. A timeout, EOF, malformed/incomplete response, wrong
-request identity or response exceeding 16 MiB discards the helper. A later request
-starts a new helper; failure is never interpreted as empty configuration. Worker
-shutdown closes the helper. This retains an independent Redis connection and does
-not change the 30-second recovery attempt or explicit-retry policy.
+The ConfigDB reader uses a separate SDK subprocess for each atomic snapshot,
+with a five-second timeout and a 16 MiB output limit. Read failure is never
+interpreted as empty desired configuration.
+
+Startup registration and active recovery have separate phases. The renderer
+persists `prepared`, with the old/possible ownership union and no deadline, before
+emitting the canonical fragment. The first worker step durably arms `pending`
+with a 30-second deadline before any desired/native read. This excludes preceding
+container initialization without waiting indefinitely for native readiness once
+the worker starts. Reentry with the same digest/boot preserves an active deadline
+or failed latch; a slow read, readback failure or worker restart cannot rearm it.
+A failed journal write prevents reads/mutations on that step. The renderer and
+worker must be upgraded together; an older reader fails closed on `prepared`.
 
 ### Memory Consumption
 
@@ -518,46 +461,12 @@ Run schema, translator/template and Click tests before package builds. Native FR
 and DUT tests are necessary for capability/lifecycle claims that mocks cannot
 establish. Distinguish source tests, native package tests and DUT results in reports.
 
-### Completion audit (local evidence)
+### Acceptance status
 
-The local implementation is not yet a completed native acceptance result. The
-following maps the agreed requirements to inspected evidence and missing gates.
-`test_isis.py` below is the framework suite; Click cases are in utilities
-`tests/isis_test.py`. Native schema cases use the repository's libyang harness.
-
-| Requirement | Evidence available | Still unverified |
-| ----------- | ------------------ | ---------------- |
-| R1 identity | Source/YANG identity tests; native VS multiple NETs, same-VRF multi-area creation and rebinding | Same-tag isolation across multiple VRFs |
-| R2 lifecycle | Source/CLI tests and native VS disable/enable with readback equality | Other routed interface types |
-| R3 deletion | Reference guards/cascade CLI tests; native VS reference guards; active-area retirement with a surviving same-VRF area is rejected | Hardware/topology-scale withdrawal |
-| R4 binding | Planner/profile checks; native VS default → VrfBlue → default with explicit rebind, new-VRF dual-stack traffic and baseline restoration | Other routed interface types and hardware |
-| R5 AF transitions | All 16 transitions in default and named VRFs (32 planner cases); four-state startup/readback coverage; native VS AF combinations restore adjacency/traffic | Exhaustive 16-transition matrix against native FRR |
-| R6 MT | Source model checks; native VS single-topology/MT switch, reset and dual-stack traffic | Mixed-vendor interoperability |
-| R7 levels | Source/Redis tests; native VS metric/Hello set/reset and both-level readback | Mixed L1/L2 topology behavior |
-| R8 MTU/timers | Native YANG checks; native VS coupled LSP timer changes/reset and MTU readback | Large-LSP fragmentation on the full topology |
-| R9 overload | Range/schema and command/readback checks | Transit-path effect and startup timer expiry |
-| R10 SPF | Native VS minimum-SPF and IETF backoff set/reset; validation and pinned scheduler source checks | Native scheduling under topology events |
-| R11 redistribution | Native VS IPv4/IPv6 connected publication, metric 50 plus link cost 10, route-map deny withdrawal, re-advertisement/removal; all allowed protocol policy syntax accepted | Source-route injection for other allowed protocols and full topology |
-| R12 recovery | Native VS offline update/delete recovery, isisd outage → bounded failure → explicit retry; journal and native equality checked | Automatic cold start under TCG failed timing; full reload and partial-mutation fault matrix |
-| R13 configuration | 37 native schema fixtures; native Redis atomic checks; 44 GCU tests and real CLI/GCU unsafe-area rejection | General config-load/GCU integration beyond tested transitions |
-| R14 operation | Source show tests; seven profile CLI checks; native dual-stack routes and bidirectional VS Loopback traffic | Seven-node, multi-ASIC and hardware traffic |
-| R15 coexistence | Native established BGP retains PID, 1 connection established, 0 drops and learned prefix during offline IS-IS updates and isisd outage/retry | Continuous hardware forwarding and broader failure matrix |
-
-All 194 framework tests, 25 native-Redis Click tests, 37 native schema cases
-and four native swsscommon/Redis integration cases have passed in their stated
-environments. Native VS testing exposed the SDK eval mismatch and the isisd
-writer's omitted interface VRF. The adapter now reads actual VRF ownership from
-Zebra and rejects changes during the observation window; native named-VRF
-adjacency, dual-stack forwarding and return-to-default retests pass. Native
-three-to-three NET replacement with a live sibling area also preserves the shared
-system ID and bidirectional traffic. No remote PR/CI result is asserted.
-
-The workstation now runs QEMU 11.1.2 with a pinned official VS base and separate
-qcow2 overlays. Utilities builds in the guest and the routing delta is packaged
-as a derived BGP container image. ARM64 TCG startup exceeded the existing
-30-second attempt deadline; explicit retry passed, but automatic cold-start
-acceptance remains open. The full seven-node and hardware gates still need the
-corresponding lab. The reduced VS lab is not reported as equivalent coverage.
+Source-level validation does not establish full native acceptance. Automatic
+startup/reload, seven-node forwarding and hardware/multi-ASIC acceptance remain
+open. Record per-revision execution evidence separately from this design; do not
+infer completion from the presence of test cases.
 
 ### Open Action Items
 

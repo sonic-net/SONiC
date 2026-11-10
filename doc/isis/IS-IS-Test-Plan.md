@@ -40,74 +40,17 @@ installed state, and active FIB next hops in both directions before pinging.
 A route merely present in the IS-IS RIB or a ping forwarded by BGP is not a pass.
 The BGP coexistence case runs after restoring the baseline advertisements.
 
-For an official-image-only local lab, retain those seven roles, twelve fabric
-links, IPv6 interface/Loopback0 addresses and direct BGP peer relationships. The
-community SRv6 profiles additionally contain VPN/SRv6 fields that the pinned
-official image does not model. Generate a separate IS-IS acceptance configuration
-rather than changing the shared profiles or disabling config validation. Use
-supported BGP network entries for dedicated Loopback100 prefixes so the BGP
-coexistence check has real learned routes without competing for IS-IS Loopback0
-forwarding. Document this baseline explicitly; it is not SRv6/VPN acceptance.
-Validate every generated configuration with the same full YANG entry point used
-by `config reload` before deploying any role.
-
-Normalize IPv6 neighbor keys before joining `BGP_NEIGHBOR` and
-`BGP_NEIGHBOR_AF`: equivalent strings such as `fc07::02` and `fc07::2` must
-retain the same AF configuration. Require an IPv6-unicast AF entry for every
-retained fabric peer. Omit a neighbor `local_asn` override when it equals the
-instance AS; FRR rejects that redundant `neighbor ... local-as` command.
-These adjustments belong to the generated lab configuration; preserve the
-original shared profiles. YANG validation alone does not prove FRR accepts
-the rendered configuration.
-
 ## Test setup and observations
 
-### Local VS image with incremental packages
+Validate the full seven-node topology and record the actual image/package
+revisions. A reduced topology or modified local image is supplemental evidence,
+not a replacement for this acceptance topology.
 
-When a Linux builder or hardware DUT is unavailable, use an official SONiC VS
-image with the same FRR/libyang revisions and install the changed Python wheels
-and routing-container templates. Keep the base disk read-only and use a separate
-qcow2 overlay for each node. Build utilities inside the guest against its actual
-SONiC dependencies. Build a derived BGP image containing both the shared YANG/model
-package and frrcfgd, docker_init.sh, gen_frr.conf.j2 and supervisor templates;
-recreating the container must retain the changes.
-
-The local reference run uses VS master build `1267969` (`df8f211dd8`), FRR 10.7.1,
-libyang 3.12.2, and two QEMU x86-64 guests on an ARM64 Mac using TCG. Each guest
-has 6 GiB RAM and four virtual CPUs. Use distinct device MACs, NET system IDs and
-loopback addresses. Loopback TCP socket backends connect the two data interfaces;
-the attempted macOS UDP multicast backend transmitted frames but delivered none
-to the peer, so it was not used for protocol acceptance.
-
-The separate seven-node lab uses P1–P4 and PE1–PE3, each with 3 GiB RAM and
-two virtual CPUs, with all twelve original links connected through TCP socket
-backends. Lane maps retain the topology's original Ethernet port names. Each
-node has its own writable overlay over the same installed-package baseline.
-Verify the loaded role, native daemon states, and every planned interface
-address before connecting a node. A running container alone is insufficient.
-The full baseline check has passed twelve bidirectional IPv6 links and all
-24 BGP peer views with established sessions and learned prefixes. This is
-testbed readiness evidence; the six repository IS-IS integration cases must
-still pass without skips before claiming seven-node IS-IS acceptance.
-
-Concurrent TCG startup exposed service-start and SAI timeouts. Preserve those
-failures in the evidence. If nodes are temporarily paused to finish startup,
-resume every node and revalidate the complete baseline before testing. Do not
-relax product recovery deadlines or test assertions to accommodate emulation.
-
-Check native swsscommon as well as legacy redis-py: current ConfigDBConnector
-returns a native DBConnector without an eval method. Run the isolated Redis
-regression in `src/sonic-yang-models/tests/test_isis_atomic_sdk.py` with
-`ISIS_TEST_REDIS_SOCKET` pointing to a dedicated disposable Redis server, never
-the DUT's ConfigDB server. Verify list/empty-row round trips and rejection of
-concurrent inserts and field changes without partial writes.
-
-Record cold-start failure separately from recovery after explicit retry. In this
-TCG environment, service initialization exceeded the 30-second attempt deadline;
-`supervisorctl signal HUP frrcfgd` restored convergence after services were ready.
-That result does not qualify automatic cold-start timing or hardware forwarding.
-The reduced two-node topology supplements, rather than replaces, the seven-node
-Force10 and multi-ASIC cases below.
+Check native swsscommon as well as legacy redis-py. Run
+`src/sonic-yang-models/tests/test_isis_atomic_sdk.py` with
+`ISIS_TEST_REDIS_SOCKET` pointing to an isolated disposable Redis server.
+Verify list/empty-row round trips and concurrent-change rejection without partial
+writes; never run this regression against the DUT's ConfigDB server.
 
 ### Pinned FRR multi-area lifecycle regression
 
@@ -194,7 +137,7 @@ SRv6 setup is not imported, and its custom-fixture results do not qualify this i
 
 1. Inject missed notifications, daemon downtime, native socket disconnects,
    partial native application and unresponsive snapshot subprocesses. Each
-   attempt remains bounded; pending/applied/failed state is observable.
+   attempt remains bounded; prepared/pending/applied/failed state is observable.
 2. Corrupt/truncate journal or readback and introduce an unowned native area or
    circuit. Fail closed without adopting or deleting unknown ownership.
 3. Restart frrcfgd with the same desired state, then with offline update/delete;
@@ -206,13 +149,22 @@ SRv6 setup is not imported, and its custom-fixture results do not qualify this i
 5. Verify startup ownership-registration failure logs an error while rendering
    other protocols from the same frozen snapshot. Do not silently claim IS-IS is
    applied. Measure restart disruption; cold recovery is not warmboot support.
-6. Verify repeated snapshots reuse the dedicated reader process but observe new
-   ConfigDB values on every request. Inject a stalled helper, EOF, truncated or
-   malformed JSON, an incorrect request identity and an oversized response. Each
-   failed request must discard the helper without supplying an empty desired
-   configuration; the next request must create a new helper and obtain fresh
-   state. Retain the five-second limit including helper startup, and verify worker
-   shutdown reaps the helper. Record cold-start and steady-state timings separately.
+6. Verify each snapshot subprocess obtains fresh ConfigDB values. Inject a
+   timeout, failed exit, malformed JSON and incomplete table set. A failed read
+   must not supply an empty desired configuration. Keep the five-second timeout
+   and record snapshot latency separately from the recovery attempt deadline.
+7. Delay worker entry more than 30 seconds after canonical startup registration.
+   Confirm the journal is `prepared` with no deadline until the first worker step;
+   that step must durably arm a 30-second `pending` attempt before desired/native
+   reads. Matching native state should then confirm automatically without retry.
+   Repeat with unavailable desired state and unavailable native readback: after
+   arming, neither failure nor repeated worker/container restart may extend the
+   deadline. At expiry require a failed latch, even if native state later matches;
+   explicit retry or a new desired digest is needed. Inject an arming journal-write
+   failure and verify no native mutation occurs. Reboot must use trusted startup
+   registration for the new boot identity. These are regressions for the startup
+   timing defect, not an increase to the recovery timeout. Native execution of
+   this corrected sequence remains an acceptance requirement.
 
 ## Cleanup and reporting
 
@@ -222,12 +174,21 @@ policy rows. Restore addressing/VRFs, saved configuration and any failure
 injection. Disable alone is not cleanup. Confirm no test native binding,
 adjacency or advertisement remains; preserve unrelated configured objects.
 
+The Force10 fixture attempts every unbind, instance deletion and owned-address
+removal even after a command fails or transport raises. It then reads ConfigDB
+back for test instance, level, redistribution, interface and interface-level rows,
+and addresses it added. Unrelated rows and preexisting addresses are preserved.
+Nonzero/missing command return codes, transport/readback failures and residual
+rows are aggregated into a teardown failure; they must not silently pass. Inject
+each failure on an early node and verify subsequent nodes and address removals
+still run. Separately verify native withdrawal as described above; ConfigDB
+cleanup alone does not prove native convergence.
+
 Record image and commit identifiers, namespace, topology, individual case results,
 configuration/readback, journal/log evidence and traffic observations. Source
-framework/CLI tests, native libyang fixtures and selected packaged VS lifecycle
-cases have run locally; their evidence and remaining gaps are listed in the
-redesign document's completion audit. Seven-node acceptance and hardware/DUT
-coverage remain incomplete. Mark missing cases explicitly and do not infer full
+framework/CLI tests, native libyang fixtures and packaged VS lifecycle tests
+must be reported separately. Seven-node acceptance and hardware/DUT coverage
+remain incomplete. Mark missing cases explicitly and do not infer full
 acceptance from unit tests or from passing cases on a smaller topology.
 
 #### Explicit recovery retry

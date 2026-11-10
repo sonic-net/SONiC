@@ -69,7 +69,15 @@ attempt deadline. Confirmation requires fresh native readback; partial execution
 is never treated as applied. Owned offline deletions are reconciled after daemon
 restart. Unsupported native configuration and unowned conflicts fail closed.
 The journal is `/etc/frr/isis-owned.json`, within the bgp container. Startup
-registers ownership before exposing the rendered fragment. If registration fails,
+registers ownership as `prepared` (no deadline) before exposing the rendered
+fragment. On its first recovery step, the worker durably changes this to `pending`
+and starts the 30-second deadline before reading desired or native state. Container
+initialization before that step consumes no recovery budget; unavailable services
+after that step do. Repeated worker/container starts preserve an existing pending
+deadline and failed latch for the same digest and boot. `prepared` is not an
+applied-state claim. Install the startup renderer and recovery worker from the same
+framework revision; older readers reject this new journal phase safely.
+If registration fails,
 the same frozen snapshot renders other protocols with an empty IS-IS fragment
 and logs the failure. Container replacement reconstructs native configuration;
 the journal is not a promise of host-persistent forwarding state.
