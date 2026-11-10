@@ -93,7 +93,7 @@ Local implementation commits (not pushed):
 | ---------- | ------ |
 | sonic-buildimage | `98877c334` |
 | sonic-utilities | `52fbc3d1` |
-| sonic-mgmt | `0b9444cbb` |
+| sonic-mgmt | `4ab9c04dc` |
 
 The buildimage utilities gitlink points to the local utilities commit above.
 A separate builder must receive that commit locally before resolving the submodule;

@@ -51,6 +51,15 @@ forwarding. Document this baseline explicitly; it is not SRv6/VPN acceptance.
 Validate every generated configuration with the same full YANG entry point used
 by `config reload` before deploying any role.
 
+Normalize IPv6 neighbor keys before joining `BGP_NEIGHBOR` and
+`BGP_NEIGHBOR_AF`: equivalent strings such as `fc07::02` and `fc07::2` must
+retain the same AF configuration. Require an IPv6-unicast AF entry for every
+retained fabric peer. Omit a neighbor `local_asn` override when it equals the
+instance AS; FRR rejects that redundant `neighbor ... local-as` command.
+These adjustments belong to the generated lab configuration; preserve the
+original shared profiles. YANG validation alone does not prove FRR accepts
+the rendered configuration.
+
 ## Test setup and observations
 
 ### Local VS image with incremental packages
@@ -69,6 +78,22 @@ has 6 GiB RAM and four virtual CPUs. Use distinct device MACs, NET system IDs an
 loopback addresses. Loopback TCP socket backends connect the two data interfaces;
 the attempted macOS UDP multicast backend transmitted frames but delivered none
 to the peer, so it was not used for protocol acceptance.
+
+The separate seven-node lab uses P1–P4 and PE1–PE3, each with 3 GiB RAM and
+two virtual CPUs, with all twelve original links connected through TCP socket
+backends. Lane maps retain the topology's original Ethernet port names. Each
+node has its own writable overlay over the same installed-package baseline.
+Verify the loaded role, native daemon states, and every planned interface
+address before connecting a node. A running container alone is insufficient.
+The full baseline check has passed twelve bidirectional IPv6 links and all
+24 BGP peer views with established sessions and learned prefixes. This is
+testbed readiness evidence; the six repository IS-IS integration cases must
+still pass without skips before claiming seven-node IS-IS acceptance.
+
+Concurrent TCG startup exposed service-start and SAI timeouts. Preserve those
+failures in the evidence. If nodes are temporarily paused to finish startup,
+resume every node and revalidate the complete baseline before testing. Do not
+relax product recovery deadlines or test assertions to accommodate emulation.
 
 Check native swsscommon as well as legacy redis-py: current ConfigDBConnector
 returns a native DBConnector without an eval method. Run the isolated Redis
