@@ -12,8 +12,7 @@ feature. Paths and examples refer to the planned `sonic-buildimage` integration.
 The [framework and build design](./design_review.md) explains how SONiC builds,
 validates, packages, and runs these inputs. It is not a second definition of the
 vendor contract. Release and runtime deployment settings are outside the vendor
-profile; [framework section 7.8](./design_review.md#78-kubernetes-deployment-boundary)
-defines the image's deployment interface.
+profile.
 
 The vendor may supply source or prebuilt binary artifacts with declarative
 integration inputs; proprietary program source is not required for binary-only
@@ -458,5 +457,4 @@ Invalid source selections, missing inputs, build failures, unsafe artifacts,
 invalid fragments or health configuration, failed integrity checks, and
 installation failures fail the build. Container publication, qualification,
 node selection, mounts, privileges, and rollout are coordinated by deployment
-owners, not additional fields in the platform profile. The interface is defined
-in [framework section 7.8](./design_review.md#78-kubernetes-deployment-boundary).
+owners, not additional fields in the platform profile.
