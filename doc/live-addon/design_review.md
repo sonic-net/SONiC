@@ -449,15 +449,13 @@ are framework-owned values and are not vendor-configurable.
 
 ### 7.4 Runtime health configuration
 
-During image generation, the SONiC-owned build framework reads and
-validates the `[health]` section from
-`platform/<platform>.ini`, then writes the normalized values to
-`/etc/live-addon/health.ini` in the image. The command syntax, semantics, timeout,
-and diagnostic limits are defined in
+During the image build, the framework reads and validates the `[health]`
+settings in `platform/<platform>.ini`. It uses these settings to generate
+`/etc/live-addon/health.ini` in the image, in the format expected by the health
+server. The health server uses this file to run the configured checks.
+
+The command syntax, meaning, timeout, and diagnostic limits are defined in
 [vendor specification section 7](./design_vendor_spec.md#7-health-commands).
-This runtime file is framework-generated, not another vendor input.
-Build-only settings such as the repository, artifact, and Supervisor source
-paths are not copied into it.
 
 ### 7.5 Request execution rules
 
