@@ -228,6 +228,15 @@ Both packages are gated behind `ENABLE_PY2_MODULES`, which is off for bullseye, 
 - the `REDIS_DUMP_LOAD_PY2` entry in the installer prerequisites in `slave.mk`
 - the `redis_dump_load_py2_wheel_path` export in `slave.mk`, which nothing reads
 
+The `mixed` PTF image goes with them. Setting `SONIC_PTF_ENV_PY_VER=mixed` builds `docker-ptf` with both Python 2 and Python 3 on a buster base, which is the last thing that needs buster mirror handling once 7.1.10 removes buster. The default is `py3`, and nothing in CI builds `mixed`. sonic-mgmt only recognizes an existing `mixed` image so it can run against it, so removing the build option breaks nothing there.
+
+**Remove (mixed PTF):**
+
+- the `SONIC_PTF_ENV_PY_VER` option in `rules/config` and `Makefile.work`, and the `PTF_ENV_PY_VER` default and export in `slave.mk`
+- the `mixed` branches in `dockers/docker-ptf/Dockerfile.j2`, including the `debian:buster` base and the Python 2 package installs, leaving the `py3` path unconditional
+- the `py3` conditionals in `dockers/docker-ptf-sai/Dockerfile.j2`, which become unconditional
+- the `mixed` branches in `platform/vs/docker-ptf.mk`, `platform/vs/docker-ptf-sai.mk`, and `platform/vs/libsaithrift-dev.mk`
+
 ##### 7.1.7 Kubernetes master
 
 This runs a full Kubernetes control plane on the switch. That includes the apiserver, controller, scheduler, proxy, etcd 3.5.0, coredns 1.8.4, and the dashboard 2.7.0 web UI, along with cloud credential libraries used for backups. Every one of those versions is years past end of life, which makes this the single biggest reduction in CVE surface in this list. It is off by default and has no real CI coverage.
