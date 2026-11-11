@@ -425,10 +425,8 @@ checks. Calls that arrive while the same check is still running share its result
 
 The default example supplies small read-only health-check commands through
 the same contract. The health server invokes them on demand: successful checks
-produce HTTP 200 and failures produce HTTP 503. No periodic monitor or separate
-addon daemon runs. These results describe the example's health, not switch
-hardware or vendor functionality. Missing health commands remain a build error
-for every profile.
+produce HTTP 200 and failures produce HTTP 503. Missing health commands remain
+a build error for every profile.
 
 The server should start independently of the vendor processes. If Kubernetes
 probes the container before the server is listening, the connection failure is
