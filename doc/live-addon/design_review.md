@@ -34,10 +34,9 @@ managed at runtime. The proposed model is:
   vendor may use the same executable for all three checks.
 - The SONiC framework supplies the on-demand HTTP health server and Kubernetes
   probe integration.
-- When a live-addon build is explicitly requested, SONiC Make rules default to
-  a checked-in example through the local source path, without external vendor
-  inputs. Vendor integrations are explicitly selected and may be contributed
-  through normal upstream PRs.
+- SONiC builds a checked-in example by default, without external vendor inputs.
+  Build owners can enable vendor profiles to produce additional, separate
+  images. Vendor integrations may be contributed through normal upstream PRs.
 
 The vendor may maintain its own Dockerfile for independent
 development and testing, but that Dockerfile should not define the production
@@ -63,11 +62,11 @@ integration already implements the proposal.
 
 Live-addon is an optional diagnostic and troubleshooting mechanism, not an
 always-on part of normal SONiC operation. The operator responsible for a SONiC
-deployment decides whether to build or select an addon image and when, where,
-and for how long to deploy it, based on the issue being investigated. Live-addon
-images are built only when explicitly requested and are not included in normal
-SONiC installer images by default. Building an image does not install or enable
-the addon. Deployment and release orchestration remain separate operator
+deployment decides which addon image to use and when, where, and for how long
+to deploy it, based on the issue being investigated. The example image is built
+by default; vendor images are built only when enabled. Neither is included in
+normal SONiC installer images by default. Building an image does not install or
+enable the addon. Deployment and release orchestration remain separate operator
 responsibilities.
 
 An operator-enabled live-addon deployment must recover after both cold and warm
@@ -653,8 +652,8 @@ in the manifest.
 
 ### 9.1 Native image recipe
 
-Add `rules/docker-live-addon.mk` to register `docker-live-addon.gz` in
-`SONIC_DOCKER_IMAGES` and the supported builder-release list, such as
+Add `rules/docker-live-addon.mk` to register the example and enabled vendor images
+in `SONIC_DOCKER_IMAGES` and the supported builder-release list, such as
 `SONIC_BOOKWORM_DOCKERS`. Use the SONiC-owned
 `dockers/docker-live-addon/Dockerfile.j2` with the existing image build recipe
 in `slave.mk`.
@@ -665,57 +664,70 @@ the inputs and artifact, and prepare the files needed by the Docker build.
 Make tracks these steps as prerequisites of the image target. Small Python
 helpers can perform validation; Make remains responsible for running the build.
 
-Keep live-addon out of the default installer image lists and default
-`EXTRA_DOCKER_TARGETS`. Build it only when someone requests the live-addon
-target or selects it in a diagnostic build job.
+Keep live-addon images out of the default installer image lists. Building
+them does not install or enable diagnostics.
 
-### 9.2 Checked-in example default and optional vendor selection
+### 9.2 Default example, vendor build controls, and system tests
 
-For an explicitly requested live-addon build, `LIVE_ADDON_PLATFORM` defaults to
-`example`, selecting `platform/example.ini`
+The normal SONiC image build must build the checked-in example from
+`platform/example.ini`
 with `[source] path=dockers/docker-live-addon/platform/example`. This path is
-relative to the `sonic-buildimage` repository root. The sample source provides
-a deterministic artifact build script and small health-check commands, using
-the same build, validation and installation flow as vendor integrations. Its
-payload is confined to the approved sample root `/opt/example/live-addon`.
-The following are proposed commands after the normal SONiC build setup:
+relative to the `sonic-buildimage` repository root. The example is a reference
+implementation of the framework, not a vendor diagnostic service. It uses the
+same artifact build, validation, installation, and health interfaces as vendor
+integrations, with its payload confined to `/opt/example/live-addon`.
+Its Docker image is named `docker-live-addon`, and its saved archive is
+`target/docker-live-addon.gz`.
 
-```bash
-# Build the checked-in sample; no vendor checkout or private credentials
-make target/docker-live-addon.gz
+The build owner controls vendor builds through the Make setting
+`LIVE_ADDON_VENDOR_PLATFORMS`, a space-separated list of profile names.
+It is empty by default, so no vendor image is built. Add a name to enable that
+vendor's build; remove it to disable the build. Merely adding a vendor INI file
+to the branch does not enable it. This setting does not change SONiC's
+ASIC/build `PLATFORM`, and it does not disable the default example.
 
-# Explicitly select a reviewed vendor integration
-make LIVE_ADDON_PLATFORM=cisco-8000 target/docker-live-addon.gz
-```
+For example, `LIVE_ADDON_VENDOR_PLATFORMS="cisco-8000 vendor-b"` enables
+`platform/cisco-8000.ini` and `platform/vendor-b.ini`. The build produces:
 
-`LIVE_ADDON_PLATFORM` selects the addon profile; it does not replace SONiC's
-`PLATFORM` ASIC/build configuration. Forward the selection through the
-host-to-builder Make invocation; vendor CI jobs must set it explicitly when
-removing the old preparation step. An unknown profile or unsupported
-release/architecture fails explicitly.
+| Profile | Docker image name | Saved archive |
+|---|---|---|
+| `example` | `docker-live-addon` | `target/docker-live-addon.gz` |
+| `cisco-8000` | `docker-live-addon-cisco-8000` | `target/docker-live-addon-cisco-8000.gz` |
+| `vendor-b` | `docker-live-addon-vendor-b` | `target/docker-live-addon-vendor-b.gz` |
 
-The default image contains the approved OS dependencies, main Supervisor
+Each enabled vendor profile produces its own image and
+`target/docker-live-addon-<platform>.gz` archive; it does not replace the example
+or another vendor's output. Each image's manifest comes from that profile's
+`[manifest]` values, including its package name, release version, service flags,
+and privilege requirement. The build keeps artifacts, generated configuration,
+and image metadata separate for each profile. Unknown profiles and unsupported
+release/architecture combinations fail the build rather than producing a
+different image.
+
+The example image contains the approved OS dependencies, main Supervisor
 configuration, fixed entrypoint, framework health server, sample health-check
 payload and example manifest. The sample explicitly declares `[supervisor]`
 with an empty `conf-files` value: only the framework health server runs under
 Supervisor, and sample checks execute only when requested. It needs no
-privileged operation, host PID namespace or host-filesystem mounts. Public CI
-must build this example without external vendor inputs. It is not automatically
-installed or deployed and does not claim to implement a real vendor service.
+privileged operation, host PID namespace or host-filesystem mounts.
 
-Vendor contributions follow
-[vendor specification section 9](./design_vendor_spec.md#9-submission-and-qualification).
-The Make dependency graph activates integration-specific prerequisites only for
-the selected profile. Repository-local and external source retain the same
-contract; private integrations cannot become public-build prerequisites.
+Public CI must build the example and run `sonic-mgmt` system tests against it
+on a Linux testbed, without vendor hardware or private inputs. The tests must
+exercise startup, liveness, and readiness endpoints, including successful and
+failed checks, command timeouts, and concurrent requests sharing one check.
+This provides a common test of the health server independent of vendor programs.
+
+Vendor build prerequisites are activated only for enabled profiles; private
+integrations cannot become prerequisites of the default example build. Building
+any of these images does not include it in the installer or deploy it.
 
 ### 9.3 Dependency and cache handling
 
 ```text
-make target/docker-live-addon.gz [LIVE_ADDON_PLATFORM=<platform>]
+Default example + enabled vendor profiles
               |
               v
-Make resolves and validates the selected profile
+For each profile, Make resolves and validates its inputs
               |
               +--> example/local vendor: resolve the checked-in source path
               |
@@ -730,7 +742,7 @@ Shared regular-image recipe renders Dockerfile.j2, generates the manifest,
 injects hooks in place, builds Dockerfile and saves the image
               |
               v
-target/docker-live-addon.gz + version records + final SBOM
+Separate image archive + version records + final SBOM for each profile
 ```
 
 Declare configuration, source revision, artifact build inputs, validators,
@@ -738,11 +750,11 @@ framework files, snapshot sources and locks as dependencies and cache inputs.
 Prebuilt bundle content digests are cache inputs too: changing a binary bundle
 must invalidate artifact and image outputs even if its path and profile are
 unchanged.
-Changing profiles, including switching back to `example`, must invalidate both
-the output archive and SONiC's image cache. Isolate staged inputs by profile,
-release and architecture, and prevent concurrent builds from modifying the
-same context. A missing generated output must be rebuilt; a stale stamp or
-`live-addon.vars` must not hide missing files or retain another vendor's data.
+Changing a profile or its inputs must invalidate its output archive and image
+cache. Isolate staged inputs by profile, release and architecture, and prevent
+concurrent builds from modifying the same context. A missing generated output
+must be rebuilt; a stale stamp or `live-addon.vars` must not hide missing files
+or retain another vendor's data.
 Generate included Make metadata through a declared makefile-remaking rule
 before its values are consumed, with correctly escaped, validated data.
 
@@ -897,20 +909,13 @@ as their source of expected acceptance and rejection rules.
     not `# SKIP_HOOK`. The build verifies and records the approved base digest,
     snapshot selection, and profile/release/architecture lock set; missing or
     mismatched inputs fail the build.
-27. After normal SONiC setup, `make target/docker-live-addon.gz` builds the
-    checked-in example through its local source path and normal artifact build,
-    without external vendor inputs, private credentials, or a separate build
-    orchestrator. The explicitly empty fragment list is accepted; only Supervisor
-    and the framework health server remain running. Sample health checks produce HTTP
-    200 on success and HTTP 503 on failure. The example requires no privileged
-    operation, host PID namespace or host-filesystem mounts and is not
-    automatically installed, enabled or deployed. Normal SONiC installer builds
-    do not build or include live-addon unless explicitly selected.
-28. Explicit vendor selection uses the same Make target without a pipeline
-    preparation step. Invalid selections fail rather than silently producing
-    the default image. Switching between two vendors and back to `example`
-    rebuilds the correct context, manifest and image without stale outputs or
-    cross-profile cache reuse.
+27. The default build produces the example and public CI runs its Linux
+    `sonic-mgmt` system tests, following section 9.2. The example is not
+    automatically included in the installer, enabled, or deployed.
+28. Vendor build controls produce a separate image, archive, and matching
+    manifest for every enabled profile, as defined in section 9.2. Disabled
+    profiles do not activate vendor prerequisites. Invalid selections fail;
+    generated inputs and caches do not leak between profiles.
 29. A binary-only integration produces a validated image from a prebuilt bundle
     and copy script without requiring proprietary program source. Replacing
     that bundle invalidates the artifact and image caches.

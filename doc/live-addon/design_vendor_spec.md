@@ -416,18 +416,11 @@ A vendor integration PR supplies the reviewed platform profile, the location of
 source or prebuilt binary inputs, a build-or-copy preparation script, declared
 Supervisor fragments, health commands, and integration tests. Additional source
 or toolchain prerequisites belong in normal reviewed Make rules and are
-activated only for the selected integration.
-
-After normal SONiC build setup, the proposed selection is:
-
-```bash
-make LIVE_ADDON_PLATFORM=cisco-8000 target/docker-live-addon.gz
-```
-
-`LIVE_ADDON_PLATFORM` selects the addon profile, not SONiC's ASIC/build
-`PLATFORM`. For an explicitly requested live-addon build, omitting this
-selection builds the checked-in example without external vendor inputs or
-credentials. An invalid selection fails; it does not fall back to that example.
+activated only when the build owner enables that integration. The default build
+produces the checked-in example without vendor inputs. Vendor profiles produce
+additional, separate images with their own manifests; adding a profile alone
+does not enable its build. The build controls and output names are defined in
+[framework section 9.2](./design_review.md#92-default-example-vendor-build-controls-and-system-tests).
 
 Before submission, verify that:
 
