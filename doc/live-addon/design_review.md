@@ -549,20 +549,60 @@ Kubernetes.
 
 ## 8. SONiC Feature Manager Image Manifest
 
-The framework uses SONiC's existing Feature Manager image metadata through
-SONiC's shared manifest generation and `com.azure.sonic.manifest` image label.
-The declared `[manifest]` values and their validation rules are defined in
-[vendor specification section 8](./design_vendor_spec.md#8-feature-manager-metadata).
-The framework must not infer release identity from a Docker tag or silently
-default a required field.
+A manifest is a JSON description of the addon image. It records the addon name
+and release version, whether it runs as a host or ASIC service, the SONiC
+services listed in `after`, and whether it requires a privileged container.
+SONiC stores this JSON in an image label named `com.azure.sonic.manifest`.
+A label is information attached to the Docker image; Feature Manager reads
+it from the host without running the addon container.
 
-SONiC-owned validation helpers validate these fields before the image
-recipe runs. Map the package name, version, container name, ordering and
-privilege to SONiC's image metadata variables. A framework-owned
-`manifest.part.json.j2` supplies the explicitly declared host/ASIC service
-flags, rather than relying on inference from installed systemd templates.
-Use safe JSON serialization and the shared `generate_manifest` merge; the
-result includes the following fixed-schema fields:
+The vendor supplies these values in the platform profile's `[manifest]`
+section. [Vendor specification section 8](./design_vendor_spec.md#8-feature-manager-metadata)
+defines the required settings and valid values. The framework checks them
+before building the image and fails the build if they are invalid or a required
+value is missing.
+
+The vendor sets `package-name` in `[manifest]` in the selected
+`platform/<platform>.ini` file. For example,
+`package-name=live-addon-cisco-8000` names the addon and its container; it is
+not the filename of the vendor's Debian package. See the
+[platform profile example](./design_vendor_spec.md#2-integration-inputs-and-platform-configuration).
+
+The framework reads that INI file and creates `live-addon.vars`, a build-time
+file containing Make variable assignments for the addon name, release version
+and other image settings. Make reads this generated file before using those
+settings to build the image. The vendor does not supply `live-addon.vars`.
+
+SONiC's existing `generate_manifest` routine creates most of the manifest from
+these Make settings, including the package name, release version, `after`
+service list and container privilege requirement.
+
+For the two service flags, the proposed framework supplies
+`dockers/docker-live-addon/manifest.part.json.j2`. This is a SONiC-owned
+Jinja template; `.j2` identifies the template format. "Part" means it produces
+only part of the final manifest, not a second complete manifest. The framework
+passes the validated `host-service` and `asic-service` values from the INI
+file to this template. For the vendor profile example, it produces:
+
+```json
+{
+  "service": {
+    "host-service": true,
+    "asic-service": false
+  }
+}
+```
+
+The build renders this template to `manifest.part.json` and merges its two values
+into the full `manifest.json`. This ensures the final service flags match the
+vendor's declarations. The existing
+[manifest-generation routine](https://github.com/sonic-net/sonic-buildimage/blob/master/rules/functions#L212-L241)
+supports this partial-file merge.
+
+SONiC's regular image build then stores the completed JSON in the
+`com.azure.sonic.manifest` image label.
+
+For example, the generated manifest contains:
 
 ```json
 {
@@ -582,22 +622,19 @@ result includes the following fixed-schema fields:
 }
 ```
 
-The framework owns JSON serialization and manifest generation and rejects
-declarations that do not satisfy the vendor specification.
+There are two different versions in this JSON. The top-level `version`
+(`1.0.0`) identifies the manifest format. The nested `package.version`
+(`202411.1.0.15` in this example) identifies the addon release.
+Qualification checks that select supported addon versions must read
+`package.version`, not the Docker image tag, and must fail if the release
+version is missing.
 
-`package-name` is also the authoritative container name written to
-`live-addon.vars`; the build must not derive the name by inspecting a vendor
-Dockerfile. This generated include must be rebuilt and read before Make
-evaluates the consuming metadata, not generated later inside the Docker
-recipe. SONiC's regular-image recipe attaches the resulting `manifest.json`
-with Docker's `--label` option; do not generate a competing Dockerfile label.
+The checked-in example profile uses its own package name and release version.
+It sets `host-service=false`, `asic-service=false`, and `privileged=false`,
+and leaves `after` empty. It therefore does not register a working vendor
+service.
 
-The example profile declares its own package name and release version,
-with `host-service=false`, `asic-service=false`, empty `after`, and
-`privileged=false`. Its metadata does not register a working vendor service.
-
-The label is stored in the final image metadata and can be inspected without
-starting a container:
+To read the addon release version without starting the container:
 
 ```bash
 sudo docker image inspect <image:tag> \
@@ -605,15 +642,10 @@ sudo docker image inspect <image:tag> \
   | jq -r '.package.version'
 ```
 
-Qualification checks must read the nested `package.version`, not the Docker
-image tag, when evaluating version-filtered compatibility. A missing release
-version must fail qualification. The top-level manifest `version` remains the
-schema version (`1.0.0`).
-
-Feature Manager reads this image metadata from the host. The label does not
-install Feature Manager components inside the container and does not itself
-apply Kubernetes privileges; deployment configuration must remain consistent
-with the declared manifest values.
+The manifest only describes the image. It does not install Feature Manager
+inside the container or grant Kubernetes privileges. The deployment owner must
+configure the deployment to match the service and privilege values declared
+in the manifest.
 
 ---
 
