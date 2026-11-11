@@ -653,32 +653,22 @@ in the manifest.
 
 ### 9.1 Native image recipe
 
-Register `docker-live-addon.gz` in `SONIC_DOCKER_IMAGES` through
-`rules/docker-live-addon.mk`, with the appropriate builder-release list
-(for example, `SONIC_BOOKWORM_DOCKERS`). Maintain one SONiC-owned
-`dockers/docker-live-addon/Dockerfile.j2`.
+Add `rules/docker-live-addon.mk` to register `docker-live-addon.gz` in
+`SONIC_DOCKER_IMAGES` and the supported builder-release list, such as
+`SONIC_BOOKWORM_DOCKERS`. Follow the registration pattern in
+`rules/docker-eventd.mk`. Use the SONiC-owned
+`dockers/docker-live-addon/Dockerfile.j2` with the existing image build recipe
+in `slave.mk`.
 
-The shared regular-image recipe renders that template to `Dockerfile`,
-generates the manifest, injects build hooks into the generated Dockerfile in
-place, invokes Docker, collects version records, and saves the image.
-This recipe does not build a separately managed `Dockerfile.buildinfo`.
-Do not add `# SKIP_HOOK`, copy a vendor Dockerfile,
-or duplicate the shared Docker build/save recipe.
+The live-addon Make rule must run the preparation steps before building the
+image: obtain the selected inputs, build or copy the vendor artifact, validate
+the inputs and artifact, and prepare the files needed by the Docker build.
+Make tracks these steps as prerequisites of the image target. Small Python
+helpers can perform validation; Make remains responsible for running the build.
 
-Make owns input acquisition, controlled artifact preparation, validation, and
-context preparation as explicit prerequisites of the image target. Small
-Python helpers may validate INI files, artifacts, paths and generated metadata;
-they do not render the final Dockerfile or invoke Make/Docker as a second build
-system. No standalone build orchestrator or pipeline-specific preparation
-step is required; the normal Make prerequisites own these dependencies.
-
-This follows the upstream regular recipe in `slave.mk` and the registration
-pattern in `rules/docker-eventd.mk`. Registration makes the image available as a
-Make target, separate from `SONIC_INSTALL_DOCKER_IMAGES`. Do not add live-addon to
-default installer Docker lists or to `EXTRA_DOCKER_TARGETS` by default; build it
-only for an explicit live-addon target or selected diagnostic build job.
-Building the framework does not automatically install, enable or deploy a
-live-addon service.
+Keep live-addon out of the default installer image lists and default
+`EXTRA_DOCKER_TARGETS`. Build it only when someone requests the live-addon
+target or selects it in a diagnostic build job.
 
 ### 9.2 Checked-in example default and optional vendor selection
 
