@@ -651,7 +651,7 @@ in the manifest.
 
 ## 9. Proposed Build Flow
 
-### 9.1 Native image recipe
+### 9.1 Building live-addon images and adding them to an installer
 
 Add `rules/docker-live-addon.mk` to register the example and enabled vendor images
 in `SONIC_DOCKER_IMAGES` and the supported builder-release list, such as
