@@ -419,9 +419,9 @@ Vendor startup, liveness, or readiness executable
 HTTP 200 or HTTP 503
 ```
 
-There is no periodic health monitor and no `/run/live-addon/health.json`
-cache. Each HTTP request obtains a current result from the corresponding
-vendor command.
+When a health endpoint is called, the server runs the corresponding vendor
+health-check command and returns its result. Results are not cached for later
+checks. Calls that arrive while the same check is still running share its result.
 
 The default example supplies small read-only health-check commands through
 the same contract. The health server invokes them on demand: successful checks
