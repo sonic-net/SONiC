@@ -655,8 +655,7 @@ in the manifest.
 
 Add `rules/docker-live-addon.mk` to register `docker-live-addon.gz` in
 `SONIC_DOCKER_IMAGES` and the supported builder-release list, such as
-`SONIC_BOOKWORM_DOCKERS`. Follow the registration pattern in
-`rules/docker-eventd.mk`. Use the SONiC-owned
+`SONIC_BOOKWORM_DOCKERS`. Use the SONiC-owned
 `dockers/docker-live-addon/Dockerfile.j2` with the existing image build recipe
 in `slave.mk`.
 
