@@ -40,7 +40,7 @@ The implemented paths on `linux-cp`-paired ports include:
 - **LLC/SNAP traffic** — UDLD
 - **L3 punt traffic** — IPv4 IP2ME/SNMP/SSH and BGP/BGPv6
 - **IPv4 transit TTL expiry** — TTL_ERROR
-- **Post-admission DHCP traffic** — DHCPv4 and DHCPv6 on VLAN and routed interfaces
+- **DHCP traffic** — classifier-driven DHCPv4/DHCPv6 on VLAN members and receive-route handling on routed interfaces
 - **Unresolved next-hop traffic** — IPv4/IPv6 NEIGHBOR_MISS on routed interfaces, subinterfaces, bonds, and BVIs
 
 ## Requirements
@@ -57,7 +57,7 @@ The implemented paths on `linux-cp`-paired ports include:
 
 ## Design: `sonic_ext` classify + policer nodes
 
-The nodes below handle L3 host-bound traffic, Ethernet L2 traffic, LLC/SNAP UDLD, transiting IPv4 TTL expiry, post-admission DHCP, and unresolved next-hop traffic. Policing runs in `sonic-ext-copp-ip2me` for ordinary L3 traffic and in `sonic-ext-copp-ifout` for Ethernet, UDLD, TTL_ERROR, DHCP/DHCPv6, and NEIGHBOR_MISS. Both policing paths call `vnet_police_packet()` against the named VPP policer bound from the trap's SAI trap group.
+The nodes below handle L3 host-bound traffic, Ethernet L2 traffic, LLC/SNAP UDLD, transiting IPv4 TTL expiry, DHCP traffic delivered by the existing saivpp classifier/receive-route paths, and unresolved next-hop traffic. Policing runs in `sonic-ext-copp-ip2me` for ordinary L3 traffic and in `sonic-ext-copp-ifout` for Ethernet, UDLD, TTL_ERROR, DHCP/DHCPv6, and NEIGHBOR_MISS. Both policing paths call `vnet_police_packet()` against the named VPP policer bound from the trap's SAI trap group.
 
 All CoPP dataplane nodes live in the existing `sonic_ext` VPP plugin. `SwitchVpp` synchronously dispatches SAI `POLICER`, `HOSTIF_TRAP_GROUP`, and `HOSTIF_TRAP` operations; its CoPP mutex protects the policer, trap-group, trap, and effective-binding maps, while VPP RPCs run outside the lock. A trap group's `POLICER` selects the VPP binding; `ADMIN_STATE` and `QUEUE` are cached but are not programmed into VPP. Binding updates program VPP before committing the replay cache and restore the previous effective row on failure. The binding journal distinguishes an absent row from an active row with no policer and from a named-policer row. DHCPv4 and DHCPv6 each have one physical row shared by all SAI owners of that family; TRAP dominates until every installed owner requests COPY, and action-only updates preserve the current row owner. IPv4 router-interface address changes also update the IP2ME tracked-address set.
 
@@ -69,8 +69,8 @@ Policer metrics are read through the reentrant VPP statistics client. `vpp_stats
 2. **`sonic-ext-copp-ifout`** (host-TAP output) — a feature on `interface-output` of non-aggregate LCP host TAPs. It walks up to two 802.1Q/802.1ad tags, then matches ARP, LACP, and LLDP by EtherType, UDLD structurally, TTL_ERROR by IPv4 EtherType plus TTL≤1, DHCP by its UDP client/server ports, and NEIGHBOR_MISS by an explicit per-buffer reason. DHCP has priority over TTL_ERROR and plain EtherType rows. An empty policer name is the active-unpoliced form for DHCP and NEIGHBOR_MISS; a non-empty name that cannot be resolved is dropped.
 3. **`sonic-ext-copp-udld`** (LLC/SNAP) — registered only for Cisco-OUI UDLD SNAP traffic. It restores the intact Ethernet frame, selects the ingress PHY's paired LCP TAP, initializes the `interface-output` arc, and hands the packet to `sonic-ext-copp-ifout` for structural reclassification and policing.
 4. **`sonic-ext-copp-ttl-punt`** (IPv4 transit TTL expiry) — a conditional `ip4-rewrite` hook redirects the original TTL-expired packet to the ingress PHY's LCP TAP and then to `sonic-ext-copp-ifout` when the TTL_ERROR trap is installed. Without the trap, VPP retains its stock `ip4-icmp-error` behavior.
-5. **`sonic-ext-dhcp-ip4` / `sonic-ext-dhcp-ip6`** (post-admission DHCP) — features on `l2-input-ip4` and `l2-input-ip6` parse DHCP after Ethernet, subinterface, and VLAN admission, including IPv4 options and IPv6 extension headers. TRAP redirects the original to the ingress LCP TAP; COPY sends one CPU clone and leaves the original eligible for normal forwarding. `sonic-ext-dhcp-copy-suppress` drops only a marked duplicate that could otherwise reach an aggregate/BVI host TAP. Explicit unknown-multicast flood `NONE` remains terminal for DHCPv6 COPY, suppressing peer flooding while the CPU path is still policed.
-6. **`sonic-ext-glean-redirect`** (NEIGHBOR_MISS and routed DHCPv6) — a global feature on `ip4-drop` and `ip6-drop`. For drops from the IPv4/IPv6 neighbor-resolution nodes, it validates an unresolved connected adjacency, restores the ingress frame, redirects it to the ingress member's LCP TAP, and stamps the NEIGHBOR_MISS reason consumed by `sonic-ext-copp-ifout`. An active NEIGHBOR_MISS row supersedes the legacy fixed glean throttle. The same node rescues bound DHCPv6 client multicast from the IPv6 MFIB-RPF drop path.
+5. **saivpp DHCP classifier and receive routes** — VLAN-member DHCPv4 TRAP uses the existing fixed-offset tagged/untagged `l2-input-classify` sessions. DHCPv6 TRAP uses equivalent tagged/untagged sessions matching destination MAC `33:33:00:01:00:02`. For COPY, the corresponding sessions are removed so normal bridge flooding supplies the BVI copy. DHCPv4 uses a local-receive `255.255.255.255/32` route while its semantic trap is active. DHCPv6 COPY programs `ff02::1:2/128` with an MFIB Accept path on each BVI and a shared local Forward path; routed interfaces receive the same Accept-plus-local entry whenever DHCPv6 is active. These paths converge on `sonic-ext-copp-ifout`, which recognizes UDP 67/68 or 546/547 and applies the DHCP family’s trap-group policer.
+6. **`sonic-ext-glean-redirect`** (NEIGHBOR_MISS) — a global feature on `ip4-drop` and `ip6-drop`. For drops from the IPv4/IPv6 neighbor-resolution nodes, it validates an unresolved connected adjacency, restores the ingress frame, redirects it to the ingress member's LCP TAP, and stamps the NEIGHBOR_MISS reason consumed by `sonic-ext-copp-ifout`. An active NEIGHBOR_MISS row supersedes the legacy fixed glean throttle.
 
 ### Node-graph summary
 
@@ -90,9 +90,12 @@ ethernet-input  ->  llc-input  ->  snap-input  ->  sonic-ext-copp-udld  ->  soni
 ip4-rewrite (TTL expired, trap enabled)  ->  sonic-ext-copp-ttl-punt  ->  interface-output (ingress LCP TAP)
                                                         ->  sonic-ext-copp-ifout  ->  {police -> TAP | drop}
 
-l2-input-ip4/ip6 (after VLAN admission)  ->  sonic-ext-dhcp-ip4/ip6  ->  {TRAP original | COPY clone} -> ingress LCP TAP
-                                                        ->  sonic-ext-copp-ifout  ->  {police -> TAP | drop}
-                                               COPY original -> normal L2 forwarding policy
+VLAN member -> l2-input-classify -> DHCPv4/DHCPv6 TRAP -> ingress LCP TAP
+                                  -> COPY miss -> normal L2 flood -> BVI receive route -> host TAP
+                                                        -> sonic-ext-copp-ifout -> {police -> TAP | drop}
+
+routed DHCPv4/DHCPv6 -> local receive / MFIB Accept+local route -> host TAP
+                                                        -> sonic-ext-copp-ifout -> {police -> TAP | drop}
 
 ip4-arp/ip4-glean/ip6-glean/ip6-discover-neighbor -> ip4-drop/ip6-drop -> sonic-ext-glean-redirect
                                                         -> interface-output (ingress LCP TAP, NEIGHBOR_MISS reason)
@@ -141,7 +144,7 @@ Fix: `BGPTest` now measures `RX PPS` using its own existing content-matched pack
 | Repo | File | Change |
 |---|---|---|
 | `sonic-platform-vpp` (`platform/vpp` submodule) | `vppbld/plugins/src/sonic_ext/{copp_ip2me_node.c, copp_ifout_node.c, copp_udld_node.c, copp_ttl_punt_node.c}` | IPv4/IPv6 punt policing, interface-output policing, and UDLD/TTL redirect nodes in the existing `sonic_ext` plugin. |
-| `sonic-platform-vpp` | `vppbld/plugins/src/sonic_ext/{dhcp_node.c, glean_redirect_node.c}` | Post-admission DHCP TRAP/COPY, duplicate suppression, routed DHCPv6 rescue, and semantic NEIGHBOR_MISS redirect. |
+| `sonic-platform-vpp` | `vppbld/plugins/src/sonic_ext/glean_redirect_node.c` | Semantic NEIGHBOR_MISS redirect. |
 | `sonic-platform-vpp` | `vppbld/plugins/src/sonic_ext/{copp_api.c, sonic_ext_copp.api}` | Compatibility-isolated DHCP and NEIGHBOR_MISS bind APIs. |
 | `sonic-platform-vpp` | `vppbld/patches/0021-ip4-redirect-ttl-expired-to-copp-punt-hook.patch` | Conditional `ip4-rewrite` redirect to `sonic-ext-copp-ttl-punt` when TTL_ERROR is installed. |
 | `sonic-platform-vpp` | `vppbld/patches/0025-ip6-preserve-packet-destination-during-neighbor-discovery.patch` | Preserve the original IPv6 packet while neighbor discovery runs so a miss can be redirected intact. |
@@ -149,8 +152,8 @@ Fix: `BGPTest` now measures `RX PPS` using its own existing content-matched pack
 | `sonic-platform-vpp` | `docker-syncd-vpp/conf/startup.conf.tmpl` | Enable the native VPP policer plugin used by the CoPP nodes. |
 | `sonic-sairedis` | `vslib/vpp/SwitchVpp.cpp` / `.h`, `SwitchVppPolicer.cpp` / `.h` | SAI object dispatch, CoPP state, native policer lifecycle, attribute translation, and statistics. |
 | `sonic-sairedis` | `vslib/vpp/SwitchVppHostifTrap.cpp` / `.h` | Transactional trap-group/trap state and L2, IP2ME, BGP/BGPv6, TTL_ERROR, DHCP/DHCPv6, and NEIGHBOR_MISS binding lifecycle. |
-| `sonic-sairedis` | `vslib/vpp/SwitchVppFdb.cpp` | Preserve VLAN admission and flood-control precedence for semantic DHCP interception. |
-| `sonic-sairedis` | `vslib/vpp/SwitchVppRif.cpp` | IPv4 router-interface address synchronization with the IP2ME tracked-address set. |
+| `sonic-sairedis` | `vslib/vpp/SwitchVppFdb.cpp` | DHCPv4/DHCPv6 classifier TRAP/COPY handling, DHCPv4 limited-broadcast receive, and DHCPv6 MFIB receive lifecycle. |
+| `sonic-sairedis` | `vslib/vpp/SwitchVppRif.cpp` | IPv4 router-interface address synchronization plus routed DHCPv4/DHCPv6 receive-route lifecycle. |
 | `sonic-sairedis` | `vslib/vpp/vppxlate/SaiVppXlate.c` / `.h` | Native policer VAPI/statistics and `sonic_ext` CoPP bind wrappers. |
 | `sonic-mgmt` | `tests/common/plugins/conditional_mark/tests_mark_conditions_sonic_vpp.yaml` | Lift `copp` skip for `asic_type in ['vpp']`. |
 | `sonic-mgmt` | `ansible/roles/test/files/ptftests/py3/copp_tests.py` | `BGPTest`: measure `RX PPS` from the existing content-matched `recv_count` instead of the raw NN interface counter, to avoid counting real background BGP session traffic sharing tcp/179. |
