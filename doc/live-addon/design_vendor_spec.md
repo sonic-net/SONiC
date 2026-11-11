@@ -24,8 +24,11 @@ configuration, entrypoint, and generic HTTP health server.
 
 ## 2. Integration Inputs and Platform Configuration
 
-Each integration is selected by `platform/<platform>.ini` under
-`dockers/docker-live-addon`. The profile declares:
+Each vendor integration is selected by
+`platform/<vendor_name>-<platform>.ini` under `dockers/docker-live-addon`.
+Replace the angle-bracket placeholders in the examples with the vendor name
+and platform name. The default example uses `platform/example.ini`.
+The profile declares:
 
 | Section | Vendor input |
 |---|---|
@@ -43,33 +46,33 @@ the inputs needed to supply the installed health commands.
 The vendor does not supply a separate runtime `health.ini`, main
 `supervisord.conf`, raw manifest JSON, or container entrypoint.
 
-The following vendor-specific example illustrates the proposed contract; it
+The following template illustrates the proposed vendor contract; it
 does not imply an existing implementation or a dependency of the public build:
 
 ```ini
 [source]
-repo=git@github.com:Cisco-8000-sonic/platform-cisco-8000.git
+repo=git@github.com:<vendor_name>/<vendor_name>-<platform>.git
 ref=202411.1.0.15
 
 [vendor-build]
-working-directory=docker-cisco-utility
+working-directory=docker-<vendor_name>-<platform>-utility
 build-script=./build-live-addon-artifact.sh
 
 [artifact]
 format=deb
 glob=*.deb
-install-root=/opt/cisco/live-addon
+install-root=/opt/<vendor_name>/live-addon
 
 [supervisor]
 conf-files =
-    docker-cisco-utility/supervisor/cisco-8000-agent.conf
-    docker-cisco-utility/supervisor/cisco-8000-support.conf
+    docker-<vendor_name>-<platform>-utility/supervisor/<vendor_name>-<platform>-agent.conf
+    docker-<vendor_name>-<platform>-utility/supervisor/<vendor_name>-<platform>-support.conf
 
 [addon]
 optional-packages=rsyslog,supervisord-dependent-startup
 
 [manifest]
-package-name=live-addon-cisco-8000
+package-name=live-addon-<vendor_name>-<platform>
 package-version=202411.1.0.15
 host-service=true
 asic-service=false
@@ -77,9 +80,9 @@ after=syncd
 privileged=true
 
 [health]
-startup-command=/opt/cisco/live-addon/bin/check-startup
-liveness-command=/opt/cisco/live-addon/bin/check-liveness
-readiness-command=/opt/cisco/live-addon/bin/check-readiness
+startup-command=/opt/<vendor_name>/live-addon/bin/check-startup
+liveness-command=/opt/<vendor_name>/live-addon/bin/check-liveness
+readiness-command=/opt/<vendor_name>/live-addon/bin/check-readiness
 command-timeout-seconds=8
 max-output-bytes=4096
 ```
@@ -116,7 +119,7 @@ proprietary source or prebuilt binary packages, use:
 
 ```ini
 [source]
-repo=git@github.com:Cisco-8000-sonic/platform-cisco-8000.git
+repo=git@github.com:<vendor_name>/<vendor_name>-<platform>.git
 ref=202411.1.0.15
 ```
 
@@ -179,8 +182,8 @@ Produce a single bundle in one of these initial formats:
 The declared format must match the detected format. Malformed or unsafe bundles
 are rejected.
 
-Every artifact must declare `install-root=/opt/<vendor>/live-addon`, where
-`<vendor>` is a single SONiC-approved vendor directory name. This is the only
+Every artifact must declare `install-root=/opt/<vendor_name>/live-addon`, where
+`<vendor_name>` is a single SONiC-approved vendor directory name. This is the only
 allowed vendor payload root for every format. Executables, private libraries,
 Python modules, configuration files, and documentation must all reside there.
 Use explicit paths or process-local lookup settings, not global loader or Python
@@ -249,11 +252,11 @@ and defaults to `0`. For example:
 [artifact]
 format=tar
 glob=*.tar.gz
-install-root=/opt/cisco/live-addon
+install-root=/opt/<vendor_name>/live-addon
 strip-components=1
 ```
 
-`install-root` must still be the approved `/opt/<vendor>/live-addon`, not an
+`install-root` must still be the approved `/opt/<vendor_name>/live-addon`, not an
 arbitrary path beneath `/opt`.
 
 ### 5.4 Optional OS packages
@@ -270,16 +273,16 @@ Declare every fragment explicitly through the multiline `conf-files` list:
 ```ini
 [supervisor]
 conf-files =
-    docker-cisco-utility/supervisor/cisco-8000-agent.conf
-    docker-cisco-utility/supervisor/cisco-8000-support.conf
+    docker-<vendor_name>-<platform>-utility/supervisor/<vendor_name>-<platform>-agent.conf
+    docker-<vendor_name>-<platform>-utility/supervisor/<vendor_name>-<platform>-support.conf
 ```
 
 Paths are relative to the resolved source root. Globs are not accepted. Each
 file is installed using its basename, for example:
 
 ```text
-docker-cisco-utility/supervisor/cisco-8000-agent.conf
-    -> /etc/supervisor/conf.d/cisco-8000-agent.conf
+docker-<vendor_name>-<platform>-utility/supervisor/<vendor_name>-<platform>-agent.conf
+    -> /etc/supervisor/conf.d/<vendor_name>-<platform>-agent.conf
 ```
 
 The list must be declared but may be explicitly empty when there are no resident
@@ -297,7 +300,7 @@ Each fragment must satisfy these rules:
 
 - Resolve to a regular `.conf` file inside the source root, without absolute
   paths, parent traversal, or symlink escapes.
-- Have a unique basename matching `<platform>-*.conf`.
+- Have a unique basename matching `<vendor_name>-<platform>-*.conf`.
 - Contain only `[program:*]` and `[group:*]` sections. Global sections such as
   `[supervisord]`, `[include]`, `[unix_http_server]`, `[supervisorctl]`, and
   `[rpcinterface:*]` are prohibited.
@@ -316,8 +319,8 @@ configuration or container entrypoint.
 For example:
 
 ```ini
-[program:cisco-8000-agent]
-command=/opt/cisco/live-addon/bin/cisco-agent
+[program:<vendor_name>-<platform>-agent]
+command=/opt/<vendor_name>/live-addon/bin/<vendor_name>-<platform>-agent
 autostart=true
 autorestart=true
 startsecs=5
@@ -361,9 +364,9 @@ A vendor may use the same executable for every probe type:
 
 ```ini
 [health]
-startup-command=/opt/cisco/live-addon/bin/health-check
-liveness-command=/opt/cisco/live-addon/bin/health-check
-readiness-command=/opt/cisco/live-addon/bin/health-check
+startup-command=/opt/<vendor_name>/live-addon/bin/health-check
+liveness-command=/opt/<vendor_name>/live-addon/bin/health-check
+readiness-command=/opt/<vendor_name>/live-addon/bin/health-check
 command-timeout-seconds=8
 max-output-bytes=4096
 ```

@@ -83,7 +83,7 @@ requirements are defined in
 | Live-addon | The proposed container framework for vendor- or platform-specific diagnostics |
 | Framework | SONiC-owned build, validation, installation, supervision, and health infrastructure |
 | Vendor | Provider of diagnostic source or prebuilt binaries and declarative integration inputs |
-| Platform profile | `platform/<platform>.ini`, selecting one integration independently of SONiC's ASIC/build `PLATFORM` |
+| Platform profile | `platform/<vendor_name>-<platform>.ini` for a vendor, or `platform/example.ini` for the default example; selects one integration independently of SONiC's ASIC/build `PLATFORM` |
 | Artifact bundle | A source-built or prebuilt vendor package or archive, validated before installation |
 | Supervisor | Process supervisor that runs as container PID 1 and manages the declared programs |
 | SBOM | Software Bill of Materials identifying the image's installed software |
@@ -144,10 +144,11 @@ The vendor-facing deliverables are defined in
 
 ## 5. Source, Artifact Build, and Installation
 
-The proposed framework has one platform model. Every platform, including the
-default example, is described by `platform/<platform>.ini` and follows the same
-artifact, validation, Supervisor, health, and image-generation path. Whether
-the source is stored in this repository or an external repository affects only
+The proposed framework has one platform model. Vendor profiles use
+`platform/<vendor_name>-<platform>.ini`; the default uses `platform/example.ini`.
+All profiles follow the same artifact, validation, Supervisor, health, and
+image-generation path. Whether the source is stored in this repository or an
+external repository affects only
 how the framework resolves the source root.
 
 `[source]` locates integration inputs, not necessarily program source code.
@@ -241,9 +242,9 @@ image layer:
 
 ```dockerfile
 RUN --mount=type=bind,source=vendor-artifacts/vendor-bundle.tar.gz,target=/tmp/vendor-bundle.tar.gz,readonly \
-    mkdir -p /opt/cisco/live-addon && \
+    mkdir -p '/opt/<vendor_name>/live-addon' && \
     tar -xzf /tmp/vendor-bundle.tar.gz \
-        -C /opt/cisco/live-addon \
+        -C '/opt/<vendor_name>/live-addon' \
         --strip-components=1
 ```
 
@@ -369,7 +370,7 @@ This provides a stable platform boundary:
 Kubernetes
     -> SONiC-owned ENTRYPOINT
         -> SONiC-owned main supervisord.conf
-            -> validated vendor <platform>-*.conf fragments
+            -> validated vendor <vendor_name>-<platform>-*.conf fragments
                 -> vendor binaries
 ```
 
@@ -448,7 +449,7 @@ are framework-owned values and are not vendor-configurable.
 ### 7.4 Runtime health configuration
 
 During the image build, the framework reads and validates the `[health]`
-settings in `platform/<platform>.ini`. It uses these settings to generate
+settings in the selected platform profile. It uses these settings to generate
 `/etc/live-addon/health.ini` in the image, in the format expected by the health
 server. The health server uses this file to run the configured checks.
 
@@ -562,9 +563,9 @@ before building the image and fails the build if they are invalid or a required
 value is missing.
 
 The vendor sets `package-name` in `[manifest]` in the selected
-`platform/<platform>.ini` file. For example,
-`package-name=live-addon-cisco-8000` names the addon and its container; it is
-not the filename of the vendor's Debian package. See the
+`platform/<vendor_name>-<platform>.ini` file. For example,
+`package-name=live-addon-<vendor_name>-<platform>` names the addon and its
+container; it is not the filename of the vendor's Debian package. See the
 [platform profile example](./design_vendor_spec.md#2-integration-inputs-and-platform-configuration).
 
 The framework reads that INI file and creates `live-addon.vars`, a build-time
@@ -607,7 +608,7 @@ For example, the generated manifest contains:
 {
   "version": "1.0.0",
   "package": {
-    "name": "live-addon-cisco-8000",
+    "name": "live-addon-<vendor_name>-<platform>",
     "version": "202411.1.0.15"
   },
   "service": {
@@ -686,18 +687,19 @@ vendor's build; remove it to disable the build. Merely adding a vendor INI file
 to the branch does not enable it. This setting does not change SONiC's
 ASIC/build `PLATFORM`, and it does not disable the default example.
 
-For example, `LIVE_ADDON_VENDOR_PLATFORMS="cisco-8000 vendor-b"` enables
-`platform/cisco-8000.ini` and `platform/vendor-b.ini`. The build produces:
+Vendor profile names use `<vendor_name>-<platform>`. For example,
+`LIVE_ADDON_VENDOR_PLATFORMS="<vendor_name>-<platform>"` enables
+`platform/<vendor_name>-<platform>.ini`. List multiple names to build multiple
+vendor images. The build produces:
 
 | Profile | Docker image name | Saved archive |
 |---|---|---|
 | `example` | `docker-live-addon` | `target/docker-live-addon.gz` |
-| `cisco-8000` | `docker-live-addon-cisco-8000` | `target/docker-live-addon-cisco-8000.gz` |
-| `vendor-b` | `docker-live-addon-vendor-b` | `target/docker-live-addon-vendor-b.gz` |
+| `<vendor_name>-<platform>` | `docker-live-addon-<vendor_name>-<platform>` | `target/docker-live-addon-<vendor_name>-<platform>.gz` |
 
 Each enabled vendor profile produces its own image and
-`target/docker-live-addon-<platform>.gz` archive; it does not replace the example
-or another vendor's output. Each image's manifest comes from that profile's
+`target/docker-live-addon-<vendor_name>-<platform>.gz` archive; it does not replace
+the example or another vendor's output. Each image's manifest comes from that profile's
 `[manifest]` values, including its package name, release version, service flags,
 and privilege requirement. The build keeps artifacts, generated configuration,
 and image metadata separate for each profile. Unknown profiles and unsupported
@@ -843,7 +845,7 @@ addon-program lifecycle criteria apply to declared addon programs.
 Contract validation tests use the [vendor specification](./design_vendor_spec.md)
 as their source of expected acceptance and rejection rules.
 
-1. Every platform is configured by `platform/<platform>.ini`;
+1. Vendor profiles use `platform/<vendor_name>-<platform>.ini`;
    `platform/example.ini` selects the checked-in default through `[source] path`.
 2. Repository-local and external source use the same build path after source
    resolution.
