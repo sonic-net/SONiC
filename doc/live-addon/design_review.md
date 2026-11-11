@@ -668,6 +668,20 @@ helpers can perform validation; Make remains responsible for running the build.
 Keep live-addon images out of the default installer image lists. Building
 them does not install or enable diagnostics.
 
+To include a vendor image in a particular SONiC installer, the build owner first
+enables its profile through `LIVE_ADDON_VENDOR_PLATFORMS`. The platform's build
+rules then add `docker-live-addon-<vendor_name>-<platform>.gz` to
+`SONIC_INSTALL_DOCKER_IMAGES` only when that installer build explicitly requests
+it. The platform's installer rule must retain the archive in
+`<installer>_DOCKERS`, the final list of Docker images selected for that
+installer. Enabling a vendor build alone must not select it for inclusion.
+
+During installer construction, SONiC loads the selected archive's Docker image
+into the filesystem that will be installed on the switch. The vendor image is
+then available locally after SONiC installation. Including it does not deploy
+or start its diagnostics; the deployment owner still controls whether and how
+they run.
+
 ### 9.2 Default example, vendor build controls, and system tests
 
 The normal SONiC image build must build the checked-in example from
@@ -682,7 +696,8 @@ Its Docker image is named `docker-live-addon`, and its saved archive is
 
 The build owner controls vendor builds through the Make setting
 `LIVE_ADDON_VENDOR_PLATFORMS`, a space-separated list of profile names.
-It is empty by default, so no vendor image is built. Add a name to enable that
+Define its empty default in `rules/config`. The build owner sets the list in
+`rules/config.user`; leaving it empty builds no vendor images. Add a name to enable that
 vendor's build; remove it to disable the build. Merely adding a vendor INI file
 to the branch does not enable it. This setting does not change SONiC's
 ASIC/build `PLATFORM`, and it does not disable the default example.
