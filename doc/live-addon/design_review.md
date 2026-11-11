@@ -518,8 +518,8 @@ Kubernetes uses the results as follows:
 | `livenessProbe` | Restart the container |
 | `readinessProbe` | Mark the Pod not ready, without restarting the container |
 
-The deployment owner configures how often probes run, their timeouts, and their
-failure thresholds. The image build does not generate deployment YAML. Use the
+The deployment owner supplies the Kubernetes deployment YAML and configures
+how often probes run, their timeouts, and their failure thresholds. Use the
 endpoint addresses described in section 7.3 and the timeout margin in section 7.5.
 
 Allow enough time for vendor initialization and required SONiC services to
