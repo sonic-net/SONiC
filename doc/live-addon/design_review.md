@@ -506,29 +506,25 @@ shared HTTP response.
 
 ### 7.6 Kubernetes probe semantics
 
-Kubernetes controls invocation frequency, retries, and failure policy:
+The kubelet is the Kubernetes agent running on each node. For live-addon, it
+sends HTTP requests to the health endpoints; the health server runs the
+corresponding vendor commands.
 
-| Probe | Question | Failure effect |
-|---|---|---|
-| `startupProbe` | Has initialization completed? | Container is restarted after the startup window |
-| `livenessProbe` | Does the running container require restart? | Container is restarted |
-| `readinessProbe` | Can this instance currently provide its function? | Pod is marked not ready |
+Kubernetes uses the results as follows:
 
-Deployment owners configure probe periods, timeouts, and failure thresholds;
-the image build does not generate deployment YAML. Every HTTP probe must target
-`127.0.0.1:50200` and its corresponding endpoint. The command timeout must leave
-margin below the probe timeout, as specified in section 7.5.
+| Probe | Action when the configured failure threshold is reached |
+|---|---|
+| `startupProbe` | Restart the container if initialization has not completed within the allowed startup window |
+| `livenessProbe` | Restart the container |
+| `readinessProbe` | Mark the Pod not ready, without restarting the container |
 
-The kubelet invokes `startup-command` once per startup probe request. After one
-startup probe succeeds, Kubernetes stops sending startup probes and begins
-normal liveness and readiness probing. The server does not need to detect or
-cache that transition.
+The deployment owner configures how often probes run, their timeouts, and their
+failure thresholds. The image build does not generate deployment YAML. Use the
+endpoint addresses described in section 7.3 and the timeout margin in section 7.5.
 
-Deployment must not assume that required SONiC services are ready when the addon
-starts. A vendor startup command may test those dependencies. The startup probe
-window must be long enough for expected dependency and vendor initialization.
-This checks readiness to start; it does not impose startup ordering on other
-containers.
+Allow enough time for vendor initialization and required SONiC services to
+become ready before the startup probe's failure threshold is reached. This
+does not control the order in which other containers start.
 
 ### 7.7 Supervisor integration
 
