@@ -797,9 +797,9 @@ The BMC gains one optional CONFIG_DB table, `GNMI_CLIENT|certs`, the client-side
 
 | Field | Default when absent |
 | --- | --- |
-| `ca_crt` | `/etc/sonic/credential/gnmi_root.cer` |
-| `client_crt` | `/etc/sonic/credential/gnmi_client.cer` |
-| `client_key` | `/etc/sonic/credential/gnmi_client.key` |
+| `ca_crt` | `/etc/sonic/credentials/gnmi_root.cer` |
+| `client_crt` | `/etc/sonic/credentials/gnmi_client.cer` |
+| `client_key` | `/etc/sonic/credentials/gnmi_client.key` |
 
 The fields are absolute paths of files readable inside PMON, named as `GNMI|certs` requires (`.cer`
 certificates, `.key` keys). An invalid path or a missing or empty file makes the operation forced with
