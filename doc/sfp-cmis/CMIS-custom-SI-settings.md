@@ -19,6 +19,7 @@
   - [3.4 PORT_MEDIA_SETTINGS](#34-port_media_settings)
   - [3.5 List of standard TX RX SI parameters](#35-list-of-standard-tx-rx-si-parameters)
   - [3.6 Sample Optics SI setting file](#36-sample-optics-si-setting-file)
+  - [3.7 Module precoding](#37-module-precoding)
 - [4 High-Level Design](#4-high-level-design)
 - [5 SAI API](#5-sai-api)
 - [6 Configuration and management](#6-configuration-and-management)
@@ -34,6 +35,7 @@
 | Rev |     Date    |       Author                       | Change Description                  |
 |:---:|:-----------:|:----------------------------------:|-------------------------------------|
 | 0.1 | 05/05/2023  | Anoop Kamath                       | Initial version                       
+| 0.2 | 11/12/2026  | Pavan Kalyan Nakka                 | Add ModulePrecoding
 
 ### Definition
 
@@ -214,6 +216,28 @@ Default values can be platform defaults for multiple vendors in each section.
 }
 ```
 
+### 3.7 Module precoding
+Some modules provide a module-wide control for host-side precoding: TP1 precoding on the host input (pairs with the switch ASIC Tx precoding) and TP4 precoding on the host output (pairs with the switch ASIC Rx precoding). Module and ASIC must match for the link to come up, and different platforms can need different values for the same module, so the value can be set per vendor/part number in optics_si_settings.json with a ModulePrecoding block. It goes in the same vendor or Default entry as the SI parameters:
+
+```
+"200G_SPEED": {
+        "VENDOR-PN": {
+                "OutputAmplitudeTargetRx": {
+                        ...
+                },
+                "ModulePrecoding": {
+                        "TP1": false
+                }
+        }
+}
+```
+
+- ModulePrecoding is a dict with optional keys TP1 and TP4, each true/false (or 1/0). Only the listed controls are changed; others keep the module value.
+- The control is not part of CMIS. It is applied only to modules whose xcvr API supports it (CmisApi.is_module_precoding_supported(); False by default, implemented by vendor-specific APIs selected by vendor name and part number). For other modules a configured block is logged and ignored.
+- An invalid ModulePrecoding value is logged and ignored; the SI parameters in the same entry are still applied.
+- A vendor entry replaces the Default entry for that speed (no merge), so when adding ModulePrecoding for a vendor, copy the Default SI parameters into the vendor entry.
+- The control is module-wide: all subports of a module must resolve to the same ModulePrecoding value.
+
 ## 4 High-Level Design
 Please refer below points in line with flow diagram.
 
@@ -243,6 +267,10 @@ Reference Register: Upper page 10h byte 153 - 173 (desired Host defined SI setti
 
 7. Validate the config_status code, if the status is not config success, then force CMIS to reinit and retry. If the configuration fails after 3 retry attempts, print an error message and exit from initializing this port. If config_status is successful, then continue with the DP_INIT state in the CMIS state machine.  
 Reference Register: Upper Page 11h Byte 202-205 (config_status register)  
+
+8. Module precoding (section 3.7): in AP_CONFIG, ModulePrecoding is removed before staging and written directly to the module (it is not part of the Staged Control Set). EC = 1 only if SI parameters are present; an entry with only ModulePrecoding uses EC = 0. A failed write is logged and the initialization continues.
+
+9. In DP_PRE_INIT_CHECK, if the application is already active (e.g. xcvrd/pmon restart, config reload) and the module precoding value differs from the configured value, the datapath is re-initialized so AP_CONFIG writes it. On module insertion, reset or cold boot it is written during the normal initialization, without an extra re-init.
 
 CMIS FSM change:
 
@@ -275,3 +303,5 @@ Modules that do not support CMIS and not part of CMIS state machine are not in t
 1. Check XCVRD/CMIS log if optics SI settings are succesfully applied for module which expect the SI settings.
 2. Check XCVRD/CMIS log if optics SI settings are ignored for modules that dont expect the SI settings.
 3. Validate no link flaps or link down once SI settings are applied
+4. Check XCVRD/CMIS log and module value if ModulePrecoding is applied at datapath initialization (including after a module reset), and no re-init or link flap when the module value already matches.
+5. Check XCVRD/CMIS log if an invalid ModulePrecoding value is ignored and the other SI settings are still applied.
