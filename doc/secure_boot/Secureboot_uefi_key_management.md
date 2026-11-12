@@ -9,6 +9,7 @@
 |  0.2  |   11/05/2026   | Sachin Naik | Ownership claim/unclaim (OVMF). After-claim PK/KEK/db/dbx samples |
 |  0.3  |   11/06/2026   | Sachin Naik | Claim PK is a self-signed AUTH2; dbx/db/KEK remain unsigned ESL |
 |  0.4  |   11/12/2026   | Sachin Naik | Cross-references use section names, not TOC numbers |
+|  0.5  |   11/12/2026   | Sachin Naik | Secure Boot enable/disable is claim/unclaim only; no firmware-menu knob |
 
 
 <!-- omit in toc -->
@@ -22,6 +23,7 @@
   - [3.2 UEFI keys](#32-uefi-keys)
   - [3.3 Authenticated variable](#33-authenticated-variable)
   - [3.4 UEFI modes and Secure Boot flag](#34-uefi-modes-and-secure-boot-flag)
+  - [3.5 Secure Boot enable and disable](#35-secure-boot-enable-and-disable)
 - [4 Factory default state](#4-factory-default-state)
 - [5 Ownership](#5-ownership)
   - [5.1 Ownership model](#51-ownership-model)
@@ -133,7 +135,7 @@ Once a PK is enrolled, the platform is in User Mode. From that point, **any** ad
 Private keys never go on the DUT. openssl / `sign-efi-sig-list` stay on the owner host. The switch only runs `efi-readvar` / `efi-updatevar` on the file the owner copies in.
 
 ### 3.4 UEFI modes and Secure Boot flag
-UEFI Secure Boot is controlled by two global variables. They are independent: enrolling a Platform Key changes the mode; turning enforcement on or off is the Secure Boot flag.
+UEFI reports two global variables. They are not the same object: `SetupMode` is whether a Platform Key is enrolled; `SecureBoot` is whether firmware is currently verifying boot images. This HLD does **not** treat `SecureBoot` as a separate operator switch. Enable and disable follow claim and unclaim ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
 
 | Variable | Role | Values |
 | -------- | ---- | ------ |
@@ -144,11 +146,40 @@ UEFI Secure Boot is controlled by two global variables. They are independent: en
 
 **User Mode** (`SetupMode=0`): A PK is enrolled. Updates to PK and KEK must be AUTH2 objects signed by the current PK. Updates to db and dbx must be AUTH2 objects signed by a KEK. Enrolling the platform owner's self-signed PK AUTH2 is the standard UEFI transition from Setup Mode to User Mode. That PK enrollment is the ownership claim: the owner's PK becomes the root of the key hierarchy. It does not require a reboot (`SetupMode` becomes `0` on the same `SetVariable`).
 
-**Secure Boot flag**: `SecureBoot` is not the same variable as `SetupMode`. User Mode does not by itself mean images are verified. While `SecureBoot=0`, keys may already be present but unsigned images are still loaded.
-
-In the OVMF model, `SetupMode` flips to `0` as soon as PK is accepted. `SecureBoot` is computed at POST, so it stays `0` until the **next reboot**. Image verification against db/dbx also starts on that boot. The running OS is not re-checked. Enroll of dbx/db/KEK/PK does **not** require a reboot between those writes.
+**Secure Boot flag**: `SecureBoot` is not the same variable as `SetupMode`. It is computed at POST. After claim, `SetupMode=0` immediately but `SecureBoot` stays `0` until the **next reboot**. After unclaim, `SetupMode=1` immediately but `SecureBoot` stays `1` until the next reboot. The running OS is not re-checked. Enroll of dbx/db/KEK/PK does **not** require a reboot between those writes.
 
 Enforcing Secure Boot is both flags together after that reboot: `SetupMode=0` and `SecureBoot=1`.
+
+### 3.5 Secure Boot enable and disable
+
+This HLD has **no independent Secure Boot on/off**. Enforcement is a consequence of ownership: claim turns it on, unclaim turns it off.
+
+**Why not a firmware-menu toggle.** Many UEFI platforms let a console user interrupt POST (ESC, DEL, F2, or a similar hotkey), enter the firmware setup menu, and set Secure Boot to Disabled while the PK stays enrolled. That write is not AUTH2. Anyone with serial or KVM at boot can stop image verification without the PK private key. Escape or other control sequences on the firmware console can also open that menu and break the boot chain. That is the gap: enforcement becomes a UI switch instead of an authenticated ownership operation.
+
+**What OVMF provides (open reference).** OVMF is the reference for Authenticated Variables, Setup Mode / User Mode, and when `SecureBoot` is computed at POST. On the OS path this HLD uses:
+
+| Event | `SetupMode` | `SecureBoot` |
+| ----- | ----------- | ------------ |
+| Factory default (no PK) | `1` | `0` |
+| Claim: self-signed PK AUTH2 accepted | `0` immediately | `0` until next POST |
+| Next reboot after claim | `0` | `1` (firmware verifies against db/dbx) |
+| Unclaim: empty-PK AUTH2 accepted | `1` immediately | `1` until next POST |
+| Next reboot after unclaim | `1` | `0` |
+
+OVMF does not need a separate “enable Secure Boot” variable write after PK. At POST, enforcement follows PK presence. Some OVMF builds still offer a firmware setup menu (ESC on the firmware console) that can change Secure Boot or keys. That menu is **not** the operator model of this HLD and is not used by the SONiC CLI.
+
+**SONiC CLI.** `show platform security uefi status` reads `SetupMode` and `SecureBoot`. There is no `config platform security uefi secureboot enable` or `disable`. Linux typically cannot set `SecureBoot` from the OS; this HLD also must not write a platform `SecureBootEnable` (or similar) to fake a toggle.
+
+- **Enable:** ownership claim (dbx, db, KEK, then self-signed PK AUTH2). After reboot, `SecureBoot=1`.
+- **Disable:** unclaim (empty-PK AUTH2 signed by the current PK). After reboot, `SecureBoot=0`.
+
+**Custom UEFI (platform firmware, not the SONiC plugin).** Stock OVMF may still expose the setup-menu path above. A production UEFI that implements this HLD must **not** provide an unauthenticated Secure Boot on/off:
+
+- No boot-interrupt hotkey or setup menu that sets `SecureBoot=0` (or `SecureBootEnable`) while PK remains.
+- No OS-writable Secure Boot enable flag independent of PK.
+- The only authenticated way to start enforcement is claim (enroll PK). The only authenticated way to stop it is unclaim (clear PK).
+
+That firmware policy is the custom-UEFI part of this design. The SONiC CLI does not implement it; it only shows the flags and applies ESL/AUTH2. Platforms that keep a firmware “Secure Boot: Disabled” switch while PK is present do not match this HLD.
 
 ## 4 Factory default state
 OVMF factory default is Setup Mode with empty PK/KEK/db/dbx so the owner can enroll keys. The platform is not yet constrained to owner-signed images. Do not enroll a PK before claim ([Enroll keys in Setup Mode](#53-enroll-keys-in-setup-mode)).
@@ -161,7 +192,7 @@ OVMF factory default is Setup Mode with empty PK/KEK/db/dbx so the owner can enr
 | Firmware | OVMF (unsigned or test-signed as shipped with the VM) |
 | SONiC / bootloader | A bootable image so the claim path can run. Install the owner-signed image before PK. |
 
-There is no end-user CLI that only enables Secure Boot in the factory state. Secure Boot is enabled as part of the one-time ownership claim ([Ownership](#5-ownership)).
+There is no end-user CLI that only enables or disables Secure Boot. Enable is ownership claim; disable is unclaim ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
 
 `efi-readvar` lists PK, KEK, db, and dbx. It does not print `SetupMode` or `SecureBoot`. Read those from efivarfs. The first four bytes are attributes; the following byte is the value (`1` or `0`).
 
@@ -684,7 +715,7 @@ config platform security uefi update <var> <file.auth>
 config platform security uefi unclaim PK.empty.auth
 ```
 
-`status` prints `SetupMode` and `SecureBoot` (`efi-readvar` does not). `enroll` for dbx, db, and kek is Setup Mode unsigned ESL (`efi-updatevar -e`). `enroll pk` is the claim self-signed AUTH2 (`efi-updatevar -f`). `update` is User Mode AUTH2 (`efi-updatevar -f`). `unclaim` applies an empty-PK AUTH2 ([Unclaim](#7-unclaim)); it is not `update pk` with a new certificate. `<var>` is one of `pk`, `kek`, `db`, `dbx`.
+`status` prints `SetupMode` and `SecureBoot` (`efi-readvar` does not). There is no CLI that only toggles `SecureBoot` ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)). `enroll` for dbx, db, and kek is Setup Mode unsigned ESL (`efi-updatevar -e`). `enroll pk` is the claim self-signed AUTH2 (`efi-updatevar -f`). `update` is User Mode AUTH2 (`efi-updatevar -f`). `unclaim` applies an empty-PK AUTH2 ([Unclaim](#7-unclaim)); it is not `update pk` with a new certificate. `<var>` is one of `pk`, `kek`, `db`, `dbx`.
 
 Return values follow normal SONiC CLI:
 
@@ -704,3 +735,4 @@ The sonic-mgmt can cover UEFI key management including at least:
 6. Unclaim: empty-PK AUTH2; `SetupMode=1` immediately; after reboot `SecureBoot=0` ([Unclaim](#7-unclaim)). `update pk` with a new cert must not be treated as unclaim.
 7. Factory reset: after unclaim, overwrite leftover KEK/db/dbx in Setup Mode ([Factory reset](#72-factory-reset)).
 8. Transfer: owner B claims with B's keys after A's unclaim; B's db is enrolled before B's PK ([Transfer to another owner](#73-transfer-to-another-owner)).
+9. No independent Secure Boot toggle: there is no `secureboot enable` / `disable` CLI. `SecureBoot` becomes `1` only after claim plus reboot, and `0` only after unclaim plus reboot ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
