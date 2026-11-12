@@ -268,7 +268,7 @@ Reference Register: Upper page 10h byte 153 - 173 (desired Host defined SI setti
 7. Validate the config_status code, if the status is not config success, then force CMIS to reinit and retry. If the configuration fails after 3 retry attempts, print an error message and exit from initializing this port. If config_status is successful, then continue with the DP_INIT state in the CMIS state machine.  
 Reference Register: Upper Page 11h Byte 202-205 (config_status register)  
 
-8. Module precoding (section 3.7): in AP_CONFIG, ModulePrecoding is removed before staging and written directly to the module (it is not part of the Staged Control Set). EC = 1 only if SI parameters are present; an entry with only ModulePrecoding uses EC = 0. A failed write is logged and the initialization continues.
+8. Module precoding (section 3.7): in AP_CONFIG, ModulePrecoding is removed before staging and written directly to the module (it is not part of the Staged Control Set). EC = 1 only if SI parameters are present; an entry with only ModulePrecoding uses EC = 0. A failed write forces CMIS to reinit and retry, as in (7).
 
 9. In DP_PRE_INIT_CHECK, if the application is already active (e.g. xcvrd/pmon restart, config reload) and the module precoding value differs from the configured value, the datapath is re-initialized so AP_CONFIG writes it. On module insertion, reset or cold boot it is written during the normal initialization, without an extra re-init.
 
