@@ -72,6 +72,8 @@ Policer metrics are read through the reentrant VPP statistics client. `vpp_stats
 5. **saivpp DHCP classifier and receive routes** — VLAN-member DHCPv4 TRAP uses the existing fixed-offset tagged/untagged `l2-input-classify` sessions. DHCPv6 TRAP uses equivalent tagged/untagged sessions matching destination MAC `33:33:00:01:00:02`. For COPY, the corresponding sessions are removed so normal bridge flooding supplies the BVI copy. DHCPv4 uses a local-receive `255.255.255.255/32` route while its semantic trap is active. DHCPv6 COPY programs `ff02::1:2/128` with an MFIB Accept path on each BVI and a shared local Forward path; routed interfaces receive the same Accept-plus-local entry whenever DHCPv6 is active. These paths converge on `sonic-ext-copp-ifout`, which recognizes UDP 67/68 or 546/547 and applies the DHCP family’s trap-group policer.
 6. **`sonic-ext-glean-redirect`** (NEIGHBOR_MISS) — a global feature on `ip4-drop` and `ip6-drop`. For drops from the IPv4/IPv6 neighbor-resolution nodes, it validates an unresolved connected adjacency, restores the ingress frame, redirects it to the ingress member's LCP TAP, and stamps the NEIGHBOR_MISS reason consumed by `sonic-ext-copp-ifout`. An active NEIGHBOR_MISS row supersedes the legacy fixed glean throttle.
 
+The NEIGHBOR_MISS stamp uses plugin-private, buffer-indexed side-band storage rather than a classifier or a neighbor/adjacency-keyed table. The facility allocates one 8-byte `sonic_ext_vnet_buf_t` slot per VPP buffer position while it has an active claimant. One `VNET_BUFFER_F_AVAIL2` bit is the per-buffer-incarnation witness, and one bit in the slot's validity bitmap identifies the NEIGHBOR_MISS field. `sonic-ext-glean-redirect` claims that field after validating the miss; `sonic-ext-copp-ifout` consumes it at most once. A buffer-free callback clears slots, while the incarnation flag prevents stale side-band data from a DPDK-recycled buffer from being trusted. If another facility already owns the required buffer callback, binding fails closed instead of enabling an unsafe fallback. Thus the resource cost is linear in configured VPP buffer positions, not in neighbors, routes, or unresolved adjacencies.
+
 ### Node-graph summary
 
 ```
@@ -114,9 +116,23 @@ Three earlier enforcement designs were built, deployed, and disproven or reworke
 
 ## Status
 
-All applicable CoPP `test_copp.py` sub-tests pass:
+### Revised-head qualification
 
-| Test | Protocol | Result |
+The implementation revisions aligned with this HLD are:
+
+| Component | Revision | Scope |
+|---|---|---|
+| `sonic-platform-vpp` PR #326 | `e7434b4` | NEIGHBOR_MISS metadata/policing and DHCP-family `copp-ifout` policer selection; no DHCP node on the bridged IPv4/IPv6 hot path. |
+| `sonic-sairedis` PR #2149 | `ff148db` | DHCPv4/DHCPv6 classifier TRAP, COPY flooding/BVI receive, routed receive routes, and transactional trap state. |
+| `sonic-mgmt` PR #28577 | `9a4517f` | T0 enablement and CoPP test selection. |
+
+Combined-image qualification of these exact revisions is **pending**. The acceptance run will execute `copp/test_copp.py` on both `t0-vpp` and `t1-lag-vpp`. In particular, VLAN-member DHCPv4/DHCPv6 TRAP must prove one CPU delivery with no peer flood, while COPY must prove peer forwarding plus one BVI CPU delivery. Results must not be inferred from routed-port tests or from the earlier baseline below.
+
+### Historical baseline (before the DHCP/NEIGHBOR_MISS extension)
+
+The earlier CoPP implementation passed all then-applicable `test_copp.py` cases on `t1-lag-vpp` (`vlab-vpp-01`):
+
+| Test | Protocol | Historical result |
 |---|---|---|
 | `test_verify_copp_configuration_cli` | (config-plane, no traffic) | ✅ PASS |
 | `test_policer[ARP]` | ARP | ✅ PASS |
@@ -127,11 +143,13 @@ All applicable CoPP `test_copp.py` sub-tests pass:
 | `test_policer[DHCP]` | DHCP | ✅ PASS |
 | `test_policer[DHCP6]` | DHCPv6 | ✅ PASS |
 | `test_policer_mtu[BGP/IP2ME/SNMP/SSH]` (64B/1514B/4096B) | 4 protocols × 3 MTU sizes | ✅ PASS |
-| `test_trap_neighbor_miss[IPv4/IPv6 × VlanSubnet/VlanSubnetIPinIP]` | NEIGHBOR_MISS | ✅ PASS |
+| `test_trap_neighbor_miss[IPv4/IPv6 × VlanSubnet/VlanSubnetIPinIP]` | NEIGHBOR_MISS | Not applicable on T1-LAG |
 | `test_add_new_trap` | BGP (install fresh trap) | ✅ PASS |
 | `test_remove_trap[delete_feature_entry]` | BGP (`redis-cli del FEATURE\|bgp`) | ✅ PASS |
 | `test_remove_trap[disable_feature_status]` | BGP (`config feature state bgp disabled`) | ✅ PASS |
 | `test_trap_config_save_after_reboot` | BGP (reboot persistence) | ✅ PASS |
+
+This historical run predates PRs #326/#2149/#28577 and is retained only as regression context; it is not acceptance evidence for their revised heads.
 
 ### `test_remove_trap` fix (2026-09-18)
 
