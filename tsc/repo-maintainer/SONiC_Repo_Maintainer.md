@@ -3,6 +3,7 @@
 | Repo | Team | Maintainer | Github Id | Comments |
 |---|---|---|---|---|
 | sonic-ztp | sonic-ztp-maintainer | Rajendra Dendukuri (Broadcom) | rajendra-dendukuri | enabled |
+|  | sonic-ztp-maintainer | Senthil Kumar Ganesan | skg-net | GitHub team membership verified 2026-11-04 |
 | sonic-stp | sonic-stp-maintainer | Divya Chandralekha (Broadcom) | divyachandralekha | enabled |
 | sonic-dbsyncd | sonic-dbsyncd-maintainer | Storm Liang (Microsoft） | StormLiangMS | enabled |
 | sonic-dhcp-relay | sonic-dhcp-relay-maintainer | Saikrishna Arcot (Microsoft) | saiarcot895 | enabled |
@@ -30,12 +31,15 @@
 |  | sonic-platform-common-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-common-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
 |  | sonic-platform-common-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
+|  | sonic-platform-common-maintainer | Judy Joseph (Microsoft) | judyjoseph | GitHub team membership verified 2026-11-04 |
 | sonic-platform-daemons | sonic-platform-daemons-maintainer | Prince George (Microsoft) | prgeor | enabled |
 |  | sonic-platform-daemons-maintainer | Mridul Bajpai (Cisco) | bmridul | enabled |
 |  | sonic-platform-daemons-maintainer | Kebo Liu (Nvidia) | keboliu | enabled |
 |  | sonic-platform-daemons-maintainer | Junchao Chen (Nvidia) | Junchao-Mellanox | Request on 08/25/2026 |
 |  | sonic-platform-daemons-maintainer | Bobby McGonigle (Nexthop) | bobby-nexthop | Request on 8/27/2026 |
+|  | sonic-platform-daemons-maintainer | Judy Joseph (Microsoft) | judyjoseph | GitHub team membership verified 2026-11-04 |
 | sonic-platform-pdk-pde | sonic-platform-pdk-pde-maintainer | Geans Pin (BRCM) | geans-pin | enabled |
+|  | sonic-platform-pdk-pde-maintainer | Vamsi Punati(Google) | vamsipunati | GitHub team membership verified 2026-11-04 |
 | sonic-py-swsssdk | sonic-py-swsssdk-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
 | sonic-restapi | sonic-restapi-maintainer | Lawrence Lee (Microsoft) | theasianpianist | enabled |
 | sonic-sairedis | sonic-sairedis-maintainer | Kamil Cudnik (Microsoft) | kcudnik | added |
@@ -44,6 +48,10 @@
 |  | sonic-sairedis-maintainer | Volodymyr Boiko (Intel) | vboykox | enabled |
 |  | sonic-sairedis-maintainer | Kishore Gummadidala(Google) | erohsik | invitation sent |
 |  | sonic-sairedis-maintainer | Vishnu Shetty | vishnushetty | enabled |
+|  | sonic-sairedis-maintainer | Longxiang Lyu (Microsoft) | lolyu | GitHub team membership verified 2026-11-04 |
+|  | sonic-sairedis-maintainer | mramezani95 | mramezani95 | GitHub team membership verified 2026-11-04 |
+|  | sonic-sairedis-maintainer | Saikrishna Arcot (Microsoft) | saiarcot895 | GitHub team membership verified 2026-11-04 |
+|  | sonic-sairedis-maintainer | yue-fred-gao | yue-fred-gao | GitHub team membership verified 2026-11-04 |
 | sonic-snmpagent | sonic-snmpagent-maintainer | Suvarna Meenakshi (Microsoft) | SuvarnaMeenakshi | enabled |
 | sonic-swss | sonic-swss-maintainer | Guohan Lu (Microsoft) | lguohan | added |
 |  | sonic-swss-maintainer | Prince Sunny (Microsoft) | prsunny | added |
@@ -58,12 +66,14 @@
 |  | sonic-swss-common-maintainer | Myron Sosyak (Intel) | msosyak | enabled |
 |  | sonic-swss-common-maintainer | Marian Pritsak (Nvidia) | marian-pritsak | enabled |
 |  | sonic-swss-common-maintainer | Runming Wu(Google) | mint570 | enabled |
+|  | sonic-swss-common-maintainer | svshah-intel | svshah-intel | GitHub team membership verified 2026-11-04 |
 | sonic-gnmi (previously sonic-telemetry) | sonic-gnmi-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 |  | sonic-gnmi-maintainer | Shashank Neelam | sneelam20 | Replace Tomek on 3/5/2024 |
 |  | sonic-gnmi-maintainer | Shishao (Alibaba) | shishao7sxm | invitation sent |
 |  | sonic-gnmi-maintainer | Seifert, Eric (DELL) | seiferteric | enabled |
 |  | sonic-gnmi-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
 |  | sonic-gnmi-maintainer | Dawei Huang (Microsoft) | hdwhdw | Self-nominated on 11/05/2026; pending approval |
+|  | sonic-gnmi-maintainer | Bhagatram Janarthanan (Google) | bhagatgit | GitHub team membership verified 2026-11-04 |
 | sonic-utilities | sonic-utilities-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 | sonic-wpa-supplicant | sonic-wpa-supplicant-maintainer | Ze Gan (Microsoft) | Pterosaur | enabled |
 | sonic-buildimage | sonic-buildimage-maintainer | Guohan Lu (Microsoft) | lguohan | enabled |
@@ -76,23 +86,63 @@
 |  | sonic-buildimage-maintainer | Anand Mehra (Cisco) | anamehra | Requested on 09/28/2026 |
 |  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
 |  | sonic-buildimage-maintainer | Rita Hui (Microsoft) | rlhui | enabled |
+|  | sonic-buildimage-maintainer | bingwang-ms | bingwang-ms | GitHub team membership verified 2026-11-04 |
+|  | sonic-buildimage-maintainer | Eddie Ruan | eddieruan-alibaba | GitHub team membership verified 2026-11-04 |
+|  | sonic-buildimage-maintainer | Storm Liang (Microsoft） | StormLiangMS | GitHub team membership verified 2026-11-04 |
+|  | sonic-buildimage-maintainer | yijingyan2 | yijingyan2 | GitHub team membership verified 2026-11-04 |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
 |  | sonic-mgmt-maintainer | Myron Sosyak (Intel) | msosyak | enabled |
 |  | sonic-mgmt-maintainer | Vamsi Punati(Google) | vamsipunati | invitation sent |
 |  | sonic-mgmt-maintainer | Sasthri Kristipati (BRCM) | ramakristipati | Approved on 5/3/2023 and enabled |
+|  | dash-maintainer | Prince Sunny (Microsoft) | prsunny | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | Anders Linn | anders-nexthop | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | Austin (Thang Pham) | auspham | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | Brad House (Nexthop) | bhouse-nexthop | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | davidm-arista | davidm-arista | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | Liat Grozovik | liat-grozovik | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | MaxXiao12 | MaxXiao12 | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | Roy Sror | roy-sror | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | Perumal Venkatesh | vperumal | GitHub team membership verified 2026-11-04 |
+|  | sonic-mgmt-maintainer | yijingyan2 | yijingyan2 | GitHub team membership verified 2026-11-04 |
 | sonic-fips | sonic-fips-maintainer | Xuhui Miao (Microsoft) | xumia | enabled |
+|  | sonic-fips-maintainer | Qi Luo (Microsoft) | qiluo-msft | GitHub team membership verified 2026-11-04 |
 | sonic-genl-packet | sonic-genl-packet-maintainer | Don Newton (Intel) | donNewtonIntel | enabled |
 | sonic-platform-vpp | sonic-platform-vpp-maintainer | Abdel Baig; Yue Gao (yuega2) | yue-fred-gaoabdbaig | enabled |
 |  | sonic-platform-vpp-maintainer | Bendrapu Balareddy (Cisco) | bendrapubalareddy | invitation sent |
 |  | sonic-platform-vpp-maintainer | Venkatesan Mahalingam (Dell) | venkatmahalingam | enabled |
+|  | sonic-platform-vpp-maintainer | Abdel Baig | abdbaig | GitHub team membership verified 2026-11-04 |
+|  | sonic-platform-vpp-maintainer | yue-fred-gao | yue-fred-gao | GitHub team membership verified 2026-11-04 |
 | sonic-dash-api | sonic-dash-api-maintainer | Ze Gan (Microsoft) | Pterosaur | enabled |
 | sonic-dash-ha | sonic-dash-ha-maintainer | Riff Jiang (Microsoft) | r12f |  |
+|  | sonic-dash-ha-maintainers | Jing Zhang (Microsoft) | zjswhhh | GitHub team membership verified 2026-11-04 |
 | sonic-bmp | sonic-bmp-maintainer | Qi Luo(Microsoft) | qiluo-msft | enabled |
 | sonic-host-services | sonic-host-services-maintainer | Qi Luo(Microsoft) | qiluo-msft |  |
+|  | sonic-host-services-maintainer | Liat Grozovik | liat-grozovik | GitHub team membership verified 2026-11-04 |
 | sonic-formal-infra | sonic-formal-infra-maintainer | Mengqi Liu (Alibaba) | mengqiliu20 | enabled |
 |  | sonic-formal-infra-maintainer | Ali Kheradmand (Google) | kheradmandG |enabled  |
+|  | sonic-formal-infra-maintainer | Jianquan Ye | yejianquan | GitHub team membership verified 2026-11-04 |
 | sonic-redfish | sonic-redfish-maintainer | Judy Joseph (Microsoft) | judyjoseph | enabled |
 |  | sonic-redfish-maintainer | Chinmoy Dey (Nexthop AI) | chinmoy-nexthop | enabled |
 |  | sonic-redfish-maintainer | Shreyansh Jain (Nexthop AI) | shreyansh-nexthop | enabled |
+| SONiC | sonic-hld-maintainer | Adam Yeung | adyeung | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | balajib-cisco | balajib-cisco | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Bhagatram Janarthanan (Google) | bhagatgit | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Eddie Ruan | eddieruan-alibaba | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Jeff Yin | jeffyin-dell | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Liat Grozovik | liat-grozovik | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Marc Austin | marc-austin | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | mm0930 | mm0930 | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Qi Luo (Microsoft) | qiluo-msft | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Senthil Kumar Ganesan | skg-net | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Sunesh Rustagi | sunesh | GitHub team membership verified 2026-11-04 |
+|  | sonic-hld-maintainer | Ying Xie (Microsoft) | yxieca | GitHub team membership verified 2026-11-04 |
+| sonic-alpine | sonic-alpine-maintainer | Brian O'Connor (Google) | bocon13 | GitHub team membership verified 2026-11-04 |
+|  | sonic-alpine-maintainer | sonikajindal | sonikajindal | GitHub team membership verified 2026-11-04 |
+| sonic-frr | sonic-frr-maintainer | Sudharsan Dhamal Gopalarathnam (Nvidia) | dgsudharsan | GitHub team membership verified 2026-11-04 |
+|  | sonic-frr-maintainer | Yuqing Zhao(Alibaba Inc) | GaladrielZhao | GitHub team membership verified 2026-11-04 |
+|  | sonic-frr-maintainer | Syed Hasan Raza Naqvi (BRCM) | hasan-brcm | GitHub team membership verified 2026-11-04 |
+|  | sonic-frr-maintainer | Prince Sunny (Microsoft) | prsunny | GitHub team membership verified 2026-11-04 |
+| sonic-netconf-server | sonic-netconf-server-maintainers | Abdelmuhaimen Seaudi | aseaudi | GitHub team membership verified 2026-11-04 |
+|  | sonic-netconf-server-maintainers | drjami | drjami | GitHub team membership verified 2026-11-04 |
