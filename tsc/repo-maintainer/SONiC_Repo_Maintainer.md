@@ -64,6 +64,7 @@
 |  | sonic-gnmi-maintainer | Seifert, Eric (DELL) | seiferteric | enabled |
 |  | sonic-gnmi-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
 |  | sonic-gnmi-maintainer | Dawei Huang (Microsoft) | hdwhdw | Self-nominated on 11/05/2026; pending approval |
+|  | sonic-gnmi-maintainer | Ronan Mac Fhlannchadha (Nexthop) | ronan-nexthop | Self-nominated on 11/12/2026; pending approval |
 | sonic-utilities | sonic-utilities-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 | sonic-wpa-supplicant | sonic-wpa-supplicant-maintainer | Ze Gan (Microsoft) | Pterosaur | enabled |
 | sonic-buildimage | sonic-buildimage-maintainer | Guohan Lu (Microsoft) | lguohan | enabled |
