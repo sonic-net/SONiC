@@ -78,7 +78,7 @@ The **main intent** of this HLD is how a **UEFI platform** is used for Secure Bo
 | `efi-readvar`, `efi-updatevar`, efivarfs | OS path to UEFI runtime services | Linux / efitools, not SONiC |
 | `show platform security uefi …` / `config platform security uefi …` CLI plugin | Operator interface on the NOS | **SONiC** |
 
-Sections 3–7 are the UEFI platform model (what firmware must do, what OVMF does, what Cisco platforms implement). Section 8–9 are the SONiC CLI plugin on top of that model.
+[UEFI components](#3-uefi-components) through [Unclaim](#7-unclaim) are the UEFI platform model (what firmware must do, what OVMF does, what Cisco platforms implement). [SONIC implementation](#8-sonic-implementation) and [SONiC CLI commands](#9-sonic-cli-commands) are the SONiC CLI plugin on top of that model.
 
 ## 1 Requirements
 SONiC runs on switching hardware from multiple vendors. Some of this hardware implements a hardware root of trust and UEFI firmware, which helps establish Secure Boot. The hardware vendor ships the machine. The **platform owner** must be able to take ownership of that machine: enroll their own Platform Key, constrain boot to owner-trusted images, and later manage PK, KEK, db, and dbx under their own policy (rotate keys, add signers, revoke compromised keys).
