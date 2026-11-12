@@ -12,6 +12,7 @@
 |  0.5  |   11/12/2026   | Sachin Naik | Secure Boot enable/disable is claim/unclaim only; no firmware-menu knob |
 |  0.6  |   11/12/2026   | Sachin Naik | Secure Boot toggle: other UEFI may offer a non-auth switch; this HLD does not |
 |  0.7  |   11/12/2026   | Sachin Naik | SignatureOwner GUID is optional; efitools defaults to zeros |
+|  0.8  |   11/12/2026   | Sachin Naik | CLI: inspect/compare/health, append, keep unclaim separate from update pk |
 
 
 <!-- omit in toc -->
@@ -662,13 +663,16 @@ Owner B's claim is the same procedure as first claim. PK last. If owner B enroll
 
 ## 8 SONIC implementation
 
-The UEFI platform (OVMF reference; Cisco firmware that implements the same model) owns key storage and verification. Linux efitools talk to UEFI runtime services. SONiC does not replace either. The **SONiC contribution is the CLI plugin**. It dispatches show/enroll/update/unclaim to that path:
+The UEFI platform (OVMF reference; Cisco firmware that implements the same model) owns key storage and verification. Linux efitools talk to UEFI runtime services. SONiC does not replace either. The **SONiC contribution is the CLI plugin**. It dispatches show/enroll/append/update/unclaim to that path:
 
-- show / export: `efi-readvar` (efivarfs for `SetupMode` / `SecureBoot`)
+- show status: efivarfs `SetupMode` / `SecureBoot` (`efi-readvar` does not print these)
+- show variables: `efi-readvar`
+- inspect / compare: parse AUTH2/ESL on the host; does not apply
 - enroll dbx/db/KEK in Setup Mode: `efi-updatevar -e` with an unsigned ESL
 - enroll PK (claim): `efi-updatevar -f` with a self-signed PK AUTH2
-- append / update / remove / revoke in User Mode: `efi-updatevar -f` with AUTH2
-- unclaim: `efi-updatevar -f` of an empty-PK AUTH2 signed by the current PK ([Unclaim](#7-unclaim))
+- append in User Mode: `efi-updatevar -a -f` with AUTH2 (`sign-efi-sig-list -a`; revoke is append to dbx)
+- update / remove in User Mode: `efi-updatevar -f` with AUTH2 (replace the whole store)
+- unclaim: `efi-updatevar -f` of an empty-PK AUTH2 signed by the current PK ([Unclaim](#7-unclaim)). Separate from `update pk` (that stays in User Mode)
 
 The plugin is a thin wrapper (getVariable / setVariable). Today's backend is efitools + efivarfs, which is how Linux already talks to OVMF UEFI runtime services. AUTH2/ESL files are still built on the owner host with openssl and `sign-efi-sig-list`.
 
@@ -693,32 +697,46 @@ On Linux/OVMF, efivarfs files are often `FS_IMMUTABLE`. `efi-updatevar` fails un
 
 ## 9 SONiC CLI commands
 
-This is the SONiC contribution. The CLI plugin is apply-only. It takes a file and calls `efi-readvar` / `efi-updatevar`. It does not create AUTH2, does not take a private key, and does not retry on firmware reject.
-
-Writes need `sudo` / config privilege. Firmware accepts or rejects the payload.
+This is the SONiC contribution. The plugin is apply-only for writes. AUTH2/ESL files are built on the owner host. The CLI does not create AUTH2, does not take a private key, and does not retry on firmware reject. Writes need `sudo` / config privilege and `-y` to skip the confirm prompt.
 
 ```
 show platform security uefi status
-show platform security uefi variables all
-show platform security uefi variables pk
-show platform security uefi variables kek
-show platform security uefi variables db
-show platform security uefi variables dbx
+show platform security uefi variables {all,pk,kek,db,dbx}
+show platform security uefi inspect <file.auth|file.esl>
+show platform security uefi compare <var> <file.auth|file.esl>
+show platform security uefi health
 
-config platform security uefi enroll <var> <file.esl>
-config platform security uefi enroll pk <file.auth>
-config platform security uefi update <var> <file.auth>
-config platform security uefi unclaim PK.empty.auth
+config platform security uefi enroll [-y] <var> <file.esl>
+config platform security uefi enroll [-y] pk <file.auth>
+config platform security uefi append [-y] <var> <file.auth>
+config platform security uefi update [-y] <var> <file.auth>
+config platform security uefi unclaim [-y] PK.empty.auth
 ```
 
-`status` prints `SetupMode` and `SecureBoot` (`efi-readvar` does not). There is no CLI that only toggles `SecureBoot` ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)). `enroll` for dbx, db, and kek is Setup Mode unsigned ESL (`efi-updatevar -e`). `enroll pk` is the claim self-signed AUTH2 (`efi-updatevar -f`). `update` is User Mode AUTH2 (`efi-updatevar -f`). `unclaim` applies an empty-PK AUTH2 ([Unclaim](#7-unclaim)); it is not `update pk` with a new certificate. `<var>` is one of `pk`, `kek`, `db`, `dbx`.
+`<var>` is one of `pk`, `kek`, `db`, `dbx`. There is no CLI that only toggles `SecureBoot` ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
+
+| Command | Role |
+| ------- | ---- |
+| `status` | `SetupMode` and `SecureBoot` from efivarfs |
+| `variables` | Enrolled PK/KEK/db/dbx (`efi-readvar`) |
+| `inspect` | Dump AUTH2/ESL layout (EFI_TIME, PKCS#7 digest/key OIDs, certs or hashes). Does not apply. Empty ESL is the unclaim payload |
+| `compare` | Diff current store vs a file (what append would add, what update would drop). Does not apply |
+| `health` | Hygiene warnings (Setup Mode leftover keys, expiry, db/dbx overlap). Firmware may still trust expired certs |
+| `enroll` | Setup Mode: unsigned ESL for dbx/db/kek (`efi-updatevar -e`); `enroll pk` is the claim self-signed AUTH2 (`-f`) |
+| `append` | User Mode AUTH2 with `efi-updatevar -a`. Revoke is `append dbx` |
+| `update` | User Mode AUTH2 replace (`efi-updatevar -f`). Remove is `update` of the remaining ESL. `update pk` with a **new certificate** stays in User Mode |
+| `unclaim` | Empty-PK AUTH2; returns to Setup Mode ([Unclaim](#7-unclaim)) |
+
+`unclaim` is a separate command on purpose. The efitools write is the same shape as `update pk` (AUTH2 `-f` to PK), but the operator intent is not. `update pk` with a new cert rotates the Platform Key and **stays in User Mode**. `unclaim` applies an **empty** PK ESL, returns to Setup Mode, and is how Secure Boot is turned off in this HLD. A distinct verb, confirm prompt (“return to Setup Mode”), and a file argument that is only `PK.empty.auth` keep those two operations from being confused. `inspect` of that file shows `ESL: empty`.
+
+This CLI was exercised on OVMF: `status`, `variables`, `inspect`, `compare`, `health`, Setup Mode `enroll` of dbx/db/kek then `enroll pk` (`SetupMode` 1→0 with no reboot), then `unclaim` (`SetupMode` 0→1 with no reboot).
 
 Return values follow normal SONiC CLI:
 
-- success: exit 0. show prints the variables (or SetupMode/SecureBoot for status).
+- success: exit 0. show prints; config prints nothing extra after efitools succeeds.
 - failure: non-zero exit and an error on stderr. The CLI surfaces the efitools / firmware reason.
 
-Expected failures for enroll/update: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or unsigned PK in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; OVMF reject.
+Expected failures for enroll/append/update/unclaim: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or unsigned PK in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; firmware reject.
 
 ## 10 Test considerations
 The sonic-mgmt can cover UEFI key management including at least:
@@ -732,3 +750,4 @@ The sonic-mgmt can cover UEFI key management including at least:
 7. Factory reset: after unclaim, overwrite leftover KEK/db/dbx in Setup Mode ([Factory reset](#72-factory-reset)).
 8. Transfer: owner B claims with B's keys after A's unclaim; B's db is enrolled before B's PK ([Transfer to another owner](#73-transfer-to-another-owner)).
 9. No independent Secure Boot toggle: there is no `secureboot enable` / `disable` CLI. `SecureBoot` becomes `1` only after claim plus reboot, and `0` only after unclaim plus reboot ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
+10. `unclaim` is not `update pk` with a new certificate. `inspect` of `PK.empty.auth` shows an empty ESL. `compare` / `health` do not apply files.
