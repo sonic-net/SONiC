@@ -11,6 +11,7 @@
 |  0.4  |   11/12/2026   | Sachin Naik | Cross-references use section names, not TOC numbers |
 |  0.5  |   11/12/2026   | Sachin Naik | Secure Boot enable/disable is claim/unclaim only; no firmware-menu knob |
 |  0.6  |   11/12/2026   | Sachin Naik | Secure Boot toggle: other UEFI may offer a non-auth switch; this HLD does not |
+|  0.7  |   11/12/2026   | Sachin Naik | SignatureOwner GUID is optional; efitools defaults to zeros |
 
 
 <!-- omit in toc -->
@@ -263,6 +264,7 @@ Enroll **dbx, db, KEK, then PK**. PK is last.
 **Owner host — build ESLs and the self-signed PK AUTH2:**
 
 ```bash
+# SignatureOwner is optional (omit -g and efitools uses all-zero GUID).
 uuidgen --random > GUID.txt
 SIGNATURE_OWNER="$(< GUID.txt)"
 VENDOR_GUID_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
@@ -352,9 +354,13 @@ openssl req -newkey rsa:2048 -nodes -keyout db.key -new -x509 -sha256 -days 365 
 
 Private keys stay on the owner host. Public certificates are wrapped as x509 and enrolled.
 
-`cert-to-efi-sig-list -g` is the owner-chosen **SignatureOwner** (`uuidgen`). `sign-efi-sig-list -g` is the UEFI **VendorGuid** (table above). Do not swap them.
+The two `-g` flags are different. Do not swap them.
+
+- `sign-efi-sig-list -g` is the UEFI **VendorGuid** of the variable (table above). That one is required: PK/KEK use `EFI_GLOBAL_VARIABLE`, db/dbx use `EFI_IMAGE_SECURITY_DATABASE`.
+- `cert-to-efi-sig-list -g` is **SignatureOwner**, a label on each ESL entry. It is **not** required for AUTH2. Firmware verifies the PKCS#7 against the enrolled PK or KEK; it does not use this GUID. If `-g` is omitted, efitools writes an all-zero SignatureOwner (`00000000-0000-0000-0000-000000000000`). A non-zero value (for example `uuidgen`) only helps `efi-readvar` tell your entries apart from others.
 
 ```bash
+# optional owner tag; omit -g on cert-to-efi-sig-list to get zeros
 uuidgen --random > GUID.txt
 SIGNATURE_OWNER="$(< GUID.txt)"
 VENDOR_GUID_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
@@ -381,7 +387,7 @@ cert-to-efi-sig-list -g "$SIGNATURE_OWNER" revoked.crt revoked.esl
 sign-efi-sig-list -g "$VENDOR_GUID_IMAGE" -k KEK.key -c KEK.crt dbx revoked.esl dbx.auth
 ```
 
-Add `-a` on `sign-efi-sig-list` to build an **append** AUTH2. That flag does not change either GUID.
+Add `-a` on `sign-efi-sig-list` to build an **append** AUTH2. That flag does not change VendorGuid. SignatureOwner stays whatever was in the ESL (zeros if `cert-to-efi-sig-list` had no `-g`).
 
 ### 6.3 Apply AUTH2 on the device
 
@@ -584,7 +590,6 @@ Private keys never go on the VM. The current owner builds `PK.empty.auth` on the
 ### 7.1 Clear PK (return to Setup Mode)
 
 ```bash
-SIGNATURE_OWNER="$(< GUID.txt)"
 VENDOR_GUID_GLOBAL=8be4df61-93ca-11d2-aa0d-00e098032b8c
 : > empty.esl
 sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt PK empty.esl PK.empty.auth
