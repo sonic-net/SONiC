@@ -18,6 +18,7 @@
 |  0.11 |   11/12/2026   | Sachin Naik | Ownership section: Secure Boot state transition diagram |
 |  0.12 |   11/12/2026   | Sachin Naik | Mermaid labels use br so GitHub wraps lines |
 |  0.13 |   11/12/2026   | Sachin Naik | Drop leftover efivarfs screenshot from SONIC implementation |
+|  0.14 |   11/12/2026   | Sachin Naik | efi-readvar uses -v VAR; a bare VAR argument is invalid |
 
 
 <!-- omit in toc -->
@@ -195,7 +196,7 @@ There is no end-user CLI that only enables or disables Secure Boot. Enable is ow
 `efi-readvar` lists PK, KEK, db, and dbx. It does not print `SetupMode` or `SecureBoot`. Read those from efivarfs. The first four bytes are attributes; the following byte is the value (`1` or `0`).
 
 ```bash
-efi-readvar PK            # expect empty / length 0
+efi-readvar -v PK         # expect empty / length 0
 
 od -An -tu1 -j4 -N1 \
   /sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c
@@ -321,9 +322,9 @@ od -An -tu1 -j4 -N1 \
   /sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c
 # expect 0  User Mode
 
-efi-readvar PK
-efi-readvar KEK
-efi-readvar db
+efi-readvar -v PK
+efi-readvar -v KEK
+efi-readvar -v db
 ```
 
 If PK is missing, the platform is still in Setup Mode. Do not treat KEK/db enrollment alone as a completed claim.
@@ -597,10 +598,11 @@ dbx does not remove the certificate from db. After a compromise, append to dbx, 
 ### 6.8 Show keys
 
 ```bash
-efi-readvar PK
-efi-readvar KEK
-efi-readvar db
-efi-readvar dbx
+efi-readvar            # all of PK, KEK, db, dbx
+efi-readvar -v PK
+efi-readvar -v KEK
+efi-readvar -v db
+efi-readvar -v dbx
 ```
 
 `SetupMode` / `SecureBoot` are not printed by `efi-readvar`. Use `show platform security uefi status` or the efivarfs `od` commands in [Factory default state](#4-factory-default-state).
@@ -640,7 +642,7 @@ od -An -tu1 -j4 -N1 \
   /sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c
 # expect 1
 
-efi-readvar PK
+efi-readvar -v PK
 # empty / length 0
 ```
 
