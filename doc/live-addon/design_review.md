@@ -201,13 +201,10 @@ a SONiC-controlled build stage that uses the approved base image:
 
 1. Identify all required packages, including their dependencies, using the
    approved repository snapshot whose contents cannot change.
-2. Fix the exact version and target architecture of every package. Record its
-   repository and content hash in the build record (provenance) and software
-   bill of materials (SBOM).
-3. Simulate the full installation before making changes. Reject any package
+2. Simulate the full installation before making changes. Reject any package
    changes forbidden by the
    [restricted Debian profile](./design_vendor_spec.md#52-restricted-debian-profile).
-4. Install only after the package metadata, files, and simulated installation
+3. Install only after the package metadata, files, and simulated installation
    pass these checks. Use the same fixed package versions and architectures,
    with `--no-install-recommends`. Do not let the package manager choose a new,
    unchecked dependency set or install an unchecked bundle with
