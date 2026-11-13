@@ -43,7 +43,7 @@
 | Rev | Date | Author | Change Description |
 | --- | --- | --- | --- |
 | 0.1 | 2026-08-12 | William Tsai | Initial version |
-| 0.2 | 2026-11-09 | William Tsai | Align with the implementation: queue lanes and preemption ([§7.6](#76-concurrency-and-preemption)), a critical trigger's `graceful_shutdown` dispatched as `POWER_OFF`, the gNOI handshake on one bounded helper thread, the leak gate re-read before every raise, the result and reason tables, `GNMI_CLIENT\|certs` with credentials provisioned by deployment, no `bmc_pairing` key and no DPU timeout fallback, the host-side checks of [§7.2](#72-host-side-reboot--p) with the pre-reboot hook skipped, no CLI upper limit, the timing and watchdog items closed, `GRACEFUL_RESTART` deferred ([§14](#14-openaction-items)), and one new `show` column, `Result` |
+| 0.2 | 2026-11-09 | William Tsai | Align with the implementation: queue lanes and preemption ([§7.6](#76-concurrency-and-preemption)), a critical trigger's `graceful_shutdown` dispatched as `POWER_OFF`, the gNOI handshake on one bounded helper thread, the leak gate re-read before every raise, the result and reason tables, `GNMI_CLIENT\|certs` with credentials provisioned by deployment, no `bmc_pairing` key and no DPU timeout fallback, the host-side checks of [§7.2](#72-host-side-reboot--p) with the pre-reboot hook skipped, no CLI upper limit, the timing and watchdog items closed, `GRACEFUL_RESTART` deferred ([§14](#14-openaction-items)), and the new `show` columns removed |
 
 ### 2. Scope
 
@@ -156,7 +156,6 @@ The only new traffic on the BMC-host link is gNOI over mTLS.
 | `bmcctld` | sonic-platform-daemons | Send `HALT`, poll `RebootStatus`, remove power on every outcome it handles, add the queue lanes and preemption of [§7.6](#76-concurrency-and-preemption). `GRACEFUL_RESTART` is deferred |
 | `scripts/reboot` | sonic-utilities | Accept `-p` on a switch-host. Today the option is DPU-only |
 | `host_modules/reboot.py` | sonic-host-services | Report failure when a completion check cannot be answered, carry the requester's tag on every terminal report, read `switch_host_halt_services_timeout`, and write the graceful reboot cause after the check |
-| `show chassis modules status` | sonic-utilities | New `Result` column |
 | `determine-reboot-cause` | sonic-host-services | The one display rule of [§7.7](#77-reboot-cause) |
 | `sonic-gnmi-client.yang` | sonic-buildimage | The optional BMC client certificate-path table of [§9.3](#93-config-db-enhancements) |
 | mTLS material | deployment tooling | Certificates, gNMI authorization and the CACL rule are provisioned, not seeded by the image |
@@ -743,15 +742,16 @@ value, because the command runs on the BMC and can read neither the host's resid
 watchdog value, so none of the bounds of [§7.4](#74-timing) can be checked there. Rule 2's binding check
 is the host's own readback ([§7.2](#72-host-side-reboot--p)); rule 1's ceiling has no run-time check at
 all ([§12](#12-restrictionslimitations)), so both are release-time contracts. The default is 120 s and
-`0` means forced. `show chassis modules status` on the BMC gains a `Result` column;
-existing columns and their order do not change.
+`0` means forced. `show chassis modules status` does not change. The result of an operation is read from
+`HOST_STATE|switch-host` ([§9.4](#94-state-db-enhancements)) and from the BMC event log
+([§7.11](#711-serviceability)).
 
 ```
 bmc$ config chassis modules shutdown SWITCH-HOST
-bmc$ show chassis modules status
-  Name         Description  Oper-Status  Admin-Status  Serial   Power-On-Delay (sec)  Shutdown-Timeout (sec)  Result
-  SWITCH-HOST  Switch Host  Online       down          SN12345  0                     120                     -
-  SWITCH-HOST  Switch Host  Offline      down          SN12345  0                     120                     SUCCESS_GRACEFUL
+bmc$ sonic-db-cli STATE_DB hget 'HOST_STATE|switch-host' op_result
+-
+bmc$ sonic-db-cli STATE_DB hget 'HOST_STATE|switch-host' op_result
+SUCCESS_GRACEFUL
 host (next boot)$ show reboot-cause
   graceful shutdown from BMC
 ```
@@ -760,8 +760,8 @@ host (next boot)$ show reboot-cause
 restart is `shutdown`, then `startup`.
 
 `sonic-gnmi-client.yang` models the optional BMC client certificate paths of
-[§9.3](#93-config-db-enhancements). `sonic-utilities` `doc/Command-Reference.md` is updated with the new
-column and the timeout's meaning.
+[§9.3](#93-config-db-enhancements). `sonic-utilities` `doc/Command-Reference.md` is updated with the
+timeout's meaning.
 
 #### 9.3. Config DB Enhancements
 
