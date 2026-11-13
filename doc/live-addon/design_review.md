@@ -94,12 +94,10 @@ The proposed integration should:
 9. Support a public, vendor-free default and optional reviewed vendor
    integrations without requiring private repositories or credentials.
 
-### Non-goals
+### Out of scope
 
-- Hosting general-purpose vendor applications unrelated to diagnostics.
-- SONiC maintainers do not need to understand the internal implementation of
-  every vendor process.
-- SONiC maintainers do not need to rewrite the vendor's development Dockerfile.
+Running vendor applications for purposes other than diagnostics is outside the
+scope of this document.
 
 ---
 
