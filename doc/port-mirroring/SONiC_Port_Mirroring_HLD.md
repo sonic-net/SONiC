@@ -50,6 +50,7 @@
       * [9.3 Sampled Port Mirroring Test Cases](#93-sampled-port-mirroring-test-cases)
           * [9.3.1 Swss Virtual Switch Tests](#931-swss-virtual-switch-tests)
           * [9.3.2 System Tests](#932-system-tests)
+          * [9.3.3 SFLOW Session Tests](#933-sflow-session-tests)
   * [Appendix A: Problem Statement](#appendix-a-problem-statement)
   * [Appendix B: Bandwidth Estimation](#appendix-b-bandwidth-estimation)
 
@@ -63,6 +64,7 @@
 | 0.1 | 05/17/2019  |   Rupesh Kumar      | Initial version                            |
 | 0.2 | 09/05/2025  |   Stephen Sun      | Added mirror capability discovery and validation |
 | 0.3 | 04/16/2026  |   Janet Cui        | Added sampled port mirroring with truncation support on ERSPAN sessions |
+| 0.4 | 09/28/2026  |   Darius Grassi    | Added the SFLOW mirror session type |
 
 # About this Manual
 This document provides general information about extending mirroring implementation in SONiC.
@@ -74,6 +76,9 @@ Sampled mirroring enables users to configure a sampling rate on port mirror sess
 subset of packets is mirrored, reducing bandwidth consumption on the monitor port and the collector. Packet
 truncation further reduces bandwidth by mirroring only the first N bytes of each sampled packet.
 
+An SFLOW session uses the same path as a sampled ERSPAN session, but the ASIC sends each sample to the collector in
+an sFlow datagram over UDP instead of in a GRE/ERSPAN header.
+
 # Definition/Abbreviation
 ### Table 1: Abbreviations
 | **Term**                 | **Meaning**                         |
@@ -84,6 +89,7 @@ truncation further reduces bandwidth by mirroring only the first N bytes of each
 |   ASIC                   | Application-Specific Integrated Circuit |
 |   MirrorOrch             | Orchagent module that manages mirror sessions |
 |   CoPP                   | Control Plane Policing |
+|   sFlow                  | Sampled Flow |
 
 
 # 1 Requirement Overview
@@ -96,6 +102,8 @@ truncation further reduces bandwidth by mirroring only the first N bytes of each
      - Add support for per-port sampled mirroring with configurable sample rate and packet truncation on ERSPAN sessions
      - Backward compatible — existing mirror sessions without sample rate continue to work as before (full mirroring)
      - SAI capability check to gracefully handle platforms that do not support sampled mirroring or truncation
+     - Add support for an SFLOW session type that samples and optionally truncates packets sent to a remote collector in sFlow datagrams
+     - Reject an SFLOW session when SAI does not report `SAI_MIRROR_SESSION_TYPE_SFLOW`
 
 2. Dynamic session management
     - Allow multiple source to single destination.
@@ -112,10 +120,12 @@ truncation further reduces bandwidth by mirroring only the first N bytes of each
     - CLI to allow mirror session configuration only with destination port.
     - CLI command: `config mirror_session erspan add ... --sample_rate <value> --truncate_size <value>`
     - Show command displays sample rate and truncate size when configured
+    - CLI command: `config mirror_session sflow add ... --sample_rate <value> [--truncate_size <value>] [--udp_dst_port <port>]`
+    - Show command displays SFLOW sessions in their own table
 
 
 ## 1.2 Configuration and Management Requirements
-- Existing CLI 'config mirror_session add/remove'to be extended to include source port/portchannel.
+- Existing CLI 'config mirror_session add/remove' to be extended to include source port/portchannel.
 - Existing CLI 'config mirror_session add/remove' to be extended to include destination port/portchannel.
 - Existing CLI 'show mirror session' is extended to support all flavors of mirror sessions.
 
@@ -209,6 +219,23 @@ Payload: Original packet truncated to 128B. Total mirror packet size: 60B + 128B
 
 Encapsulation overhead: 60 bytes. The overhead includes the outer Ethernet header (14B), outer IP header (20B), GRE header (4B), and ERSPAN mirror header (22B).
 
+#### SFLOW Session Format
+
+An SFLOW session uses sFlow encapsulation instead of GRE. The ASIC puts the truncated packet into an sFlow flow sample and sends it in a UDP datagram to the collector:
+
+```mermaid
+---
+title: SFLOW Encapsulation
+---
+packet-beta
+0-111: "Outer Ethernet Header (14B)"
+112-271: "Outer IP Header (20B, IPv4)"
+272-335: "UDP Header (8B)"
+336-399: "sFlow datagram + flow sample headers"
+```
+
+The UDP destination port is optionally configurable with `udp_dst_port`, but defaults to 6343 (IANA-assigned sFlow port).
+
 
 ## 3.2 DB Changes
 ### 3.2.1 CONFIG DB
@@ -223,7 +250,7 @@ Existing table PORT_MIRROR_TABLE is enhanced to accept new source and destinatio
                                                       ; unique session
                                                       ; identifier
     ;field  = value
-    type = SPAN or ERSPAN ; SPAN or ERSPAN session.
+    type = SPAN or ERSPAN or SFLOW ; SPAN, ERSPAN or SFLOW session.
     destination_port = PORT_TABLE:ifname    ; ifname must be unique across PORT TABLE.
     source_port = PORT_TABLE:ifname    ; ifname must be unique across PORT,LAG TABLES
     direction     = RX or TX or BOTH           ; Direction RX or TX or BOTH.
@@ -245,6 +272,31 @@ Extend the existing `MIRROR_SESSION` table with two new optional fields:
     truncate_size = uint32 ; Truncation size in bytes. 0 = no truncation (default).
     ```
 
+#### SFLOW Session Extension
+
+An SFLOW session extends the existing ERSPAN fields with one new optional field:
+
+    ```
+    MIRROR_SESSION|{{session_name}}
+        "type": "SFLOW"
+        "src_ip": {{ip_address}}
+        "dst_ip": {{ip_address}}
+        "dscp": {{uint8}}
+        "ttl": {{uint8}}
+        "queue": {{uint8}}          (Optional)
+        "src_port": {{port_list}}
+        "direction": {{RX|TX|BOTH}}
+        "sample_rate": {{uint32}}
+        "truncate_size": {{uint32}} (Optional)
+        "policer": {{string}}       (Optional)
+        "udp_dst_port": {{uint16}}  (Optional)
+
+    udp_dst_port = uint16 ; UDP destination port of the sFlow datagram. Default 6343.
+    ```
+
+- `src_ip`, `dst_ip`, `src_port` and a non-zero `sample_rate` are required. `src_ip` and `dst_ip` can be IPv4/IPv6, but they must match.
+- `gre_type` does not apply to SFLOW sessions.
+
 ### 3.2.2 APP_DB
 No tables are introduced in APP_DB
 ### 3.2.3 STATE_DB
@@ -261,6 +313,7 @@ PORT_EGRESS_MIRROR_CAPABLE             = "true" | "false"    ; whether SAI attri
 PORT_INGRESS_SAMPLE_MIRROR_CAPABLE     = "true" | "false"    ; whether SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION is supported
 PORT_EGRESS_SAMPLE_MIRROR_CAPABLE      = "true" | "false"    ; whether SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION is supported
 SAMPLEPACKET_TRUNCATION_CAPABLE        = "true" | "false"    ; whether SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE is supported
+MIRROR_SESSION_SFLOW_CAPABLE           = "true" | "false"    ; whether SAI_MIRROR_SESSION_ATTR_TYPE supports SAI_MIRROR_SESSION_TYPE_SFLOW
 ```
 
 These capabilities are discovered during system initialization by SwitchOrch using `sai_query_attribute_capability()` and stored in STATE_DB under the key `SWITCH_CAPABILITY|switch`.
@@ -310,6 +363,13 @@ See Section 3.1.1 for the architecture overview and Section 4 for the detailed w
 - **Unsupported platforms are rejected, not silently downgraded.** If the required per-direction sampled mirroring capability (or samplepacket truncation) is not supported by the ASIC, MirrorOrch rejects the session (`task_invalid_entry`).
 - **Sampled mirroring requires an explicit direction.** A session that configures `sample_rate` must also specify a `direction` (RX, TX or BOTH); a sampled session without a direction is rejected.
 
+#### SFLOW Session Extension
+
+An SFLOW session uses the same sampled mirroring path as a sampled ERSPAN session, with a few differences:
+
+- **Session attributes.** MirrorOrch creates the mirror session with `TYPE = SAI_MIRROR_SESSION_TYPE_SFLOW`, the IP and MAC header fields, `UDP_SRC_PORT`, `UDP_DST_PORT` and `SAMPLE_RATE`.
+- **CPU-path sFlow.** An SFLOW session and CPU-path sFlow are mutually exclusive on a port.
+
 ## 3.4 Mirror Capability Discovery
 
 The mirror capability discovery feature provides runtime detection and validation of ASIC mirror capabilities to ensure proper configuration and graceful error handling.
@@ -325,14 +385,17 @@ The capability discovery process involves multiple layers:
    - `SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION`
    - `SAI_SAMPLEPACKET_ATTR_TRUNCATE_ENABLE`
 
+   SwitchOrch also calls `sai_query_attribute_enum_values_capability()` on `SAI_MIRROR_SESSION_ATTR_TYPE` to check for `SAI_MIRROR_SESSION_TYPE_SFLOW`.
+
 2. **STATE_DB Storage**: Discovered capabilities are stored in STATE_DB under `SWITCH_CAPABILITY|switch`:
    - `PORT_INGRESS_MIRROR_CAPABLE`: "true"/"false"
    - `PORT_EGRESS_MIRROR_CAPABLE`: "true"/"false"
    - `PORT_INGRESS_SAMPLE_MIRROR_CAPABLE`: "true"/"false"
    - `PORT_EGRESS_SAMPLE_MIRROR_CAPABLE`: "true"/"false"
    - `SAMPLEPACKET_TRUNCATION_CAPABLE`: "true"/"false"
+   - `MIRROR_SESSION_SFLOW_CAPABLE`: "true"/"false"
 
-3. **Runtime Validation**: MirrorOrch validates capabilities before configuring mirror sessions
+3. **Runtime Validation**: MirrorOrch validates capabilities before configuring mirror sessions. MirrorOrch rejects an SFLOW session when `MIRROR_SESSION_SFLOW_CAPABLE` is false. The per-direction sampled mirroring capabilities also apply to SFLOW sessions.
 
 ### 3.4.2 Capability Validation Flow
 
@@ -355,8 +418,8 @@ The capability validation follows this sequence:
 #### SwitchOrch Enhancements
 - New capability constants: `SWITCH_CAPABILITY_TABLE_PORT_INGRESS_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_EGRESS_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_INGRESS_SAMPLE_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_PORT_EGRESS_SAMPLE_MIRROR_CAPABLE`, `SWITCH_CAPABILITY_TABLE_SAMPLEPACKET_TRUNCATION_CAPABLE`
 - `querySwitchPortMirrorCapability()`: Discovers and stores port mirroring capabilities
-- `querySwitchSamplePacketCapability()`: Discovers and stores sampled mirroring and truncation capabilities
-- Public interface methods: `isPortIngressMirrorSupported()`, `isPortEgressMirrorSupported()`, `isPortIngressSampleMirrorSupported()`, `isPortEgressSampleMirrorSupported()`, `isSamplepacketTruncationSupported()`
+- `querySwitchSamplePacketCapability()`: Discovers and stores sampled mirroring, truncation and SFLOW session type capabilities
+- Public interface methods: `isPortIngressMirrorSupported()`, `isPortEgressMirrorSupported()`, `isPortIngressSampleMirrorSupported()`, `isPortEgressSampleMirrorSupported()`, `isSamplepacketTruncationSupported()`, `isMirrorSessionSflowCapable()`
 
 #### MirrorOrch Enhancements
 - Capability validation in `setUnsetPortMirror()`
@@ -388,6 +451,9 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
 
         /** Enhanced Remote SPAN */
         SAI_MIRROR_SESSION_TYPE_ENHANCED_REMOTE,
+
+        /** sFlow */
+        SAI_MIRROR_SESSION_TYPE_SFLOW,
     } sai_mirror_session_type_t;
 
     /**
@@ -554,6 +620,10 @@ More details about the [Port SAI API](https://github.com/opencomputeproject/SAI/
  3. `sai_samplepacket_api->remove_samplepacket()` — Remove SamplePacket object
  4. `sai_mirror_api->remove_mirror_session()` — Remove mirror session
 
+**Create SFLOW mirror session:**
+
+`create_mirror_session()` uses `TYPE=SAI_MIRROR_SESSION_TYPE_SFLOW` in place of the GRE and ERSPAN attributes.
+
 **SAI Header References:**
 - saisamplepacket.h: https://github.com/opencomputeproject/SAI/blob/master/inc/saisamplepacket.h
 - saimirror.h: https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
@@ -626,6 +696,7 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
      |     +--rw direction?   enumeration
      |     +--rw sample_rate?   uint32
      |     +--rw truncate_size? uint32
+     |     +--rw udp_dst_port?  inet:port-number
      +--ro MIRROR_SESSION_TABLE
         +--ro MIRROR_SESSION_TABLE_LIST* [name]
            +--ro name            string
@@ -671,6 +742,22 @@ leaf truncate_size {
 }
 ```
 
+#### Updated YANG Model (SFLOW)
+
+- Add `SFLOW` to the `type` enumeration.
+- Change the `when` condition of `src_ip`, `dst_ip`, `dscp`, `ttl`, `queue`, `sample_rate` and `truncate_size` to `type = 'ERSPAN' or type = 'SFLOW'`.
+- Change `src_ip` and `dst_ip` to accept IPv6, with a `must` that both use the same IP version.
+- Add `udp_dst_port`:
+
+```yang
+leaf udp_dst_port {
+    when "current()/../type = 'SFLOW'";
+    type inet:port-number;
+    description
+        "UDP destination port of the sFlow datagram. Default 6343.";
+}
+```
+
 ### 3.6.2 Configuration Commands
 
 Existing mirror session commands are enhanced to support this feature.
@@ -711,6 +798,20 @@ Extend the existing config mirror_session erspan add command with two new option
         [--sample_rate <value>] [--truncate_size <value>]
 ```
 
+#### SFLOW Session
+
+A new `sflow` subcommand adds an SFLOW session.
+```
+    config mirror_session sflow add <session_name> \
+        <src_ip> <dst_ip> <dscp> <ttl> \
+        [queue] <src_port> [direction] \
+        [--policer <policer_name>] \
+        --sample_rate <value> [--truncate_size <value>] \
+        [--udp_dst_port <port>]
+```
+
+`config mirror_session remove <session_name>` removes an SFLOW session.
+
 ### 3.6.3 Show Commands
 
 The following show command display all the mirror sessions that are configured.
@@ -738,6 +839,18 @@ The show mirror_session output is extended with two new columns (`Sample Rate` a
     Name    Status    SRC IP      DST IP      GRE      DSCP    TTL  Queue    Policer    Monitor Port    SRC Port    Direction      Sample Rate    Truncate Size
     ------  --------  ----------  ----------  -----  ------  -----  -------  ---------  --------------  ----------  -----------  -------------  ---------------
     test1   error     10.0.1.192  10.0.1.193              8     64                                                                       50000              128
+```
+
+#### SFLOW Session
+
+SFLOW sessions show in their own table:
+
+```
+    admin@sonic:~$  show mirror_session
+    SFLOW Sessions
+    Name    Status    SRC IP      DST IP      UDP DST Port    DSCP    TTL    Queue    Policer    Monitor Port    SRC Port    Direction    Sample Rate    Truncate Size
+    ------  --------  ----------  ----------  --------------  ------  -----  -------  ---------  --------------  ----------  -----------  -------------  ---------------
+    sflow0  active    10.0.1.192  10.0.1.193  6343                 8     64                      Ethernet8       Ethernet0   rx                  50000              128
 ```
 
 ###  3.6.4 Clear Commands
@@ -1039,6 +1152,19 @@ The following test cases validate the mirror capability discovery and validation
 | 46 | Verify that mirrored packets are truncated to configured size |
 | 47 | Verify backward compatibility: mirror session without sample_rate works as full mirror |
 | 48 | Verify that a sampled mirror session is rejected when the platform does not support sampled mirroring or truncation |
+
+### 9.3.3 SFLOW Session Tests
+
+| S.No | Test Case Synopsis |
+|------|-------------------|
+| 49 | Verify that an SFLOW session can be created and removed (mirror session with TYPE=SFLOW, SamplePacket bound to the source ports) |
+| 50 | Verify that `udp_dst_port` defaults to 6343 and accepts a configured value |
+| 51 | Verify that an SFLOW session is rejected when `MIRROR_SESSION_SFLOW_CAPABLE` is false |
+| 52 | Verify that an SFLOW session is rejected without `src_ip`, `dst_ip`, `src_port` or `sample_rate` |
+| 53 | Verify that an SFLOW session is rejected when CPU-path sFlow already has the source port |
+| 54 | Verify that an SFLOW session with IPv6 `src_ip` and `dst_ip` can be created |
+| 55 | Verify that an SFLOW session with TX or BOTH direction is rejected when the egress sampled mirroring capability is false |
+| 56 | Verify that the collector receives sFlow datagrams at the expected 1:N sampling ratio (system test) |
 
 # Appendix A: Problem Statement
 
