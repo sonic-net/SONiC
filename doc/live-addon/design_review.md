@@ -150,30 +150,39 @@ Source selection, artifact production, and payload restrictions are defined in
 The framework implements those requirements rather than maintaining a second
 input contract.
 
-### 5.1 Source resolution and common build path
+### 5.1 Getting the integration files and building the image
 
-1. Read and validate the selected profile before running source-provided code.
-2. Resolve a repository-local source path without a Git checkout, or fetch the
-   external repository and record the concrete commit selected by its revision.
-3. Invoke the declared artifact preparation script, whether build or copy, in
-   the controlled environment described below, passing the framework's absolute
-   output directory.
-4. Validate the resulting bundle and declared runtime configuration.
-5. Prepare the approved image inputs and install the validated bundle through
-   the shared SONiC-owned Dockerfile.
+For each selected profile, the framework:
 
-Source acquisition is separate from artifact building. Private-source
-credentials remain in acquisition, outside the artifact build environment and
-final Docker context. After acquisition, local and external source use identical
-build prerequisites. Neither source tree is copied directly into the image.
+1. Reads and validates the profile before running any code from the selected
+   source directory.
+2. Uses the configured directory in `sonic-buildimage` without a separate Git
+   checkout, or fetches the external repository and records the exact Git commit
+   selected by `ref`.
+3. Runs the profile's artifact preparation script in the controlled environment
+   described in section 5.2. The script builds a bundle from source or copies a
+   prebuilt bundle. The framework passes an absolute path to its output directory.
+4. Validates the bundle and the declared runtime configuration.
+5. Prepares the approved files for the image build and uses the shared Dockerfile
+   maintained by SONiC to install the validated bundle.
 
-The artifact-build prerequisite recreates its isolated output directory before
-every invocation, then evaluates the artifact glob there. This prevents stale
-output from a previous build from being collected. Missing or invalid profiles
-and inputs fail explicitly rather than falling back to the example image.
+The framework gets the integration files before running the artifact preparation
+script. It uses credentials for private repositories only when fetching those
+files. These credentials are not available in the environment where the script
+runs or included in the files sent to Docker for the image build. The framework
+uses the same build steps and dependencies for local and external sources.
+It does not copy either source directory directly into the image.
 
-The default example uses the same path; see section 9.2. Source location does
-not select a different Dockerfile or runtime-generation mechanism.
+The framework creates a fresh, separate output directory before each run of the
+artifact preparation script. After the script finishes, the framework finds the
+bundle in that directory using the profile's `glob` file pattern. This prevents
+it from using files left over from a previous build. Missing or invalid profiles
+or inputs cause the build to fail with an explicit error; the framework does not
+use the example image instead.
+
+The default example follows these same steps; see section 9.2. The framework uses
+the same Dockerfile and generates the runtime configuration in the same way,
+regardless of where the integration files are stored.
 
 ### 5.2 Build script isolation
 
