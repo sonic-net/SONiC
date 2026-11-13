@@ -10,12 +10,11 @@ These requirements describe the proposed contract, not an implemented upstream
 feature. Paths and examples refer to the planned `sonic-buildimage` integration.
 
 The [framework and build design](./design_review.md) explains how SONiC builds,
-validates, packages, and runs these inputs. It is not a second definition of the
-vendor contract. Release and runtime deployment settings are outside the vendor
-profile.
+validates, packages, and runs these inputs. Release and runtime deployment
+settings are outside the vendor profile.
 
-The vendor may supply source or prebuilt binary artifacts with declarative
-integration inputs; proprietary program source is not required for binary-only
+The vendor may supply source or prebuilt binary artifacts, along with scripts
+and configuration files. Proprietary program source is not required for binary-only
 integrations. The vendor does not supply the production Dockerfile or a prebuilt
 production image. A vendor may maintain a Dockerfile for its own
 development and testing, but the SONiC build does not use it to define the final
@@ -123,10 +122,11 @@ repo=git@github.com:<vendor_name>/<vendor_name>-<platform>.git
 ref=202411.1.0.15
 ```
 
-`ref` is required. Source acquisition resolves and records the concrete commit
-before the artifact build. Private-source credentials belong only to source
-acquisition; they are not available to the artifact build or included in the
-final Docker context.
+`ref` is required. The framework records the exact Git commit before running
+the artifact preparation script. The framework uses private repository
+credentials only when fetching the integration files. These credentials are
+not available to the artifact preparation script or included in the final
+Docker context.
 
 The two forms are mutually exclusive. Both must satisfy the same artifact,
 Supervisor, health, and manifest contract. Repository-local source is not copied
@@ -154,7 +154,7 @@ The script must:
 - Produce exactly one declared artifact bundle in the supplied output directory.
 - Not build or publish a Docker image or require publishing credentials.
 - Not write outside its source and output directories.
-- Record sufficient artifact version information for traceability.
+- Record the bundle's version.
 
 `working-directory` is relative to the resolved source root; `build-script`
 selects the script invoked from that directory. The working directory and script
@@ -217,12 +217,11 @@ target image or be `all`.
 
 `Depends` entries must name concrete SONiC-approved packages. Alternative or
 virtual-package dependencies are not accepted initially. Dependencies must be
-available from the approved immutable repository snapshot and are locked to
-exact versions and architectures. Installation uses `--no-install-recommends`.
-A dependency transaction that removes, downgrades, replaces, or deconfigures an
-installed package, or changes a protected SONiC framework package, is rejected.
-Declaring a requirement does not authorize an arbitrary package source or
-unconstrained dependency resolution.
+available from the approved repository snapshot whose contents cannot change
+and are locked to exact versions and architectures. Installation uses
+`--no-install-recommends`. The framework rejects dependency installation if it
+removes, downgrades, replaces, or deconfigures an installed package, or changes
+a protected SONiC framework package.
 
 Every Debian payload destination must already be beneath `install-root`, even
 if a destination outside it is unowned. Installing a `.deb` does not relocate
@@ -292,8 +291,7 @@ addon programs, as in the default sample:
 conf-files =
 ```
 
-Health commands remain required. An empty list does not excuse a missing or
-invalid declared file.
+Health commands remain required. Every listed file must exist and be valid.
 
 Each fragment must satisfy these rules:
 
@@ -371,7 +369,7 @@ max-output-bytes=4096
 ```
 
 Checks run on demand, not through a periodic vendor monitor or a cached status
-file. Concurrent requests for one endpoint share one in-flight invocation;
+file. Requests to the same endpoint share a check while it is running;
 different check types may execute concurrently. The server does not maintain
 startup state or gate liveness and readiness execution. Kubernetes handles
 normal probe ordering, retries, and restart/readiness policy.
@@ -393,7 +391,7 @@ arbitrary Docker `LABEL` instruction:
 
 | Setting | Requirement |
 |---|---|
-| `package-name` | Valid, nonempty addon package identity; also the authoritative container name |
+| `package-name` | Valid, nonempty addon package identity; also the container name |
 | `package-version` | Explicit, nonempty overall addon release version |
 | `host-service` | Explicit Boolean |
 | `asic-service` | Explicit Boolean |
