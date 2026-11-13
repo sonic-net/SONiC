@@ -3,7 +3,7 @@
 This document describes the proposed SONiC-owned framework, image build, and
 runtime implementation in `sonic-buildimage`. The
 [vendor integration specification](./design_vendor_spec.md)
-is the authoritative definition of vendor inputs, options, and restrictions.
+defines how vendors integrate their software into the live-addon component.
 Release and rollout orchestration are outside the image build.
 
 | Revision | Date | Description |
@@ -44,9 +44,7 @@ image published by the SONiC build pipeline.
 
 ---
 
-## 2. Scope and Terminology
-
-### 2.1 Scope
+## 2. Scope
 
 This proposal covers image construction and runtime support for vendor- or
 platform-specific diagnostics: source acquisition, artifact validation and
@@ -75,18 +73,6 @@ does not imply uninterrupted execution or automatic resumption of an in-progress
 diagnostic session. Vendor restart-safety, session-continuity, and qualification
 requirements are defined in
 [vendor specification section 9](./design_vendor_spec.md#9-submission-and-qualification).
-
-### 2.2 Terminology
-
-| Term | Meaning |
-|---|---|
-| Live-addon | The proposed container framework for vendor- or platform-specific diagnostics |
-| Framework | SONiC-owned build, validation, installation, supervision, and health infrastructure |
-| Vendor | Provider of diagnostic source or prebuilt binaries and declarative integration inputs |
-| Platform profile | `platform/<vendor_name>-<platform>.ini` for a vendor, or `platform/example.ini` for the default example; selects one integration independently of SONiC's ASIC/build `PLATFORM` |
-| Artifact bundle | A source-built or prebuilt vendor package or archive, validated before installation |
-| Supervisor | Process supervisor that runs as container PID 1 and manages the declared programs |
-| SBOM | Software Bill of Materials identifying the image's installed software |
 
 ---
 
