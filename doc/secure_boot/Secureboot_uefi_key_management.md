@@ -17,6 +17,7 @@
 |  0.10 |   11/12/2026   | Sachin Naik | Platform UefiBackend is a custom path, not efivarfs |
 |  0.11 |   11/12/2026   | Sachin Naik | Ownership section: Secure Boot state transition diagram |
 |  0.12 |   11/12/2026   | Sachin Naik | Mermaid labels use br so GitHub wraps lines |
+|  0.13 |   11/12/2026   | Sachin Naik | Drop leftover efivarfs screenshot from SONIC implementation |
 
 
 <!-- omit in toc -->
@@ -756,8 +757,6 @@ Ex: UEFI key variables represented as sysfs file
 /sys/firmware/efi/efivars/db-d719b2cb-3d3a-4596-a3bc-dad00e67656f
 /sys/firmware/efi/efivars/dbx-d719b2cb-3d3a-4596-a3bc-dad00e67656f
 ```
-
-<img src="https://github.com/sacnaik/SONiC/assets/25231205/1566c4d1-098f-4bde-b830-289e793e168d" width="400" hight="400">
 
 On Linux/OVMF, efivarfs files are often `FS_IMMUTABLE`. `efi-updatevar` fails until the immutable bit is cleared. The CLI will clear it around the write when it can; otherwise it returns that error.
 
