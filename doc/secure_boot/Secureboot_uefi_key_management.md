@@ -13,6 +13,7 @@
 |  0.6  |   11/12/2026   | Sachin Naik | Secure Boot toggle: other UEFI may offer a non-auth switch; this HLD does not |
 |  0.7  |   11/12/2026   | Sachin Naik | SignatureOwner GUID is optional; efitools defaults to zeros |
 |  0.8  |   11/12/2026   | Sachin Naik | CLI: inspect/compare/health, append, keep unclaim separate from update pk |
+|  0.9  |   11/12/2026   | Sachin Naik | Replace UEFI class image with CLI plugin block diagram |
 
 
 <!-- omit in toc -->
@@ -674,9 +675,48 @@ The UEFI platform (OVMF reference; Cisco firmware that implements the same model
 - update / remove in User Mode: `efi-updatevar -f` with AUTH2 (replace the whole store)
 - unclaim: `efi-updatevar -f` of an empty-PK AUTH2 signed by the current PK ([Unclaim](#7-unclaim)). Separate from `update pk` (that stays in User Mode)
 
-The plugin is a thin wrapper (getVariable / setVariable). Today's backend is efitools + efivarfs, which is how Linux already talks to OVMF UEFI runtime services. AUTH2/ESL files are still built on the owner host with openssl and `sign-efi-sig-list`.
+The plugin is a thin wrapper (getVariable / setVariable). Today's backend is efitools + efivarfs, which is how Linux already talks to OVMF UEFI runtime services. AUTH2/ESL files are still built on the owner host with openssl and `sign-efi-sig-list`. Private keys never go on the DUT. A platform package may replace `EfitoolsBackend` with `sonic_platform.uefi.UefiBackend`; the CLI commands stay the same.
 
-![image](https://github.com/sacnaik/SONiC/assets/25231205/a42cd039-0675-4a71-84e0-bce00eb2ca9d)
+```mermaid
+flowchart TB
+  subgraph ownerHost ["1. Owner host — not SONiC"]
+    tools["openssl / cert-to-efi-sig-list / sign-efi-sig-list"]
+    payload[".esl and .auth files"]
+    tools --> payload
+  end
+
+  subgraph sonicCli ["2. SONiC CLI plugin"]
+    showCmd["show platform security uefi\nstatus variables inspect compare health"]
+    cfgCmd["config platform security uefi\nenroll append update unclaim"]
+    common["utilities_common.uefi"]
+    showCmd --> common
+    cfgCmd --> common
+    common --> pick{"get_backend"}
+    efitoolsBe["EfitoolsBackend\nLinux / OVMF default"]
+    platBe["sonic_platform.uefi.UefiBackend\noptional platform override"]
+    pick --> efitoolsBe
+    pick --> platBe
+  end
+
+  payload -.->|"copy public files only"| cfgCmd
+  payload -.->|"inspect / compare"| showCmd
+
+  subgraph osLayer ["3. Linux"]
+    efitoolsBin["efi-readvar / efi-updatevar"]
+    sysfs["efivarfs"]
+  end
+
+  efitoolsBe --> efitoolsBin
+  efitoolsBe --> sysfs
+  platBe --> osLayer
+
+  subgraph firmware ["4. UEFI firmware"]
+    vars["PK KEK db dbx\nSetupMode SecureBoot"]
+  end
+
+  efitoolsBin --> vars
+  sysfs --> vars
+```
 
 The Linux kernel provides efivarfs, which exposes EFI runtime variables as files. Mount it to access the variables:
 
