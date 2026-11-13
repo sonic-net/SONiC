@@ -15,6 +15,7 @@
 |  0.8  |   11/12/2026   | Sachin Naik | CLI: inspect/compare/health, append, keep unclaim separate from update pk |
 |  0.9  |   11/12/2026   | Sachin Naik | Replace UEFI class image with CLI plugin block diagram |
 |  0.10 |   11/12/2026   | Sachin Naik | Platform UefiBackend is a custom path, not efivarfs |
+|  0.11 |   11/12/2026   | Sachin Naik | Ownership section: Secure Boot state transition diagram |
 
 
 <!-- omit in toc -->
@@ -204,6 +205,25 @@ od -An -tu1 -j4 -N1 \
 ```
 
 ## 5 Ownership
+
+The platform ships from the **hardware vendor** in factory default. The **machine owner** takes it with **claim**, then does **regular key management** under that PK. **Unclaim** returns the machine toward factory default so a later owner can claim.
+
+```mermaid
+stateDiagram-v2
+  [*] --> factory: hardware vendor ships
+  factory: Factory default\nSetupMode=1  SecureBoot=0\nempty PK
+  claimed: Machine owner\nSetupMode=0  SecureBoot=1\nowner PK enrolled
+  keys: Regular key management\nUser Mode AUTH2\nappend / update / revoke
+  unclaimed: Unclaim\nSetupMode=1  SecureBoot=0\nPK cleared
+
+  factory --> claimed: claim
+  claimed --> keys: AUTH2
+  keys --> keys: still owned
+  keys --> unclaimed: unclaim
+  unclaimed --> claimed: next owner claim
+```
+
+`SecureBoot=1` after the reboot that follows claim. `SecureBoot=0` after the reboot that follows unclaim. There is no separate Secure Boot on/off ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
 
 ### 5.1 Ownership model
 The UEFI platform provides the variable store (OVMF as the open reference; Cisco platforms implement the same model). The platform owner owns the machine after claim.
