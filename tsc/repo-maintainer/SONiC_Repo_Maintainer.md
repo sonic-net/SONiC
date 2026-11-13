@@ -66,6 +66,7 @@
 |  | sonic-gnmi-maintainer | Dawei Huang (Microsoft) | hdwhdw | Self-nominated on 11/05/2026; pending approval |
 |  | sonic-gnmi-maintainer | Ronan Mac Fhlannchadha (Nexthop) | ronan-nexthop | Self-nominated on 11/12/2026; pending approval |
 | sonic-utilities | sonic-utilities-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
+|  | sonic-utilities-maintainer | Storm Liang (Microsoft) | StormLiangMS | Request on 09/29/2026 |
 | sonic-wpa-supplicant | sonic-wpa-supplicant-maintainer | Ze Gan (Microsoft) | Pterosaur | enabled |
 | sonic-buildimage | sonic-buildimage-maintainer | Guohan Lu (Microsoft) | lguohan | enabled |
 |  | sonic-buildimage-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
