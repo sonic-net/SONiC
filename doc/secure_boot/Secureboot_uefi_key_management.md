@@ -19,6 +19,7 @@
 |  0.12 |   11/12/2026   | Sachin Naik | Mermaid labels use br so GitHub wraps lines |
 |  0.13 |   11/12/2026   | Sachin Naik | Drop leftover efivarfs screenshot from SONIC implementation |
 |  0.14 |   11/12/2026   | Sachin Naik | efi-readvar uses -v VAR; a bare VAR argument is invalid |
+|  0.15 |   11/12/2026   | Sachin Naik | Time-based AUTH2 timestamp and replay of a used AUTH2 |
 
 
 <!-- omit in toc -->
@@ -31,6 +32,7 @@
   - [3.1 UEFI firmware](#31-uefi-firmware)
   - [3.2 UEFI keys](#32-uefi-keys)
   - [3.3 Authenticated variable](#33-authenticated-variable)
+    - [3.3.1 Time-based authentication](#331-time-based-authentication)
   - [3.4 UEFI modes and Secure Boot flag](#34-uefi-modes-and-secure-boot-flag)
   - [3.5 Secure Boot enable and disable](#35-secure-boot-enable-and-disable)
 - [4 Factory default state](#4-factory-default-state)
@@ -130,7 +132,7 @@ There are multiple keys involved in the UEFI secure boot implementations. The pl
 ### 3.3 Authenticated variable
 These are a special type of UEFI variable that supports cryptographic authentication and integrity verification. The authenticated variable enables a secure way of storing and accessing UEFI variables within the UEFI environment and ensures that the UEFI variable remains tamper-proof and authentic. Since authenticated variables are signed objects, the UEFI firmware can verify them before accessing or updating them.
 
-UEFI Secure Boot databases (PK, KEK, db, dbx) are time-based authenticated variables. An update is an AUTH2 object: a timestamp, a PKCS#7 signature, and the new signature list (ESL). Firmware verifies the signature against the currently enrolled trust source, then writes the ESL. In Setup Mode (no PK), firmware accepts **unsigned ESL** for **KEK, db, and dbx**. The **first PK** is a **self-signed AUTH2** (signed by the PK being enrolled); firmware verifies it against the certificate in that payload ([Factory default state](#4-factory-default-state) and [Ownership](#5-ownership)).
+UEFI Secure Boot databases (PK, KEK, db, dbx) are **time-based** authenticated variables (`EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS`). An update is an AUTH2 object (`EFI_VARIABLE_AUTHENTICATION_2`): an `EFI_TIME` timestamp, a PKCS#7 signature, and the new signature list (ESL). Firmware verifies the signature against the currently enrolled trust source, then writes the ESL. In Setup Mode (no PK), firmware accepts **unsigned ESL** for **KEK, db, and dbx**. The **first PK** is a **self-signed AUTH2** (signed by the PK being enrolled); firmware verifies it against the certificate in that payload ([Factory default state](#4-factory-default-state) and [Ownership](#5-ownership)).
 
 Once a PK is enrolled, the platform is in User Mode. From that point, **any** add, replace, remove, or revoke of PK, KEK, db, or dbx **must** be an AUTH2 authenticated variable. Firmware must reject unsigned ESL, raw certificates, and any payload that does not verify.
 
@@ -142,6 +144,29 @@ Once a PK is enrolled, the platform is in User Mode. From that point, **any** ad
 | dbx      | A currently enrolled KEK             |
 
 Private keys never go on the DUT. openssl / `sign-efi-sig-list` stay on the owner host. The switch only runs `efi-readvar` / `efi-updatevar` on the file the owner copies in.
+
+#### 3.3.1 Time-based authentication
+
+AUTH2 is the UEFI time-based method. This HLD does not use the older count-based descriptor (`EFI_VARIABLE_AUTHENTICATION` / `MonotonicCount`).
+
+`sign-efi-sig-list` writes GMT `EFI_TIME` (Pad1, Nanosecond, TimeZone, Daylight, and Pad2 are 0). The default is the signing-host clock. Pass `-t` only when that clock is not later than the last **replace** timestamp already stored for that variable.
+
+The PKCS#7 covers the variable name, VendorGuid, attributes, **TimeStamp**, and ESL. An attacker who copies an AUTH2 file cannot bump the timestamp, change append vs replace, or retarget PK/KEK/db/dbx without the private key. The signature would fail.
+
+Firmware also stores the last `EFI_TIME` **per variable** (PK, KEK, db, and dbx are independent). On `SetVariable` of a signed AUTH2:
+
+| Write | TimeStamp check (UEFI) | Stored TimeStamp after success |
+| ----- | ---------------------- | ------------------------------ |
+| **Update** (replace; no `APPEND_WRITE`) | New TimeStamp **must be later** than the value stored for that variable. Equal or older is `EFI_SECURITY_VIOLATION`. | Becomes the AUTH2 TimeStamp. |
+| **Append** (`APPEND_WRITE`) | TimeStamp is **not** required to be later. The same append AUTH2 can be applied again (duplicate ESL entries). PKCS#7 still must verify. | Raised only if the AUTH2 TimeStamp is later than the stored one. |
+
+That is how reuse of a **replace** AUTH2 is blocked. After a successful update, the stored TimeStamp moves forward. Presenting the same file again, or an older replace AUTH2 captured from disk or the network, fails the TimeStamp check even though the PKCS#7 is still valid. That prevents rolling db back to a previous signer list, replaying an old PK rotation, or replaying an already-used empty-PK unclaim AUTH2 after a later PK write.
+
+Time-based AUTH does **not** consume an AUTH2 that was signed but never applied, as long as no later **replace** of that same variable has committed a newer TimeStamp. It does not stop replay of an **append** AUTH2. It does not stop the same replace AUTH2 on another machine that has the same PK/KEK and an older stored TimeStamp.
+
+Setup Mode unsigned ESL (`efi-updatevar -e`) is not a signed AUTH2: there is no PKCS#7 and no TimeStamp check. The first PK is a self-signed AUTH2; there is no previous PK TimeStamp to compare, so the claim file is accepted once the self-signature verifies.
+
+`inspect` prints the AUTH2 `EFI_TIME`. If an update is rejected with timestamp-not-newer, rebuild the AUTH2 on the owner host (`sign-efi-sig-list` again, or `-t` with a later GMT time). Do not edit the timestamp bytes in the `.auth` file.
 
 ### 3.4 UEFI modes and Secure Boot flag
 UEFI reports two global variables. They are not the same object: `SetupMode` is whether a Platform Key is enrolled; `SecureBoot` is whether firmware is currently verifying boot images. This HLD does **not** treat `SecureBoot` as a separate operator switch. Enable and disable follow claim and unclaim ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
@@ -348,7 +373,7 @@ This section is **after ownership claim** (User Mode, `SetupMode=0`). Setup Mode
 | db       | An enrolled KEK | `EFI_IMAGE_SECURITY_DATABASE` `d719b2cb-3d3a-4596-a3bc-dad00e67656f` | Add/rotate boot signers |
 | dbx      | An enrolled KEK | same `EFI_IMAGE_SECURITY_DATABASE`  | Blacklist a signer or image |
 
-AUTH2 `EFI_TIME` must be later than the last successful write of that variable.
+For an **update** AUTH2, `EFI_TIME` must be later than the last successful **replace** of that variable. Append AUTH2 is not replay-protected by TimeStamp ([Time-based authentication](#331-time-based-authentication)).
 
 ### 6.1 AUTH2 write models
 
@@ -395,7 +420,7 @@ VENDOR_GUID_IMAGE=d719b2cb-3d3a-4596-a3bc-dad00e67656f
 Update AUTH2 (no `-a`) signed by the **currently enrolled** PK or KEK:
 
 ```bash
-# PK  (signed by current PK)
+# PK  (signed by current PK). GMT TimeStamp is "now" unless -t is passed.
 cert-to-efi-sig-list -g "$SIGNATURE_OWNER" PK.crt PK.esl
 sign-efi-sig-list -g "$VENDOR_GUID_GLOBAL" -k PK.key -c PK.crt PK PK.esl PK.auth
 
@@ -818,3 +843,4 @@ The sonic-mgmt can cover UEFI key management including at least:
 8. Transfer: owner B claims with B's keys after A's unclaim; B's db is enrolled before B's PK ([Transfer to another owner](#73-transfer-to-another-owner)).
 9. No independent Secure Boot toggle: there is no `secureboot enable` / `disable` CLI. `SecureBoot` becomes `1` only after claim plus reboot, and `0` only after unclaim plus reboot ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
 10. `unclaim` is not `update pk` with a new certificate. `inspect` of `PK.empty.auth` shows an empty ESL. `compare` / `health` do not apply files.
+11. Time-based AUTH2: applying the same **update** AUTH2 twice is rejected (TimeStamp not later). An older replace AUTH2 cannot roll the variable back. The same **append** AUTH2 may apply again ([Time-based authentication](#331-time-based-authentication)).
