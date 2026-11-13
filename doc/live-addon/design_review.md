@@ -159,9 +159,9 @@ For each selected profile, the framework:
 2. Uses the configured directory in `sonic-buildimage` without a separate Git
    checkout, or fetches the external repository and records the exact Git commit
    selected by `ref`.
-3. Runs the profile's artifact preparation script in the controlled environment
-   described in section 5.2. The script builds a bundle from source or copies a
-   prebuilt bundle. The framework passes an absolute path to its output directory.
+3. Runs the profile's artifact preparation script in the controlled build
+   environment. The script builds a bundle from source or copies a prebuilt
+   bundle. The framework passes an absolute path to its output directory.
 4. Validates the bundle and the declared runtime configuration.
 5. Prepares the approved files for the image build and uses the shared Dockerfile
    maintained by SONiC to install the validated bundle.
@@ -184,15 +184,7 @@ The default example follows these same steps; see section 9.2. The framework use
 the same Dockerfile and generates the runtime configuration in the same way,
 regardless of where the integration files are stored.
 
-### 5.2 Build script isolation
-
-The artifact build script must use documented, version-pinned build dependencies
-and produce the declared artifact in the framework-provided output directory.
-Network access may be used for documented dependency downloads. The script must
-not modify unrelated CI resources, access unrelated credentials, or require
-host-control privileges.
-
-### 5.3 Validation and layer-safe installation
+### 5.2 Validation and layer-safe installation
 
 The framework checks the vendor bundle's format, files, package metadata, and
 required dependencies against the rules in
