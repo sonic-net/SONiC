@@ -294,6 +294,8 @@ There are no changes to any CLI/YANG model or Config DB enhancements.
 ## 7 Warmboot and Fastboot Design Impact
 There is no impact to Warmboot and Fastboot design. This feature is invoked as part of exisiting CMIS manager flow only
 
+Module precoding (section 4, step 9): the DP_PRE_INIT_CHECK mismatch check is skipped during warm and fast reboot; the other checks are unchanged. After a fast reboot optics_si_settings.json is not loaded, so a module inserted or reset in that period keeps its default precoding until xcvrd restarts.
+
 ## 8 Restrictions or Limitations
 If transceiver is not present:
  - All the workflows mentioned above will not invoke
