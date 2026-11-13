@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="416" viewBox="0 0 520 416">
+<rect width="520" height="416" fill="#ffffff"/>
+<text x="260.0" y="20" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="bold">RSTP Configuration BPDU</text>
+<rect x="24.0" y="36.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="54.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Protocol Identifier</text>
+<text x="398.0" y="54.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 1-2</text>
+<rect x="24.0" y="64.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="82.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Protocol Version Identifier</text>
+<text x="398.0" y="82.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octet 3</text>
+<rect x="24.0" y="92.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="110.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">BPDU Type</text>
+<text x="398.0" y="110.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octet 4</text>
+<rect x="24.0" y="120.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="138.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Flags</text>
+<text x="398.0" y="138.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octet 5</text>
+<rect x="24.0" y="148.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="166.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Root Identifier</text>
+<text x="398.0" y="166.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 6-13</text>
+<rect x="24.0" y="176.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="194.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Root Path Cost</text>
+<text x="398.0" y="194.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 14-17</text>
+<rect x="24.0" y="204.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="222.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Bridge Identifier</text>
+<text x="398.0" y="222.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 18-25</text>
+<rect x="24.0" y="232.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="250.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Port Identifier</text>
+<text x="398.0" y="250.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 26-27</text>
+<rect x="24.0" y="260.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="278.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Message Age</text>
+<text x="398.0" y="278.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 28-29</text>
+<rect x="24.0" y="288.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="306.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Max Age</text>
+<text x="398.0" y="306.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 30-31</text>
+<rect x="24.0" y="316.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="334.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Hello Time</text>
+<text x="398.0" y="334.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 32-33</text>
+<rect x="24.0" y="344.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="362.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Forward Delay</text>
+<text x="398.0" y="362.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octets 34-35</text>
+<rect x="24.0" y="372.0" width="362.0" height="26.0" fill="#ffffff" stroke="#333" stroke-width="1"/>
+<text x="205.0" y="390.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12">Version 1 Length = 0</text>
+<text x="398.0" y="390.0" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#333">Octet 36</text>
+</svg>
