@@ -16,6 +16,7 @@
 |  0.9  |   11/12/2026   | Sachin Naik | Replace UEFI class image with CLI plugin block diagram |
 |  0.10 |   11/12/2026   | Sachin Naik | Platform UefiBackend is a custom path, not efivarfs |
 |  0.11 |   11/12/2026   | Sachin Naik | Ownership section: Secure Boot state transition diagram |
+|  0.12 |   11/12/2026   | Sachin Naik | Mermaid labels use br so GitHub wraps lines |
 
 
 <!-- omit in toc -->
@@ -209,18 +210,17 @@ od -An -tu1 -j4 -N1 \
 The platform ships from the **hardware vendor** in factory default. The **machine owner** takes it with **claim**, then does **regular key management** under that PK. **Unclaim** returns the machine toward factory default so a later owner can claim.
 
 ```mermaid
-stateDiagram-v2
-  [*] --> factory: hardware vendor ships
-  factory: Factory default\nSetupMode=1  SecureBoot=0\nempty PK
-  claimed: Machine owner\nSetupMode=0  SecureBoot=1\nowner PK enrolled
-  keys: Regular key management\nUser Mode AUTH2\nappend / update / revoke
-  unclaimed: Unclaim\nSetupMode=1  SecureBoot=0\nPK cleared
+flowchart LR
+  factory["Factory default<br/>SetupMode=1 SecureBoot=0<br/>empty PK"]
+  claimed["Machine owner<br/>SetupMode=0 SecureBoot=1<br/>owner PK enrolled"]
+  keys["Regular key management<br/>User Mode AUTH2<br/>append / update / revoke"]
+  unclaimed["Unclaim<br/>SetupMode=1 SecureBoot=0<br/>PK cleared"]
 
-  factory --> claimed: claim
-  claimed --> keys: AUTH2
-  keys --> keys: still owned
-  keys --> unclaimed: unclaim
-  unclaimed --> claimed: next owner claim
+  factory -->|claim| claimed
+  claimed -->|AUTH2| keys
+  keys -->|still owned| keys
+  keys -->|unclaim| unclaimed
+  unclaimed -->|next owner claim| claimed
 ```
 
 `SecureBoot=1` after the reboot that follows claim. `SecureBoot=0` after the reboot that follows unclaim. There is no separate Secure Boot on/off ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
@@ -707,14 +707,14 @@ flowchart TB
   end
 
   subgraph sonicCli ["2. SONiC CLI plugin"]
-    showCmd["show platform security uefi\nstatus variables inspect compare health"]
-    cfgCmd["config platform security uefi\nenroll append update unclaim"]
+    showCmd["show platform security uefi<br/>status variables inspect compare health"]
+    cfgCmd["config platform security uefi<br/>enroll append update unclaim"]
     common["utilities_common.uefi"]
     showCmd --> common
     cfgCmd --> common
     common --> pick{"get_backend"}
-    efitoolsBe["EfitoolsBackend\nLinux / OVMF default"]
-    platBe["sonic_platform.uefi.UefiBackend\noptional platform override"]
+    efitoolsBe["EfitoolsBackend<br/>Linux / OVMF default"]
+    platBe["sonic_platform.uefi.UefiBackend<br/>optional platform override"]
     pick --> efitoolsBe
     pick --> platBe
   end
@@ -728,7 +728,7 @@ flowchart TB
   end
 
   subgraph platPath ["3b. Optional platform path"]
-    custom["vendor GetVariable / SetVariable\ncustom implementation"]
+    custom["vendor GetVariable / SetVariable<br/>custom implementation"]
   end
 
   efitoolsBe --> efitoolsBin
@@ -736,7 +736,7 @@ flowchart TB
   platBe --> custom
 
   subgraph firmware ["4. UEFI firmware"]
-    vars["PK KEK db dbx\nSetupMode SecureBoot"]
+    vars["PK KEK db dbx<br/>SetupMode SecureBoot"]
   end
 
   efitoolsBin --> vars
