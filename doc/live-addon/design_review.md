@@ -696,9 +696,9 @@ Its Docker image is named `docker-live-addon`, and its saved archive is
 
 The build owner controls vendor builds through the Make setting
 `LIVE_ADDON_VENDOR_PLATFORMS`, a space-separated list of profile names.
-Define its empty default in `rules/config`. The build owner sets the list in
-`rules/config.user`; leaving it empty builds no vendor images. Add a name to enable that
-vendor's build; remove it to disable the build. Merely adding a vendor INI file
+Define this setting in `rules/config` with an empty default. The build owner
+sets the list in that file; leaving it empty builds no vendor images. Add a name
+to enable that vendor's build; remove it to disable the build. Merely adding a vendor INI file
 to the branch does not enable it. This setting does not change SONiC's
 ASIC/build `PLATFORM`, and it does not disable the default example.
 
@@ -734,10 +734,6 @@ exercise startup, liveness, and readiness endpoints, including successful and
 failed checks, command timeouts, and concurrent requests sharing one check.
 This provides a common test of the health server independent of vendor programs.
 
-Vendor build prerequisites are activated only for enabled profiles; private
-integrations cannot become prerequisites of the default example build. Building
-any of these images does not include it in the installer or deploy it.
-
 ### 9.3 Dependency and cache handling
 
 ```text
@@ -762,211 +758,9 @@ injects hooks in place, builds Dockerfile and saves the image
 Separate image archive + version records + final SBOM for each profile
 ```
 
-Declare configuration, source revision, artifact build inputs, validators,
-framework files, snapshot sources and locks as dependencies and cache inputs.
-Prebuilt bundle content digests are cache inputs too: changing a binary bundle
-must invalidate artifact and image outputs even if its path and profile are
-unchanged.
-Changing a profile or its inputs must invalidate its output archive and image
-cache. Isolate staged inputs by profile, release and architecture, and prevent
-concurrent builds from modifying the same context. A missing generated output
-must be rebuilt; a stale stamp or `live-addon.vars` must not hide missing files
-or retain another vendor's data.
-Generate included Make metadata through a declared makefile-remaking rule
-before its values are consumed, with correctly escaped, validated data.
-
-Approved SONiC-built OS packages may use the regular image dependency
-variables. Vendor bundles must still pass the validation and restricted
-installation flow in section 5.3, enforcing
-[vendor specification section 5](./design_vendor_spec.md#5-artifact-payload-and-dependency-restrictions);
-do not pass them to an unrestricted generic package-install macro merely
-because they are Debian packages.
-
-### 9.4 Base image, version controls and SBOM
-
-SONiC maintainers select a Debian base image by approved digest; using SONiC's
-build machinery does not require inheriting from `docker-base-bookworm` or
-another larger SONiC runtime image. The prepared Dockerfile must copy the
-approved snapshot-source configuration before its first `RUN`, so the injected
-hooks have usable sources. Live-addon must prepare these sources explicitly
-rather than rely on automatic source generation for other SONiC image names.
-
-Enable SONiC version controls with `SONIC_VERSION_CONTROL_COMPONENTS=all` and
-`MIRROR_SNAPSHOT=y`, using reviewed snapshot timestamps and image-specific
-locks under `files/build/versions/dockers/docker-live-addon/`. Select the lock
-set for the profile (including `example`), Debian release, and architecture, and
-keep prepared inputs separate between builds. Missing approved digests,
-snapshots, or required locks must fail the build; warnings or unconstrained
-fallback resolution do not satisfy this contract.
-
-Enable shared SBOM collection with `ENABLE_SBOM=y` and explicitly generate and
-verify the final SBOM for the published live-addon image, including vendor
-payloads and dependencies. Enabling collection alone is not sufficient.
-Shared hooks do not replace section 5.3's validation against the vendor
-specification; their package operations and cleanup must also preserve the
-validated package set and layer-content requirements.
-
-The shared template installs the validated bundle for every profile, including
-the example. Fragment-copy steps run only when fragments are declared. The
-generated Dockerfile should:
-
-1. Start from a SONiC-approved, digest-pinned Debian base image.
-2. Install SONiC-approved OS dependencies from the selected snapshot at
-   their locked versions.
-3. Mount the validated bundle read-only for the installation `RUN`
-   instruction using BuildKit.
-4. Run the framework-generated package installation or archive extraction
-   without copying the bundle into an image layer.
-5. Remove package-manager caches and temporary installation output in the same
-   `RUN` instruction.
-6. Copy each declared vendor Supervisor fragment to
-   `/etc/supervisor/conf.d/<basename>`.
-7. Install the generic on-demand health server.
-8. Add required SONiC image labels, leaving `com.azure.sonic.manifest`
-   to the shared recipe as described in section 8.
-9. Copy the repository-owned framework `supervisord.conf` to
-   `/etc/supervisor/supervisord.conf`.
-10. Use the fixed SONiC-owned foreground entrypoint.
-
 ---
 
-## 10. Future Enhancements
-
-### 10.1 Cgroup-based vendor process containment
-
-The initial health server terminates a timed-out command by signalling its
-process group. A descendant that deliberately creates a new session or process
-group can escape that cleanup and remain running after the check completes.
-
-A future implementation may execute each vendor health command in a dedicated
-Linux cgroup. This would allow the framework to terminate all processes from
-one invocation regardless of process-group changes and, where appropriate,
-apply limits for process count, CPU, and memory. This enhancement requires a
-safely delegated cgroup hierarchy and coordination with Kubernetes and the
-container runtime, so it is independent of single-flight request coalescing
-and is not required for the initial health-server implementation.
-
-The initial process-group cleanup relies on the foreground/no-detached-process
-restriction in [vendor specification section 7](./design_vendor_spec.md#7-health-commands).
-
----
-
-## 11. Framework Validation and Acceptance Criteria
-
-The implementation must satisfy the following acceptance criteria:
-
-The example and vendor profiles share the artifact and health contract;
-addon-program lifecycle criteria apply to declared addon programs.
-Contract validation tests use the [vendor specification](./design_vendor_spec.md)
-as their source of expected acceptance and rejection rules.
-
-1. Vendor profiles use `platform/<vendor_name>-<platform>.ini`;
-   `platform/example.ini` selects the checked-in default through `[source] path`.
-2. Repository-local and external source use the same build path after source
-   resolution.
-3. Every profile uses the same framework-owned Dockerfile and runtime
-   configuration generation.
-4. Every live-addon image is built from a SONiC-owned Dockerfile.
-5. The vendor Dockerfile is not used by the production pipeline.
-6. The repository-owned framework `supervisord.conf` is installed as
-   `/etc/supervisor/supervisord.conf` and enables foreground operation,
-   container-stream logging without rotation, the local Supervisor control
-   socket, and inclusion of `/etc/supervisor/conf.d/*.conf`.
-7. The image entrypoint explicitly starts that main configuration with
-   Supervisor foreground mode enabled, leaving Supervisor as container PID 1.
-8. Every declared vendor fragment is copied to
-   `/etc/supervisor/conf.d/<basename>`, and no undeclared vendor fragment is
-   copied.
-9. Fragment validation rejects inputs that violate
-   [vendor specification section 6](./design_vendor_spec.md#6-supervisor-program-fragments).
-10. Selected vendor binaries start successfully under Supervisor.
-11. `SIGTERM` reaches the process group and shutdown completes within the
-   Kubernetes grace period.
-12. For a selected vendor, the startup endpoint returns failure until vendor
-    initialization completes.
-13. Successful startup, liveness, and readiness commands produce HTTP 200 on
-    their corresponding endpoints.
-14. Concurrent requests for the same endpoint start one vendor command and
-    receive its shared result. Non-zero exit, timeout, spawn failure, or
-    internal execution error produces HTTP 503 for all requests sharing that
-    invocation.
-15. Kubernetes startup and liveness probe failures cause the expected restart
-    behavior.
-16. Every image build records the selected profile, framework revision,
-    resolved external commit or local parent repository commit, artifact
-    format, artifact digest, and version.
-17. The published image has a generated and verified SBOM covering
-    installed payloads and dependencies, together with the expected image labels.
-    Its `com.azure.sonic.manifest` value matches the validated `[manifest]`
-    configuration, and `package.name` matches the container name in
-    `live-addon.vars`. The inspected `package.version` matches the declared
-    `package-version`.
-18. Artifact preparation, including copy-only scripts, follows the invocation
-    and isolation contract in
-    [vendor specification section 4](./design_vendor_spec.md#4-artifact-build-script)
-    and fail explicitly on errors.
-19. Artifact collection rejects missing or ambiguous output from the newly
-    created output directory.
-20. Artifact validation rejects bundles that violate
-    [vendor specification section 5](./design_vendor_spec.md#5-artifact-payload-and-dependency-restrictions).
-21. Missing or invalid declarative installation metadata fails before installation.
-22. The generated Dockerfile does not use `COPY` or `ADD` for the vendor
-    artifact; installation uses a BuildKit read-only bind mount.
-23. The artifact bundle, package-manager caches, and temporary installation
-    output are absent from the final image and its committed layers.
-24. The health server listens only on `127.0.0.1:50200`, the deployment uses
-    `hostNetwork: true`, and every Kubernetes HTTP probe explicitly targets
-    that loopback address and port.
-25. Payload validation enforces
-    [vendor specification section 5](./design_vendor_spec.md#5-artifact-payload-and-dependency-restrictions)
-    for every format, including unowned destinations and link escapes. Debian
-    simulation and installation use the same locked dependency set and reject
-    transactions forbidden by the restricted Debian profile.
-26. The image uses SONiC's regular-image recipe with shared build hooks enabled,
-    not `# SKIP_HOOK`. The build verifies and records the approved base digest,
-    snapshot selection, and profile/release/architecture lock set; missing or
-    mismatched inputs fail the build.
-27. The default build produces the example and public CI runs its Linux
-    `sonic-mgmt` system tests, following section 9.2. The example is not
-    automatically included in the installer, enabled, or deployed.
-28. Vendor build controls produce a separate image, archive, and matching
-    manifest for every enabled profile, as defined in section 9.2. Disabled
-    profiles do not activate vendor prerequisites. Invalid selections fail;
-    generated inputs and caches do not leak between profiles.
-29. A binary-only integration produces a validated image from a prebuilt bundle
-    and copy script without requiring proprietary program source. Replacing
-    that bundle invalidates the artifact and image caches.
-30. With an enabled deployment, cold/warm reboot and relevant service-restart
-    qualification verifies diagnostic recovery and readiness, preserved forwarding
-    during warm recovery, and any declared session-continuity behavior, following
-    [vendor specification section 9](./design_vendor_spec.md#9-submission-and-qualification).
-
----
-
-## 12. Recommendation
-
-Adopt the vendor artifact build and installation contract managed by the SONiC
-build framework as the target architecture. The SONiC community should own the
-complete production Dockerfile, fixed Supervisor entrypoint, generic health
-implementation, and Kubernetes probe behavior.
-
-Use a regular SONiC image recipe with Make-owned prerequisites, a checked-in
-example built through the local source path by default, and opt-in vendor
-contributions through upstream PRs. Keep focused validation helpers, not a
-separate build orchestrator.
-
-Keep the [vendor integration specification](./design_vendor_spec.md) as the
-single definition of vendor deliverables and restrictions; this document
-defines how the framework enforces and implements that contract.
-
-This is a small and explicit integration contract. It avoids requiring
-SONiC maintainers to know the vendor's internal startup sequence while ensuring
-that the SONiC build and deployment framework remains in control of the image
-it builds, signs, publishes, and deploys.
-
----
-
-## 13. References
+## 10. References
 
 - [Live-Addon Vendor Integration Specification](./design_vendor_spec.md)
 - [SONiC buildimage repository](https://github.com/sonic-net/sonic-buildimage):
