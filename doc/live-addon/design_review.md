@@ -14,25 +14,24 @@ Release and rollout orchestration are outside the image build.
 
 Live-addon is a proposed container framework for running vendor- or
 platform-specific diagnostic programs on SONiC switches. It provides a consistent
-way to build, validate, package, supervise, and health-check those programs while
-keeping the production image and runtime policy under SONiC community ownership.
+way to build, validate, package, supervise, and health-check those programs.
 
 The framework separates diagnostic functionality from container infrastructure.
 Vendors define their diagnostic programs and semantic health checks; the SONiC
 live-addon design defines how those inputs are incorporated into an image and
 managed at runtime. The proposed model is:
 
-- The SONiC community owns the final Dockerfile and image policy.
+- The framework supplies the final Dockerfile and defines the image policy.
 - The vendor supplies source code or prebuilt binary artifacts, a deterministic
   script to build or copy the artifact, and declarative installation metadata.
   Binary-only integrations do not require disclosure of proprietary source code.
 - The vendor supplies an explicit set of platform-specific Supervisor program
   fragments.
-- The SONiC framework supplies the main Supervisor configuration and fixed
+- The framework supplies the main Supervisor configuration and fixed
   entrypoint.
 - The vendor supplies startup, liveness, and readiness health commands. A
   vendor may use the same executable for all three checks.
-- The SONiC framework supplies the on-demand HTTP health server and Kubernetes
+- The framework supplies the on-demand HTTP health server and Kubernetes
   probe integration.
 - SONiC builds a checked-in example by default, without external vendor inputs.
   Build owners can enable vendor profiles to produce additional, separate
@@ -80,7 +79,7 @@ requirements are defined in
 
 The proposed integration should:
 
-1. Keep the final production Dockerfile under SONiC community control.
+1. Use the framework's Dockerfile for the production image.
 2. Keep vendor integration simple.
 3. Allow the vendor to control how its binaries are started without allowing
    it to replace the container's main Supervisor configuration.
@@ -120,7 +119,7 @@ scope of this document.
 | Feature Manager manifest | Defines schema, validates, and generates label | Declares platform values |
 
 This boundary lets the vendor retain control over its executable lifecycle
-while the SONiC framework retains control over the container lifecycle.
+while the framework retains control over the container lifecycle.
 The vendor-facing deliverables are defined in
 [vendor specification section 2](./design_vendor_spec.md#2-integration-inputs-and-platform-configuration).
 
@@ -164,7 +163,7 @@ For each selected profile, the framework:
    bundle. The framework passes an absolute path to its output directory.
 4. Validates the bundle and the declared runtime configuration.
 5. Prepares the approved files for the image build and uses the shared Dockerfile
-   maintained by SONiC to install the validated bundle.
+   to install the validated bundle.
 
 The framework gets the integration files before running the artifact preparation
 script. It uses credentials for private repositories only when fetching those
@@ -197,7 +196,7 @@ Before building the image, the framework can check the package metadata and
 files without installing the package or running vendor code. For Debian
 packages, some checks also need to know which packages are already installed
 and what the package manager would change. The framework runs these checks in
-a SONiC-controlled build stage that uses the approved base image:
+a framework-controlled build stage that uses the approved base image:
 
 1. Identify all required packages, including their dependencies, using the
    approved repository snapshot whose contents cannot change.
@@ -257,8 +256,7 @@ artifact build, or installation stops the build.
 
 ### 6.1 Main configuration ownership
 
-The SONiC community should maintain the main Supervisor configuration as a
-framework file in the source repository:
+Keep the main Supervisor configuration in the source repository:
 
 ```text
 dockers/docker-live-addon/framework/supervisord.conf
@@ -272,7 +270,7 @@ The generated Dockerfile copies that file to:
 
 The framework must not depend on the distribution package's default
 configuration because its daemon and logging defaults are not the live-addon
-container contract. The SONiC-owned configuration should contain:
+container contract. The main configuration should contain:
 
 ```ini
 [unix_http_server]
@@ -309,7 +307,7 @@ With `nodaemon=true`, Supervisor already writes its activity log to stdout.
 and `logfile_maxbytes=0` disables rotation. Vendor program logging follows
 [vendor specification section 6](./design_vendor_spec.md#6-supervisor-program-fragments).
 
-The production image should always use the fixed SONiC-owned entrypoint:
+The production image should always use the fixed entrypoint:
 
 ```dockerfile
 ENTRYPOINT ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
@@ -350,8 +348,8 @@ This provides a stable platform boundary:
 
 ```text
 Kubernetes
-    -> SONiC-owned ENTRYPOINT
-        -> SONiC-owned main supervisord.conf
+    -> fixed ENTRYPOINT
+        -> main supervisord.conf
             -> validated vendor <vendor_name>-<platform>-*.conf fragments
                 -> vendor binaries
 ```
@@ -379,7 +377,7 @@ and saved results that could be out of date.
 
 ### 7.3 On-demand health architecture
 
-The SONiC framework should provide one common process:
+The framework should provide one common process:
 
 | Component | File | Responsibility |
 |---|---|---|
@@ -509,7 +507,7 @@ does not control the order in which other containers start.
 
 ### 7.7 Supervisor integration
 
-The SONiC framework should add only the generic health server independently of
+The framework should add only the generic health server independently of
 the vendor fragments:
 
 ```ini
@@ -560,7 +558,7 @@ these Make settings, including the package name, release version, `after`
 service list and container privilege requirement.
 
 For the two service flags, the proposed framework supplies
-`dockers/docker-live-addon/manifest.part.json.j2`. This is a SONiC-owned
+`dockers/docker-live-addon/manifest.part.json.j2`. This is a
 Jinja template; `.j2` identifies the template format. "Part" means it produces
 only part of the final manifest, not a second complete manifest. The framework
 passes the validated `host-service` and `asic-service` values from the INI
@@ -637,7 +635,7 @@ in the manifest.
 
 Add `rules/docker-live-addon.mk` to register the example and enabled vendor images
 in `SONIC_DOCKER_IMAGES` and the supported builder-release list, such as
-`SONIC_BOOKWORM_DOCKERS`. Use the SONiC-owned
+`SONIC_BOOKWORM_DOCKERS`. Use
 `dockers/docker-live-addon/Dockerfile.j2` with the existing image build recipe
 in `slave.mk`.
 
