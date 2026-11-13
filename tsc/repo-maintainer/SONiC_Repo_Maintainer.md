@@ -74,6 +74,7 @@
 |  | sonic-buildimage-maintainer | Yilan Ji (Google) | baxia-lan | enabled |
 |  | sonic-buildimage-maintainer | Praveen Elagala (BRCM) | Praveen-Brcm | Approved on 5/3/2023 and enabled |
 |  | sonic-buildimage-maintainer | Prasanth Veettil (BRCM) | Prasanth-KV | Approved on 5/3/2023 and enabled |
+|  | sonic-buildimage-maintainer | Sudharsan Dhamal Gopalarathnam (Nvidia) | dgsudharsan | Request on 08/25/2026 |
 |  | sonic-buildimage-maintainer | Anand Mehra (Cisco) | anamehra | Requested on 09/28/2026 |
 |  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
 |  | sonic-buildimage-maintainer | Rita Hui (Microsoft) | rlhui | enabled |
