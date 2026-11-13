@@ -20,6 +20,7 @@
 |  0.13 |   11/12/2026   | Sachin Naik | Drop leftover efivarfs screenshot from SONIC implementation |
 |  0.14 |   11/12/2026   | Sachin Naik | efi-readvar uses -v VAR; a bare VAR argument is invalid |
 |  0.15 |   11/12/2026   | Sachin Naik | Time-based AUTH2 timestamp and replay of a used AUTH2 |
+|  0.16 |   11/12/2026   | Sachin Naik | Recovery when unclaim cannot run: local/serial, vendor-defined |
 
 
 <!-- omit in toc -->
@@ -54,9 +55,12 @@
   - [7.1 Clear PK (return to Setup Mode)](#71-clear-pk-return-to-setup-mode)
   - [7.2 Factory reset](#72-factory-reset)
   - [7.3 Transfer to another owner](#73-transfer-to-another-owner)
-- [8 SONIC implementation](#8-sonic-implementation)
-- [9 SONiC CLI commands](#9-sonic-cli-commands)
-- [10 Test considerations](#10-test-considerations)
+- [8 Recovery](#8-recovery)
+  - [8.1 Access constraint](#81-access-constraint)
+  - [8.2 Suggested mechanism](#82-suggested-mechanism)
+- [9 SONIC implementation](#9-sonic-implementation)
+- [10 SONiC CLI commands](#10-sonic-cli-commands)
+- [11 Test considerations](#11-test-considerations)
 
 
 ## Abbreviation
@@ -91,7 +95,7 @@ The **main intent** of this HLD is how a **UEFI platform** is used for Secure Bo
 | `efi-readvar`, `efi-updatevar`, efivarfs | OS path to UEFI runtime services | Linux / efitools, not SONiC |
 | `show platform security uefi …` / `config platform security uefi …` CLI plugin | Operator interface on the NOS | **SONiC** |
 
-[UEFI components](#3-uefi-components) through [Unclaim](#7-unclaim) are the UEFI platform model (what firmware must do, what OVMF does, what Cisco platforms implement). [SONIC implementation](#8-sonic-implementation) and [SONiC CLI commands](#9-sonic-cli-commands) are the SONiC CLI plugin on top of that model.
+[UEFI components](#3-uefi-components) through [Unclaim](#7-unclaim) and [Recovery](#8-recovery) are the UEFI platform model (what firmware must do, what OVMF does, what Cisco platforms implement). [SONIC implementation](#9-sonic-implementation) and [SONiC CLI commands](#10-sonic-cli-commands) are the SONiC CLI plugin on top of that model. Recovery is firmware, not a SONiC CLI command.
 
 ## 1 Requirements
 SONiC runs on switching hardware from multiple vendors. Some of this hardware implements a hardware root of trust and UEFI firmware, which helps establish Secure Boot. The hardware vendor ships the machine. The **platform owner** must be able to take ownership of that machine: enroll their own Platform Key, constrain boot to owner-trusted images, and later manage PK, KEK, db, and dbx under their own policy (rotate keys, add signers, revoke compromised keys).
@@ -101,6 +105,8 @@ This requires a SONiC **CLI plugin** that can show and apply UEFI Secure Boot va
 2. Show enrolled PK, KEK, db, and dbx, and show `SetupMode` / `SecureBoot`.
 3. Add, replace, remove, and revoke those keys after claim (AUTH2).
 4. Unclaim: clear PK to return to Setup Mode for factory reset or transfer to another owner.
+
+When unclaim cannot be performed from the OS, firmware should still offer a local recovery path to Setup Mode. This HLD does not mandate the mechanism ([Recovery](#8-recovery)).
 
 ## 2 Overview
 The UEFI Secure Boot feature is introduced in UEFI spec version 2.3.1 onwards. It verifies image integrity and authenticity before load. The spec also describes how UEFI keys are managed.
@@ -201,7 +207,7 @@ Other UEFI firmware may provide an explicit enable/disable (firmware setup check
 
 - No boot-interrupt hotkey or setup menu that sets `SecureBoot=0` (or `SecureBootEnable`) while PK remains.
 - No OS-writable Secure Boot enable flag independent of PK.
-- The only authenticated way to start enforcement is claim (enroll PK). The only authenticated way to stop it is unclaim (clear PK).
+- The only authenticated way to start enforcement is claim (enroll PK). The only in-band authenticated way to stop it is unclaim (clear PK). If that write cannot be performed, firmware may provide a **local** recovery path to Setup Mode ([Recovery](#8-recovery)). That path is not an unauthenticated Secure Boot off switch.
 
 That firmware policy is the custom-UEFI part of this design. The SONiC CLI does not implement it; it only shows the flags and applies ESL/AUTH2. Platforms that keep a firmware “Secure Boot: Disabled” switch while PK is present do not match this HLD.
 
@@ -634,7 +640,7 @@ efi-readvar -v dbx
 
 ## 7 Unclaim
 
-Unclaim returns OVMF from User Mode to **Setup Mode** so the platform can be factory-reset or claimed by a **new owner**. In the OVMF model that write is a PK **update** AUTH2 whose ESL is **empty**, signed by the **currently enrolled PK**. That is not the same as [Update](#65-update) “update PK” with a new certificate (that stays in User Mode).
+Unclaim returns OVMF from User Mode to **Setup Mode** so the platform can be factory-reset or claimed by a **new owner**. In the OVMF model that write is a PK **update** AUTH2 whose ESL is **empty**, signed by the **currently enrolled PK**. That is not the same as [Update](#65-update) “update PK” with a new certificate (that stays in User Mode). If this AUTH2 cannot be applied (no bootable OS, Secure Boot failure, PK private key unavailable), use [Recovery](#8-recovery).
 
 Private keys never go on the VM. The current owner builds `PK.empty.auth` on the owner host.
 
@@ -711,7 +717,34 @@ The current owner does **not** give `PK.key` / `KEK.key` / `db.key` to the next 
 
 Owner B's claim is the same procedure as first claim. PK last. If owner B enrolls PK while owner A's db is still present, the next boot may still trust A's images or fail B's images. Always replace db (and KEK/dbx) in Setup Mode **before** B's PK.
 
-## 8 SONIC implementation
+## 8 Recovery
+
+[Unclaim](#7-unclaim) is the normal return to Setup Mode: an empty-PK AUTH2 from the running OS, signed by the current PK. That needs a bootable NOS, the PK private key, and a successful `SetVariable`.
+
+This section is when that cannot be done. Typical cases: Secure Boot rejects the boot image, there is no bootable image, the PK private key is not available to build `PK.empty.auth`, or the AUTH2 write cannot be issued from the OS.
+
+**This HLD does not mandate a generic recovery design** and does not specify algorithms, credentials, or a SONiC command. UEFI vendors should still provide a **secure** recovery path that returns the platform to Setup Mode. Without one, a claimed machine that cannot unclaim has no owner-controlled way to factory-reset or transfer.
+
+### 8.1 Access constraint
+
+Forcing Setup Mode is a high-impact security operation. It must **not** be carried out over the network (management Ethernet, SSH, REST, gRPC, or remote SONiC CLI). It requires **physical access** or a **serial / local console** on the machine.
+
+The SONiC CLI plugin has no recovery command. `unclaim` remains the in-band AUTH2 path only.
+
+### 8.2 Suggested mechanism
+
+One acceptable approach is a **UEFI emergency shell**:
+
+- The shell is part of the firmware boot order.
+- Firmware **enters** it only when there is **no bootable image** or **Secure Boot verification fails**. It is not a normal operator menu while a trusted image boots.
+- The shell uses a **cryptographic challenge-response**. A successful response authorizes firmware to return to **Setup Mode** (PK cleared, `SetupMode=1`). After the next POST, `SecureBoot=0`, same as unclaim.
+- Challenge-response details (which keys, how the owner proves possession, how the challenge is bound to this platform) are **vendor-defined**. This HLD does not specify them.
+
+After Setup Mode, leftover KEK/db/dbx are untrusted. Continue with [Factory reset](#72-factory-reset) or [Transfer to another owner](#73-transfer-to-another-owner), then a new [Ownership](#5-ownership) claim.
+
+Vendors may use a different local mechanism with the same properties: physical or serial only, cryptographic authorization, result is Setup Mode. A firmware setup checkbox that turns Secure Boot off without authentication is not this path ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
+
+## 9 SONIC implementation
 
 The UEFI platform (OVMF reference; Cisco firmware that implements the same model) owns key storage and verification. Linux efitools talk to UEFI runtime services. SONiC does not replace either. The **SONiC contribution is the CLI plugin**. It dispatches show/enroll/append/update/unclaim to that path:
 
@@ -787,7 +820,7 @@ Ex: UEFI key variables represented as sysfs file
 
 On Linux/OVMF, efivarfs files are often `FS_IMMUTABLE`. `efi-updatevar` fails until the immutable bit is cleared. The CLI will clear it around the write when it can; otherwise it returns that error.
 
-## 9 SONiC CLI commands
+## 10 SONiC CLI commands
 
 This is the SONiC contribution. The plugin is apply-only for writes. AUTH2/ESL files are built on the owner host. The CLI does not create AUTH2, does not take a private key, and does not retry on firmware reject. Writes need `sudo` / config privilege and `-y` to skip the confirm prompt.
 
@@ -819,7 +852,7 @@ config platform security uefi unclaim [-y] PK.empty.auth
 | `update` | User Mode AUTH2 replace (`efi-updatevar -f`). Remove is `update` of the remaining ESL. `update pk` with a **new certificate** stays in User Mode |
 | `unclaim` | Empty-PK AUTH2; returns to Setup Mode ([Unclaim](#7-unclaim)) |
 
-`unclaim` is a separate command on purpose. The efitools write is the same shape as `update pk` (AUTH2 `-f` to PK), but the operator intent is not. `update pk` with a new cert rotates the Platform Key and **stays in User Mode**. `unclaim` applies an **empty** PK ESL, returns to Setup Mode, and is how Secure Boot is turned off in this HLD. A distinct verb, confirm prompt (“return to Setup Mode”), and a file argument that is only `PK.empty.auth` keep those two operations from being confused. `inspect` of that file shows `ESL: empty`.
+`unclaim` is a separate command on purpose. The efitools write is the same shape as `update pk` (AUTH2 `-f` to PK), but the operator intent is not. `update pk` with a new cert rotates the Platform Key and **stays in User Mode**. `unclaim` applies an **empty** PK ESL, returns to Setup Mode, and is how Secure Boot is turned off in this HLD. A distinct verb, confirm prompt (“return to Setup Mode”), and a file argument that is only `PK.empty.auth` keep those two operations from being confused. `inspect` of that file shows `ESL: empty`. There is no `recover` CLI; when unclaim cannot run, recovery is firmware ([Recovery](#8-recovery)).
 
 This CLI was exercised on OVMF: `status`, `variables`, `inspect`, `compare`, `health`, Setup Mode `enroll` of dbx/db/kek then `enroll pk` (`SetupMode` 1→0 with no reboot), then `unclaim` (`SetupMode` 0→1 with no reboot).
 
@@ -830,7 +863,7 @@ Return values follow normal SONiC CLI:
 
 Expected failures for enroll/append/update/unclaim: missing file; not root; efivarfs not mounted; wrong mode (unsigned ESL after PK, or unsigned PK in Setup Mode); AUTH2 signature rejected (wrong PK/KEK, timestamp not newer, malformed AUTH2); immutable efivarfs; firmware reject.
 
-## 10 Test considerations
+## 11 Test considerations
 The sonic-mgmt can cover UEFI key management including at least:
 
 1. Factory default: `SetupMode=1`, `SecureBoot=0`, PK empty ([Factory default state](#4-factory-default-state)).
@@ -844,3 +877,4 @@ The sonic-mgmt can cover UEFI key management including at least:
 9. No independent Secure Boot toggle: there is no `secureboot enable` / `disable` CLI. `SecureBoot` becomes `1` only after claim plus reboot, and `0` only after unclaim plus reboot ([Secure Boot enable and disable](#35-secure-boot-enable-and-disable)).
 10. `unclaim` is not `update pk` with a new certificate. `inspect` of `PK.empty.auth` shows an empty ESL. `compare` / `health` do not apply files.
 11. Time-based AUTH2: applying the same **update** AUTH2 twice is rejected (TimeStamp not later). An older replace AUTH2 cannot roll the variable back. The same **append** AUTH2 may apply again ([Time-based authentication](#331-time-based-authentication)).
+12. Recovery is firmware, not a SONiC CLI. If a vendor path exists, it is reachable only with physical access or serial, not over the network. It returns to Setup Mode. This HLD does not require the emergency-shell design ([Recovery](#8-recovery)).
