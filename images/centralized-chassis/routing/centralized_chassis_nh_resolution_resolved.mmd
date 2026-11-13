@@ -1,0 +1,56 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "17px",
+    "fontFamily": "Segoe UI, Arial, sans-serif",
+    "primaryColor": "#E8F1FC",
+    "primaryBorderColor": "#2E5FA8",
+    "primaryTextColor": "#1F2937",
+    "lineColor": "#4B5563",
+    "actorBkg": "#E8F1FC",
+    "actorBorder": "#2E5FA8",
+    "actorTextColor": "#1F2937",
+    "signalColor": "#374151",
+    "signalTextColor": "#111827",
+    "labelBoxBkgColor": "#F3F4F6",
+    "labelBoxBorderColor": "#9CA3AF",
+    "noteBkgColor": "#F8FAFC",
+    "noteBorderColor": "#94A3B8",
+    "noteTextColor": "#334155"
+  },
+  "sequence": {
+    "useMaxWidth": true,
+    "diagramMarginX": 35,
+    "diagramMarginY": 22,
+    "actorMargin": 55,
+    "width": 130,
+    "height": 55,
+    "boxMargin": 10,
+    "boxTextMargin": 8,
+    "messageMargin": 36,
+    "mirrorActors": false,
+    "wrap": true,
+    "wrapPadding": 8
+  }
+} }%%
+sequenceDiagram
+    box Route Processor
+        participant APP as APPL_DB
+        participant CADB as CHASSIS_APP_DB
+    end
+    box Line Card — originating NPU
+        participant NO as NeighOrch
+        participant ADB as ASIC_DB
+        participant RTO as RouteOrch
+    end
+    box Remote line card — other NPU
+        participant RNO as Remote NeighOrch
+    end
+
+    APP->>NO: 7. NEIGH_TABLE
+    NO->>ADB: 8. SAI_OBJECT_TYPE_NEIGHBOR_ENTRY
+    NO->>ADB: 9. SAI_OBJECT_TYPE_NEXT_HOP
+    RTO->>ADB: 10. complete route install
+    NO->>CADB: SYSTEM_NEIGH (VOQ)
+    CADB->>RNO: remote orch sync
+    Note over NO,RNO: Centralized chassis: skip STATE_SYSTEM_NEIGH_TABLE
