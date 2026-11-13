@@ -88,6 +88,7 @@
 | 0.3 | 10-Nov-2016 | Andriy Moroz       | Updated according to the comments   |
 | 0.4 | 20-Dec-2016 | Oleksandr Ivantsiv | Update data structures              |
 | 1.1 | 08-Apr-2025 | Anish Narsian      | VXLAN inner src mac rewrite support |
+| 1.2 | 13-Jul-2026 | Yan Mo             | ECN marking ACL action (ECN_ACTION) |
 # About this Manual
 This document provides general information about the ACL feature implementation in SONiC.
 # Scope
@@ -137,6 +138,7 @@ ACL table has predefined type, each type defines the a set of match fields and a
 - Packet counters for each acl rule (M)
 - Byte counters for each acl rule (S)
 - Support rewriting the inner src mac field of a vxlan packet by matching on an Inner Src IP prefix and VXLAN VNI
+- Support ECN marking action (ECN_ACTION) in L3 ACL rules, setting the IP ECN field (low 2 bits of the IPv4 TOS / IPv6 Traffic Class byte) to a value in [0..3] per RFC 3168 (maps to SAI_ACL_ENTRY_ATTR_ACTION_SET_ECN)
 
 ## 2.2 Scalability requirements
 - 1K ACL rules for L3 acl table
@@ -206,6 +208,10 @@ No update is needed to support ACL.
     INNER_SRC_MAC_REWRITE_ACTION = 12HEXDIG    ; Rewrite the inner mac field of a VXLAN packet with the 
                                                ; provided value (must also define an associated custom ACL_TABLE_TYPE
                                                ; as per https://github.com/sonic-net/SONiC/blob/master/doc/acl/ACL-Table-Type-HLD.md)
+
+    ECN_ACTION    = 1DIGIT                      ; ECN field value [0..3] per RFC 3168
+                                                ; (0=Non-ECT, 1=ECT(1), 2=ECT(0), 3=CE),
+                                                ; maps to SAI_ACL_ENTRY_ATTR_ACTION_SET_ECN
 
     ETHER_TYPE    = h16                        ; Ethernet type field
 
@@ -295,6 +301,7 @@ L4_DST_PORT_RANGE | uint16_t, uint16_t | Two dash separated decimal unsigned int
 Keyword for the action type    | Type | Description
 -------------------------------|------|------------
 PACKET_ACTION | string | Packet action value: "FORWARD" or "DROP"
+ECN_ACTION | uint8_t | ECN field value [0..3] per RFC 3168 (0=Non-ECT, 1=ECT(1), 2=ECT(0), 3=CE); maps to SAI_ACL_ENTRY_ATTR_ACTION_SET_ECN
 
 #### 3.1.2.5 Table of type "Mirror"
 ###### **Table 6: Matches allowed in the table of the type "mirror"**
