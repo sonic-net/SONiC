@@ -14,6 +14,7 @@
 |  0.7  |   11/12/2026   | Sachin Naik | SignatureOwner GUID is optional; efitools defaults to zeros |
 |  0.8  |   11/12/2026   | Sachin Naik | CLI: inspect/compare/health, append, keep unclaim separate from update pk |
 |  0.9  |   11/12/2026   | Sachin Naik | Replace UEFI class image with CLI plugin block diagram |
+|  0.10 |   11/12/2026   | Sachin Naik | Platform UefiBackend is a custom path, not efivarfs |
 
 
 <!-- omit in toc -->
@@ -675,7 +676,7 @@ The UEFI platform (OVMF reference; Cisco firmware that implements the same model
 - update / remove in User Mode: `efi-updatevar -f` with AUTH2 (replace the whole store)
 - unclaim: `efi-updatevar -f` of an empty-PK AUTH2 signed by the current PK ([Unclaim](#7-unclaim)). Separate from `update pk` (that stays in User Mode)
 
-The plugin is a thin wrapper (getVariable / setVariable). Today's backend is efitools + efivarfs, which is how Linux already talks to OVMF UEFI runtime services. AUTH2/ESL files are still built on the owner host with openssl and `sign-efi-sig-list`. Private keys never go on the DUT. A platform package may replace `EfitoolsBackend` with `sonic_platform.uefi.UefiBackend`; the CLI commands stay the same.
+The plugin is a thin wrapper (getVariable / setVariable). The **default** backend is efitools + efivarfs (Linux / OVMF). AUTH2/ESL files are still built on the owner host with openssl and `sign-efi-sig-list`. Private keys never go on the DUT. A platform package may replace `EfitoolsBackend` with `sonic_platform.uefi.UefiBackend`; the CLI commands stay the same. That override is a **custom** GetVariable / SetVariable implementation. It is not required to use efitools or efivarfs.
 
 ```mermaid
 flowchart TB
@@ -701,14 +702,18 @@ flowchart TB
   payload -.->|"copy public files only"| cfgCmd
   payload -.->|"inspect / compare"| showCmd
 
-  subgraph osLayer ["3. Linux"]
+  subgraph osLayer ["3a. Default Linux path"]
     efitoolsBin["efi-readvar / efi-updatevar"]
     sysfs["efivarfs"]
   end
 
+  subgraph platPath ["3b. Optional platform path"]
+    custom["vendor GetVariable / SetVariable\ncustom implementation"]
+  end
+
   efitoolsBe --> efitoolsBin
   efitoolsBe --> sysfs
-  platBe --> osLayer
+  platBe --> custom
 
   subgraph firmware ["4. UEFI firmware"]
     vars["PK KEK db dbx\nSetupMode SecureBoot"]
@@ -716,6 +721,7 @@ flowchart TB
 
   efitoolsBin --> vars
   sysfs --> vars
+  custom --> vars
 ```
 
 The Linux kernel provides efivarfs, which exposes EFI runtime variables as files. Mount it to access the variables:
