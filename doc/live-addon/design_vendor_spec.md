@@ -8,7 +8,7 @@ process configuration, health commands, and release metadata.
 The integration is proposed, not implemented upstream. Paths and examples refer
 to the planned `sonic-buildimage` integration.
 
-The [framework and build design](./design_review.md) explains how SONiC builds,
+The [framework and build design](./design.md) explains how SONiC builds,
 validates, packages, and runs these inputs. Release and runtime deployment
 settings are outside the vendor profile.
 
@@ -378,7 +378,7 @@ ordering, retries, restarts, and whether the container is ready.
 Startup checks must report success only after vendor initialization and required
 SONiC dependencies are ready, including after reboot. Deployment owners must
 configure probes to allow enough time for expected initialization; see
-[framework section 7.6](./design_review.md#76-kubernetes-probe-semantics).
+[framework section 7.6](./design.md#76-kubernetes-probe-semantics).
 
 The framework runs the HTTP server and generates `/etc/live-addon/health.ini`
 from the profile. Vendors cannot change its bind address (`127.0.0.1`) or port
@@ -423,7 +423,7 @@ The default build produces the checked-in example without vendor inputs.
 Vendor profiles produce additional, separate images with their own manifests;
 adding a profile alone does not enable its build. The build controls and output
 names are defined in
-[framework section 9.2](./design_review.md#92-default-example-vendor-build-controls-and-system-tests).
+[framework section 9.2](./design.md#92-default-example-vendor-build-controls-and-system-tests).
 
 Before submitting the PR, verify that:
 
