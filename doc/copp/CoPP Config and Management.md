@@ -10,6 +10,7 @@ The following are the high level requirements for CoPP/TRAP managment
 2. User shall be able to configure, modify CoPP table entries for various policing requirements
 3. System shall be backward compatible with old Config DB without any CoPP Tables
 4. A VS test must be added to verify the Config DB CoPP tables
+5. User shall be able to exclude ports from CoPP traps
 
 # Design Proposal
 
@@ -51,6 +52,10 @@ key = "COPP_TRAP|name"
 trap_ids      = name ; list of trap ids
 trap_group    = name ; copp group name
 ```
+```
+key = "COPP_TRAP_EXCLUDE_PORTS|GLOBAL"
+ports@        = port_name[,port_name...] ; ports excluded from all CoPP traps
+```
 
 ### StateDB
 
@@ -60,6 +65,9 @@ state        = "ok"
 
 key = "COPP_TRAP_TABLE|name"
 state        = "ok"
+
+key = "COPP_TRAP_CAPABILITY_TABLE|traps"
+exclude_ports_supported = "true" | "false"
 ```
 
 ### coppmgr
@@ -78,6 +86,32 @@ Now, traps which have no associated feature, will be installed only if "always_e
 
 ### copporch
 ```copporch``` shall only be a consumer of APP DB CoPP Table. It is not expected to handle feature logic and the current handling of features like sFlow, NAT shall be revisited and removed to be added as part of ```coppmgr```. However `copporch` must be able to handle any new trap_id getting added or removed from an existing CoPP table, and handle attribute value set for a trap group
+
+### Trap port exclusion
+`COPP_TRAP_EXCLUDE_PORTS|GLOBAL` lists ports that CoPP traps do not apply to. It is for setups where LACP, LLDP and similar packets on a port must be forwarded instead of trapped, such as a sonic-mgmt fanout. It maps to `SAI_HOSTIF_TRAP_ATTR_EXCLUDE_PORT_LIST`.
+
+The list applies to every trap, including the `ttl_error` trap that copporch creates in the `default` group.
+
+```coppmgr``` reads the table and writes the list to each `COPP_TABLE:<group>` entry in APP DB:
+```
+key = "COPP_TABLE:name"
+exclude_ports = port_name[,port_name...] ; sorted, no duplicates. "" clears the list
+```
+- Ports that are not in the `PORT` table are skipped and logged.
+- PortChannel members are skipped and logged.
+- Duplicates are removed and the list is sorted, so the entry is the same each time it is generated.
+- SAI allows the attribute only for `trap` and `copy`. For a group with any other trap_action, coppmgr leaves out `exclude_ports` and logs a NOTICE. The config is not rejected.
+- If a group had a list and no longer has one, coppmgr writes `exclude_ports=""`.
+- The list is re-evaluated when `PORT` or `PORTCHANNEL_MEMBER` changes.
+
+```copporch``` reads `exclude_ports` from APP DB only. It sets the attribute when a trap is created, and on all traps in the group when the field changes. If a listed port does not exist yet, the entry is retried. If SAI does not support the attribute, copporch ignores the field and logs it, and sets `exclude_ports_supported` to `false` in STATE DB.
+
+On fast reboot, APP DB `COPP_TABLE` is preserved (see [Preserve_COPP_tables_to_improve_fast-reboot.md](Preserve_COPP_tables_to_improve_fast-reboot.md)), so traps are created with the exclusion already set. Reading CONFIG DB directly from copporch would leave a window where LACP and LLDP are trapped on excluded ports. On warm reboot, coppmgr writes the same sorted list, so nothing changes in SAI.
+
+On port breakout or port deletion, the port is removed from the list through the YANG leafref. The new ports are not added to the list.
+
+Limitations:
+- Physical ports only. PortChannel members are skipped, because excluding a member also excludes its LACP packets and the member leaves the LAG.
 
 ### swssconfig
 Handling of CoPP config json file shall be removed from ```dockers/docker-orchagent/swssconfig.sh```
@@ -153,6 +187,22 @@ The following flow captures scenarios for ```boot-up``` sequence and ```config r
 The following flow captures CoPP manager functionality.
 
 ![](CoppManager_1.png)
+
+# Test Plan
+
+## Unit tests (sonic-swss)
+- copporch: parse `exclude_ports`, create a trap with the list, set, clear, attribute not supported, retry when a port does not exist yet.
+- coppmgr: dedupe and sort, unknown port, PortChannel member, trap_action other than `trap` or `copy`.
+
+## VS tests (sonic-swss tests/test_copp.py)
+1. The list is set on `SAI_HOSTIF_TRAP_ATTR_EXCLUDE_PORT_LIST` for several traps.
+2. Add and remove ports, then delete the table.
+3. Feature disable and enable recreates the trap with the list.
+4. Changing trap_action to `drop` removes the list. Changing it back sets it again.
+5. A port that does not exist is ignored.
+6. A new trap added to a group gets the list.
+7. A PortChannel member is skipped.
+8. `ttl_error` gets the list.
 
 # Examples
 
@@ -246,6 +296,10 @@ The following flow captures CoPP manager functionality.
             "trap_ids": "sample_packet",
             "trap_group": "queue2_group1"
         },
+
+        "COPP_TRAP_EXCLUDE_PORTS|GLOBAL": {
+            "ports@": "Ethernet0,Ethernet4"
+        }
     }
 ```
 
@@ -261,6 +315,7 @@ The following sample APP DB entries shall be created by `coppmgr` by merging the
             "queue": "4",
             "trap_action":"trap",
             "trap_priority":"4",
+            "exclude_ports": "Ethernet0,Ethernet4"
         },
 
         "COPP_TABLE:queue4_group2": {
