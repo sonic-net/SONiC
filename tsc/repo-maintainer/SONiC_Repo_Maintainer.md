@@ -77,6 +77,7 @@
 |  | sonic-buildimage-maintainer | Anand Mehra (Cisco) | anamehra | Requested on 09/28/2026 |
 |  | sonic-buildimage-maintainer | Brad House (Nexthop) | bhouse-nexthop | Request on 7/13/2026 |
 |  | sonic-buildimage-maintainer | Rita Hui (Microsoft) | rlhui | enabled |
+|  | sonic-buildimage-maintainer | Abhishek Dosi (Microsoft) | abdosi | Self-nominated on 11/14/2026; pending approval |
 | sonic-mgmt | sonic-mgmt-maintainer | Ying Xie (Microsoft) | yxieca | enabled |
 |  | sonic-mgmt-maintainer | Bhavani Parise (Cisco) | bpar9 | enabled |
 |  | sonic-mgmt-maintainer | John Cheung (Intel) | johcheun | invitation sent |
