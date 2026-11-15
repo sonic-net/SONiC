@@ -84,7 +84,7 @@ Merge sequence:
 3. Merge buildimage PR #30780 after its platform review and checks complete.
 
 The buildimage PR currently pins the published review commit
-`d3cb8a641c1812c2d816a3f19e0cd62cad080eec`. This is a review dependency, not the
+`1c8e439f9f14ef04dd05fa62d79e635c215d24d6`. This is a review dependency, not the
 final upstream integration revision. Before merge, recursive submodule fetches
 must be able to obtain the selected commit from the configured upstream remote.
 
