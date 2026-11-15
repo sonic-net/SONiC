@@ -52,7 +52,8 @@ reviewed and merged independently of #808 and #30780.
 | Watchdog | Provide thin platform adapters using the shared `LinuxWatchdog` helper; add the native AS5835 getter and the missing PDDF `syslog` import. | AS5835, AS7326, AS7726, AS7816 |
 | Thermal control | Request full fan speed when required sensor data is unavailable, retry through the existing polling loop and resume the normal policy when readings recover. | AS5835, AS7326, AS7726, AS7816 |
 | Clock initialization | Order existing IDT setup before PDDF claims the I2C muxes. | AS7326, AS7726 |
-| PSU monitoring | Expose PMBus voltage limits, recognize the observed `F2B*` airflow label and exclude unsupported per-PSU-fan target-speed comparisons. | AS7326 |
+| PSU monitoring | Expose PMBus voltage limits and exclude unsupported per-PSU-fan target-speed comparisons on both models; recognize the observed `F2B*` airflow label on AS7326 only. | AS7326, AS7726 |
+| CPU monitoring | Append dynamically discovered coretemp package/core sensors after the existing board inventory; read kernel thresholds and report unavailable inputs. | AS7726 |
 
 Vendor configuration references come from [Edgecore's platform sources](https://github.com/edge-core/sonic-buildimage/tree/d39662e996c0e8748c9b96ad88dc5f5f524e8048/device/accton).
 Clock ordering also follows the approach proposed in
@@ -92,9 +93,10 @@ must be able to obtain the selected commit from the configured upstream remote.
 ### Software
 
 The master-based buildimage checkout and companion platform-common change pass
-18 regression tests and 31 subtests. Coverage includes the Linux watchdog
+28 regression tests and 36 subtests. Coverage includes the Linux watchdog
 helper and platform adapters, health LED delegation, thermal failure/recovery,
-and PSU voltage, airflow and narrowly scoped health exclusions.
+PSU voltage, airflow and narrowly scoped health exclusions, and AS7726 CPU
+discovery, kernel thresholds, read failures/recovery and chassis integration.
 
 The watchdog helper's standalone suite passes five tests with fake sysfs and
 mocked device/ioctl operations. The combined totals above include these tests.
@@ -115,6 +117,29 @@ Broadcom XGS SAI `15.2.1.0.0.0.50.1` and SDK `6.5.35-SP1`.
   the platform API and STATE_DB.
 - No container or systemd automatic restarts were observed during approximately
   34 minutes of post-boot observation.
+
+### AS7726 vendor comparison
+
+Read-only comparison used working Edgecore ec202111 (SDK 6.5.21) and Broadcom
+Enterprise 4.5.1 installations. Both report FSF019 PSU voltage limits of
+11.390/12.593 V; the enterprise PDDF definitions specify voltage-limit
+registers `0xa4`/`0xa5` on PSU1 bus/address `0x32/0x5b` and PSU2 `0x31/0x58`.
+The community change adds these mappings without hardcoding voltage limits.
+
+The enterprise API leaves PSU fan target speed unsupported, while Edgecore
+returns the measured speed as its target. Neither provides an independent
+expected-speed reference. Only the two PSU-fan target-speed comparisons are
+excluded; other PSU/fan monitoring remains enabled.
+
+Edgecore exposes CPU package/core sensors through the coretemp platform
+path. The new community reader discovers those labelled channels, reads
+kernel thresholds and tolerates hwmon/channel renumbering. Invalid or missing
+readings are unavailable, rather than 0 degrees. CPU sensors are discovered
+at chassis construction; an absent optional coretemp device does not block
+the existing five PDDF board sensors.
+
+These observations inform the implementation and its software tests; they
+do not establish hardware validation of the new AS7726 community changes.
 
 ### Remaining validation
 
