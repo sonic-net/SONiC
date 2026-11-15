@@ -52,8 +52,8 @@ reviewed and merged independently of #808 and #30780.
 | Watchdog | Provide thin platform adapters using the shared `LinuxWatchdog` helper; add the native AS5835 getter and the missing PDDF `syslog` import. | AS5835, AS7326, AS7726, AS7816 |
 | Thermal control | Request full fan speed when required sensor data is unavailable, retry through the existing polling loop and resume the normal policy when readings recover. | AS5835, AS7326, AS7726, AS7816 |
 | Clock initialization | Order existing IDT setup before PDDF claims the I2C muxes. | AS7326, AS7726 |
-| PSU monitoring | Expose PMBus voltage limits and exclude unsupported per-PSU-fan target-speed comparisons on both models; recognize the observed `F2B*` airflow label on AS7326 only. | AS7326, AS7726 |
-| CPU monitoring | Append dynamically discovered coretemp package/core sensors after the existing board inventory; read kernel thresholds and report unavailable inputs. | AS7726 |
+| PSU monitoring | Expose AS7326/AS7726 PMBus voltage limits, correct AS5835 manufacturer voltage-limit decoding, and exclude unsupported per-PSU-fan target-speed comparisons; recognize the observed `F2B*` airflow label on AS7326 only. | AS5835, AS7326, AS7726 |
+| CPU monitoring | Append dynamically discovered coretemp package/core sensors after the existing board inventory; read kernel thresholds and report unavailable inputs. | AS5835, AS7726 |
 
 Vendor configuration references come from [Edgecore's platform sources](https://github.com/edge-core/sonic-buildimage/tree/d39662e996c0e8748c9b96ad88dc5f5f524e8048/device/accton).
 Clock ordering also follows the approach proposed in
@@ -93,9 +93,9 @@ must be able to obtain the selected commit from the configured upstream remote.
 ### Software
 
 The master-based buildimage checkout and companion platform-common change pass
-28 regression tests and 36 subtests. Coverage includes the Linux watchdog
+39 regression tests and 41 subtests. Coverage includes the Linux watchdog
 helper and platform adapters, health LED delegation, thermal failure/recovery,
-PSU voltage, airflow and narrowly scoped health exclusions, and AS7726 CPU
+PSU voltage, airflow and narrowly scoped health exclusions, and AS5835/AS7726 CPU
 discovery, kernel thresholds, read failures/recovery and chassis integration.
 
 The watchdog helper's standalone suite passes five tests with fake sysfs and
@@ -140,6 +140,28 @@ the existing five PDDF board sensors.
 
 These observations inform the implementation and its software tests; they
 do not establish hardware validation of the new AS7726 community changes.
+
+### AS5835 vendor comparison and software regressions
+
+Working Edgecore ec202111 AS5835-54X observations identified YM-1401A PSU
+manufacturer voltage limits of -768/1472 V, already incorrect in native
+sysfs. The shared `ym2651y` driver registered these thresholds with its
+LINEAR11 callback instead of its existing model-aware voltage callback.
+The fix selects VOUT_MODE decoding for YM1401A/YM2401 and retains LINEAR11
+for other supported supplies; it does not hardcode voltage limits.
+A compiled regression executes the production functions and registered
+callbacks for both formats and fails with the original callback wiring.
+
+The native PSU fan target method no longer returns measured speed as its
+own target. Only `PSU-1 FAN-1.speed` and `PSU-2 FAN-1.speed` comparisons are
+excluded. Chassis PWM targets, presence/fault checks and airflow mappings
+remain unchanged.
+
+CPU package/core sensors are appended after the four existing board sensors.
+Tests cover sparse kernel labels (cores 2/6/8/12), kernel-provided 71/91 degree
+thresholds, renumbering, invalid/missing inputs and native chassis integration.
+Fan startup speeds and control policy remain unchanged. These additions are
+software-tested; AS5835 community-image hardware validation is outstanding.
 
 ### Remaining validation
 
