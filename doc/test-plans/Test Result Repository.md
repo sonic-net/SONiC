@@ -118,6 +118,10 @@ The public API will support the following query operations:
 - Get data for a test run ID, including:
   - Fully qualified test name (test name and module name)
   - Test result
+ 
+## **Converter Tool**
+
+The UNH Interoperability Lab maintains a tool for converting JUnit XML to the repository-specific JSON schema.  It can be accessed at [oss.iol.unh.edu/sonic/results-builder](https://oss.iol.unh.edu/sonic/results-builder/).
 
 ## **Guidelines for Repository Contributions**
 
@@ -128,6 +132,14 @@ Contributions of test results to the repository are considered to be “data con
 - test results uploaded as a result of virtual testing conducted in a fully simulated environment without the use of hardware devices.
 
 Only results from testbeds running unmodified device and test software are eligible for public display.  Submitted version strings and commit hashes are checked against public SONiC builds and sonic-mgmt revisions.  These checks verify that the reported identifiers match public versions; they do not by themselves establish that the software used for the test run was unmodified.
+
+## **Accessing the Repository**
+
+The public repository is available at [results.sonic.iol.unh.edu](https://results.sonic.iol.unh.edu/).
+
+The UNH Interoperability Lab is responsible for provisioning accounts and organizations.  Reach out to [os-team@iol.unh.edu](mailto:os-team@iol.unh.edu) to request access.
+
+To upload results, you must be part of an organization with an upload token created in an organization's memberships menu.
 
 ### **Licensing**
 
