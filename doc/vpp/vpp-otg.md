@@ -69,6 +69,40 @@ OTG is a declarative API. A client pushes one `Config` (ports, LAGs, devices, fl
 - **Real routing protocols.** FRR provides BGP, ISIS, and OSPF emulation, so no protocol stack has to be written.
 - **Reuse.** It builds on existing sonic-vpp work: VPP packaging, linux_cp, and plugin development experience.
 
+### Comparison with existing generators
+
+| | TRex | snappi-trex | ixia-c (Community Edition) | otg-vpp (this HLD) |
+|---|---|---|---|---|
+| API | Native TRex Python/JSON-RPC API | OTG (snappi), translated to TRex STL | OTG | OTG |
+| Source | Open (Apache 2.0) | Open | Free to use, closed source; full features and scale need a Keysight license | Open |
+| Stateless flows | Yes: scapy templates, field engine | A subset of flows, ports, metrics, capture | Yes | Yes |
+| Stateful TCP / application traffic | Yes (ASTF) | No | No | No (out of scope) |
+| Per-flow loss and latency | Yes, through `pg_id` flow stats and latency streams; the number and rate of tracked streams are limited, depending on the NIC | Through TRex flow stats | Yes | Yes, on every flow; signature in software |
+| Emulated devices and protocols | TRex EMU (ARP, ND, DHCP, IGMP, and others); BGP/OSPF only through a separate BIRD namespace integration; no ISIS | None | BGP, ISIS, LACP, LLDP, and others | FRR: BGP, ISIS, OSPFv2/v3, static; VPP LACP |
+| Flows using learned protocol state (VPN labels, SIDs, next-hop MAC) | Manual | No | Yes | Yes, `auto` fields resolved at start |
+| Control plane and test traffic on one port | Port is owned by the TRex DPDK process; control traffic goes through a software namespace path | Same as TRex | Yes | Yes, through linux_cp |
+| Path to SONiC | None | None | None | Optional SONiC backend on the same plugin |
+
+### Why a new OTG implementation
+
+1. **An open, complete OTG target.** Stock snappi/gosnappi and featureprofiles tests need devices, BGP/ISIS, and flows that use learned routes. snappi-trex covers only flows, and ixia-c is closed source with licensed features. There is no open implementation that covers the device and protocol model.
+2. **Protocols and traffic in one system.** Flows have to pick up what protocols learn: the gateway MAC, VPN labels, SRv6 SIDs, and VXLAN VNIs. With FRR plus linux_cp, the control plane runs on the same ports as test traffic, and the resolver reads the learned state directly. TRex keeps the two apart.
+3. **A real routing stack instead of a new one.** FRR already provides BGP (including L3VPN and EVPN), ISIS, and OSPF, so only the OTG-to-FRR mapping has to be written.
+4. **VPP as the data plane.** VPP brings multi-worker DPDK, many NIC drivers, LACP, linux_cp, and a stats segment, and the sonic-vpp team already maintains it. The tgen plugin is the only new data-plane code.
+5. **A SONiC path.** The same plugin can sit behind a SONiC backend later, so a sonic-vpp box can act as a generator.
+
+**Where TRex remains the better tool:** stateful TCP and application traffic (ASTF), and NIC hardware latency on supported NICs. otg-vpp doesn't replace TRex for those.
+
+### Alternative considered: OTG server on top of TRex
+
+An OTG server could drive TRex STL for flows and FRR for protocols. This was rejected for three reasons:
+
+- **Ports.** TRex owns the ports inside its own DPDK process, so FRR's control traffic would go through TRex's namespace or software path instead of a kernel-integrated path like linux_cp.
+- **Flow tracking.** Per-flow stats and latency would stay limited by TRex's `pg_id` model, while OTG expects metrics on every flow.
+- **Learned state.** Linking learned FRR state to TRex streams, and supporting LAG and per-device interfaces, would all have to be built outside TRex anyway.
+
+The `Backend` interface doesn't rule out a TRex backend later.
+
 ## Objectives
 
 1. **Driven by OTG and compatible with it.** The OTG models define the scope, the API, and the behavior.
@@ -538,6 +572,7 @@ This is only needed if ASIC portability, or running as a SONiC device, becomes a
 
 ## Review Focus
 
+- **Motivation.** Whether the comparison with TRex, snappi-trex, and ixia-c is accurate for current releases, and whether the rejected TRex-based alternative was weighed fairly.
 - **OTG compatibility.** The objectives and the no-extension policy, with the `vppotg.Extensions` service as the only way to reach implementation-specific data.
 - **Bypassing forwarding.** Whether sending streams straight to device TX and consuming them at `device-input`, with forwarding kept only for the control plane, is acceptable.
 - **Measurement.** The signature format, the loss and latency methods, and the limits on latency accuracy.
