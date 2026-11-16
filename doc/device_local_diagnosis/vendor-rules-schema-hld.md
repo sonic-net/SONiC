@@ -302,7 +302,7 @@ path:
   database: 'STATE_DB'                    # Redis database name
   table: 'PSU_INFO'                       # Table name within database
   key: 'PSU_INFO|PSU0'                   # Full key or template
-  path: 'value/output_voltage'            # JSON path within value
+  path: 'voltage'                        # Top-level PSU_INFO hash field
 ```
 
 **DSE Path Structure (Abstract):**
