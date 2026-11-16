@@ -37,6 +37,7 @@
 | --- | ---------- | ------ | ------------------------------------------------------- |
 | 1.0 | 2026-08-03 | Junchao Chen | Base version — Phase 1 (firmware command group)         |
 | 1.1 | 2026-10-14 | Junchao Chen | Identify OE and ELS by component index instead of interface name, and defer the OIF package path to a future phase |
+| 1.2 | 2026-11-16 | Junchao Chen | The firmware hooks take no lock, the platform serializes them; report a device that is not ready; abort a failed download only when the CDB is idle |
 
 ### 2. Scope
 
@@ -271,7 +272,7 @@ sequenceDiagram
     participant M as OE / ELS
 
     C->>D: download_firmware(file)
-    D->>D: take the firmware lock (if the platform sets one)
+    Note over D: a platform override may take a lock first (§7.8)
     D->>A: get_api(), enable_cdb_fw_handler()
     A->>M: CDB 0041h Get FW Management Features
     D->>A: module_fw_start_download(file)
@@ -283,10 +284,9 @@ sequenceDiagram
     end
     D->>A: module_fw_complete_download()
     A->>M: CDB 0107h Complete FW Download
-    D->>D: release the firmware lock
 ```
 
-If the transfer stops early — the caller closes the iterator, for example on Ctrl-C — the mixin waits for the CDB to be idle and sends CDB 0102h Abort FW Download when the device advertises Abort support. A failed block write has already aborted the download in `CmisCdbFw`.
+If the transfer stops early — the caller closes the iterator, for example on Ctrl-C — the mixin waits for the CDB to be idle and sends CDB 0102h Abort FW Download when the device advertises Abort support. A failed start or block write has already aborted the download in `CmisCdbFw` ([§7.6.2](#762-cmiscdbfw)).
 
 ##### 7.4.3 Run
 
@@ -313,7 +313,7 @@ The default run mode attempts a hitless reset to the inactive image. Whether the
 
 ##### 7.4.5 Upgrade
 
-`upgrade_firmware()` holds the firmware lock once, for the whole sequence: download, run, then commit through the device API rebuilt by the run. It yields the bytes written during the download, then blocks during the run delay.
+`upgrade_firmware()` runs download, run, then commit through the device API rebuilt by the run. A platform that locks firmware operations holds its lock once, for the whole sequence. It yields the bytes written during the download, then blocks during the run delay.
 
 ##### 7.4.6 Firmware information
 
@@ -346,7 +346,7 @@ cpoutil show els fwversion [<els_index>] [--json]
 - The CPO topology is loaded and the OE/ELS to CPO object map is built once per command. An unknown index fails the command before any firmware operation.
 - Targets are processed in natural order (`els0`, `els1`, ..., `els10`).
 - `upgrade` and `download` show a progress bar per target, sized by the image, and print `<Verb> <TARGET> firmware ... OK (<n> bytes)`.
-- An interrupted transfer is closed right away, so that the hook aborts the download and releases the firmware lock.
+- An interrupted transfer is closed right away, so that the hook aborts the download and releases any lock the platform holds.
 - A missing hook, or a hook that raises `NotImplementedError`, is reported as `<OE|ELS> <hook> is not implemented for this platform`.
 - Any other error is reported for that target, and the remaining targets still run.
 - The command fails when any target failed: `<OE|ELS> firmware <op> failed for <targets>; completed for <targets>`.
@@ -390,8 +390,6 @@ The commands are documented in `doc/Command-Reference.md` of `sonic-utilities`.
 ```mermaid
 classDiagram
     class CdbFirmwareMixin {
-        FIRMWARE_LOCK_DIR = None
-        get_firmware_lock_name() str
         download_firmware(file_path) Iterator~int~
         run_firmware(mode) bool
         commit_firmware() bool
@@ -447,15 +445,6 @@ FW_RUN_DELAY = 5  # seconds
 
 
 class CdbFirmwareMixin(object):
-    FIRMWARE_LOCK_DIR = None
-
-    def get_firmware_lock_name(self) -> str:
-        """
-        Retrieves the name of the firmware lock of the device, unique among
-        the devices that share FIRMWARE_LOCK_DIR, such as 'els0'.
-        Required when FIRMWARE_LOCK_DIR is set.
-        """
-
     def download_firmware(self, file_path: str) -> Iterator[int]:
         """
         Downloads a firmware image to the inactive bank of the device
@@ -466,8 +455,8 @@ class CdbFirmwareMixin(object):
 
         Raises:
             NotImplementedError: The device does not support CDB firmware management
-            RuntimeError: A CDB firmware command failed, or another firmware
-                operation is in progress
+            RuntimeError: A CDB firmware command failed, or the device is
+                not ready
         """
 
     def run_firmware(self, mode: int = FW_RUN_MODE_HITLESS_INACTIVE) -> bool:
@@ -498,16 +487,19 @@ class CdbFirmwareMixin(object):
 
 Design notes:
 
-- **Generators for transfers.** `download_firmware()` and `upgrade_firmware()` are generators, so the client reports progress per block without callbacks, and closing the generator runs the abort and lock-release paths.
+- **Generators for transfers.** `download_firmware()` and `upgrade_firmware()` are generators, so the client reports progress per block without callbacks, and closing the generator runs the abort path and releases what a platform override holds.
 - **Errors raise.** A CDB failure raises `RuntimeError` with the module's status text; a device or API without CDB firmware support raises `NotImplementedError`. `run_firmware()` and `commit_firmware()` return `True` only for symmetry with existing hooks.
-- **Enabling CDB lazily.** CPO device APIs are built without the CDB firmware handler, so routine EEPROM access does not pay for CDB discovery. The mixin calls `enable_cdb_fw_handler()` only when a firmware operation runs. A device that does not advertise CDB support yields `NotImplementedError`.
+- **Enabling CDB lazily.** CPO device APIs are built without the CDB firmware handler, so routine EEPROM access does not pay for CDB discovery. The mixin calls `enable_cdb_fw_handler()` only when a firmware operation runs. If the handler is still not available:
+  - a device that does not advertise CDB support, or whose memory map has no CDB support field, raises `NotImplementedError`, and `get_firmware_info()` falls back to the EEPROM;
+  - a device that advertises CDB support, or whose CDB support cannot be read, raises `RuntimeError`: it may not be ready, for example while its CDB is busy or while it restarts after a firmware run. It is not reported as a device without CDB.
 - **Run delay.** `FW_RUN_DELAY` covers the Run FW Image reset delay (512 ms) plus tMgmtInit (2 s in CMIS), with margin. A vendor whose device needs longer overrides `run_firmware()`.
-- **Firmware lock.** See [§7.8](#78-concurrency).
+- **No lock.** The operations take no lock. A platform whose device can be reached by another process or thread at the same time serializes them in its overrides ([§7.8](#78-concurrency)).
 
 ##### 7.6.2 CmisCdbFw
 
 - `enable_cdb_fw_handler()`: creates the CDB firmware handler on an API built without it. Class-level defaults let APIs not derived from `CmisApi` mix `CmisCdbFw` in.
-- `module_fw_write_blocks_iter()`: the block loop of `module_fw_write_blocks()`, as a generator that yields the bytes written per block and raises `RuntimeError` on failure. `module_fw_write_blocks()` keeps its behavior on top of it, so `sfputil` is unchanged.
+- `module_fw_write_blocks_iter()`: the block loop of `module_fw_write_blocks()`, as a generator that yields the bytes written per block and raises `RuntimeError` on failure. The error names the block address, or the EPL page that failed. `module_fw_write_blocks()` keeps its behavior on top of it, so `sfputil` is unchanged.
+- Abort of a failed download: when Start FW Download or a block write fails, `CmisCdbFw` reports the status of the failed command before it sends CDB 0102h Abort FW Download, which overwrites the status. It then sends Abort only when the device supports Abort and its CDB is no longer busy, since the device rejects a new command while the last one runs.
 
 ##### 7.6.3 ELS API
 
@@ -527,15 +519,12 @@ The vendor platform API SHALL NOT change the command surface or the target selec
 
 CDB is a single command mailbox per device. Two clients that send CDB commands to the same device at the same time corrupt each other's command sequence, and a firmware transfer is a long sequence.
 
-- A platform sets `FIRMWARE_LOCK_DIR` to a lock directory, and each device names its lock with `get_firmware_lock_name()`, for example `oe0` or `els3`. Every firmware hook, including `get_firmware_info()`, then takes the locks returned by `_firmware_locks()`, each a non-blocking `flock` on `<FIRMWARE_LOCK_DIR>/<name>.lock`, shared or exclusive. A hook that finds a lock held in a conflicting mode releases the locks it took and raises `RuntimeError("Another firmware operation is in progress")`, which `cpoutil` reports for that target.
-- By default, `_firmware_locks()` returns the exclusive lock of the device only: two operations on the same OE, or on the same ELS, exclude each other, and operations on different devices, including an OE and an ELS, run in parallel.
-- A platform overrides `_firmware_locks()` for wider rules. 
-- `upgrade_firmware()` holds the lock for the whole download-run-commit sequence.
-- The lock is released when the hook returns, raises, or its generator is closed, and by the kernel when the process dies.
-- When firmware operations can run from more than one container, the platform makes the lock directory visible to each of them.
-- Without a lock directory, `cpoutil` takes no lock. The operator must avoid concurrent firmware operations on the same device.
-
-The lock serializes only firmware hooks. Other clients that use CDB on the same device, for example periodic CDB-based telemetry, must take the same lock or be paused during a firmware operation.
+- `CdbFirmwareMixin` takes no lock.
+- A platform whose device can be reached by another process or thread at the same time (for example `xcvrd` or another `cpoutil`) serializes the operations in its overrides of the firmware hooks, and calls the mixin through `super()`. The same lock should cover the other CDB clients of the device, for example periodic CDB-based telemetry, or they must be paused during a firmware operation.
+- A hook that cannot get its lock raises `RuntimeError`, which `cpoutil` reports for that target.
+- `upgrade_firmware()` holds the lock for the whole download-run-commit sequence. The lock is released when the hook returns, raises, or its generator is closed.
+- When firmware operations can run from more than one container, the platform makes its lock visible to each of them.
+- On a platform that takes no lock, the operator must avoid concurrent firmware operations on the same device.
 
 #### 7.9 Error handling
 
@@ -560,8 +549,9 @@ Failures are isolated per target. A failed target does not roll back completed t
 | Error | Behavior |
 | --- | --- |
 | Device does not support CDB firmware management | `NotImplementedError` (`get_firmware_info()` falls back to the EEPROM) |
+| Device advertises CDB, or its CDB support cannot be read, but the CDB firmware handler is not available | `RuntimeError`: the device may not be ready |
 | CDB Get FW Management Features failed | `RuntimeError` |
-| CDB Start / Write / Complete download failed | `RuntimeError` with the module status; the download is aborted by `CmisCdbFw` on a block failure |
+| CDB Start / Write / Complete download failed | `RuntimeError` with the module status; on a start or block failure, `CmisCdbFw` aborts the download when Abort is supported and the CDB is idle |
 | CDB Run / Commit failed | `RuntimeError` with the module status |
 | CDB command timeout | `RuntimeError` |
 | Abort failed | Logged; the original error is reported |
@@ -623,7 +613,7 @@ No daemon. `cpoutil` is a short-lived CLI process; the firmware image is read bl
 | LIM-2 | Sequential | Targets are processed one after the other. |
 | LIM-3 | Traffic | Running new firmware may disrupt traffic on the ports the OE or ELS serves. |
 | LIM-4 | STATE_DB | Firmware operations do not update `TRANSCEIVER_FIRMWARE_INFO` in STATE_DB. Use `cpoutil show {oe\|els} fwversion`. |
-| LIM-5 | Other CDB clients | The firmware lock covers only firmware hooks ([§7.8](#78-concurrency)). |
+| LIM-5 | Concurrency | Firmware operations are serialized only by a platform lock ([§7.8](#78-concurrency)). |
 | LIM-6 | Device behavior | Some devices reject a download while the running image is not committed, or invalidate the inactive bank when a download fails. Commit before the next download, and keep an image at hand to recover the inactive bank. |
 
 ### 13. Testing Requirements/Design
@@ -643,10 +633,10 @@ No daemon. `cpoutil` is a short-lived CLI process; the firmware image is read bl
 `sonic-platform-common`:
 
 - download / run / commit / upgrade call the CMIS CDB operations in order and yield per-block byte counts.
-- Each CDB failure raises `RuntimeError`; no CDB support raises `NotImplementedError`.
+- Each CDB failure raises `RuntimeError`; no CDB support raises `NotImplementedError`; a device that advertises CDB, or whose CDB support cannot be read, but has no CDB firmware handler raises `RuntimeError`.
 - Closing a download early aborts it when Abort is supported, and not otherwise; a failed block write is not aborted twice.
+- A failed start or block write reports the failure status read before the Abort, and does not send Abort while the CDB is busy.
 - Run waits `FW_RUN_DELAY` and refreshes the API; upgrade commits through the refreshed API.
-- The firmware lock: busy error on contention, release on return, error and generator close, no lock when `FIRMWARE_LOCK_DIR` is not set; same lock name excludes, different names run in parallel; shared locks run together and an exclusive one excludes them; a failed lock releases the locks already taken.
 - `get_firmware_info()`: CDB fields, EEPROM fallback, `N/A` for missing versions.
 - `wait_for_cdb_status()` keeps polling on a reserved result 0.
 - `module_fw_write_blocks()` behavior is unchanged.
