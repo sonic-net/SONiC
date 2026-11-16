@@ -1,65 +1,59 @@
-# **Administration of Public SONiC Test Result Repository** 
+# **Administration of Public SONiC Test Result Repository**
 
-## **Introduction** 
+## **Introduction**
 
-There has been strong support in the SONiC community for creating a publicly accessible repository of sonic-mgmt test results from tests run against the master SONiC branch. This document describes the requirements for organizing such a repository and is intended to be the basis for setting up the governance and administrative structure to manage this repository. 
+There has been strong support in the SONiC community for creating a publicly accessible repository of sonic-mgmt test results from tests run against the master SONiC branch.  This document describes the requirements for organizing such a repository and is intended to be the basis for setting up the governance and administrative structure to manage it.
 
-## **Organizational Framework** 
+## **Organizational Framework**
 
-The repository is organized around a set of testbeds each of which represents a specific test topology of interest. Each of these testbeds independently runs sonic-mgmt tests aligned with the configured topology. Each testbed is owned by an organization, which is responsible for executing tests on the testbed, and uploading results. The results are stored in the repository, aggregated and made visible to all participants through visual dashboards and programmatic access. 
+The repository is organized around a set of testbeds, each of which represents a specific test topology of interest.  Each of these testbeds independently runs sonic-mgmt tests aligned with the configured topology.  Each testbed is owned by an organization, which is responsible for executing tests on it and uploading the results.  Test results are stored in the repository, aggregated, and made visible to all participants through visual dashboards and programmatic access.
 
-## **Constraints** 
+## **Constraints**
 
-Given the public nature of the repository and the information sensitivity concerns around organizations that contribute test results, there are several constraints that need to be considered in order to operate this repository. 
+Given the public nature of the repository and contributing organizations' concerns regarding information sensitivity, there are several constraints which need to be considered in order to operate this repository:
 
-● Each testbed is assigned to and owned by a specific participating organization. 
-
-● An organization can only run and upload test results for the testbeds that it owns
+- each testbed is assigned to and owned by a specific participating organization;
+- an organization may only run and upload test results for testbeds which it owns.
 
 ## **Administration**
 
-The test result repository is hosted and maintained by UNH-IOL, who will be responsible for
+The test result repository is hosted and maintained by the University of New Hampshire Interoperability Laboratory (UNH-IOL).  The UNH-IOL will be responsible for:
 
-● Onboarding organizations 
+- onboarding organizations;
+- provisioning testbeds associated with each onboarded organization;
+- operating and maintaining the data repository;
+- operating and maintaining the user interface and API service.
 
-● Provision testbeds associated with the onboarded organizations 
+The members of the administrative structure by definition require full knowledge of the organizations and their associations with the testbeds present in the system.  This is required in order for testbeds to be fully provisioned.  However, the administrators do *not* require:
 
-● Operate and maintain the data repository 
-
-● Operate and maintain the user interface and API service 
-
-The members of the administrative structure by definition require full knowledge of the organizations and their associations with the testbeds present in the system in order to be able to provision them. However, the administrators do *not* require: 
-
-● Physical or administrative access to the testbeds themselves 
-
-● Access to physically identifiable information regarding the testbeds 
-
-● Visibility into test or device logs 
+- physical or administrative access to the testbeds themselves;
+- access to physically identifiable information regarding the testbeds;
+- visibility into test or device logs.
 
 ### **Data Repository Schema**
 
-The repository schema is based on the format already supported for test result repositories at the UNH-IOL. The existing schema may be extended to support additional sonic-mgmt related aspects such as
+The repository schema is based on the format already supported by the UNH-IOL for test result repositories.  The existing schema may be extended to support additional sonic-mgmt related aspects, such as:
 
 **Global Metadata**
 
-- SONiC software version string (Mandatory)  
-- Commit hash of sonic-buildimage used in the test run (Mandatory)  
-- Commit hash of sonic-mgmt instance used in the test run (Mandatory)  
-- Topology name: (Such as t1, m0) (Mandatory)  
-- Data plane family (Optional) which describes the forwarding architecture used on the testbed DUT  
-- TestBatchID   
-- ASIC   
-- HWSKU string (such as \<Vendor\>-\<Model\>-\<Variant\>-\<PortConfig\>)  
-- Platform string (Such as: \<Arch\>-\<Machine\>-\<Machine-Revision\>)   
-- DUT Hostname   
+- SONiC software version string (Mandatory)
+- Commit hash of sonic-buildimage used in the test run (Mandatory)
+- Commit hash of sonic-mgmt instance used in the test run (Mandatory)
+- Topology name: (Such as t1, m0) (Mandatory)
+- Data plane family (Optional) which describes the forwarding architecture used on the testbed DUT
+- Test batch ID
+- ASIC
+- HWSKU string (such as \<Vendor\>-\<Model\>-\<Variant\>-\<PortConfig\>)
+- Platform string (Such as: \<Arch\>-\<Machine\>-\<Machine-Revision\>)
+- DUT Hostname
 - Testbed ID
 
 **Global Metadata Visibility Table**
 
 | Metadata | Logged Out (Public) / Public API | Logged in and part of the organization that owns the results. | Logged in and part of the lab that uploaded the results.  |
 | :---- | ----- | ----- | ----- |
-| TestBatchID  | ✓ | ✓ | ✓ |
-| SONiC software version string  | ✓ | ✓ | ✓ |
+| Test batch ID | ✓ | ✓ | ✓ |
+| SONiC software version string | ✓ | ✓ | ✓ |
 | Commit hash of sonic-buildimage used in the test run | ✓ | ✓ | ✓ |
 | Commit hash of sonic-mgmt instance used in the test run | ✓ | ✓ | ✓ |
 | Topology name | ✓ | ✓ | ✓ |
@@ -70,61 +64,71 @@ The repository schema is based on the format already supported for test result r
 | HWSKU string  |  | ✓ | ✓ |
 | Platform string  |  | ✓ | ✓ |
 
-Each global metadata has the following sub-fields
+Each DUT described in the testbed metadata *must* have the following attributes:
 
-- Mandatory: Manufacturer name, Model.   
-- It is mandatory to have at least one of these: Software version, Hardware version, Firmware version  
-- Optional: Serial number, Inventory id, Description
+- Manufacturer name
+- Manufacturer model
+- At least one of the following attributes:
+  - Software version
+  - Hardware version
+  - Firmware version
 
-**Per test data**
+Each DUT *may* also have the following attributes:
 
-- Result: PASS/FAIL/XFAIL/ERROR/SKIP  
-- Error signature: The “message” field from the XML schema that is emitted for all unsuccessful tests. (Note that this error field can carry device identifying information, so it  will not be visible with the public test result API)
+- Device serial number
+- Device inventory ID
+- Device description
 
-**Per test data visibility table** 
+**Per-Test Data**
 
-| Metadata | Logged Out (Public) / Public API | Logged in and part of the organization that owns the results. | Logged in and part of the lab that uploaded the results.  |
+Per-test results data will include the following attributes:
+
+- a result, such as PASS, FAIL, XFAIL, ERROR, or SKIP;
+- an error signature, such as the “message” field from the XML schema that is emitted for all unsuccessful tests.
+
+The error signature may carry device-identifying information and must not be exposed through public web views or the public test result API.
+
+**Per-Test Data Visibility Table**
+
+| Metadata | Public web views / Public API | Members of the organization that owns the results | Members of the lab that uploaded the results |
 | :---- | ----- | ----- | ----- |
 | Result | ✓ | ✓ | ✓ |
 | Error signature |  | ✓ | ✓ |
 
-# **Public Test Result API**
+## **Public Test Result API**
 
-As shown in the visibility table above, repository access is available through unauthenticated web browsing and a public API offering anonymized test data. While this API enables programmatic integration with external CI/CD pipelines, token generation is restricted to registered users to protect the platform from unwanted automated traffic.
+Public web views are available without authentication.  Public API queries require a token, which only registered users may generate.  The public API offers anonymized test data, with the same field visibility as the public web views shown in the tables above.  It enables programmatic integration with external CI/CD pipelines, while the token requirement helps protect the platform from unwanted automated traffic.
 
 The public API will support the following query operations:
 
-1. Get all available testbed IDs in the repository  
-2. For each testbed ID, query public testbed attributes which returns  
-   1. Topology name  
-   2. Optional attributes such data plane family  
-3. Get all available topologies in the repository  
-4. For a given topology, get all the available testbeds that use that topology  
-5. Get all available test run batches which returns a list of BatchIDs  
-6. Get available test run batches in date range which returns a list of BatchIDs  
-7. Query information regarding a specific test run batch ID, which returns  
-   1. Testbed ID  
-   2. Sonic-buildimage commit hash  
-   3. Sonic-mgmt build hash  
-   4. Software version string  
-8. Get all test run IDs for a given Batch ID  
-9. Get run data for a run ID, which returns  
-   1. Fully qualified name of the test (test name, module name)  
-   2. Test result  
-      
+- Get all available testbed IDs in the repository
+- Get public attributes for a given testbed ID, including:
+  - Topology name
+  - Optional attributes such as data plane family
+- Get all available topologies in the repository
+- Get all available testbeds that use a given topology
+- Get all available test run batches (returns a list of batch IDs)
+- Get available test run batches within a date range (returns a list of batch IDs)
+- Get information for a specific test run batch ID, including:
+  - Testbed ID
+  - sonic-buildimage commit hash
+  - sonic-mgmt commit hash
+  - Software version string
+- Get all test run IDs for a given batch ID
+- Get data for a test run ID, including:
+  - Fully qualified test name (test name and module name)
+  - Test result
 
 ## **Guidelines for Repository Contributions**
 
-The contribution of test results to the repository are considered to be “data contributions”.  Data contributions may originate from three sources.
+Contributions of test results to the repository are considered to be “data contributions”.  Data contributions may originate from three sources:
 
-Data Sources:
+- the UNH-IOL, which conducts independent testing and uploads test results to the repository;
+- vendors, who may self-test and upload test results to the repository;
+- test results uploaded as a result of virtual testing conducted in a fully simulated environment without the use of hardware devices.
 
-1) UNH Interoperability Lab conducts independent testing and uploads results to the repository.  
-2) Vendors self-test and upload the results to the repository.  
-3) Virtual testing done in a fully simulated environment may be conducted without hardware and the results uploaded to the repository.
-
-The public repository only exposes results submitted from testbeds running unmodified device and test software. This is ensured by auditing the version and commit hash strings against public SONiC builds.
+Only results from testbeds running unmodified device and test software are eligible for public display.  Submitted version strings and commit hashes are checked against public SONiC builds and sonic-mgmt revisions.  These checks verify that the reported identifiers match public versions; they do not by themselves establish that the software used for the test run was unmodified.
 
 ### **Licensing**
 
-All data contributions made to the repository are subject to the [Community Data License Agreement Permissive 2.0 (CDLA-Permissive-2.0)](https://spdx.org/licenses/CDLA-Permissive-2.0.html). 
+All data contributions made to the repository are subject to the [Community Data License Agreement Permissive 2.0 (CDLA-Permissive-2.0)](https://spdx.org/licenses/CDLA-Permissive-2.0.html).
