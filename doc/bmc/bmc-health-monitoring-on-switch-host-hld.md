@@ -27,6 +27,7 @@
 | 0.1 | 2026-09-15 | Prajjwal Singh | Initial version (push model) |
 | 0.2 | 2026-09-30 | Prajjwal Singh | Revised to pull model; added BmcUsbInterfaceChecker; healthd writes full stats |
 | 0.3 | 2026-10-26 | Prajjwal Singh | Replaced BmcUsbInterfaceChecker with platform API `get_bmc_if_link_status()`; BmcChecker checks link before Redis connect |
+| 0.4 | 2026-11-11 | Prajjwal Singh | Reverted to flat hash schema for backwards compatibility for SYSTEM_HEALTH_INFO
 
 ---
 
@@ -147,7 +148,7 @@ graph LR
 
         B_proc["_process_stat()<br/>Full stats: OK + Not OK"]
 
-        B_DB["<b>STATE_DB Redis</b><br/>SYSTEM_HEALTH_INFO|*<br/>_meta<br/>last_updated<br/>polling_interval"]
+        B_DB["<b>STATE_DB Redis</b><br/>SYSTEM_HEALTH_INFO <br/>summary, last_updated,<br/>polling_interval, obj fields"]
 
         B_healthd --> B_checkers
         B_checkers --> B_proc
@@ -155,7 +156,7 @@ graph LR
     end
 
     S_checkers -->|"1. get_bmc_if_link_status()<br/>(sysfs + ping)"| BMC
-    S_checkers ==>|"2. BmcChecker pulls<br/>via bmc0 TCP 6379"| B_DB
+    S_checkers ==>|"2. BmcChecker hgetall<br/>via bmc0 TCP 6379"| B_DB
 ```
 
 ### 6.2. Components
@@ -164,12 +165,13 @@ graph LR
 
 | # | Component | Location | Runs On | Change Type |
 |---|-----------|----------|---------|-------------|
-| 1 | + `_process_stat()` (full stats) | `system-health/scripts/healthd` | Both | Modified - writes OK + Not OK |
+| 1 | + `_process_stat()` (full stats) | `system-health/scripts/healthd` | Both | Modified - writes OK + Not OK Fields to SYSTEM_HEALTH_INFO|
 | 2 | + `get_bmc_if_link_status()` | `sonic_platform_base/chassis_base.py` | Both | New platform API on ChassisBase |
 | 3 | + `BmcChecker` | `system-health/health_checker/bmc_checker.py` | Switch-Host | New checker class |
-| 4 | + `HealthCheckerManager` | `system-health/health_checker/manager.py` | Switch-Host | Modified - registers BmcChecker |
-| 5 | + `display_system_health_summary()` | `sonic-utilities/show/system_health.py` | Switch-Host | Modified - renders BMC section |
-| 6 | Redis binding on bmc0 | `docker-database-init.sh` | BMC | Existing - no change needed |
+| 4 | + `HealthChecker.check()` | `system-health/health_checker/health_checker.py` | Both | Signature extended with optional `chassis` parameter |
+| 5 | + `HealthCheckerManager` | `system-health/health_checker/manager.py` | Both | Modified - registers BmcChecker, passes chassis to checkers |
+| 6 | + `display_system_health_summary()` | `sonic-utilities/show/system_health.py` | Switch-Host | Modified - renders BMC section |
+| 7 | Redis binding on bmc0 | `docker-database-init.sh` | BMC | Existing - no change needed |
 
 ---
 
@@ -180,15 +182,21 @@ graph LR
 **File:** `src/system-health/scripts/healthd`
 
 The existing `_process_stat()` method is modified to write **all** health check results (both OK
-and Not OK) to the `SYSTEM_HEALTH_INFO` table in STATE_DB. Previously, only Not OK entries were
-written.
+and Not OK) to the `SYSTEM_HEALTH_INFO` flat hash in STATE_DB. Previously, only Not OK entries
+were written. The existing flat hash schema is preserved for backwards compatibility with
+sonic-mgmt tests and older releases.
 
-Each health check object is written with pipe-separated keys containing its category, type,
-status, and message. A `_meta` entry is added containing `last_updated` (UTC ISO 8601 timestamp),
-`summary` (aggregate OK/Not OK), and `polling_interval`.
+Each health check object is written as a field in the `SYSTEM_HEALTH_INFO` hash, where the field
+name is the object name and the value is the error message (empty string for OK). Three metadata
+fields are added: `summary`, `last_updated` (UTC ISO 8601 timestamp), and `polling_interval`.
 
-Before writing, all existing `SYSTEM_HEALTH_INFO|*` keys are cleared to prevent stale entries
-from persisting across polling cycles.
+On the switch-host, BMC health entries pulled by BmcChecker are written with a `BMC:` prefix
+(e.g., `BMC:lldp:lldpd`) to avoid collision with the switch-host's own entries.
+
+The `HealthChecker.check()` base class signature is extended with an optional `chassis` parameter
+(`check(self, config, chassis=None)`) so the platform chassis object can be passed through from
+`HealthCheckerManager.check(chassis)` to individual checkers. BmcChecker uses it for the link
+pre-check; other checkers ignore it.
 
 This change applies to **both BMC and switch-host** - both sides write full stats to their own
 local STATE_DB.
@@ -244,19 +252,21 @@ then connects to the BMC's Redis and reads the `SYSTEM_HEALTH_INFO` table.
 
 - Reports under the `"BMC"` category.
 - Reads the BMC address from `device_info.get_bmc_address()` (sourced from `/etc/sonic/bmc.json`).
+- The platform chassis is received via the `check(config, chassis)` parameter, passed through
+  from `HealthCheckerManager.check(chassis)`.
 - On each `check()` call:
   1. **Link pre-check:** Calls `chassis.get_bmc_if_link_status()`. If the link is down or
      peer is unreachable, reports the failure immediately under the BMC category and returns
      - no Redis connection attempted.
   2. **Redis connect:** Creates a fresh `swsscommon.DBConnector` to BMC's STATE_DB with a
      5-second connection timeout.
-  3. **Data read:** Reads all keys via `getKeys()` and iterates with `get()` to read
-     field-value pairs.
-  4. **Meta handling:** The `_meta` key is processed to extract `last_updated` and
-     `polling_interval`, surfaced as informational entries for CLI display.
-  5. **Health objects:** All other keys are reported via `set_object_ok()` /
-     `set_object_not_ok()` under the "BMC" category, preserving the original object names
-     and messages from the BMC.
+  3. **Data read:** Reads the entire `SYSTEM_HEALTH_INFO` flat hash via
+     `db.hgetall('SYSTEM_HEALTH_INFO')`, which returns all fields as a dict.
+  4. **Meta handling:** The `summary`, `last_updated`, and `polling_interval` fields are
+     extracted as metadata and surfaced as informational entries for CLI display.
+  5. **Health objects:** All other fields are health check objects - empty value means OK,
+     non-empty value is the error message. Reported via `set_object_ok()` /
+     `set_object_not_ok()` under the "BMC" category.
 
 **Error messages by failure mode:**
 
@@ -266,56 +276,63 @@ then connects to the BMC's Redis and reads the `SYSTEM_HEALTH_INFO` table.
 | bmc0 link down | `get_bmc_if_link_status()` sysfs | `bmc0 link is down` |
 | bmc0 peer unreachable | `get_bmc_if_link_status()` ping | `bmc0 peer 169.254.100.1 unreachable` |
 | Redis not running on BMC | Redis connect refused | `Cannot connect to BMC Redis: ...Connection refused...` |
-| No data in SYSTEM_HEALTH_INFO | Empty `getKeys()` | `No BMC health data available` |
+| No data in SYSTEM_HEALTH_INFO | Empty `hgetall()` | `No BMC health data available` |
 
 ### 7.4. STATE_DB Schema
 
-The existing `SYSTEM_HEALTH_INFO` table is extended to write all objects with pipe-separated keys.
-
-**Per-object entries:**
-
-```
-Key:    SYSTEM_HEALTH_INFO|{category}|{object_name}
-Fields: category, type, status, message
-```
-
-**Meta entry:**
+The existing `SYSTEM_HEALTH_INFO` flat hash is preserved for backwards compatibility. It is
+extended to write all objects (OK + Not OK) and adds metadata fields.
 
 ```
-Key:    SYSTEM_HEALTH_INFO|_meta
-Fields: last_updated, summary, polling_interval
+Key:    SYSTEM_HEALTH_INFO  (single Redis hash)
+Fields:
+    {object_name}    : string - error message (empty string for OK)
+    summary          : string - "OK" or "Not OK"
+    last_updated     : string - UTC ISO 8601 timestamp (e.g., "2026-11-11T06:49:22Z")
+    polling_interval : string - polling interval in seconds (e.g., "300")
 ```
+
+On the switch-host, BMC entries pulled by BmcChecker are stored with a `BMC:` prefix to avoid
+collision with the switch-host's own entries.
 
 The set of entries is dynamic and platform-dependent. The BMC does not own PSU, fan, or ASIC
 devices - those are managed by the switch-host. BMC entries typically include services (pmon,
 database, lldp, gnmi, etc.) and hardware sensors (liquid cooling leak detection, etc.).
 
-**Example entries on BMC's STATE_DB:**
+**Example: BMC's STATE_DB**
 
-| Key | status | message |
-| --- | --- | --- |
-| `SYSTEM_HEALTH_INFO\|Services\|sonic` | OK | |
-| `SYSTEM_HEALTH_INFO\|Services\|rsyslog` | OK | |
-| `SYSTEM_HEALTH_INFO\|Services\|database:redis` | OK | |
-| `SYSTEM_HEALTH_INFO\|Services\|pmon:bmcctld` | OK | |
-| `SYSTEM_HEALTH_INFO\|Services\|lldp:lldpd` | Not OK | Process 'lldpd' in container 'lldp' is not running |
-| `SYSTEM_HEALTH_INFO\|_meta` | - | last_updated=2026-09-30T06:41:35Z, summary=Not OK, polling_interval=300 |
+```
+redis-cli -n 6 HGETALL SYSTEM_HEALTH_INFO
+```
 
-**Example entries on Switch-Host's STATE_DB:**
+| Field | Value |
+| --- | --- |
+| `sonic` | |
+| `rsyslog` | |
+| `database:redis` | |
+| `pmon:bmcctld` | |
+| `lldp:lldpd` | Process 'lldpd' in container 'lldp' is not running |
+| `summary` | Not OK |
+| `last_updated` | 2026-11-11T06:49:22Z |
+| `polling_interval` | 300 |
 
-| Key | status | message |
-| --- | --- | --- |
-| `SYSTEM_HEALTH_INFO\|Services\|sonic` | OK | |
-| `SYSTEM_HEALTH_INFO\|Services\|rsyslog` | OK | |
-| `SYSTEM_HEALTH_INFO\|Services\|swss:orchagent` | OK | |
-| `SYSTEM_HEALTH_INFO\|Hardware\|PSU 1` | OK | |
-| `SYSTEM_HEALTH_INFO\|Hardware\|fan1` | OK | |
-| `SYSTEM_HEALTH_INFO\|BMC\|Services\|pmon:bmcctld` | OK | |
-| `SYSTEM_HEALTH_INFO\|BMC\|Services\|lldp:lldpd` | Not OK | Process 'lldpd' in container 'lldp' is not running |
-| `SYSTEM_HEALTH_INFO\|BMC\|BMC-LastUpdate` | OK | Last updated: 2026-09-30T06:41:35Z |
-| `SYSTEM_HEALTH_INFO\|BMC\|BMC-RefreshInterval` | OK | BMC Refresh Interval: 300s |
-| `SYSTEM_HEALTH_INFO\|BMC\|_meta` | - | last_updated=2026-09-30T06:41:35Z, summary=Not OK, polling_interval=300 |
-| `SYSTEM_HEALTH_INFO\|_meta` | - | last_updated=2026-09-30T06:41:40Z, summary=Not OK, polling_interval=180 |
+**Example: Switch-Host's STATE_DB**
+
+| Field | Value |
+| --- | --- |
+| `sonic` | |
+| `rsyslog` | |
+| `swss:orchagent` | |
+| `psu1` | |
+| `psu2` | |
+| `summary` | OK |
+| `last_updated` | 2026-11-11T06:52:36Z |
+| `polling_interval` | 60 |
+| `BMC:lldp:lldpd` | Process 'lldpd' in container 'lldp' is not running |
+| `BMC:pmon:bmcctld` | |
+| `BMC:rsyslog` | |
+| `BMC:BMC-LastUpdate` | Last updated: 2026-11-11T06:49:22Z |
+| `BMC:BMC-RefreshInterval` | BMC Refresh Interval: 300s |
 
 ### 7.5. CLI Display Update
 
@@ -411,7 +428,7 @@ System status summary
     Status: Not OK
     Last Updated: 2026-09-30T07:59:24Z
     BMC Refresh Interval: 300s
-    Reasons: Services|lldp:lldpd: Process 'lldpd' in container 'lldp' is not running
+    Reasons: lldp:lldpd: Process 'lldpd' in container 'lldp' is not running
 ```
 
 ### 7.6. Non-BMC Platform Safety
