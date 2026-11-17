@@ -45,6 +45,7 @@
 | 0.5 | 2026-11-07 | Brad House (Nexthop) | The `go.sum` fixup's pull request runs wait for approval, and its dispatched checks are not part of the pull request's checks, so the robot reads a required check the pull request lacks from the head commit. |
 | 0.6 | 2026-11-12 | Brad House (Nexthop) | Branch protection does not count dispatched runs, so the robot approves the fixup's pull request runs instead, and evaluates only the pull request's checks. No dispatch step and no loop backstop in the `go.sum` workflow. The robot accepts a `github-actions[bot]` commit only as a fixup a run started by Renovate recorded. |
 | 0.7 | 2026-11-13 | Brad House (Nexthop) | GitHub Actions pinned to a digest. Dependabot security updates stay on where Python packages are. The ruleset that replaces a rule matching every branch leaves out branches with their own rules. Branch builds skip Renovate branches. The merge queue. |
+| 0.8 | 2026-11-17 | Brad House (Nexthop) | Renovate merges labeled security updates itself, with the `renovate-approve` app's approval, in every repository without the `go.sum` workflow. The merge robot stays for those with it. The FIPS Go custom manager reads only trixie's pin, and `sonic-buildimage` turns off the `dockerfile` manager. |
 
 ### 2. Scope
 
@@ -82,6 +83,7 @@ The design changes no runtime code.
 | Automerge | Merging a pull request without a person |
 | Security update | An update that fixes a published vulnerability, as classified by GitHub advisories or OSV |
 | Merge robot | `azure-pipelines/automation-pr-scan.yml` in `sonic-pipelines`, which merges labeled bot pull requests |
+| `renovate-approve` | A GitHub App from Renovate's maintainers that approves Renovate pull requests, so Renovate can merge them where a review is required |
 | SBOM | Software Bill of Materials, the list of everything in a build |
 | WG | Working group |
 
@@ -127,7 +129,8 @@ R1 to R10 do not apply to the exclusions in [section 2](#2-scope).
 Nothing changes in the SONiC image, its containers, or anything that runs on a switch. The change is to the development workflow:
 
 ```
-upstream release ──▶ Renovate ──▶ pull request ──▶ checks ──┬─▶ automerge label, all checks pass ──▶ merge robot merges
+upstream release ──▶ Renovate ──▶ pull request ──▶ checks ──┬─▶ automerge label, all checks pass ──┬─▶ no go.sum workflow: renovate-approve approves, Renovate merges
+                                                            │                                     └─▶ go.sum workflow: merge robot merges
                                                             └─▶ otherwise ──▶ reviewer
 ```
 
@@ -166,7 +169,7 @@ The repositories that are mostly Go come first: `sonic-mgmt-common` and `sonic-g
 
 **The `go` directive.** Each Go repository lists `go` in `ignoreDeps`. A standard library vulnerability makes Renovate propose raising the `go` directive, and a security update overrides every package rule, so only `ignoreDeps` stops it. The directive cannot move ahead of the Go in the build container, and a standard library fix reaches SONiC through that toolchain.
 
-`ignoreDeps` does not stop `go get` from raising the directive. Renovate runs `go get` with the newest Go the directive allows, and raises the directive when an update needs a newer Go. Each Go repository's CI therefore builds only with the build container's Go. Every job that runs Go runs in the `sonic-slave` container for the pull request's base branch, the pipeline sets `GOTOOLCHAIN=local` so Go never downloads a toolchain, and no pipeline names a Go version. A directive newer than the container's Go then fails CI, and the merge robot does not merge the pull request; a raise the container's Go supports passes. A GitHub Actions workflow that runs Go to change the repository, such as the `go.sum` workflow below, runs it in the same container with `GOTOOLCHAIN=local`. When the build container moves to a newer Go, no repository changes.
+`ignoreDeps` does not stop `go get` from raising the directive. Renovate runs `go get` with the newest Go the directive allows, and raises the directive when an update needs a newer Go. Each Go repository's CI therefore builds only with the build container's Go. Every job that runs Go runs in the `sonic-slave` container for the pull request's base branch, the pipeline sets `GOTOOLCHAIN=local` so Go never downloads a toolchain, and no pipeline names a Go version. A directive newer than the container's Go then fails CI, and the pull request does not merge unattended; a raise the container's Go supports passes. A GitHub Actions workflow that runs Go to change the repository, such as the `go.sum` workflow below, runs it in the same container with `GOTOOLCHAIN=local`. When the build container moves to a newer Go, no repository changes.
 
 **Local `replace` directives.** To update `go.sum`, Renovate runs `go get` in a checkout of the one repository. A `replace` that points outside that repository, such as `sonic-gnmi` replacing `sonic-mgmt-common` with `../sonic-mgmt-common`, makes `go get` fail, and `go.sum` is left behind. Renovate's `gomodMassage` option comments out the whole `replace` block, which also drops the pins that patched modules depend on, so it is not used.
 
@@ -190,9 +193,9 @@ Renovate cannot rewrite import paths in such a repository either, so a major upd
 
 **Branch protection on Renovate branches.** This applies to every repository that adopts Renovate, not only one with the `go.sum` workflow. Renovate adds commits to an existing Renovate branch whenever it rebases it or moves it to a newer version, and step 2 adds the fixup. A branch protection rule that matches every branch, rather than only the default and release branches, rejects those commits when it requires a pull request or status checks: the commit is not a pull request, and a new commit cannot have passed the required checks. Such a rule does not block branch creation, so Renovate's own branches still appear, but nothing can be added to them afterwards, and a rebase someone asks for does nothing. Exempting the bots from the pull request requirement is not enough, because the required checks still apply. The protection is moved to a branch ruleset with the same rules, and the wildcard rule is deleted ([9.5](#95-setup-steps)). A classic rule gives way to a more specific one, such as the default branch's, a release branch's or `commit-validation`'s, but a ruleset applies on top of every classic rule. The ruleset therefore includes all branches and excludes `renovate/**`, the default branch, and every branch with a classic rule of its own, so it covers only what the wildcard rule covered. Where Dependabot security updates stay on ([7.8](#78-existing-automation)), it also excludes `dependabot/**`, which the wildcard rule blocks the same way. Its bypass list has the `sonic-automation` team ([7.6](#76-approval-and-merge)), and the repository admin role where the wildcard rule did not apply to administrators.
 
-**Branch builds.** An Azure pipeline whose CI trigger includes every branch also builds each push to a Renovate branch. Such a build takes the build container's tag from the branch name, which has no container, fails, and reports under the pull request build's check name on the same commit, so the robot does not merge the pull request. The change that adds `renovate.json` excludes `renovate/*` from that trigger.
+**Branch builds.** An Azure pipeline whose CI trigger includes every branch also builds each push to a Renovate branch. Such a build takes the build container's tag from the branch name, which has no container, fails, and reports under the pull request build's check name on the same commit, so the pull request does not merge unattended. The change that adds `renovate.json` excludes `renovate/*` from that trigger.
 
-GitHub refuses such a commit with "Required status check is expected. Cannot force-push to this branch". Renovate records that only in its job log, at debug level, and reports the run as having no errors or warnings, so neither the pull request nor the Dependency Dashboard shows it. A Renovate pull request that never takes a requested rebase or a newer version points to this rule. Write access to `renovate/**` opens no merge path, because the merge robot requires every commit on a Renovate pull request to be signed and authored by `renovate[bot]` or `github-actions[bot]` ([7.6](#76-approval-and-merge)), and the default branch keeps its own protection.
+GitHub refuses such a commit with "Required status check is expected. Cannot force-push to this branch". Renovate records that only in its job log, at debug level, and reports the run as having no errors or warnings, so neither the pull request nor the Dependency Dashboard shows it. A Renovate pull request that never takes a requested rebase or a newer version points to this rule. Write access to `renovate/**` opens no merge path. The merge robot requires every commit on a Renovate pull request to be signed and authored by `renovate[bot]` or `github-actions[bot]`, Renovate does not merge a branch someone else pushed to ([7.6](#76-approval-and-merge)), and the default branch keeps its own protection.
 
 Step 2 also brings in any drift between the two repositories' `go.mod` files. The CI pipeline's own `go mod tidy` applies the same change on every build.
 
@@ -205,6 +208,8 @@ Renovate updates the crates a `Cargo.toml` names, and their entries in `Cargo.lo
 #### 7.3 Hand-pinned versions
 
 A version a person pins in a build script has a custom manager entry beside it.
+
+`sonic-buildimage` turns the `dockerfile` manager off. Its Dockerfiles are Jinja templates whose base images are SONiC containers, or Debian images the version freeze owns ([7.8](#78-existing-automation)), and the one plain `Dockerfile` starts from a local image.
 
 | Variable | File | Datasource | Merge |
 |----------|------|------------|-------|
@@ -268,13 +273,13 @@ The `suite` parameter and the stripped suffix both name the image distribution, 
 }
 ```
 
-**FIPS Go toolchain.** `FIPS_GOLANG_VERSION` names a FIPS package SONiC publishes to its own mirror, which exists only after SONiC builds it. Renovate lists the upstream Go release on the Dependency Dashboard and opens a pull request only when someone approves it there:
+**FIPS Go toolchain.** `FIPS_GOLANG_VERSION` names a FIPS package SONiC publishes to its own mirror, which exists only after SONiC builds it. Renovate lists the upstream Go release on the Dependency Dashboard and opens a pull request only when someone approves it there. The file sets the version once per distribution, and only trixie's is tracked:
 
 ```json
 {
   "customType": "regex",
   "managerFilePatterns": ["/^rules/sonic-fips\\.mk$/"],
-  "matchStrings": ["FIPS_GOLANG_VERSION = (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+  "matchStrings": ["ifeq \\(\\$\\(BLDENV\\), trixie\\)[\\s\\S]*?FIPS_GOLANG_VERSION = (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
   "depNameTemplate": "go",
   "datasourceTemplate": "golang-version"
 }
@@ -403,7 +408,7 @@ A custom manager on any other datasource has no advisory feed behind it. A relea
 
 A security update that needs a major version opens with the `security` label alone and waits for a reviewer. So does one to a module a repository marks `patched-module` ([7.3](#73-hand-pinned-versions)). Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
 
-**Rebasing.** A base branch that requires branches to be up to date before merging makes Renovate's default, `rebaseWhen: auto`, rebase every open pull request each time the base branch moves. Each rebase is a new push, with its own build, review requests and notifications, and on a repository with the `go.sum` workflow ([7.2](#72-native-managers)) a second push for the fixup. The preset sets `rebaseWhen: conflicted`, so an update is rebased only when it conflicts with the base branch, or when a reviewer ticks the rebase box on the pull request or the Dependency Dashboard before merging it. The `automerge` rule sets `behind-base-branch`, so an update the robot merges is always current when it is evaluated. In a repository with the `go.sum` workflow, Renovate does not rebase a fixed-up branch itself ([7.2](#72-native-managers)).
+**Rebasing.** A base branch that requires branches to be up to date before merging makes Renovate's default, `rebaseWhen: auto`, rebase every open pull request each time the base branch moves. Each rebase is a new push, with its own build, review requests and notifications, and on a repository with the `go.sum` workflow ([7.2](#72-native-managers)) a second push for the fixup. The preset sets `rebaseWhen: conflicted`, so an update is rebased only when it conflicts with the base branch, or when a reviewer ticks the rebase box on the pull request or the Dependency Dashboard before merging it. The `automerge` rule sets `behind-base-branch`, so an update that merges unattended is always current when it is evaluated. In a repository with the `go.sum` workflow, Renovate does not rebase a fixed-up branch itself ([7.2](#72-native-managers)).
 
 Renovate truncates a pull request body that would be too long, which a long security advisory can cause, and the rebase box at its end goes with it. The Dependency Dashboard's rebase box for that branch does the same thing.
 
@@ -413,17 +418,50 @@ Renovate truncates a pull request body that would be too long, which a long secu
 
 #### 7.6 Approval and merge
 
-Renovate cannot approve its own pull requests. The existing merge robot merges them.
+Renovate cannot approve its own pull requests. Which ones merge unattended is decided in `renovate.json` ([7.5](#75-branch-policy)). Who merges them depends on whether the repository runs the `go.sum` workflow ([7.2](#72-native-managers)):
+
+| Repository | Merged by | Approval |
+|------------|-----------|----------|
+| No `go.sum` workflow | Renovate itself | The [`renovate-approve`](https://github.com/apps/renovate-approve) app |
+| With the `go.sum` workflow | The merge robot | None. `mssonicbld` merges without a review |
+
+**Renovate merges.** Each repository without the `go.sum` workflow adds a rule that matches exactly what the preset labels `automerge`:
+
+```json
+{
+  "matchJsonata": ["isVulnerabilityAlert = true and $not('patched-module' in addLabels)"],
+  "matchUpdateTypes": ["patch", "minor"],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "assignAutomerge": true
+}
+```
+
+| Setting | Reason |
+|---------|--------|
+| `automergeType: pr` | The merge goes through the pull request, which keeps a review record |
+| `platformAutomerge: false` | GitHub's native auto-merge waits only for the base branch's required checks, and many branches require little more than `EasyCLA`. With it off, Renovate merges on a later run, and only once every check on the head commit has passed. A check still running, or none at all, holds the merge |
+| `assignAutomerge: true` | Renovate otherwise requests no reviewers on a pull request it intends to merge, and one that fails would reach nobody |
+
+The `renovate-approve` app approves the pull request, which satisfies a branch's review requirement. It approves only a pull request the Renovate bot opened whose body says `**Automerge**: Enabled`, and it does so when the pull request opens. It is therefore installed on the whole organization: a Renovate pull request a reviewer has to merge, or one in a repository with the `go.sum` workflow, says `Disabled` and is never approved. A pull request opened before its repository's rule merged gets no approval, and waits for a reviewer, or for Renovate to open it again. When a push dismisses its approval, the app approves again only if the Renovate bot made the push.
+
+Nothing bypasses branch protection, so GitHub enforces every required check and every ruleset as for any other pull request, and the robot's check evaluation below is not needed. Renovate does not merge a branch someone else has pushed to, and such a push dismisses the approval where the branch dismisses stale reviews. The rule repeats the preset's condition rather than matching the label, and the two change together.
+
+A repository with the `go.sum` workflow stays with the robot. Renovate treats a fixed-up branch as edited ([7.2](#72-native-managers)) and never merges it, and nothing would approve the fixup's waiting pull request runs.
+
+The robot also lists every labeled Renovate pull request, in either kind of repository. Where both can merge one, whichever acts first merges it, and both wait for every check to pass.
+
+**The merge robot.**
 
 | | |
 |---|---|
-| `renovate.json` | Applies the `automerge` label as set out in [7.5](#75-branch-policy). Renovate's own `automerge` setting stays off |
 | Merge robot | Lists Renovate pull requests carrying both the `automerge` and `security` labels, however old, approves their waiting pull request runs, evaluates their checks, and merges the ones that pass with `gh pr merge --admin`, pinned to the head commit it evaluated. One that fails is left for its reviewers, without the cherry-pick retry or escalation |
 | Branch protection and rulesets | Must let `mssonicbld` merge without a review. See below |
 
-Which pull requests merge is decided in `renovate.json`, by the label. Whether a labeled pull request merges is decided by the robot, and by whatever the base branch's rules do not let `mssonicbld` bypass.
+Whether a labeled pull request merges is decided by the robot, and by whatever the base branch's rules do not let `mssonicbld` bypass.
 
-Nothing approves a Renovate pull request, so `mssonicbld` has to be able to merge one without a review. `--admin` bypasses only what `mssonicbld` may bypass on that branch, and classic branch protection and repository rulesets grant that differently:
+Nothing approves a Renovate pull request the robot merges, so `mssonicbld` has to be able to merge one without a review. `--admin` bypasses only what `mssonicbld` may bypass on that branch, and classic branch protection and repository rulesets grant that differently:
 
 | Rule on the base branch | Review requirement | Required status checks |
 |-------------------------|--------------------|------------------------|
@@ -474,7 +512,8 @@ Alternatives considered:
 
 | Option | Not chosen because |
 |--------|--------------------|
-| [`renovate-approve`](https://github.com/apps/renovate-approve) app | Adds a second app and an admin setting on every repository. It is the path back if the robot proves unsuitable |
+| The merge robot in every repository | Its `mssonicbld` bypass skips the base branch's required checks and rulesets, so the robot has to evaluate every check and every commit itself. Kept only where the `go.sum` workflow needs it |
+| `platformAutomerge: true` | GitHub merges once the required checks pass, ignoring any other check that fails |
 | Ruleset bypass for Renovate | Applies to every Renovate pull request, and cannot be limited to security updates |
 | `automergeType: branch` | Commits without a pull request, which leaves no review record on a release branch |
 
@@ -589,7 +628,7 @@ Shipped images are covered. Each official image's SBOM is published beside it an
 | 5 | Remaining owned repositories, and the `202611` branch |
 | 6 | A resolution for the pip seam |
 
-The Go repositories come first because they need no custom manager, and because the robot check evaluation is a small, contained change to land beside them.
+The Go repositories come first because they need no custom manager, and because the robot check evaluation is a small, contained change to land beside them. Once `renovate-approve` is installed, each repository without the `go.sum` workflow adds the rule that lets Renovate merge ([7.6](#76-approval-and-merge)), in its own change or in the one that adds its `renovate.json`.
 
 ### 8. SAI API
 
@@ -698,7 +737,7 @@ The preset:
 }
 ```
 
-This is the file committed to `sonic-pipelines`. Its `description` names this document. Each Go repository adds `ignoreDeps` for the `go` directive, and a rule and a `vulnerabilityAlerts.groupName` for its patched modules ([7.3](#73-hand-pinned-versions)). A repository with a local `replace` also adds `suppressNotifications` and the workflow in [7.2](#72-native-managers). Any other Go repository adds the held-module check in [7.3](#73-hand-pinned-versions). Each Go repository's CI builds with the build container's Go only ([7.2](#72-native-managers)).
+This is the file committed to `sonic-pipelines`. Its `description` names this document. Each Go repository adds `ignoreDeps` for the `go` directive, and a rule and a `vulnerabilityAlerts.groupName` for its patched modules ([7.3](#73-hand-pinned-versions)). A repository with a local `replace` also adds `suppressNotifications` and the workflow in [7.2](#72-native-managers). Any other Go repository adds the held-module check in [7.3](#73-hand-pinned-versions). Every repository without that workflow adds the rule that lets Renovate merge ([7.6](#76-approval-and-merge)). Each Go repository's CI builds with the build container's Go only ([7.2](#72-native-managers)).
 
 #### 9.5 Setup steps
 
@@ -708,19 +747,20 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 | 2 | Organization administrator, Security WG | Create the `sonic-security-wg` team as set out in [7.7](#77-reviewers): visible, no parent team, the public Working Group membership with at least one member as team maintainer, and Read on each repository Renovate runs in |
 | 3 | Each repository's administrators | Leave Dependabot alerts on, and turn Dependabot security updates off, unless the repository has Python packages. See [7.8](#78-existing-automation) |
 | 4 | `sonic-pipelines` maintainers | Merge `renovate/default.json` and the `automation-pr-scan.yml` change: the Renovate author filter, the check evaluation, and the approval of waiting runs in [7.6](#76-approval-and-merge). Add each Renovate repository to the robot's `repos` parameter if it is not already listed |
-| 5 | Organization administrator | On each branch Renovate targets, let `mssonicbld` merge without a review ([7.6](#76-approval-and-merge)). Where classic branch protection requires a review, add the `sonic-automation` team to the actors allowed to bypass required pull requests, unless `mssonicbld` is a repository admin and the protection does not apply to administrators. Where a ruleset carries a pull request or required status check rule, add the `sonic-automation` team, whose only member is `mssonicbld`, to the ruleset's bypass list, in the "For pull requests only" mode |
+| 5 | Organization administrator | In each repository with the `go.sum` workflow, on each branch Renovate targets, let `mssonicbld` merge without a review ([7.6](#76-approval-and-merge)). Where classic branch protection requires a review, add the `sonic-automation` team to the actors allowed to bypass required pull requests, unless `mssonicbld` is a repository admin and the protection does not apply to administrators. Where a ruleset carries a pull request or required status check rule, add the `sonic-automation` team, whose only member is `mssonicbld`, to the ruleset's bypass list, in the "For pull requests only" mode |
 | 6 | Each repository's administrators | Where a branch protection rule matches every branch, replace that rule with a branch ruleset that includes all branches, excludes `renovate/**`, the default branch and every branch with a classic rule of its own, keeps the same rules, and lets the `sonic-automation` team bypass in the "For pull requests only" mode, and the repository admin role where the wildcard rule did not apply to administrators, so Renovate and any workflow from [7.2](#72-native-managers) can add commits to Renovate branches. A repository with the `go.sum` workflow does not require branches to be up to date before merging ([7.2](#72-native-managers)) |
-| 7 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)) |
-| 8 | Each repository's owners | Merge a `renovate.json` extending the preset, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers). In a Go repository, CI builds with the build container's Go only. In a Rust repository, the change commits any missing `Cargo.lock`, and CI builds with `--locked` and the build container's Rust ([7.2](#72-native-managers)). An Azure CI trigger that includes every branch excludes `renovate/*` ([7.2](#72-native-managers)) |
+| 7 | Organization administrator | Install the app at <https://github.com/apps/renovate> on all repositories, accepting the requested permissions, which include read access to Dependabot alerts, and close the onboarding pull requests without merging ([7.1](#71-installation-scope)). Install <https://github.com/apps/renovate-approve> on all repositories too ([7.6](#76-approval-and-merge)) |
+| 8 | Each repository's owners | Merge a `renovate.json` extending the preset, with the rule that lets Renovate merge unless the repository has the `go.sum` workflow, the removal of `.github/dependabot.yml`, and any workflow from [7.2](#72-native-managers). In a Go repository, CI builds with the build container's Go only. In a Rust repository, the change commits any missing `Cargo.lock`, and CI builds with `--locked` and the build container's Rust ([7.2](#72-native-managers)). An Azure CI trigger that includes every branch excludes `renovate/*` ([7.2](#72-native-managers)) |
 | 9 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
 
-Renovate opens nothing in a repository but its onboarding pull request until step 8. Steps 1 to 6 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and can be merged by the robot. A pull request Renovate opened before step 1 keeps its failed `EasyCLA` status until someone comments `/easycla` on it.
+Renovate opens nothing in a repository but its onboarding pull request until step 8. Steps 1 to 7 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and are approved when they open. A pull request Renovate opened before step 1 keeps its failed `EasyCLA` status until someone comments `/easycla` on it.
 
 A later repository repeats steps 2 (the team's Read access), 3, 5, 6, 8 and 9, and closes its onboarding pull request if one is open.
 
 | Action | Effect |
 |--------|--------|
-| Remove the `automerge` rule from the preset | Nothing merges unattended |
+| Remove the `automerge` rule from the preset | The robot merges nothing. Renovate still merges where a repository's own rule allows it |
+| Remove a repository's Renovate merge rule, or uninstall `renovate-approve` | Renovate merges nothing in that repository, or anywhere |
 | Remove a repository's `renovate.json`, or remove the repository from the installation | Renovate ignores that repository |
 | Uninstall the app | Renovate stops everywhere |
 
@@ -746,7 +786,9 @@ No change. Nothing is added to the image.
 | Hand-pinned versions outside an ecosystem datasource are never classified as security updates | No advisory feed sits behind them. They are enabled by name and merged by a reviewer. See [7.5](#75-branch-policy) |
 | Renovate cannot update `go.sum` past a `replace` that points outside the repository | A workflow in that repository tidies it, and the merge robot approves the fixup's checks. See [7.2](#72-native-managers) |
 | The `go` directive is not updated | A standard library fix reaches SONiC through the build container's toolchain |
-| The merge robot merges without a review | The bypass that lets it also skips the required checks, so the robot evaluates them itself. See [7.6](#76-approval-and-merge) |
+| The merge robot merges without a review | Only in a repository with the `go.sum` workflow. The bypass that lets it also skips the required checks, so the robot evaluates them itself. See [7.6](#76-approval-and-merge) |
+| Renovate merges only on its next run | A security update merges some time after its last check passes, not at once |
+| `renovate-approve` approves a pull request only when it opens | One opened before its repository's merge rule waits for a reviewer, or for Renovate to open it again. See [7.6](#76-approval-and-merge) |
 | A security fix to a v0 Go module can change its API | Go treats a v0 minor bump as compatible, and labels it accordingly. Security updates take the lowest fixed version, and the build and tests gate the merge |
 | The FIPS Go pin depends on a SONiC FIPS build | Renovate lists the upstream release on the dashboard. The bump lands after SONiC publishes the package |
 | A vulnerable crate held only in a `Cargo.lock` gets no security pull request | Renovate raises security updates only for the crates a `Cargo.toml` names. Lock file maintenance moves the crate on `master` within a week, after review. On a release branch it is updated by hand. See [7.2](#72-native-managers) |
@@ -775,6 +817,9 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Patched modules wait for approval | The Dependency Dashboard lists each patched module under pending approval, and no pull request opens for it |
 | The `go.sum` workflow produces a tidy module | With the replaced repository checked out beside it, `go mod tidy` after a Renovate bump leaves a `go.sum` the build accepts. On a Renovate pull request, the fixup commit is signed by GitHub, and the robot approves its waiting pull request runs. A labeled security update that needed a fixup is merged by the robot once those runs and the build pass, with no run approved by hand. Ticking the rebase box twice in a row gives a new fixup each time |
 | Robot check evaluation | The evaluation function, run against each case in [7.6](#76-approval-and-merge) and against the check list and required checks of a live bot pull request, passes only when every check has completed successfully, every required check has reported, and a build check is present. A list holding only `EasyCLA` does not pass. A required check that has passed only in a dispatched run does not pass. The robot approves a waiting `pull_request` run only on the pull request's own branch, and only when every commit passes the commit check |
+| Renovate merges a labeled update | In a repository without the `go.sum` workflow, a labeled security update is approved by `renovate-approve` when it opens, and Renovate merges it on a run after its last check passes. With a check the branch does not require left failing, or still running, it does not |
+| `renovate-approve` approves only automerge pull requests | A major security update, an ordinary update and a security update in a repository with the `go.sum` workflow get no approval |
+| Renovate leaves a pushed branch alone | After someone else pushes to a labeled Renovate branch, Renovate does not merge it, and `renovate-approve` does not approve it again |
 | Robot commit check | The robot declines a Renovate pull request carrying a pushed commit, including one that names the Renovate bot as its author, and merges one whose commits are all GitHub-signed commits from the Renovate bot and `github-actions[bot]` |
 | Robot merges past a ruleset | In a repository whose base branch ruleset requires a review and status checks, the robot merges a labeled Renovate pull request that passes its evaluation and has no approval. With a check required only by the ruleset left failing, it does not |
 | Release age | An ordinary update younger than 7 days is not proposed. A security update of the same age is |
@@ -823,7 +868,7 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 | 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | `src/sonic-fips/`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build` |
 | 10 | Stand up SBOM-driven triage for the Debian packages SONiC rebuilds | — | Security WG |
 | 11 | Confirm the release branch policy in [7.5](#75-branch-policy) | `renovate.json` | Security WG |
-| 12 | Let `mssonicbld` merge without a review in each Renovate repository, adding `sonic-automation` to every ruleset on the branches Renovate targets ([9.5](#95-setup-steps) step 5) | Repository settings | Organization administrators |
+| 12 | Let `mssonicbld` merge without a review in each repository with the `go.sum` workflow, adding `sonic-automation` to every ruleset on the branches Renovate targets ([9.5](#95-setup-steps) step 5) | Repository settings | Organization administrators |
 | 13 | Start a branch's freeze when the Debian security tracker shows a fix newer than a pinned version (G1 in [7.9](#79-gaps-outside-both)) | `sonic-buildimage` `.azure-pipelines/` | `@sonic-net/sonic-build`, Security WG |
 | 14 | Alert when a branch's Debian snapshot is older than a set age (G2) | `sonic-buildimage` `.azure-pipelines/` | `@sonic-net/sonic-build` |
 | 15 | Build or drop every pinned container and distribution the freeze does not build (G3) | `scripts/versions_manager.py`, `.azure-pipelines/` | `@sonic-net/sonic-build` |
@@ -832,3 +877,5 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 | 18 | Keep a list of known bundled library copies for SBOM triage (G6), with item 10 | — | Security WG |
 | 19 | Scan the build and test images, or record that they are accepted unscanned (G7) | `.azure-pipelines/` | `@sonic-net/sonic-build`, Security WG |
 | 20 | Apply the distribution's security updates in every image built on a base that is not Debian, starting with `docker-dash-engine` (G8) | `platform/vs/docker-dash-engine/Dockerfile.j2` | `@sonic-net/DASH-maintainer` |
+| 21 | Install the `renovate-approve` app on all `sonic-net` repositories ([7.6](#76-approval-and-merge)) | Organization settings | Organization administrators |
+| 22 | Add the Renovate merge rule to each repository without the `go.sum` workflow ([7.6](#76-approval-and-merge)) | `renovate.json` | Each repository's owners |
