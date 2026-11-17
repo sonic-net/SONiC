@@ -45,7 +45,7 @@
 | 0.5 | 2026-11-07 | Brad House (Nexthop) | The `go.sum` fixup's pull request runs wait for approval, and its dispatched checks are not part of the pull request's checks, so the robot reads a required check the pull request lacks from the head commit. |
 | 0.6 | 2026-11-12 | Brad House (Nexthop) | Branch protection does not count dispatched runs, so the robot approves the fixup's pull request runs instead, and evaluates only the pull request's checks. No dispatch step and no loop backstop in the `go.sum` workflow. The robot accepts a `github-actions[bot]` commit only as a fixup a run started by Renovate recorded. |
 | 0.7 | 2026-11-13 | Brad House (Nexthop) | GitHub Actions pinned to a digest. Dependabot security updates stay on where Python packages are. The ruleset that replaces a rule matching every branch leaves out branches with their own rules. Branch builds skip Renovate branches. The merge queue. |
-| 0.8 | 2026-11-17 | Brad House (Nexthop) | Renovate merges labeled security updates itself, with the `renovate-approve` app's approval, in every repository without the `go.sum` workflow. The merge robot stays for those with it. The FIPS Go custom manager reads only trixie's pin, and `sonic-buildimage` turns off the `dockerfile` manager. |
+| 0.8 | 2026-11-17 | Brad House (Nexthop) | Renovate merges labeled security updates itself, with the `renovate-approve` app's approval, in every repository without the `go.sum` workflow. The merge robot stays for those with it. The FIPS Go custom manager reads only trixie's pin, and `sonic-buildimage` turns off the `dockerfile` manager. The OpenTelemetry Collector has no custom manager, since its downloads are checked against pinned SHA256s a version bump does not update. |
 
 ### 2. Scope
 
@@ -54,7 +54,7 @@
 In scope:
 
 - Dependencies declared in a checked-in manifest: `go.mod`, `Cargo.toml`, `requirements.txt`, `setup.py`, GitHub Actions workflows, Dockerfiles.
-- Versions SONiC pins by hand in its own build scripts, such as Docker and the OpenTelemetry Collector.
+- Versions SONiC pins by hand in its own build scripts, such as Docker and containerd.
 - Modules a repository patches at build time. Their ordinary updates wait for approval on the Dependency Dashboard. See [7.3](#73-hand-pinned-versions).
 - Which updates open a pull request, how those pull requests are grouped, and which ones merge without a person.
 
@@ -215,7 +215,6 @@ A version a person pins in a build script has a custom manager entry beside it.
 |----------|------|------------|-------|
 | `DOCKER_VERSION` (`docker-ce`) | `build_debian.sh` | `deb`, `download.docker.com` | Reviewer |
 | `CONTAINERD_IO_VERSION` (`containerd.io`) | `build_debian.sh` | `deb`, `download.docker.com` | Reviewer |
-| `OTEL_VERSION` | `dockers/docker-sonic-otel/Dockerfile.j2` | `github-releases` | Reviewer |
 | Rust toolchain | `sonic-slave-trixie/Dockerfile.j2` | `github-releases` | Reviewer |
 | `FIPS_GOLANG_VERSION` | `rules/sonic-fips.mk` | `golang-version` | Dashboard only |
 
@@ -248,18 +247,7 @@ A version a person pins in a build script has a custom manager entry beside it.
 
 The `suite` parameter and the stripped suffix both name the image distribution, and change together when it does.
 
-**OpenTelemetry Collector.** The built-in `dockerfile` manager does not read a `.j2` file and has no datasource for a bare `ARG`:
-
-```json
-{
-  "customType": "regex",
-  "managerFilePatterns": ["/^dockers/docker-sonic-otel/Dockerfile\\.j2$/"],
-  "matchStrings": ["ARG OTEL_VERSION=(?<currentValue>\\S+)"],
-  "depNameTemplate": "open-telemetry/opentelemetry-collector-releases",
-  "datasourceTemplate": "github-releases",
-  "extractVersionTemplate": "^v(?<version>.*)$"
-}
-```
+**OpenTelemetry Collector.** `OTEL_VERSION` in `dockers/docker-sonic-otel/Dockerfile.j2` has no custom manager. Each of the three architecture packages it downloads is checked against a SHA256 pinned beside it, and a regex manager changes only the version. Every pull request it opened would fail all three checksums. Recomputing them needs `postUpgradeTasks`, which the hosted Renovate app does not run, so the collector stays a manual update.
 
 **Rust toolchain.** The `rustup` invocation carries a plain version string:
 
@@ -384,7 +372,7 @@ Release branches from `202611` on are in scope. One pattern matches them, so a n
 | `gomod`, `cargo`, `pip` | Ecosystem registry | Yes |
 | A custom manager on an ecosystem datasource | Ecosystem registry | Yes |
 | Docker, containerd | `deb` | No |
-| OpenTelemetry Collector, Rust | `github-releases` | No |
+| Rust | `github-releases` | No |
 | FIPS Go | `golang-version` | No |
 
 A custom manager on any other datasource has no advisory feed behind it. A release branch therefore enables hand-pinned updates by name, and a reviewer decides whether each one is needed.
@@ -622,7 +610,7 @@ Shipped images are covered. Each official image's SBOM is published beside it an
 | Phase | Work |
 |-------|------|
 | 1 | The shared preset and the robot check evaluation in [7.6](#76-approval-and-merge). `sonic-mgmt-common` and `sonic-gnmi` on `master`, including the `automerge` label on security updates |
-| 2 | Docker, containerd and OpenTelemetry custom managers in `sonic-buildimage`, on `master` |
+| 2 | Docker and containerd custom managers in `sonic-buildimage`, on `master` |
 | 3 | Native managers on `master` in `sonic-buildimage` and the remaining owned repositories holding `go.mod` or `Cargo.toml` |
 | 4 | Rust and FIPS Go custom managers |
 | 5 | Remaining owned repositories, and the `202611` branch |
@@ -808,7 +796,7 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Test | Method |
 |------|--------|
 | Configuration is valid | `npx --yes --package renovate -- renovate-config-validator` in CI on every change to a `renovate.json` or the preset |
-| Custom managers match the right lines | A Renovate run against a fork finds `DOCKER_VERSION`, `CONTAINERD_IO_VERSION`, `OTEL_VERSION`, `FIPS_GOLANG_VERSION` and the `rustup` toolchain, and nothing else |
+| Custom managers match the right lines | A Renovate run against a fork finds `DOCKER_VERSION`, `CONTAINERD_IO_VERSION`, `FIPS_GOLANG_VERSION` and the `rustup` toolchain, and nothing else |
 | Custom managers write the right value | In that run, each pushed branch's diff keeps the `~$IMAGE_DISTRO` suffix, `containerd.io` tracks its own package, and the new version exists in the apt index |
 | Release branch rules hold | A run against a release branch from `202611` on proposes security updates and hand-pinned patch and minor updates only |
 | Grouping is correct | A run against `master` proposes one pull request per ecosystem per update type, and majors one per dependency |
