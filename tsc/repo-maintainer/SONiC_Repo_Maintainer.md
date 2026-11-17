@@ -19,6 +19,7 @@
 |  | sonic-mgmt-common-maintainer | Shashank Neelam (Google) | sneelam20 | enabled |
 |  | sonic-mgmt-common-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | enabled |
 |  | sonic-mgmt-common-maintainer | Dawei Huang (Microsoft) | hdwhdw | Self-nominated on 11/05/2026; pending approval |
+|  | sonic-mgmt-common-maintainer | Wu Miao (Nokia) | wumiaont | Request on 11/17/2026 |
 | sonic-mgmt-framework | sonic-mgmt-framework-maintainer | Joseph, Joyas (DELL) | joyas-joseph | enabled |
 |  | sonic-mgmt-framework-maintainer | Shashank Neelam | sneelam20 | Replace Tomek on 3/5/2024 |
 |  | sonic-mgmt-framework-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
@@ -65,6 +66,7 @@
 |  | sonic-gnmi-maintainer | Anand Subramanian (BRCM) | anand-kumar-subramanian | Approved on 5/3/2023 and enabled |
 |  | sonic-gnmi-maintainer | Dawei Huang (Microsoft) | hdwhdw | Self-nominated on 11/05/2026; pending approval |
 |  | sonic-gnmi-maintainer | Ronan Mac Fhlannchadha (Nexthop) | ronan-nexthop | Self-nominated on 11/12/2026; pending approval |
+|  | sonic-gnmi-maintainer | Wu Miao (Nokia) | wumiaont | Request on 11/17/2026 |
 | sonic-utilities | sonic-utilities-maintainer | Qi Luo (Microsoft) | qiluo-msft | enabled |
 | sonic-wpa-supplicant | sonic-wpa-supplicant-maintainer | Ze Gan (Microsoft) | Pterosaur | enabled |
 | sonic-buildimage | sonic-buildimage-maintainer | Guohan Lu (Microsoft) | lguohan | enabled |
