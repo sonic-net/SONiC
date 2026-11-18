@@ -132,14 +132,14 @@ module: openconfig-spanning-tree
 1. Map OpenConfig RSTP onto existing `STP|GLOBAL` and `STP_PORT|<if>` CONFIG_DB rows.
 2. Enable/disable uses protocol CONFIG_DB (`mode=rstp`). UMF never writes `FEATURE|*`.
 3. Accept only identity `RSTP` in `enabled-protocol`.
-4. Map timers and bridge-priority on `/stp/rstp/config`.
-5. Map cost / port-priority on `/stp/rstp/interfaces`. Map edge-port / link-type / guard / bpdu-guard on `/stp/interfaces`.
+4. Map timers and bridge-priority on `/openconfig-spanning-tree:stp/rstp/config`.
+5. Map cost / port-priority on `/openconfig-spanning-tree:stp/rstp/interfaces`. Map edge-port / link-type / guard / bpdu-guard on `/openconfig-spanning-tree:stp/interfaces`.
 6. Reject `EDGE_AUTO` and guard `LOOP`.
 7. Mark MSTP, rapid-pvst, and the leaves in [Section 4.5](#45-unsupported) as not-supported.
 8. State GET reads APPL_DB `STP_RSTP_INST_TABLE` / `STP_RSTP_PORT_TABLE` when those rows exist.
 
 ## 1.2 Design Overview
-One subtree transformer (`stp_xfmr`) on `/stp`. Mapping only onto native STP tables already owned by the RSTP implementation. No new Redis tables and no new native yang leaves from UMF.
+One subtree transformer (`stp_xfmr`) on `/openconfig-spanning-tree:stp`. Mapping only onto native STP tables already owned by the RSTP implementation. No new Redis tables and no new native yang leaves from UMF.
 
 # 2 Functionality
 A REST or gNMI client enables RSTP, sets hello-time / max-age / forwarding-delay / bridge-priority, and sets per-port cost, priority, edge, link-type, root-guard, and bpdu-guard. GET returns CONFIG_DB for config leaves and APPL_DB for operational role/state when present.
@@ -151,17 +151,17 @@ OpenConfig YANG → `openconfig-spanning-tree-annotation.json` → `xfmr_stp.go`
 ### 3.1.1 UMF Translation
 | Artifact | Role |
 |----------|------|
-| `openconfig-spanning-tree-annotation.json` | subtree on `/stp`; not-supported on MSTP / rapid-pvst / unused leaves |
+| `openconfig-spanning-tree-annotation.json` | subtree on `/openconfig-spanning-tree:stp`; not-supported on MSTP / rapid-pvst / unused leaves |
 | `xfmr_stp.go` | YangToDb / DbToYang / Subscribe |
 
 ### 3.1.2 Mapping Rules and Exceptions
 | Rule | Detail |
 |------|--------|
 | Enable | `enabled-protocol` containing `RSTP` writes `STP|GLOBAL mode=rstp` plus default timers if absent. |
-| Disable | Empty `enabled-protocol`, DELETE `/stp`, DELETE `/stp/rstp`, or DELETE `enabled-protocol` deletes `STP|GLOBAL` and `STP_PORT` rows. UMF does not write `FEATURE|*`. |
+| Disable | Empty `enabled-protocol`, DELETE `/openconfig-spanning-tree:stp`, DELETE `/openconfig-spanning-tree:stp/rstp`, or DELETE `enabled-protocol` deletes `STP|GLOBAL` and `STP_PORT` rows. UMF does not write `FEATURE|*`. |
 | RSTP-only | Any other `enabled-protocol` identity is rejected. GET is silent (empty tree) when `mode` is not `rstp`. |
-| Timer DELETE | DELETE of a timer leaf restores the UMF default (`hello-time=2`, `max-age=20`, `forwarding-delay=15`, `bridge-priority=32768`), it does not disable RSTP. DELETE `/stp/rstp/config` resets those timers only. |
-| Port split | Cost and port-priority are under `/stp/rstp/interfaces`. Edge, link-type, guard, and bpdu-guard are under `/stp/interfaces`. Both write `STP_PORT|<if>`. |
+| Timer DELETE | DELETE of a timer leaf restores the UMF default (`hello-time=2`, `max-age=20`, `forwarding-delay=15`, `bridge-priority=32768`), it does not disable RSTP. DELETE `/openconfig-spanning-tree:stp/rstp/config` resets those timers only. |
+| Port split | Cost and port-priority are under `/openconfig-spanning-tree:stp/rstp/interfaces`. Edge, link-type, guard, and bpdu-guard are under `/openconfig-spanning-tree:stp/interfaces`. Both write `STP_PORT|<if>`. |
 | Enums | `edge-port` `EDGE_ENABLE`/`EDGE_DISABLE` → `edge_port` true/false. `EDGE_AUTO` is rejected. `link-type` `P2P`/`SHARED` → `point-to-point`/`shared`. `guard` `ROOT`/`NONE` → `root_guard` true/false. `LOOP` is rejected. |
 | First port PATCH | Creating an `STP_PORT` row may set `enabled=true` so the native table has a complete key. |
 
@@ -181,34 +181,40 @@ No new tables.
 
 | OpenConfig YANG Node | Extension | DB Name | Table:Field | Notes |
 |----------------------|-----------|---------|-------------|-------|
-| `/stp` | | CONFIG_DB | subtree `stp_xfmr` | |
-| `/stp/global/config/enabled-protocol` | | CONFIG_DB | `STP\|GLOBAL.mode` | `RSTP` → `rstp`; empty/DELETE disables |
-| `/stp/rstp/config/hello-time` | | CONFIG_DB | `STP\|GLOBAL.hello_time` | default 2 on DELETE |
-| `/stp/rstp/config/max-age` | | CONFIG_DB | `STP\|GLOBAL.max_age` | default 20 on DELETE |
-| `/stp/rstp/config/forwarding-delay` | | CONFIG_DB | `STP\|GLOBAL.forward_delay` | default 15 on DELETE |
-| `/stp/rstp/config/bridge-priority` | | CONFIG_DB | `STP\|GLOBAL.priority` | default 32768 on DELETE |
-| matching `state` timer / priority leaves | | CONFIG_DB | same fields | |
+| `/openconfig-spanning-tree:stp` | | CONFIG_DB | subtree `stp_xfmr` | |
+| `/openconfig-spanning-tree:stp/global/config/enabled-protocol` | | CONFIG_DB | `STP\|GLOBAL.mode` | `RSTP` → `rstp`; empty/DELETE disables |
+| `/openconfig-spanning-tree:stp/global/state/enabled-protocol` | | CONFIG_DB | `STP\|GLOBAL.mode` | |
+| `/openconfig-spanning-tree:stp/rstp/config/hello-time` | | CONFIG_DB | `STP\|GLOBAL.hello_time` | default 2 on DELETE |
+| `/openconfig-spanning-tree:stp/rstp/state/hello-time` | | CONFIG_DB | `STP\|GLOBAL.hello_time` | |
+| `/openconfig-spanning-tree:stp/rstp/config/max-age` | | CONFIG_DB | `STP\|GLOBAL.max_age` | default 20 on DELETE |
+| `/openconfig-spanning-tree:stp/rstp/state/max-age` | | CONFIG_DB | `STP\|GLOBAL.max_age` | |
+| `/openconfig-spanning-tree:stp/rstp/config/forwarding-delay` | | CONFIG_DB | `STP\|GLOBAL.forward_delay` | default 15 on DELETE |
+| `/openconfig-spanning-tree:stp/rstp/state/forwarding-delay` | | CONFIG_DB | `STP\|GLOBAL.forward_delay` | |
+| `/openconfig-spanning-tree:stp/rstp/config/bridge-priority` | | CONFIG_DB | `STP\|GLOBAL.priority` | default 32768 on DELETE |
+| `/openconfig-spanning-tree:stp/rstp/state/bridge-priority` | | CONFIG_DB | `STP\|GLOBAL.priority` | |
 
 ## 4.2 RSTP Interfaces
 
-Path: `/stp/rstp/interfaces/interface[name=<if>]`
-
 | OpenConfig YANG Node | Extension | DB Name | Table:Field | Notes |
 |----------------------|-----------|---------|-------------|-------|
-| `config/name` | | CONFIG_DB | `STP_PORT` key | |
-| `config/cost` | | CONFIG_DB | `STP_PORT.path_cost` | |
-| `config/port-priority` | | CONFIG_DB | `STP_PORT.priority` | |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/config/name` | | CONFIG_DB | `STP_PORT` key | |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/config/cost` | | CONFIG_DB | `STP_PORT.path_cost` | |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/cost` | | CONFIG_DB | `STP_PORT.path_cost` | |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/config/port-priority` | | CONFIG_DB | `STP_PORT.priority` | |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/port-priority` | | CONFIG_DB | `STP_PORT.priority` | |
 
 ## 4.3 Common Interfaces
 
-Path: `/stp/interfaces/interface[name=<if>]`
-
 | OpenConfig YANG Node | Extension | DB Name | Table:Field | Notes |
 |----------------------|-----------|---------|-------------|-------|
-| `config/edge-port` | | CONFIG_DB | `STP_PORT.edge_port` | `EDGE_ENABLE`/`EDGE_DISABLE` only |
-| `config/link-type` | | CONFIG_DB | `STP_PORT.link_type` | `P2P` → `point-to-point`; `SHARED` → `shared` |
-| `config/guard` | | CONFIG_DB | `STP_PORT.root_guard` | `ROOT`/`NONE` only |
-| `config/bpdu-guard` | | CONFIG_DB | `STP_PORT.bpdu_guard` | boolean |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/edge-port` | | CONFIG_DB | `STP_PORT.edge_port` | `EDGE_ENABLE`/`EDGE_DISABLE` only |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/state/edge-port` | | CONFIG_DB | `STP_PORT.edge_port` | |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/link-type` | | CONFIG_DB | `STP_PORT.link_type` | `P2P` → `point-to-point`; `SHARED` → `shared` |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/state/link-type` | | CONFIG_DB | `STP_PORT.link_type` | |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/guard` | | CONFIG_DB | `STP_PORT.root_guard` | `ROOT`/`NONE` only |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/state/guard` | | CONFIG_DB | `STP_PORT.root_guard` | |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/bpdu-guard` | | CONFIG_DB | `STP_PORT.bpdu_guard` | boolean |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/state/bpdu-guard` | | CONFIG_DB | `STP_PORT.bpdu_guard` | |
 
 ## 4.4 Operational State
 
@@ -216,31 +222,50 @@ Read from APPL_DB when the native daemon has populated the row. Missing APPL_DB 
 
 | OpenConfig YANG Node | DB Name | Table:Field |
 |----------------------|---------|-------------|
-| `/stp/rstp/state/bridge-address` | APPL_DB | `STP_RSTP_INST_TABLE.bridge_address` |
-| `/stp/rstp/state/designated-root-priority` / `designated-root-address` | APPL_DB | `STP_RSTP_INST_TABLE.root_address` |
-| `/stp/rstp/state/root-cost` | APPL_DB | `STP_RSTP_INST_TABLE.root_path_cost` |
-| `/stp/rstp/state/hold-time` | APPL_DB | `STP_RSTP_INST_TABLE.hold_time` |
-| `/stp/rstp/state/root-port` | APPL_DB | `STP_RSTP_INST_TABLE.root_port` → port number from `STP_RSTP_PORT_TABLE` |
-| `/stp/rstp/interfaces/interface/state/role` | APPL_DB | `STP_RSTP_PORT_TABLE.role` |
-| `/stp/rstp/interfaces/interface/state/port-state` | APPL_DB | `STP_RSTP_PORT_TABLE.port_state` |
-| `/stp/rstp/interfaces/interface/state/port-num` | APPL_DB | `STP_RSTP_PORT_TABLE.port_number` |
-| designated-root / designated-bridge / designated-cost / designated-port-num | APPL_DB | `desig_root`, `desig_bridge`, `desig_cost`, `desig_port` |
-| `state/forward-transisitions` | APPL_DB | `fwd_transitions` |
-| `state/counters/bpdu-sent` / `bpdu-received` | APPL_DB | `bpdu_sent` / `bpdu_received` |
+| `/openconfig-spanning-tree:stp/rstp/state/bridge-address` | APPL_DB | `STP_RSTP_INST_TABLE.bridge_address` |
+| `/openconfig-spanning-tree:stp/rstp/state/designated-root-priority` | APPL_DB | `STP_RSTP_INST_TABLE.root_address` |
+| `/openconfig-spanning-tree:stp/rstp/state/designated-root-address` | APPL_DB | `STP_RSTP_INST_TABLE.root_address` |
+| `/openconfig-spanning-tree:stp/rstp/state/root-cost` | APPL_DB | `STP_RSTP_INST_TABLE.root_path_cost` |
+| `/openconfig-spanning-tree:stp/rstp/state/hold-time` | APPL_DB | `STP_RSTP_INST_TABLE.hold_time` |
+| `/openconfig-spanning-tree:stp/rstp/state/root-port` | APPL_DB | `STP_RSTP_INST_TABLE.root_port` → port number from `STP_RSTP_PORT_TABLE` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/role` | APPL_DB | `STP_RSTP_PORT_TABLE.role` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/port-state` | APPL_DB | `STP_RSTP_PORT_TABLE.port_state` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/port-num` | APPL_DB | `STP_RSTP_PORT_TABLE.port_number` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/designated-root-address` | APPL_DB | `STP_RSTP_PORT_TABLE.desig_root` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/designated-bridge-address` | APPL_DB | `STP_RSTP_PORT_TABLE.desig_bridge` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/designated-cost` | APPL_DB | `STP_RSTP_PORT_TABLE.desig_cost` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/designated-port-num` | APPL_DB | `STP_RSTP_PORT_TABLE.desig_port` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/forward-transisitions` | APPL_DB | `STP_RSTP_PORT_TABLE.fwd_transitions` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/counters/bpdu-sent` | APPL_DB | `STP_RSTP_PORT_TABLE.bpdu_sent` |
+| `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/state/counters/bpdu-received` | APPL_DB | `STP_RSTP_PORT_TABLE.bpdu_received` |
 
 ## 4.5 Unsupported
 
 | OpenConfig YANG Node | Result |
 |----------------------|--------|
-| `/stp/mstp` | not-supported |
-| `/stp/rapid-pvst` | not-supported |
-| `/stp/global/config|state` `bridge-assurance`, `etherchannel-misconfig-guard`, `bpduguard-timeout-recovery`, `loop-guard`, `bpdu-guard`, `bpdu-filter` | not-supported |
-| `/stp/rstp/config|state hold-count` | not-supported |
-| `/stp/rstp/state topology-changes`, `last-topology-change` | not-supported |
-| `/stp/interfaces/interface/config|state bpdu-filter` | not-supported |
-| `edge-port EDGE_AUTO` | InvalidArgs |
-| `guard LOOP` | InvalidArgs |
-| any `enabled-protocol` other than RSTP | InvalidArgs |
+| `/openconfig-spanning-tree:stp/mstp` | not-supported |
+| `/openconfig-spanning-tree:stp/rapid-pvst` | not-supported |
+| `/openconfig-spanning-tree:stp/global/config/bridge-assurance` | not-supported |
+| `/openconfig-spanning-tree:stp/global/state/bridge-assurance` | not-supported |
+| `/openconfig-spanning-tree:stp/global/config/etherchannel-misconfig-guard` | not-supported |
+| `/openconfig-spanning-tree:stp/global/state/etherchannel-misconfig-guard` | not-supported |
+| `/openconfig-spanning-tree:stp/global/config/bpduguard-timeout-recovery` | not-supported |
+| `/openconfig-spanning-tree:stp/global/state/bpduguard-timeout-recovery` | not-supported |
+| `/openconfig-spanning-tree:stp/global/config/loop-guard` | not-supported |
+| `/openconfig-spanning-tree:stp/global/state/loop-guard` | not-supported |
+| `/openconfig-spanning-tree:stp/global/config/bpdu-guard` | not-supported |
+| `/openconfig-spanning-tree:stp/global/state/bpdu-guard` | not-supported |
+| `/openconfig-spanning-tree:stp/global/config/bpdu-filter` | not-supported |
+| `/openconfig-spanning-tree:stp/global/state/bpdu-filter` | not-supported |
+| `/openconfig-spanning-tree:stp/rstp/config/hold-count` | not-supported |
+| `/openconfig-spanning-tree:stp/rstp/state/hold-count` | not-supported |
+| `/openconfig-spanning-tree:stp/rstp/state/topology-changes` | not-supported |
+| `/openconfig-spanning-tree:stp/rstp/state/last-topology-change` | not-supported |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/bpdu-filter` | not-supported |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/state/bpdu-filter` | not-supported |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/edge-port` = `EDGE_AUTO` | InvalidArgs |
+| `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/guard` = `LOOP` | InvalidArgs |
+| `/openconfig-spanning-tree:stp/global/config/enabled-protocol` other than `RSTP` | InvalidArgs |
 
 # 5 User Interface
 ## 5.1 Data Models
@@ -278,21 +303,21 @@ Get, Set, Delete, and Subscribe on the supported paths in [Section 4](#4-opencon
 | Timer / port SET while RSTP is not enabled | InvalidArgs (`set enabled-protocol to RSTP first`) |
 | `EDGE_AUTO` | InvalidArgs |
 | `guard LOOP` | InvalidArgs |
-| MSTP / rapid-pvst path | not-supported |
+| `/openconfig-spanning-tree:stp/mstp` or `/openconfig-spanning-tree:stp/rapid-pvst` | not-supported |
 | Unknown interface GET | NotFound |
 
 # 7 Unit Test Cases
 ## 7.1 Functional
-1. PATCH `enabled-protocol=RSTP` writes `STP|GLOBAL mode=rstp`.
-2. PATCH `hello-time` / `max-age` / `forwarding-delay` / `bridge-priority` write the matching GLOBAL fields.
-3. PATCH RSTP interface `cost` / `port-priority` write `STP_PORT`.
-4. PATCH common interface `edge-port`, `link-type`, `guard=ROOT`, `bpdu-guard` write `STP_PORT`.
-5. GET of bridge-priority and hello-time matches CONFIG_DB.
+1. PATCH `/openconfig-spanning-tree:stp/global/config/enabled-protocol` = `RSTP` writes `STP|GLOBAL mode=rstp`.
+2. PATCH `/openconfig-spanning-tree:stp/rstp/config/hello-time`, `/openconfig-spanning-tree:stp/rstp/config/max-age`, `/openconfig-spanning-tree:stp/rstp/config/forwarding-delay`, `/openconfig-spanning-tree:stp/rstp/config/bridge-priority` write the matching GLOBAL fields.
+3. PATCH `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/config/cost` / `/openconfig-spanning-tree:stp/rstp/interfaces/interface[name=<if>]/config/port-priority` write `STP_PORT`.
+4. PATCH `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/edge-port`, `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/link-type`, `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/guard` = `ROOT`, `/openconfig-spanning-tree:stp/interfaces/interface[name=<if>]/config/bpdu-guard` write `STP_PORT`.
+5. GET of `/openconfig-spanning-tree:stp/rstp/config/bridge-priority` and `/openconfig-spanning-tree:stp/rstp/config/hello-time` matches CONFIG_DB.
 6. DELETE of a timer leaf restores the default without deleting `STP|GLOBAL`.
 
 ## 7.2 Negative
 1. Non-RSTP `enabled-protocol` is rejected.
 2. `EDGE_AUTO` is rejected.
 3. `guard LOOP` is rejected.
-4. MSTP / rapid-pvst SET is not-supported.
+4. SET of `/openconfig-spanning-tree:stp/mstp` or `/openconfig-spanning-tree:stp/rapid-pvst` is not-supported.
 5. GET of an unknown ifname returns NotFound.
