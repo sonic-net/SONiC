@@ -1,200 +1,148 @@
 # IS-IS integration test plan
 
-## Scope and prerequisites
+## Scope
 
-Validate the implemented five-table ConfigDB → recovery worker → existing FRR
-path, explicit interface binding, per-level configuration and operational CLI.
-This plan updates the prior binding/response cases to the new contract. New cases
-cover the agreed overload, SPF, redistribution and recovery capabilities; they
-are not a separate expansion into SRv6 or changes to FRR.
+Test the CLI and frrcfgd behavior introduced by this change: input handling,
+ConfigDB mutations, FRR command mapping, field deltas, dependencies and startup
+rendering. Include installed configuration, adjacency, route learning/withdrawal
+and persistence checks to demonstrate that the SONiC configuration path works.
+Protocol algorithms, scale, convergence benchmarks and downstream bug repair
+are outside this change's acceptance criteria.
 
-- Install matching utilities, YANG models and framework packages. Set
-  `DEVICE_METADATA|localhost.frr_mgmt_framework_config=true`, restart the affected
-  bgp container, and confirm isisd and frrcfgd are running.
-- Prepare `default`, `VrfA`, `VrfB` and routed interfaces. Use the existing SONiC
-  interface workflow to change VRF; changing only the IS-IS row is not a VRF move.
-- Use distinct instance names `CORE` and `EDGE`. NETs in the same VRF must share
-  a system ID; different VRFs may use different system IDs.
-- Exercise Ethernet, PortChannel, VLAN, loopback and VLAN subinterfaces where
-  available. Reject member ports in place of routed aggregates.
-- Use the Force10 seven-node topology for passive-loopback IPv4/IPv6 forwarding.
-  Record actual interfaces, peer addresses and loopback prefixes from its profiles.
-- Select the same ASIC namespace for configuration and observation. Confirm the
-  other ASIC remains unchanged. Run disruptive recovery cases on a dedicated lab.
+## Setup and evidence
 
-### Seven-node forwarding prerequisites
+Install matching buildimage and utilities changes against FRR 10.7.1
+(`10.7.1-sonic-0`). Enable the FRR management framework and restart bgp.
+Confirm isisd/frrcfgd run. The [HLD](IS-IS-HLD.md) defines the authoritative
+three-table schema and CLI.
 
-Use P1–P4 and PE1–PE3 with the twelve links in `topo_force10-7nodes.yml`.
-The existing profiles number the fabric links with IPv6; enabling the IPv4 IS-IS
-AF alone does not provide a verified IPv4 next-hop setup. The integration fixture
-adds consecutive /31s from `198.19.0.0/27` to the same twelve links, preflights
-all seven nodes for collisions before writing, preserves exact pre-existing
-addresses, and removes only addresses it added, including after setup failure.
-Original IPv6 addressing and BGP configuration remain the baseline.
+Prepare default, VrfA and VrfB, routed interfaces and multiple named instances.
+NETs in a VRF share a system ID; different areas may use different area addresses.
+Use supported Ethernet, PortChannel, VLAN, loopback and VLAN subinterfaces.
+Use the same namespace for configuration and runtime observations.
 
-The profiles also redistribute connected IPv6 prefixes into BGP. During the
-P1↔PE3 forwarding case, temporarily suppress that redistribution on P1 and PE3,
-without stopping their BGP sessions, then restore the original values even on
-failure. Require exact-prefix native routes with protocol IS-IS, selected and
-installed state, and active FIB next hops in both directions before pinging.
-A route merely present in the IS-IS RIB or a ping forwarded by BGP is not a pass.
-The BGP coexistence case runs after restoring the baseline advertisements.
+Capture image/commit IDs, namespace, relevant ConfigDB rows, FRR running
+configuration, frrcfgd logs and command transcripts. Record each case as passed,
+failed or **not run**. A device result requires successful configuration
+readback and the specified runtime or forwarding observations. Record native
+FRR failures with their commands and logs.
 
-## Test setup and observations
+## Test responsibilities
 
-Validate the full seven-node topology and record the actual image/package
-revisions. A reduced topology or modified local image is supplemental evidence,
-not a replacement for this acceptance topology.
+- YANG tests cover field ranges, defaults, references and model constraints.
+- CLI tests cover arguments, ConfigDB mutations, validation and query syntax.
+- Handler tests cover command groups, field deltas, dependencies, startup
+  rendering and the existing command-failure/cache behavior.
+- Device tests provide representative installed CLI/connector/daemon smoke
+  coverage across the distinct paths below. Check ConfigDB, running-config
+  and the relevant observable result. Unit coverage does not replace installed
+  AF, VRF, redistribution or restoration checks.
 
-Check native swsscommon as well as legacy redis-py. Run
-`src/sonic-yang-models/tests/test_isis_atomic_sdk.py` with
-`ISIS_TEST_REDIS_SOCKET` pointing to an isolated disposable Redis server.
-Verify list/empty-row round trips and concurrent-change rejection without partial
-writes; never run this regression against the DUT's ConfigDB server.
-
-### Pinned FRR multi-area lifecycle regression
-
-With two active same-VRF areas, attempt to disable and delete one through CLI
-and GCU. Require rejection before any ConfigDB write or native mutation. Include
-a native planner case with a surviving foreign area. Do not use sequential area
-deletion as test cleanup: explicitly shut down all active areas atomically, or
-discard the disposable guest. An inactive area's removal and retirement of a
-VRF's sole active area remain valid. Different VRFs are independent.
-
-Replace disjoint NET lists sharing the same system ID, including three-to-three
-replacement. Verify every intermediate native operation retains one to three
-NETs. Verify the operational system ID, learned routes and sustained IPv4/IPv6
-traffic after reconvergence; immediate ping can succeed using cached routes and
-does not establish correctness. A missing system ID in runtime summary must
-fail confirmation even when running-config still matches desired configuration.
-
-### CLI setup
-
-Use commands from the [HLD](IS-IS-CLI-Configuration.md). Minimal setup:
-
-```shell
-sudo config isis instance add CORE
-sudo config isis net add CORE 49.0001.0000.0000.0001.00
-sudo config interface isis bind Ethernet0 CORE
-sudo config interface isis set Ethernet0 network-type point-to-point
-sudo config interface isis af Ethernet0 ipv4 enable
-sudo config interface isis af Ethernet0 ipv6 enable
-sudo config interface isis enable Ethernet0
-sudo config isis instance enable CORE
-```
-
-Capture all five `ISIS_*` tables, routed-interface base rows, FRR running config,
-`show isis summary`, neighbors, interfaces, IPv4/IPv6 routes, traffic results and
-frrcfgd logs before/after each operation. Record recovery journal status from
-`/etc/frr/isis-owned.json` in the relevant bgp container. A zero CLI exit status
-only proves ConfigDB acceptance. A recovery `applied` status requires matching
-native readback; adjacency and forwarding must be checked independently.
-
-## Binding transition matrix
+## Configuration and lifecycle matrix
 
 | Case | Action | Required result |
 | --- | --- | --- |
-| B1: explicit binding | Try enabling an unbound interface; then bind, select AFs and enable | First operation rejects without writes. Explicit setup applies default circuit values without a later metric edit. Both AFs absent defaults to no native circuit. |
-| B2: A → B | Configure metric 30, passive, point-to-point and both AFs in VrfA; move routed interface to VrfB | Old native binding is removed. Desired attributes and explicit VrfA reference remain; no automatic VrfB binding. `bind INTERFACE CORE --vrf VrfB` applies retained values to the selected parent. |
-| B3: default ↔ VRF | Move default → VrfA → default, explicitly rebinding after each move | Each old binding is removed; neither default nor the sole available instance is guessed. |
-| B4: disabled target | Explicitly bind to an existing disabled VrfB instance after a move; enable parent later | No circuit until parent enabled. Parent enable alone restores eligible retained interfaces. Missing parent binding rejects. |
-| B5: delete ordering | Remove routed-interface row then unbind; repeat unbind then routed-interface removal | Native binding is removed in either order. Cleanup of a stale binding succeeds; no default binding is recreated. Repeated unbind/delete is harmless. |
-| B6: prefix-only events | Add/remove IPv4/IPv6 prefix rows | Base VRF/binding does not change. Native routing reacts to addressing without an invented rebind. |
-| B7: independent AFs | Exercise all four combinations and transitions, with passive/metric overrides | Only selected AFs are bound. Removing the last AF removes the circuit; enabling an AF recreates it with retained values. AF reset restores false, not true. |
-| B8: parent lifecycle | With no surviving same-VRF sibling, disable then enable parent without replaying interfaces; attempt deletion with active and disabled bindings | Disable retains all desired values and removes native circuits before parent. Enable restores settings. Parent deletion refuses all remaining binding references without partial mutation. |
-| B9: partial failure | Inject timeout/nonzero native reply before and after part of a rebind | No false confirmation. Durable pending ownership covers potentially applied objects. Bounded retries use fresh readback, preserving unrelated native configuration. |
-| B10: failure then delete | Remove desired binding after B9 partial application | Reconciliation removes owned stale/partial state, does not recreate it and never deletes foreign objects. |
-| B11: startup/offline changes | Save/restart bgp; separately stop frrcfgd, change/delete desired rows, restart frrcfgd | Startup/runtime defaults agree. Durable ownership permits cleanup of offline deletions; changed desired state is not mistaken for previously applied state. |
-| B12: namespace isolation | Repeat moves, disabled parent and AF transitions on one ASIC | Other ASIC tables, native bindings, neighbors and traffic remain unchanged. |
+| C1: empty instance | `config isis add CORE`, repeat add, set/reset attributes | Row existence creates FRR instance; duplicate add preserves fields; final reset retains empty instance/defaults. |
+| C2: NET | Set/replace/remove exact NET; attempt bad format, nonzero NSEL and different same-VRF system ID | Valid operations preserve other instances' ConfigDB rows; incompatible system ID and mismatched deletion are rejected. Commands use the correct instance/VRF context. Capture shared system-ID runtime state after deletion/replacement. |
+| C3: binding | Enable IPv4 only, IPv6 only, then both with explicit instance | AFs are independent; parent must exist in actual interface VRF; a minimal AF row binds immediately. |
+| C4: final AF disable | Set custom metric/Hello/P2P, disable one AF, then final AF | First disable preserves row/other AF; final disable removes entire row and parameters; re-enable uses defaults. |
+| C5: binding identity | Attempt different instance while AF remains; delete/re-enable against another parent | Active rebinding rejected; explicit delete/re-enable succeeds; no old-instance binding remains. |
+| C6: instance deletion | Delete while referenced; remove interfaces then delete | Referenced deletion rejected without changing ConfigDB; allowed deletion removes parent and all its redistribution rows only. |
+| C7: VRF ownership | Remove IS-IS row, move actual interface default → VrfA → VrfB → default, re-enable each time | New key matches actual VRF and same-VRF parent; both old AF bindings removed. Wrong `--vrf` rejected. |
+| C8: external interface changes | Change/delete actual routed-interface base row while IS-IS row remains, then restore or delete IS-IS row | Mismatched ownership detaches old bindings; no implicit key migration or default rebind. Prefix-only events do not move bindings. |
+| C9: levels | Save distinct L1/L2 fields; narrow/widen instance and interface levels | Runtime circuit uses level intersection; empty intersection rejected; inactive-level fields retained. |
+| C10: LAN/P2P | Save distinct Hello intervals/multipliers; switch LAN → P2P → LAN | CLI preserves per-level fields; handler emits the correct network-type and Hello commands. Native FRR timer behavior is not retested. |
+| C11: command failure | Unit-test failed instance/interface/policy application and a successful parent with a failed child | Failure is logged and failed state is not recorded as successfully applied. A failed child does not invalidate its successful parent. Subsequent explicit configuration events use the ordinary handler path. Late child deletion must not recreate a removed parent. No automatic retry, rollback or compensation is introduced. |
+| C12: startup | Exercise template rendering and command replay; restart an installed image and perform a normal saved-config reload | Newly added fields/defaults/levels/AFs/NET/backoff/redistribution are mapped consistently; child startup replay does not repeat commands already applied by its parent. Saved objects and bindings are restored, then accept a new update/delete. |
+| C13: namespaces | Repeat configuration and queries on one ASIC | Selected ConfigDB and bgp container only; other ASIC configuration and neighbors unchanged. |
 
-Repeat B2–B7 for supported routed-interface types. Verify old-VRF advertisements
-withdraw and new-VRF routes/traffic appear only after explicit rebind. Log measured
-convergence; this plan does not assert unmeasured timing or scale limits.
+## Parameter and query matrix
 
-## Configuration and operational regression cases
-
-| Area | Cases and acceptance criteria |
+| Area | Required checks |
 | --- | --- |
-| Identity | Same name in different VRFs and different names in one VRF. Observe correct native area-tag/VRF. Reject inconsistent same-VRF system IDs, including disabled configurations. For a validated bulk system-ID replacement, detach bindings and remove all old areas before recreation; reject unowned area conflicts. |
-| NET | Missing NET rejects enable. Up to three unique valid NETs; reject malformed system ID/nonzero NSEL/duplicates. Add/delete NETs while disabled; preserve list values on repeated enable. |
-| Interface validation | Alias mode, absent interface, routed prerequisite, wrong explicit VRF, aggregate-member rejection, disabled edits, stale cleanup and orphan-parent cleanup. |
-| Per-level values | Set different metrics/hello values in L1/L2; `both` writes both rows atomically. Reset L1 restores its own default and leaves L2 unchanged. Concurrent graph changes reject rather than overwrite. |
-| LSP timers | MTU 128–4352, default 1497 and explicit 1492. Refresh 1–65235, lifetime 350–65535, generation 1–120 seconds, with lifetime ≥ refresh + 300 and generation < refresh. Reset validates effective defaults; no partial write if either level is invalid. Native coupled timer command must accept valid transitions. |
-| AF and MT | Four AF combinations; IPv6 single-topology and multi-topology peers separately. MT reset restores false. Only wide metric style is exposed. Confirm routes/traffic, not only rendered commands. |
-| Overload | Toggle overload and set/reset startup overload timer. Inspect overload flag, transit-path selection, local reachability and expiry. Confirm unrelated instance unaffected. |
-| SPF | Per-level minimum interval 1–120 seconds; complete five-value IETF backoff tuple, each 0–60000 ms, hold-down > time-to-learn. Reject partial tuple and invalid relation. Verify native running configuration, scheduler behavior after topology changes and reset; no invented per-level backoff. |
-| Redistribution | IPv4 connected/static/kernel/bgp/ospf/rip and IPv6 connected/static/kernel/bgp/ospf6/ripng. Verify source routes, level, metric and existing route-map filtering; delete withdraws selected policy. Reject AF mismatch, missing route-map and unsupported parent level. Withdraw old-level policy before reducing parent level. |
-| Show | Summary, neighbor, database/detail, interface, route, topology, hostname and VRF inventory; namespace/VRF/text/JSON. Instance filtering only on supported scoped JSON. Reject lossy multi-area route/topology JSON and lossy all-VRF JSON; hostname is text only. Daemon errors must fail, not masquerade as empty successful state. |
-| Bulk model | Run YANG positives/negatives and full validated ConfigDB/GCU candidate operations: compound parent references, NET/system-ID, ranges, timers, SPF tuple, redistribution and deletes. Distinguish valid transient routed-interface removal from an invalid configured parent. Direct unvalidated Redis is not a supported validation API. |
-| Packaging | Verify shared Python model, YANG models, startup include, utilities commands and generated completion are packaged together. Confirm legacy unrelated BGP startup paths remain intact. |
+| LSP | Boundary ranges, independent L1/L2 updates, `lifetime >= refresh + 300`, `generation < refresh`, defaults included; complete lsp-timers keeps other saved values. Both-level operations reject before writing either invalid result. |
+| SPF | Independent 1–120 second minimum intervals; all five 0–60000 ms backoff fields or none; `hold_down > time_to_learn`; delete backoff preserves minimum intervals. |
+| Global attributes | Default/explicit/set/reset for dynamic hostname, MTU, overload, overload-on-startup and IPv6 multi-topology. CLI preserves independent fields; handler/template emits the corresponding commands; IPv6 topology remains separate from AF enable. Native overload timer algorithms are not qualification targets. |
+| Interface attributes | LAN/P2P, passive, level, metric, Hello interval and Hello multiplier each have set/reset mapping coverage. Per-level fields cover L1, L2 and both; combined operations preserve sibling fields. |
+| Redistribution | AF-specific sources; parent level; ordinary ID 0/table ID 1–65535; multiple table IDs and both levels; metric 0/max; route-map reference; complete replacement removes omitted old route-map and restores metric 0. |
+| Validation | Invalid VRF/instance/interface, wrong actual VRF, member port, missing parent, no AF, bad ranges and unsupported source protocols. Validate final ConfigDB using YANG and applicable GCU operations. |
+| Reset | Remove only selected explicit fields/levels; retain sibling fields and rows; AF has no reset; NET and backoff use their own deletion. |
+| Show | All HLD query forms, range/mutual exclusions, default/all VRF, JSON where supported, LSP ID with detail, namespace selection and nonzero daemon exit propagation. Configuration reads ConfigDB explicit/effective values. |
+| Packaging | One packaged template, isisd shared supervisord lifecycle, startup/dynamic defaults agree, utilities gitlink matches the intended companion commit. |
 
-## Recovery and coexistence
+Cover every supported attribute's set/reset command and every distinct command
+group in the CLI/handler/template suites. Test valid boundaries and invalid
+values in model/CLI suites. Parameterize independent values and use shared
+setup and validators. Separate incompatible AF/level/VRF combinations.
 
-The Force10 integration test adapts gs1571's offline UPDATE/DELETE and BGP
-continuity checks from sonic-mgmt #29119 to named instances. Record the native
-results for each restart/reload and failure-injection case independently. The
-SRv6 setup is not imported, and its custom-fixture results do not qualify this image.
+For reset, test removal of the selected ConfigDB fields and the corresponding
+handler commands. Device checks exercise representative command groups without
+requiring a separate forwarding assertion for every attribute.
 
-1. Inject missed notifications, daemon downtime, native socket disconnects,
-   partial native application and unresponsive snapshot subprocesses. Each
-   attempt remains bounded; prepared/pending/applied/failed state is observable.
-2. Corrupt/truncate journal or readback and introduce an unowned native area or
-   circuit. Fail closed without adopting or deleting unknown ownership.
-3. Restart frrcfgd with the same desired state, then with offline update/delete;
-   exercise config reload and bgp container restart separately. Observe recovery
-   after fault removal and explicit retry, without clearing ownership manually.
-4. Keep a BGP session, BGP-learned routes and traffic active during runtime IS-IS
-   changes/faults. Native IS-IS sessions and worker must not block BGP callbacks,
-   remove BGP configuration or restart the container.
-5. Verify startup ownership-registration failure logs an error while rendering
-   other protocols from the same frozen snapshot. Do not silently claim IS-IS is
-   applied. Measure restart disruption; cold recovery is not warmboot support.
-6. Verify each snapshot subprocess obtains fresh ConfigDB values. Inject a
-   timeout, failed exit, malformed JSON and incomplete table set. A failed read
-   must not supply an empty desired configuration. Keep the five-second timeout
-   and record snapshot latency separately from the recovery attempt deadline.
-7. Delay worker entry more than 30 seconds after canonical startup registration.
-   Confirm the journal is `prepared` with no deadline until the first worker step;
-   that step must durably arm a 30-second `pending` attempt before desired/native
-   reads. Matching native state should then confirm automatically without retry.
-   Repeat with unavailable desired state and unavailable native readback: after
-   arming, neither failure nor repeated worker/container restart may extend the
-   deadline. At expiry require a failed latch, even if native state later matches;
-   explicit retry or a new desired digest is needed. Inject an arming journal-write
-   failure and verify no native mutation occurs. Reboot must use trusted startup
-   registration for the new boot identity. These are regressions for the startup
-   timing defect, not an increase to the recovery timeout. Native execution of
-   this corrected sequence remains an acceptance requirement.
+## Device smoke test
 
-## Cleanup and reporting
+Use the Force10 seven-node topology for IPv4/IPv6 routing and configuration
+tests. Use an isolated local VRF for context/level tests and a multi-ASIC DUT
+for namespace selection. The required groups are:
 
-Unbind each test interface with `config interface isis unbind INTERFACE`, then
-`config isis instance del INSTANCE --vrf VRF`. Delete cascades owned level and
-policy rows. Restore addressing/VRFs, saved configuration and any failure
-injection. Disable alone is not cleanup. Confirm no test native binding,
-adjacency or advertisement remains; preserve unrelated configured objects.
+| Group | Actions and expected observations | Current automation |
+| --- | --- | --- |
+| D1: basic configuration and routing | Create a named instance, NET and routed/passive bindings through SONiC CLI. Check ConfigDB and the instance/interface running-config context, Up neighbors, a learned IPv4 route and one ping. Remove a test advertised prefix/binding with no alternative advertisement and check route withdrawal; restore it and check return. | Force10 implements instance/interface context, IPv4 neighbors/route/ping, PE3 passive-loopback withdrawal and restoration. Device execution: **not run**. |
+| D2: AF and object lifecycle | Exercise IPv4-only, IPv6-only and dual-AF bindings once; disabling one AF preserves the other, disabling the final AF deletes the row, re-enable restores a minimal binding. Delete referenced instances only after interface cleanup, then recreate. Check installed IPv6 binding and one learned IPv6 route/reachability path on a capable setup. | Force10 implements IPv6 route/ping, dual → IPv6-only → final disable → IPv4-only → dual, and referenced instance delete/recreate. Device execution: **not run**. |
+| D3: context and levels | Install one non-default-VRF instance/binding and another instance; confirm keys and correct FRR contexts. Change parent/interface levels and verify the installed circuit level. On multi-ASIC systems exercise one selected namespace and verify other namespace configuration is unchanged. | Force10 implements temporary VrfIsisTest/Loopback901/second instance, parent/interface levels and wrong-VRF rejection. Separate namespace test checks selected container and other ASIC ConfigDB/neighbors; skips single-ASIC. Device execution: **not run**. |
+| D4: attribute update/reset | Use one compatible snapshot to exercise global flags/MTU, LSP/SPF command groups, interface Hello/passive/network-type and per-level metric. Update and reset representative fields, comparing ConfigDB and running-config while preserving siblings. All individual fields retain unit mapping coverage. | Force10 implements flags/MTU, LSP generation/SPF/backoff, Hello interval/multiplier, metric, passive and P2P/reset, with configuration snapshot restoration. Device execution: **not run**. |
+| D5: redistribution | Add/update/delete one ordinary-source and one table-id policy, with metric/route-map replacement. Compare ConfigDB and running-config. Use a controlled source prefix to check advertisement and withdrawal once; do not benchmark redistribution or exhaust AF/source/level combinations on devices. | Force10 implements static/table-id policy CRUD and metric/route-map replacement. One temporary static prefix checks advertisement/withdrawal; table-id checks policy installation only. Device execution: **not run**. |
+| D6: restoration and coexistence | Save a representative configuration, restart bgp once and perform one normal saved-config reload. Compare restored objects and running-config, basic adjacency/route recovery, then update/delete a restored object. Check unrelated BGP configuration/session state before and after IS-IS changes; no zero-packet-loss or convergence-time target. | Force10 implements save, one bgp restart and one normal reload, metric/backoff restore then update/reset/delete, adjacency/route recovery and BGP config/established-peer recovery. Original saved file is backed up/restored. Device execution: **not run**. |
+| D7: query wrappers | Compare representative SONiC neighbor/interface/route/configuration queries with the selected daemon or ConfigDB, including supported JSON/VRF/namespace forms. Keep malformed-option coverage in CLI tests. | Force10 compares interface/route JSON to vtysh and explicit configuration to ConfigDB; neighbor all-VRF and non-default-VRF JSON are parsed. Separate namespace test compares selected daemon output. Device execution: **not run**. |
 
-The Force10 fixture attempts every unbind, instance deletion and owned-address
-removal even after a command fails or transport raises. It then reads ConfigDB
-back for test instance, level, redistribution, interface and interface-level rows,
-and addresses it added. Unrelated rows and preexisting addresses are preserved.
-Nonzero/missing command return codes, transport/readback failures and residual
-rows are aggregated into a teardown failure; they must not silently pass. Inject
-each failure on an early node and verify subsequent nodes and address removals
-still run. Separately verify native withdrawal as described above; ConfigDB
-cleanup alone does not prove native convergence.
+Share fabric setup and validators across groups. Await asynchronous application
+with bounded condition checks. Require successful route-query return codes and
+valid JSON; a failed query must not satisfy a withdrawal assertion.
 
-Record image and commit identifiers, namespace, topology, individual case results,
-configuration/readback, journal/log evidence and traffic observations. Source
-framework/CLI tests, native libyang fixtures and packaged VS lifecycle tests
-must be reported separately. Seven-node acceptance and hardware/DUT coverage
-remain incomplete. Mark missing cases explicitly and do not infer full
-acceptance from unit tests or from passing cases on a smaller topology.
+## Automation prerequisites and execution status
 
-#### Explicit recovery retry
+The current `test_isis_cli_force10.py` has eleven cases; the independent
+`test_isis_cli_namespace.py` adds one multi-ASIC case. The Force10 profiles have
+IPv6-only transit links, so the fixture checks for conflicts and adds twelve
+temporary IPv4 /31 pairs from `192.0.2.0/27`, removing only its own addresses.
+Existing IS-IS configuration must be removed by the operator before running:
+the fixture refuses to overwrite it. The temporary VRF process needs no NET
+for this context/command smoke test and does not claim non-default-VRF traffic
+coverage. Table-id source traffic, additional routed-interface types and the
+full lifecycle matrix remain separate device acceptance work.
 
-After correcting a failed recovery condition, use
-`sudo docker exec bgp supervisorctl signal HUP frrcfgd` (select the actual ASIC's
-bgp container on multi-ASIC systems). SIGHUP requests a new bounded IS-IS attempt;
-it does not restart frrcfgd/BGP or discard the ownership journal. If no valid
-desired snapshot is available, the retry stays pending until one can be read.
+| Validation | Result |
+| --- | --- |
+| CLI contracts | 82 cases passed; native SONiC imports mocked on macOS, real interface helpers used |
+| Framework regression | 71 cases passed: 49 IS-IS and 22 existing framework cases |
+| Device predicates and fixture cleanup | 14 local checks passed |
+| Device CLI command arguments | 49 representative configuration commands validated against real Click groups |
+| Device source checks | Python syntax and lint passed |
+| YANG fixtures | 27 groups passed in the existing model validation run |
+| Force10 and multi-ASIC device execution | **not run** |
+
+Local results establish the tested contracts and helper behavior. Installed
+device behavior requires execution of the device cases. No line/branch coverage
+percentage is available.
+
+Restore only the objects mutated by an individual case; fabric-wide restoration
+is required when that case actually deletes or rebuilds the fabric configuration.
+
+## Cleanup and limits
+
+Remove interface rows before deleting test instances, then restore original
+VRFs, addresses and saved configuration. Verify no
+leftover bindings, adjacencies or test advertisements in any namespace/VRF.
+
+FRR protocol qualification, scale/performance, warm reboot, fastboot and graceful
+restart are outside its scope.
+
+## References
+
+- [Unified FRR management unit tests](../mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md#9-unit-test)
+- [BGP dynamic peer modification](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testplan/BGP-Dynamic-Peer-Range-Modify.md)
+- [BGP aggregate address](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testplan/BGP-Aggregate-Address.md)
+- [BGP router ID](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testplan/BGP-Router-ID-test-plan.md)
+- [BGP CLI tests](https://github.com/sonic-net/sonic-mgmt/blob/master/tests/bgp/test_bgp_command.py)
+- [OSPF routing](https://github.com/sonic-net/sonic-mgmt/blob/master/docs/testplan/OSPF-test-plan.md)
+- [Static route BFD tests](../static-route/SONiC_static_route_bfd_hld.md#tests)
