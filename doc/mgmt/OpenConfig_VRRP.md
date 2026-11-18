@@ -47,8 +47,7 @@ It does not describe native VRRP, FRR, or CLI.
 OpenConfig xpath root:
 
 ```
-/interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]
-  /ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]
+/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]
 ```
 
 # Related Documents
@@ -147,39 +146,39 @@ No new tables. UMF writes a subset of existing `VRRP6` / `VRRP6_TRACK` fields: `
 
 # 4 OpenConfig to SONiC Mapping Table
 
-Path prefix:
-
-```
-/openconfig-interfaces:interfaces/interface[name=<if>]
-  /subinterfaces/subinterface[index=0]
-  /ipv6/addresses/address[ip=<v6>]
-  /vrrp/vrrp-group[virtual-router-id=<id>]
-```
-
 ## 4.1 Supported IPv6 VRRP Leaves
 
 | OpenConfig YANG Node | Extension | DB Name | Table:Field | Notes |
 |----------------------|-----------|---------|-------------|-------|
-| `vrrp-group` | | CONFIG_DB | `VRRP6` key `{if}\|{vrid}` | subtree `vrrp_group_xfmr`; table `vrrp_table_xfmr`; key `vrrp_group_key_xfmr` |
-| `config/virtual-router-id` | | CONFIG_DB | `VRRP6.vid` | key component; also stored as field `vid` |
-| `config/priority` | | CONFIG_DB | `VRRP6.priority` | uint8 1..254; `vrrp_priority_xfmr` |
-| `config/preempt` | | CONFIG_DB | `VRRP6.preempt` | OC bool → `enabled`/`disabled` |
-| `config/virtual-address` | | CONFIG_DB | `VRRP6.vip` (`vip@` in Redis) | non–link-local entries |
-| `config/virtual-link-local` | | CONFIG_DB | `VRRP6.vip` (`vip@` in Redis) | `fe80:` entry merged into the same leaf-list |
-| `interface-tracking` | | CONFIG_DB | `VRRP6_TRACK` | subtree `vrrp_interface_tracking_xfmr` |
-| `interface-tracking/config/track-interface` | | CONFIG_DB | `VRRP6_TRACK` key `{if}\|{vrid}\|{track_if}` | leaf-list of interface names |
-| `interface-tracking/config/priority-decrement` | | CONFIG_DB | `VRRP6_TRACK.priority_increment` | name differs from OpenConfig |
-| matching `state/*` leaves | | CONFIG_DB | same fields | DbToYang of the same transformers |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]` | | CONFIG_DB | `VRRP6` key `{if}\|{vrid}` | subtree `vrrp_group_xfmr`; table `vrrp_table_xfmr`; key `vrrp_group_key_xfmr` |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/virtual-router-id` | | CONFIG_DB | `VRRP6.vid` | key component; also stored as field `vid` |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/virtual-router-id` | | CONFIG_DB | `VRRP6.vid` | |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/priority` | | CONFIG_DB | `VRRP6.priority` | uint8 1..254; `vrrp_priority_xfmr` |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/priority` | | CONFIG_DB | `VRRP6.priority` | |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/preempt` | | CONFIG_DB | `VRRP6.preempt` | OC bool → `enabled`/`disabled` |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/preempt` | | CONFIG_DB | `VRRP6.preempt` | |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/virtual-address` | | CONFIG_DB | `VRRP6.vip` (`vip@` in Redis) | non–link-local entries |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/virtual-address` | | CONFIG_DB | `VRRP6.vip` (`vip@` in Redis) | |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/virtual-link-local` | | CONFIG_DB | `VRRP6.vip` (`vip@` in Redis) | `fe80:` entry merged into the same leaf-list |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/virtual-link-local` | | CONFIG_DB | `VRRP6.vip` (`vip@` in Redis) | |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/interface-tracking` | | CONFIG_DB | `VRRP6_TRACK` | subtree `vrrp_interface_tracking_xfmr` |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/interface-tracking/config/track-interface` | | CONFIG_DB | `VRRP6_TRACK` key `{if}\|{vrid}\|{track_if}` | leaf-list of interface names |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/interface-tracking/state/track-interface` | | CONFIG_DB | `VRRP6_TRACK` key `{if}\|{vrid}\|{track_if}` | |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/interface-tracking/config/priority-decrement` | | CONFIG_DB | `VRRP6_TRACK.priority_increment` | name differs from OpenConfig |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/interface-tracking/state/priority-decrement` | | CONFIG_DB | `VRRP6_TRACK.priority_increment` | |
 
 ## 4.2 Unsupported OpenConfig VRRP Leaves
 
 | OpenConfig YANG Node | Result |
 |----------------------|--------|
-| `ipv4/.../vrrp` (entire tree) | not-supported |
-| `config/state accept-mode` | not-supported |
-| `config/state preempt-delay` | not-supported |
-| `config/state advertisement-interval` | not-supported |
-| `state/current-priority` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address[ip=<v4>]/vrrp` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/accept-mode` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/accept-mode` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/preempt-delay` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/preempt-delay` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/advertisement-interval` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/advertisement-interval` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/state/current-priority` | not-supported |
 
 # 5 User Interface
 ## 5.1 Data Models
@@ -199,7 +198,7 @@ GET /restconf/data/openconfig-interfaces:interfaces/interface=Ethernet64/subinte
 PATCH preempt:
 
 ```
-PATCH .../vrrp-group=1/config/preempt
+PATCH /restconf/data/openconfig-interfaces:interfaces/interface=Ethernet64/subinterfaces/subinterface=0/openconfig-if-ip:ipv6/addresses/address=2001:db8::1/vrrp/vrrp-group=1/config/preempt
 {"openconfig-if-ip:preempt": false}
 ```
 
@@ -208,7 +207,7 @@ Result: `VRRP6|Ethernet64|1` field `preempt=disabled`.
 PATCH virtual-address:
 
 ```
-PATCH .../vrrp-group=1/config/virtual-address
+PATCH /restconf/data/openconfig-interfaces:interfaces/interface=Ethernet64/subinterfaces/subinterface=0/openconfig-if-ip:ipv6/addresses/address=2001:db8::1/vrrp/vrrp-group=1/config/virtual-address
 {"openconfig-if-ip:virtual-address": ["2001:db8::10"]}
 ```
 
@@ -220,21 +219,21 @@ Get, Set (Update/Replace), Delete, and Subscribe on the paths in [Section 4.1](#
 # 6 Error Handling
 | Condition | Result |
 |-----------|--------|
-| IPv4 OpenConfig VRRP path | not-supported |
-| `accept-mode` / `preempt-delay` / `advertisement-interval` SET | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address[ip=<v4>]/vrrp` | not-supported |
+| `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/accept-mode`, `preempt-delay`, or `advertisement-interval` SET | not-supported |
 | `preempt` value that is not a boolean | transformer error |
 | VIP that is not an IPv6 address | transformer / CVL error |
 
 # 7 Unit Test Cases
 ## 7.1 Functional
-1. PUT `config/priority` writes `VRRP6.priority`.
-2. PUT `config/preempt=false` writes `preempt=disabled`.
-3. PUT `virtual-address` writes `vip@` global `/128` and preserves existing link-local.
-4. PUT `virtual-link-local` merges `fe80:` into `vip@` and preserves globals.
-5. PUT `interface-tracking/config` creates `VRRP6_TRACK` with `priority_increment`.
-6. DELETE `virtual-address` strips globals only.
+1. PUT `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/priority` writes `VRRP6.priority`.
+2. PUT `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/preempt` = `false` writes `preempt=disabled`.
+3. PUT `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/virtual-address` writes `vip@` global `/128` and preserves existing link-local.
+4. PUT `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/virtual-link-local` merges `fe80:` into `vip@` and preserves globals.
+5. PUT `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/interface-tracking/config` creates `VRRP6_TRACK` with `priority_increment`.
+6. DELETE `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/virtual-address` strips globals only.
 7. GET of each supported leaf matches CONFIG_DB.
 
 ## 7.2 Negative
-1. IPv4 VRRP SET is rejected.
-2. `accept-mode` / `preempt-delay` / `advertisement-interval` SET is not-supported.
+1. SET of `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses/address[ip=<v4>]/vrrp` is rejected.
+2. SET of `/openconfig-interfaces:interfaces/interface[name=<if>]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=<v6>]/vrrp/vrrp-group[virtual-router-id=<id>]/config/accept-mode`, `preempt-delay`, or `advertisement-interval` is not-supported.
