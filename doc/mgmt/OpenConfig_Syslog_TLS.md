@@ -48,7 +48,7 @@ It does not describe native rsyslog, Certz, or CLI.
 OpenConfig xpath root:
 
 ```
-/system/logging/remote-servers/remote-server[host=<host>]
+/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]
 ```
 
 # Related Documents
@@ -126,21 +126,15 @@ No new tables. UMF reads/writes `SYSLOG_SERVER` fields `transport_security`, `tl
 
 # 4 OpenConfig to SONiC Mapping Table
 
-Path prefix:
-
-```
-/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]
-```
-
 ## 4.1 Supported Syslog TLS Leaves
 
 | OpenConfig YANG Node | Extension | DB Name | Table:Field | Notes |
 |----------------------|-----------|---------|-------------|-------|
-| `config/transport-security` | | CONFIG_DB | `SYSLOG_SERVER.transport_security` | requested intent; `sys_logging_transport_security_xfmr` |
-| `state/transport-security` | | CONFIG_DB | `SYSLOG_SERVER.transport_security` | same xfmr; fallback to `protocol=tls` |
-| `config/tls-profile-id` | | CONFIG_DB | `SYSLOG_SERVER.tls_profile_id` | plain field annotation |
-| `state/tls-profile-id` | | CONFIG_DB | `SYSLOG_SERVER.tls_profile_id` | |
-| `state/google-pins-system:pins-oper-transport-security` | google-pins-system | STATE_DB | `SYSLOG_SERVER.applied_transport_security` (+ `failure_reason`) | `sys_logging_pins_oper_transport_security_xfmr` |
+| `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/transport-security` | | CONFIG_DB | `SYSLOG_SERVER.transport_security` | requested intent; `sys_logging_transport_security_xfmr` |
+| `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/state/transport-security` | | CONFIG_DB | `SYSLOG_SERVER.transport_security` | same xfmr; fallback to `protocol=tls` |
+| `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/tls-profile-id` | | CONFIG_DB | `SYSLOG_SERVER.tls_profile_id` | plain field annotation |
+| `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/state/tls-profile-id` | | CONFIG_DB | `SYSLOG_SERVER.tls_profile_id` | |
+| `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/state/google-pins-system:pins-oper-transport-security` | google-pins-system | STATE_DB | `SYSLOG_SERVER.applied_transport_security` (+ `failure_reason`) | `sys_logging_pins_oper_transport_security_xfmr` |
 
 ## 4.2 Existing Remote-Server Leaves Unchanged
 
@@ -174,7 +168,7 @@ Result: `SYSLOG_SERVER|<host>` field `transport_security=true`. `protocol` is un
 GET oper:
 
 ```
-GET .../remote-server=<host>/state/google-pins-system:pins-oper-transport-security
+GET /restconf/data/openconfig-system:system/logging/remote-servers/remote-server=<host>/state/google-pins-system:pins-oper-transport-security
 ```
 
 ## 5.3 gNMI Support
@@ -183,17 +177,17 @@ Get, Set, Delete, and Subscribe on the leaves in [Section 4.1](#41-supported-sys
 # 6 Error Handling
 | Condition | Result |
 |-----------|--------|
-| `transport-security` SET with a non-boolean | transformer error |
-| DELETE `transport-security` | clears the alias field |
+| SET of `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/transport-security` with a non-boolean | transformer error |
+| DELETE `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/transport-security` | clears the alias field |
 | Oper GET before rsyslog has written STATE_DB | leaf omitted |
 
 # 7 Unit Test Cases
 ## 7.1 Functional
-1. PATCH `transport-security=true` writes `transport_security=true` and does not set `protocol=tls`.
-2. PATCH `transport-security=false` writes `transport_security=false` and `protocol=udp`.
-3. PATCH `tls-profile-id` writes `SYSLOG_SERVER.tls_profile_id`.
-4. GET `transport-security` matches the alias (or `protocol=tls` fallback).
-5. GET `pins-oper-transport-security` maps STATE_DB applied / failure_reason.
+1. PATCH `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/transport-security` = `true` writes `transport_security=true` and does not set `protocol=tls`.
+2. PATCH `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/transport-security` = `false` writes `transport_security=false` and `protocol=udp`.
+3. PATCH `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/tls-profile-id` writes `SYSLOG_SERVER.tls_profile_id`.
+4. GET `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/config/transport-security` matches the alias (or `protocol=tls` fallback).
+5. GET `/openconfig-system:system/logging/remote-servers/remote-server[host=<host>]/state/google-pins-system:pins-oper-transport-security` maps STATE_DB applied / failure_reason.
 
 ## 7.2 Negative
 1. Non-boolean `transport-security` is rejected.
