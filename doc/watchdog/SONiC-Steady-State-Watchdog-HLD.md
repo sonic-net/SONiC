@@ -119,7 +119,7 @@ The SONiC defaults are:
 | Setting | Default |
 | --- | --- |
 | `watchdog-device` | `/dev/watchdog0` |
-| `watchdog-timeout` | 300 |
+| `watchdog-timeout` | 600 |
 | `interval` | `10` seconds |
 | `realtime` | `yes` |
 
