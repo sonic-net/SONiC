@@ -377,7 +377,7 @@ Same leaf mapping on all four bases. Table name is `VRRP` or `VRRP6` from the IP
 | **vrrp-group/interface-tracking** | CONFIG_DB | VRRP_TRACK or VRRP6_TRACK | subtree `vrrp_interface_tracking_xfmr` |
 | **interface-tracking/config** and **interface-tracking/state** | | | |
 | track-interface | CONFIG_DB | VRRP_TRACK (key `track_if`) | field `vrrp_track_interface_xfmr`; Redis key `{if}\|{vrid}\|{track_if}` |
-| priority-decrement | CONFIG_DB | VRRP_TRACK:priority_increment | field `vrrp_priority_decrement_xfmr`; CVL 10..50 |
+| priority-decrement | CONFIG_DB | VRRP_TRACK:priority_increment | field `vrrp_priority_decrement_xfmr`; UMF and CVL 10..50 |
 
 Annotation `field-transformer` names are unprefixed callbacks (`vrrp_priority_xfmr`). The framework prepends `YangToDb_` / `DbToYang_`.
 
@@ -404,7 +404,7 @@ Each row answers: what is different, does native VRRP still work, and does it ma
 | 4 | `preempt` is boolean in OC, `enabled`/`disabled` in YANG/CLI | Native enum | OC boolean | Supported by translation |
 | 5 | `virtual-address` is prefix-less in OC; native `vip` is `/32` or `/128` | Native stores prefixes | OC `ip-address` | Supported. UMF adds/strips the host prefix |
 | 6 | IPv6 VIP is one native list; OC splits `virtual-address` and `virtual-link-local` | `vrrp6 ipv6 add` accepts either | Both OC leaves | Supported. SET of one list preserves the other family in `vip@` |
-| 7 | `priority-decrement` (OC) vs `priority_increment` (YANG/CLI) | Native 10..50 | OC integer, no 10..50 range in the model | Mapped. Values outside 10..50 fail CVL |
+| 7 | `priority-decrement` (OC) vs `priority_increment` (YANG/CLI) | Native 10..50 | OC integer, no 10..50 range in the model | Mapped. Values outside 10..50 fail in UMF (`InvalidArgs`) and CVL |
 | 8 | `current-priority` | Native has no APPL_DB current-priority field | OC operational leaf | GET mirrors configured `priority`. Live master/backup priority is **not** returned. Does **not** fully match the OC operational meaning |
 | 9 | `accept-mode` | No CLI. YANG leaf added for OC. `frrcfgd` does **not** program FRR accept-mode | OC config/state leaf | UMF SET/GET the leaf in CONFIG_DB. Dataplane does **not** honor it yet. Matches Google's **path**, not native **behavior** |
 | 10 | `preempt-delay` | YANG 0..3600, no CLI | OC config/state leaf | UMF SET/GET CONFIG_DB. Native dataplane support follows whatever `frrcfgd` already does with `preempt_delay` |
@@ -564,7 +564,7 @@ Invalid configurations report an error. Examples include:
 - `preempt` / `accept-mode` value that is not a boolean → transformer error
 - `virtual-link-local` on an IPv4 `vrrp-group` → not-supported
 - VIP that is not an IP address of the matching family → transformer / CVL error
-- `priority-decrement` outside 10..50 → CVL error
+- `priority-decrement` outside 10..50 → `InvalidArgs` from UMF (CVL would also reject)
 - VRRP on an interface that is not an existing L3 INTERFACE / PORTCHANNEL_INTERFACE / VLAN_INTERFACE → CVL error
 
 # 7 Unit Test Cases
@@ -581,9 +581,12 @@ Invalid configurations report an error. Examples include:
 9. PUT routed-vlan IPv6 `/config/priority` writes `VRRP6.priority`.
 10. PUT routed-vlan IPv4 `/config/virtual-address` writes `VRRP.vip@`.
 11. PUT `/config/preempt-delay` writes `preempt_delay`. PUT `/config/accept-mode` writes `accept_mode`. PUT `/config/advertisement-interval` 200 writes `adv_interval=2`.
+12. Deviation tests (`Test_oc_vrrp_deviations`): GET `config/priority` and `state/priority` after SET; GET `state/current-priority` mirrors configured priority; GET `advertisement-interval` returns centiseconds; GET VIP has no prefix; SET `virtual-address` preserves `fe80:`; SET does not write `version`, `admin_status`, or `FEATURE|*`.
 
 ## 7.2 Negative Test Cases
-1. SET of `/config/virtual-link-local` on an IPv4 `vrrp-group` is rejected.
+1. SET of `/config/virtual-link-local` on an IPv4 `vrrp-group` is rejected (leaf is IPv6-only in OpenConfig; transformer also guards).
 2. SET of `/config/advertisement-interval` that is not a multiple of 100 centiseconds is rejected.
-3. SET of `priority-decrement` outside 10..50 is rejected by CVL.
-4. SET of VRRP on a non-L3 interface is rejected by CVL.
+3. SET of `/config/advertisement-interval` outside 1..40 seconds (after /100) is rejected.
+4. SET of `/config/preempt-delay` greater than 3600 is rejected.
+5. SET of `priority-decrement` outside 10..50 is rejected by UMF.
+6. SET of VRRP on a non-L3 interface is rejected by CVL.
