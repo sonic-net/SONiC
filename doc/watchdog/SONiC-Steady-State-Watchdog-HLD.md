@@ -41,7 +41,6 @@ The following requirements are covered by this design:
 - Watchdog is disabled by default.
 - Watchdog can be enabled and disabled using SONiC CLI.
 - Watchdog identity, timeout, and pretimeout can be configured using SONiC CLI.
-- Updating identity, timeout, or pretimeout restarts the watchdog service if watchdog is enabled.
 - Timeout and pretimeout follow Linux watchdog semantics and are validated against the selected device's capabilities and supported timeout range.
 - Existing reboot code paths that use `watchdogutil` continue to operate as before.
 
@@ -120,7 +119,7 @@ The SONiC defaults are:
 | Setting | Default |
 | --- | --- |
 | `watchdog-device` | `/dev/watchdog0` |
-| `watchdog-timeout` | SONiC default timeout |
+| `watchdog-timeout` | 300 |
 | `interval` | `10` seconds |
 | `realtime` | `yes` |
 
@@ -187,7 +186,7 @@ When the daemon is inactive or manages a different device, the platform implemen
 
 Watchdog triggered reboots will recover the system in case of a fault, however there is a side effect that there might be no clear indication on the reason for the failure.
 
-The behavior on watchdog expiry is platform defined. The normal action on watchdog expiry is a reboot of the system. A platform may optionally collect kernel dump, logs, or other debug information before rebooting the router if the platform hardware and software support such a mechanism. Platforms should also support providing a reboot reason for watchdog triggered reboots.
+The behavior on watchdog expiry is platform defined. The normal action on watchdog expiry is a reboot of the system. A platform may optionally collect kernel dump, logs, or other debug information before rebooting the router if the platform hardware and software support it (usually using the pre-timeout feature). Platforms should also support providing a reboot reason for watchdog triggered reboots.
 
 
 #### Platform Requirements
