@@ -47,7 +47,7 @@ reviewed and merged independently of #808 and #30780.
 
 ## Dependency and merge order
 
-The watchdog adapters depend on [sonic-platform-common PR #808](https://github.com/sonic-net/sonic-platform-common/pull/808), linked to [issue #807](https://github.com/sonic-net/sonic-platform-common/issues/807). The buildimage submodule pointer records published review commit `1c8e439f9f14ef04dd05fa62d79e635c215d24d6`. Merge #808 first, then select an upstream revision containing the helper before merging buildimage #30780. The helper is independent of the Accton changes.
+The watchdog adapters depend on [sonic-platform-common PR #808](https://github.com/sonic-net/sonic-platform-common/pull/808), linked to [issue #807](https://github.com/sonic-net/sonic-platform-common/issues/807). The buildimage submodule pointer records published review commit `e6c4beb0c743cb46296a98456e21cd795092f049`. Merge #808 first, then select an upstream revision containing the helper before merging buildimage #30780. The helper is independent of the Accton changes.
 
 The latest monitoring changes reuse existing platform-daemons functionality. They add no platform-daemons submodule changes. The experimental sairedis rollback used for hardware validation is not part of buildimage #30780.
 
@@ -55,12 +55,12 @@ The latest monitoring changes reuse existing platform-daemons functionality. The
 
 | Commit | Follow-up |
 |---|---|
-| `01fe703ff` | Expose AS7326/AS7726 PSU voltage/current through existing sensormond; reuse PSU APIs and hardware voltage limits. |
-| `a91476558` | Preserve AS7326 integer PWM reporting: full PWM reports 100%, not 101%; retain the original PWM targets and policy. |
-| `2e33f40db` | Retry PDDF missing sensor paths instead of caching empty lookups permanently; keep positive caching. |
-| `09289bde8` | Add AS7326 CPU package/core inventory after the original board sensors. |
-| `08c890784` | Expose AS7326 hardware PSU OT_WARN_LIMIT and remove the obsolete PSU temperature health exclusion. |
-| `e58a14a1d` | Add read-only BIOS inventory on AS7326/AS7726 through the existing PDDF component API. |
+| `c5a6e3aab` | Expose AS7326/AS7726 PSU voltage/current through existing sensormond; reuse PSU APIs and hardware voltage limits. |
+| `a707ff7aa` | Preserve AS7326 integer PWM reporting: full PWM reports 100%, not 101%; retain the original PWM targets and policy. |
+| `a4d3313a1` | Retry PDDF missing sensor paths instead of caching empty lookups permanently; keep positive caching. |
+| `49ab88bcb` | Add AS7326 CPU package/core inventory after the original board sensors. |
+| `85d15b6ec` | Expose AS7326 hardware PSU OT_WARN_LIMIT and remove the obsolete PSU temperature health exclusion. |
+| `4ab65164a` | Add read-only BIOS inventory on AS7326/AS7726 through the existing PDDF component API. |
 
 ## Validation
 
@@ -121,12 +121,12 @@ Two signed-off commits extend the AS5835-54X support:
 
 | Commit | Change |
 | --- | --- |
-| [`fb24fc165`](https://github.com/ITJamie/sonic-buildimage/commit/fb24fc165) | Fix native fan/PSU hwmon registration: the chip-info registration API returned EINVAL with no chip-info table on Linux 6.12, removing fan PWM/presence and PSU presence/power-good attributes. Use the group-registration API for the existing client-attribute layout. |
-| [`9214803fc`](https://github.com/ITJamie/sonic-buildimage/commit/9214803fc) | Use PDDF fan, fan-drawer, PSU and board-thermal APIs over native-driver sysfs mappings; reuse shared PSU output voltage/current adapters and report hardware capacity. |
+| [`308c2305e`](https://github.com/ITJamie/sonic-buildimage/commit/308c2305e) | Fix native fan/PSU hwmon registration: the chip-info registration API returned EINVAL with no chip-info table on Linux 6.12, removing fan PWM/presence and PSU presence/power-good attributes. Use the group-registration API for the existing client-attribute layout. |
+| [`54a93bf6f`](https://github.com/ITJamie/sonic-buildimage/commit/54a93bf6f) | Use PDDF fan, fan-drawer, PSU and board-thermal APIs over native-driver sysfs mappings; reuse shared PSU output voltage/current adapters and report hardware capacity. |
 
 The native platform service retains I2C client creation and the original 40/65/80/100% cooling policy. Native LEDs, EEPROM, firmware inventory, watchdog, SFP handling and port events are preserved. These are environmental API mappings, not a generic PDDF device-creation topology. Both rotors per tray are mapped; missing fault data stays unhealthy. Existing names and narrow unsupported PSU health exclusions are preserved. CPU sensors remain appended after the four board sensors. Native YM-1401A output power is converted from mW to W. Input telemetry and PSU fan targets remain explicitly unsupported.
 
-The earlier native output-sensor implementation from `b64a2fcbd` is superseded by shared PDDF adapters, retaining unavailable-reading handling and the existing sensormond integration. No sonic-platform-daemons changes are included.
+The earlier native output-sensor implementation from `05f661409` is superseded by shared PDDF adapters, retaining unavailable-reading handling and the existing sensormond integration. No sonic-platform-daemons changes are included.
 
 Validation:
 
@@ -138,7 +138,7 @@ Validation:
 
 ### AS7326/AS7726 input telemetry follow-up (2026-11-19)
 
-Signed-off commit `5b9c212e4` registers input voltage/current/power (PMBus READ_VIN 0x88, READ_IIN 0x89 and READ_PIN 0x97) using each model's PSU bus/address mappings. An opt-in adapter exposes V/A/W through the PSU API; input voltage/current sensors are appended after existing output inventory for sensormond. Input power uses `get_input_power()`; no platform-daemons source changes are included. Missing, invalid, absent or power-faulted samples stay unavailable. Manufacturer ratings are not used as warning thresholds.
+Signed-off commit `ed7bd5d96` registers input voltage/current/power (PMBus READ_VIN 0x88, READ_IIN 0x89 and READ_PIN 0x97) using each model's PSU bus/address mappings. An opt-in adapter exposes V/A/W through the PSU API; input voltage/current sensors are appended after existing output inventory for sensormond. Input power uses `get_input_power()`; no platform-daemons source changes are included. Missing, invalid, absent or power-faulted samples stay unavailable. Manufacturer ratings are not used as warning thresholds.
 
 Read-only PMBus checks on FSF019-611 PSUs in both models returned input voltage around 226–228 V, current around 0.31–0.38 A and input power around 72–80 W. All four supplies remained power-good. These checks validate hardware telemetry, not deployment of the new reporting code. AS5835 YM-1401A input voltage/current/power registers returned zeros despite active output; AS5835 input telemetry remains unsupported.
 
@@ -147,7 +147,7 @@ All **144 Accton/PDDF tests pass** (96 Accton, 48 PDDF), including six input tel
 
 ### AS7816 environmental validation and follow-up (2026-11-19)
 
-Signed-off buildimage commit `45a93cbc9` completes AS7816-64X environmental monitoring. It registers YM-2851F output-voltage limits, temperature warning limits and manufacturer maximum output power; reports capacity from hardware rather than the former 1200 W constant; uses real PSU airflow readings and standard labels; enables output voltage/current sensors; appends CPU sensors after the six existing board sensors; and adds read-only BIOS inventory. Only unsupported PSU fan target comparisons are excluded. Input telemetry remains explicitly unsupported because both supplies returned zero for input voltage/current/power despite active output.
+Signed-off buildimage commit `e7e99426f` completes AS7816-64X environmental monitoring. It registers YM-2851F output-voltage limits, temperature warning limits and manufacturer maximum output power; reports capacity from hardware rather than the former 1200 W constant; uses real PSU airflow readings and standard labels; enables output voltage/current sensors; appends CPU sensors after the six existing board sensors; and adds read-only BIOS inventory. Only unsupported PSU fan target comparisons are excluded. Input telemetry remains explicitly unsupported because both supplies returned zero for input voltage/current/power despite active output.
 
 | Check | AS7816-64X result |
 | --- | --- |
@@ -167,7 +167,7 @@ All **144 Accton/PDDF tests pass** (96 Accton, 48 PDDF), including AS7816 PSU re
 
 ### AS7326/AS7726 hardware PSU capacity follow-up (2026-11-19)
 
-Signed-off commit `25e1c0590` registers MFR_POUT_MAX (PMBus 0xa7) on both PSU interfaces for AS7326-56X and AS7726-32X. Both `get_maximum_supplied_power()` and `get_capacity()` now use the manufacturer reading through PDDF's existing milliwatt-to-watt conversion, replacing the former 1200 W constants. AS7816 already uses the same hardware-derived capacity approach; AS5835 capacity reporting is unchanged.
+Signed-off commit `fcb77b966` registers MFR_POUT_MAX (PMBus 0xa7) on both PSU interfaces for AS7326-56X and AS7726-32X. Both `get_maximum_supplied_power()` and `get_capacity()` now use the manufacturer reading through PDDF's existing milliwatt-to-watt conversion, replacing the former 1200 W constants. AS7816 already uses the same hardware-derived capacity approach; AS5835 capacity reporting is unchanged.
 
 Live checks on FSF019-611-equipped AS7326 and AS7726 switches returned **650000 mW / 650 W from all four supplies**. After re-registering only the PSU telemetry interfaces and restarting only psud, both capacity APIs returned 650 W, all supplies remained power-good, system health stayed green and chassis fans retained their 38% targets. Capacity is read dynamically rather than replaced with a 650 W constant. SAI and port configuration were untouched.
 
