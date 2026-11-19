@@ -41,8 +41,8 @@ reviewed and merged independently of #808 and #30780.
 | Clock ordering | Existing IDT setup runs before PDDF claims muxes. | AS7326, AS7726 |
 | PSU health | Hardware voltage limits, AS5835 model-aware voltage decoding, narrow unsupported target-speed exclusions, observed F2B* labels on AS7326/AS7726, and hardware temperature warning limits on AS7326/AS7726. | AS5835, AS7326, AS7726 |
 | Voltage/current CLI | PSU-backed sensor adapters and opt-in existing sensormond; V/A to mV/mA conversion, unavailable readings handled explicitly. | AS7326, AS7726 |
-| CPU inventory | Discover coretemp package/core channels after board inventory; use kernel thresholds. | AS5835, AS7326, AS7726 |
-| BIOS inventory | Read-only DMI BIOS version through existing PDDF component API. | AS7326, AS7726 |
+| CPU inventory | Discover coretemp package/core channels after board inventory; use kernel thresholds. | AS5835, AS7326, AS7726, AS7816 |
+| BIOS inventory | Read-only DMI BIOS version through existing PDDF component API. | AS7326, AS7726, AS7816 |
 
 The 128 MiB stable-cache allocation is a working value, not a measured minimum. Port/lane mappings, existing startup fan speeds and normal thermal policies are preserved. The PSU-fan exclusions cover only unsupported independent target comparisons; presence, status, airflow and supported measurements remain monitored. AS7326 temperature checks are now enabled with hardware warning limits.
 
@@ -69,7 +69,7 @@ The latest monitoring changes reuse existing platform-daemons functionality. The
 
 ### Software validation
 
-- **124 tests passed** across the Accton platform and PDDF suites (76 Accton, 48 PDDF).
+- **140 tests passed** across the Accton platform and PDDF suites (92 Accton, 48 PDDF).
 - **Five watchdog-helper tests passed** separately.
 - `git diff --check` passes.
 
@@ -103,7 +103,7 @@ Both models ran `SONiC.accton-fixes2-itjamie.20261118-20-ztp` (master-derived so
 | Health and watchdog | Services/hardware OK, status LED green, no failed systemd units; boot watchdog disarm and non-arming status queries work | Same |
 | Existing connectivity | Both active 100G uplinks and IPv4/EVPN sessions stayed established | Active 100G uplink and IPv4/EVPN session stayed established |
 
-syncd, SWSS and BGP were not restarted for the live monitoring edits. Unsupported current thresholds remain N/A; BIOS inventory does not imply CPLD version or firmware-update support. End-to-end VXLAN forwarding, warm restart, resource-stress testing and a fresh image/reboot with the latest commits remain outstanding. AS5835 and AS7816 still require community-image hardware validation.
+syncd, SWSS and BGP were not restarted for the live monitoring edits. Unsupported current thresholds remain N/A; BIOS inventory does not imply CPLD version or firmware-update support. End-to-end VXLAN forwarding, warm restart, resource-stress testing and a fresh image/reboot with the latest commits remain outstanding. AS5835 still requires community-image hardware validation. AS7816 environmental validation is documented below; SAI and front-panel port operation were outside that check.
 
 ### Earlier 202605 validation
 
@@ -124,7 +124,7 @@ Signed-off buildimage commit `b64a2fcbd` adds native AS5835-54X PSU voltage/curr
 
 Read-only inspection of AS5835 hardware with YM-1401A PSUs confirmed both PSU telemetry paths, voltage/current readings, coretemp channels, firmware inventory paths and the wdat_wdt identity. This confirms underlying hardware interfaces, not validation of the new sensor implementation on a community image. Hardware PSU temperature warning limits remain unavailable through the inspected driver; airflow mapping is unchanged.
 
-All **124 Accton/PDDF tests pass**, including six new native-sensor regressions covering both PSUs, units, limits, missing/invalid readings, recovery, extrema and chassis integration. AS5835 community-image validation remains outstanding.
+All **140 Accton/PDDF tests pass**, including six new native-sensor regressions covering both PSUs, units, limits, missing/invalid readings, recovery, extrema and chassis integration. AS5835 community-image validation remains outstanding.
 
 
 ### AS7326/AS7726 input telemetry follow-up (2026-11-19)
@@ -133,4 +133,24 @@ Signed-off commit `5b9c212e4` registers input voltage/current/power (PMBus READ_
 
 Read-only PMBus checks on FSF019-611 PSUs in both models returned input voltage around 226–228 V, current around 0.31–0.38 A and input power around 72–80 W. All four supplies remained power-good. These checks validate hardware telemetry, not deployment of the new reporting code. AS5835 YM-1401A input voltage/current/power registers returned zeros despite active output; AS5835 input telemetry remains unsupported.
 
-All **124 Accton/PDDF tests pass** (76 Accton, 48 PDDF), including six input telemetry tests for register mappings, units, unavailable readings, recovery, sensor limits and AS5835 exclusion. The new reporting still needs deployment validation.
+All **140 Accton/PDDF tests pass** (92 Accton, 48 PDDF), including six input telemetry tests for register mappings, units, unavailable readings, recovery, sensor limits and AS5835 exclusion. The new reporting still needs deployment validation.
+
+
+### AS7816 environmental validation and follow-up (2026-11-19)
+
+Signed-off buildimage commit `45a93cbc9` completes AS7816-64X environmental monitoring. It registers YM-2851F output-voltage limits, temperature warning limits and manufacturer maximum output power; reports capacity from hardware rather than the former 1200 W constant; uses real PSU airflow readings and standard labels; enables output voltage/current sensors; appends CPU sensors after the six existing board sensors; and adds read-only BIOS inventory. Only unsupported PSU fan target comparisons are excluded. Input telemetry remains explicitly unsupported because both supplies returned zero for input voltage/current/power despite active output.
+
+| Check | AS7816-64X result |
+| --- | --- |
+| Test image and method | `SONiC.accton-fixes2-itjamie.20261118-20-ztp`; environmental changes applied live and checked after relevant environmental service restarts. The image's separate sairedis rollback remains outside this PR. |
+| PSU output monitoring | Both YM-2851F supplies report voltage/current through standard sensor commands; hardware voltage limits are 11.390–12.593 V. |
+| PSU temperature and capacity | Hardware OT_WARN_LIMIT is 107°C on both supplies; temperature checks are enabled. Manufacturer output capacity is 850 W per supply, read dynamically. |
+| Fan control and recovery | All eight chassis fans present and healthy at the original 52% policy. The shared missing-path retry fixed the observed long-running controller's false missing-temperature fallback; CPU discovery preserves all six board sensor indices. |
+| PSU fans | Real F2B readings produce standard EXHAUST labels; presence/status/airflow remain checked, with only unsupported target-speed comparisons excluded. |
+| CPU and BIOS inventory | CPU package and four cores report kernel thresholds 82/104°C; BIOS reports v40.01.01.02. |
+| System health | Services and Hardware OK, status LED green, all Monit checks OK and no failed systemd units. Environmental daemons running after restart. |
+| Watchdog queries | Supported iTCO_wdt remained inactive before and after status/time-left queries. |
+
+SAI and port configuration were left untouched. syncd/SWSS container identities and start times were unchanged; front-panel port operation and forwarding were intentionally outside this validation. A fresh image containing the latest changes still needs build/reboot validation.
+
+All **140 Accton/PDDF tests pass** (92 Accton, 48 PDDF), including AS7816 PSU register mappings and API units, dynamic capacity, unsupported inputs, airflow labels, CPU/BIOS inventory, preserved fan policy and delayed-hwmon recovery. No platform-daemons source changes are added.
