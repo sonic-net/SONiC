@@ -40,8 +40,9 @@ The following requirements are covered by this design:
 
 - Watchdog is disabled by default.
 - Watchdog can be enabled and disabled using SONiC CLI.
-- Watchdog parameters such as identity, timeout etc can be configured using SONiC CLI.
-- Updating identity or timeout restarts the watchdog service if watchdog is enabled.
+- Watchdog identity, timeout, and pretimeout can be configured using SONiC CLI.
+- Updating identity, timeout, or pretimeout restarts the watchdog service if watchdog is enabled.
+- Timeout and pretimeout follow Linux watchdog semantics and are validated against the selected device's capabilities and supported timeout range.
 - Existing reboot code paths that use `watchdogutil` continue to operate as before.
 
 ### Architecture Design
@@ -73,9 +74,16 @@ The CLI commands are:
 	config watchdog enable
 	config watchdog disable
 	config watchdog identity <name>
-	config watchdog timeout <timeout>
+	config watchdog timeout <timeout> [--pretimeout <pretimeout>]
+	config watchdog pretimeout <pretimeout>
 
-The CLI updates CONFIG_DB and immediately invokes `watchdog-control.sh` so the runtime state follows the configuration change. If the watchdog is already enabled, changing `identity` or `timeout` causes the Linux watchdog service to be reconfigured and restarted.
+SONiC provides separate configuration for watchdog timeout and pretimeout, following Linux watchdog semantics. All values are specified in seconds.
+
+The operator can configure either value individually or update both together using `config watchdog timeout <timeout> --pretimeout <pretimeout>`.
+
+The CLI updates CONFIG_DB and immediately invokes `watchdog-control.sh` so the runtime state follows the configuration change. If the watchdog is already enabled, changing `identity`, `timeout`, or `pretimeout` causes the Linux watchdog service to be reconfigured and restarted. Configuring timeout or pretimeout does not enable watchdog protection by itself.
+
+Before updating CONFIG_DB, the CLI validates the proposed configuration against the selected device's capabilities and supported timeout range. Invalid settings are rejected without changing CONFIG_DB or stopping the running watchdog service.
 
 The default state is disabled. SONiC enables the Linux watchdog service only after `config watchdog enable`.
 
@@ -109,18 +117,19 @@ SONiC provides a default watchdog daemon configuration that is merged into the p
 
 The SONiC defaults are:
 
-	watchdog-device = /dev/watchdog0
-	watchdog-timeout = 300
-	interval = 10
-	realtime = yes
+| Setting | Default |
+| --- | --- |
+| `watchdog-device` | `/dev/watchdog0` |
+| `watchdog-timeout` | SONiC default timeout |
+| `interval` | `10` seconds |
+| `realtime` | `yes` |
 
 At runtime, `watchdog-control.sh` updates the following keys in `/etc/watchdog.conf` based on CONFIG_DB:
 
-	# Device selected by identity matching or defaulted to /dev/watchdog0
-	watchdog-device = /dev/watchdog0
+- `watchdog-device`: Device selected by identity matching, or `/dev/watchdog0` when no identity is configured.
+- `watchdog-timeout`: Configured total timeout, or the SONiC default timeout when no timeout is configured.
 
-	# Watchdog timeout configured by CLI or defaulted to 300 seconds
-	watchdog-timeout = 300
+SONiC programs pretimeout through the Linux watchdog interface. Pretimeout is not an additional setting in `/etc/watchdog.conf`.
 
 Some important static configs are listed below.
 
@@ -132,11 +141,47 @@ Some important static configs are listed below.
 
 The linux watchdog daemon can monitor the cpu load, critical processes, file activity, disk space, thermal runaway, RTC drift etc. However this document is only providing SONiC config support for the hardware watchdog.
 
+#### Timeout semantics
+
+SONiC uses the Linux watchdog definitions:
+
+- **Timeout** is the total interval from the last watchdog keepalive until final watchdog expiry.
+- **Pretimeout** is the interval between the early watchdog event and final expiry. The early event therefore occurs `timeout - pretimeout` seconds after the last keepalive.
+- A pretimeout of zero disables the early event while retaining the final timeout.
+
+Timeout must be positive. Pretimeout must be nonnegative and strictly less than timeout.
+
+The action at the early event is platform defined. A platform may use this event to trigger a crash dump or other debug collection. Pretimeout provides the recovery interval available before final watchdog expiry.
+
+If recovery successfully reboots the system during this interval, final watchdog expiry may never occur. Otherwise, final expiry causes the platform-defined watchdog action, normally a hardware reset.
+
+Platforms without pretimeout support use only the final timeout.
+
+If timeout is not configured, SONiC uses its default timeout.
+
+If pretimeout is not configured, SONiC uses its default pretimeout on a device that supports it. On a device without pretimeout support, the effective default is zero. An explicitly configured nonzero pretimeout is rejected on an unsupported device.
+
+Updating either setting individually preserves the other configured value, or uses its applicable default when absent. SONiC does not automatically resize pretimeout when timeout changes. If the resulting pair is invalid, the update is rejected.
+
+The combined command updates both values together:
+
+	config watchdog timeout <timeout> --pretimeout <pretimeout>
+
 #### Interaction with watchdogutil
 
-SONiC platform reboot and shutdown code paths may already use `watchdogutil` to arm the watchdog before rebooting the system. This behavior should remain unchanged whether steady state watchdog is configured or not.
+SONiC reboot and shutdown code paths may use `watchdogutil` to arm the hardware watchdog. Platform implementations should preserve these operations whether steady state watchdog protection is enabled or disabled.
 
-If the Linux watchdog service is not enabled, `watchdogutil arm` should continue to arm the watchdog as expected. If the Linux watchdog service is already enabled and managing the same watchdog device, `watchdogutil arm` should be treated as a no-op and return success. This avoids competing ownership of the watchdog device while preserving existing reboot code paths.
+The platform implementation should determine whether the Linux watchdog daemon is active and managing the same watchdog device, accounting for different device paths that refer to the same underlying device.
+
+When the daemon manages the same device, the platform implementation should:
+
+- Treat an arm request as a successful no-op and return the currently programmed watchdog timeout.
+- Treat a disarm request as a successful no-op, leaving the watchdog and its daemon running.
+- Allow status queries without acquiring device ownership, interrupting keepalives, or modifying watchdog configuration.
+
+Operators should use `config watchdog disable` to disable steady state watchdog protection. A successful `watchdogutil disarm` request should not override an active Linux watchdog daemon managing the same device.
+
+When the daemon is inactive or manages a different device, the platform implementation should retain its existing arm and disarm behavior.
 
 #### Serviceability & Debugability
 
@@ -151,7 +196,9 @@ In order to safely use the Linux watchdog feature on a platform, the following s
 
 - Verify the correct Linux watchdog identity under `/sys/class/watchdog/watchdog*/identity`.
 - Configure the watchdog identity with `config watchdog identity <name>` if the default `/dev/watchdog0` is not the desired device.
-- Configure the watchdog timeout with `config watchdog timeout <timeout>` if the default `300` second timeout is not appropriate.
+- Configure timeout and pretimeout if the SONiC defaults are not appropriate. Use `config watchdog timeout <timeout> --pretimeout <pretimeout>` to update both values together.
+- Verify that the selected watchdog device supports nonzero pretimeout before configuring it. Choose a pretimeout that provides sufficient time for any supported crash dump or debug collection.
+- Ensure the platform watchdog driver follows Linux timeout and pretimeout semantics and reports the remaining time until final watchdog expiry.
 - Ensure existing platform reboot or shutdown code paths using `watchdogutil` continue to work when SONiC watchdog is enabled.
 - Enable kernel dump or other debug collection on watchdog expiry if supported by the platform.
 - Ensure reboot cause is correctly updated on watchdog triggered reboot.
@@ -166,16 +213,18 @@ Following repos have code changes
 	   - Disable package-provided watchdog.service by default
 	   - Update watchdog-control.service ordering and oneshot behavior
 	   - Update watchdog-control.sh to read CONFIG_DB and control watchdog.service
+	   - Program timeout and pretimeout independently, with capability and configuration validation
 	sonic-utilities
 	   - Add config watchdog CLI
-	   - Add CLI tests for enable, disable, identity, and timeout
+	   - Support individual and combined timeout and pretimeout updates
+	   - Add CLI tests for enable, disable, identity, timeout, pretimeout, and invalid configuration rejection
 	platform
 	   - Preserve existing watchdogutil arm behavior for reboot and shutdown paths
 
 
 ### Configuration and management
 
-Configuration for enabling the watchdog is covered by SONiC CLI and CONFIG_DB. The Linux watchdog daemon still consumes `/etc/watchdog.conf`, but SONiC owns the runtime values for the selected device and timeout.
+Configuration for enabling the watchdog is covered by SONiC CLI and CONFIG_DB. The Linux watchdog daemon still consumes `/etc/watchdog.conf`, and SONiC owns the runtime values for the selected device, timeout, and pretimeout.
 
 
 #### CLI/YANG model Enhancements
@@ -185,7 +234,8 @@ The initial CLI support is under the SONiC `config watchdog` command:
 	config watchdog enable
 	config watchdog disable
 	config watchdog identity <name>
-	config watchdog timeout <timeout>
+	config watchdog timeout <timeout> [--pretimeout <pretimeout>]
+	config watchdog pretimeout <pretimeout>
 
 The existing `watchdogutil` command is still useful in checking watchdog state and performing manual arm/disarm triggers.
 
@@ -193,11 +243,14 @@ The existing `watchdogutil` command is still useful in checking watchdog state a
 
 Watchdog configuration is stored in CONFIG_DB under the `WATCHDOG` table:
 
+The following example shows an enabled configuration on a device that supports pretimeout. Timeout and pretimeout values are specified in seconds and must satisfy the constraints in [Timeout semantics](#timeout-semantics).
+
 	"WATCHDOG": {
 	    "config": {
 	        "enabled": "true",
 	        "identity": "board",
-	        "timeout": "300"
+	        "timeout": "600",
+	        "pretimeout": "300"
 	    }
 	}
 
@@ -205,9 +258,10 @@ Fields:
 
 - `enabled`: `true` enables the Linux watchdog service. `false` or missing disables it.
 - `identity`: Optional identity string matched against `/sys/class/watchdog/watchdog*/identity`.
-- `timeout`: Optional positive integer timeout in seconds. Missing value defaults to `300`.
+- `timeout`: Optional positive integer total timeout in seconds. A missing value uses the SONiC default timeout.
+- `pretimeout`: Optional nonnegative integer interval between the early event and final expiry, in seconds. A missing value uses the SONiC default pretimeout on supported devices and zero on unsupported devices. Zero disables the early event. Nonzero values require device support, and pretimeout must be less than timeout.
 
-The CLI writes this table and runs `watchdog-control.sh` immediately. The control script writes `watchdog-device` and `watchdog-timeout` into `/etc/watchdog.conf`, updates `/etc/default/watchdog` to run the watchdog daemon with that config file, and restarts `watchdog.service` when enabled.
+The CLI validates the proposed configuration before writing this table and runs `watchdog-control.sh` immediately after the update. When enabled, the control script programs the device timeout and pretimeout, writes `watchdog-device` and `watchdog-timeout` into `/etc/watchdog.conf`, updates `/etc/default/watchdog` to run the watchdog daemon with that config file, and restarts `watchdog.service`.
 
 
 ### Warmboot and Fastboot Design Impact
@@ -226,13 +280,14 @@ The watchdog expiry behavior is platform defined. SONiC configures and starts th
 
 SONiC management test cases are already existing which verify watchdog functionality. Small modifications may be needed there and certain new test cases will be added related to the configuration methology added in this document.
 
-	- Test watchdog reset if watchdog daemon is stopped.
+	- Test watchdog reset when keepalives cease without disarming the watchdog.
 	- Test reboot reason as watchdog for watchdog triggered reboot
 	- Test kernel core file collection or other debug collection as part of watchdog reset if the platform supports it.
 	- Test config watchdog enable starts watchdog.service.
 	- Test config watchdog disable stops and disables watchdog.service.
 	- Test config watchdog identity correctly selects the watchdog device by matching /sys/class/watchdog/watchdog*/identity.
-	- Test config watchdog timeout updates watchdog-timeout in /etc/watchdog.conf and restarts watchdog.service when enabled.
+	- Test timeout and pretimeout defaults, configuration updates, and expiry behavior follow the documented semantics on supported and unsupported devices.
+	- Test invalid or unsupported timeout and pretimeout settings are rejected without changing CONFIG_DB, device timer settings, or the running watchdog service.
 	- Test watchdogutil arm/disarm/status works as expected when SONiC watchdog is enabled.
 
 
