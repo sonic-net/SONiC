@@ -69,7 +69,7 @@ The latest monitoring changes reuse existing platform-daemons functionality. The
 
 ### Software validation
 
-- **118 tests passed** across the Accton platform and PDDF suites (70 Accton, 48 PDDF).
+- **124 tests passed** across the Accton platform and PDDF suites (76 Accton, 48 PDDF).
 - **Five watchdog-helper tests passed** separately.
 - `git diff --check` passes.
 
@@ -124,4 +124,13 @@ Signed-off buildimage commit `b64a2fcbd` adds native AS5835-54X PSU voltage/curr
 
 Read-only inspection of AS5835 hardware with YM-1401A PSUs confirmed both PSU telemetry paths, voltage/current readings, coretemp channels, firmware inventory paths and the wdat_wdt identity. This confirms underlying hardware interfaces, not validation of the new sensor implementation on a community image. Hardware PSU temperature warning limits remain unavailable through the inspected driver; airflow mapping is unchanged.
 
-All **118 Accton/PDDF tests pass**, including six new native-sensor regressions covering both PSUs, units, limits, missing/invalid readings, recovery, extrema and chassis integration. AS5835 community-image validation remains outstanding.
+All **124 Accton/PDDF tests pass**, including six new native-sensor regressions covering both PSUs, units, limits, missing/invalid readings, recovery, extrema and chassis integration. AS5835 community-image validation remains outstanding.
+
+
+### AS7326/AS7726 input telemetry follow-up (2026-11-19)
+
+Signed-off commit `5b9c212e4` registers input voltage/current/power (PMBus READ_VIN 0x88, READ_IIN 0x89 and READ_PIN 0x97) using each model's PSU bus/address mappings. An opt-in adapter exposes V/A/W through the PSU API; input voltage/current sensors are appended after existing output inventory for sensormond. Input power uses `get_input_power()`; no platform-daemons source changes are included. Missing, invalid, absent or power-faulted samples stay unavailable. Manufacturer ratings are not used as warning thresholds.
+
+Read-only PMBus checks on FSF019-611 PSUs in both models returned input voltage around 226–228 V, current around 0.31–0.38 A and input power around 72–80 W. All four supplies remained power-good. These checks validate hardware telemetry, not deployment of the new reporting code. AS5835 YM-1401A input voltage/current/power registers returned zeros despite active output; AS5835 input telemetry remains unsupported.
+
+All **124 Accton/PDDF tests pass** (76 Accton, 48 PDDF), including six input telemetry tests for register mappings, units, unavailable readings, recovery, sensor limits and AS5835 exclusion. The new reporting still needs deployment validation.
