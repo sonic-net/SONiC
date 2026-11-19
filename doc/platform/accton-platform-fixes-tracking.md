@@ -69,7 +69,7 @@ The latest monitoring changes reuse existing platform-daemons functionality. The
 
 ### Software validation
 
-- **112 tests passed** across the Accton platform and PDDF suites (64 Accton, 48 PDDF).
+- **118 tests passed** across the Accton platform and PDDF suites (70 Accton, 48 PDDF).
 - **Five watchdog-helper tests passed** separately.
 - `git diff --check` passes.
 
@@ -116,3 +116,12 @@ Working Edgecore ec202111 AS5835 observations identified bad YM-1401A manufactur
 ## Release integration
 
 The implementation PRs target master. No release backport is requested here. A branch-specific backport requires the watchdog dependency and validation against that branch. Latest follow-ups have not been rebuilt into a fresh image; cold-boot integration with those commits, end-to-end VXLAN forwarding, warm restart and resource-stress testing remain outstanding.
+
+
+### AS5835 native PSU sensor follow-up (2026-11-19)
+
+Signed-off buildimage commit `b64a2fcbd` adds native AS5835-54X PSU voltage/current sensors and enables the existing sensormond daemon. The sensors read the driver's mV/mA attributes directly, avoiding the legacy PSU API's zero fallback on missing reads. Presence and power-good checks gate samples; manufacturer voltage limits are exposed, unsupported current limits remain unavailable, and extrema reset after unavailable samples. No PDDF dependency or platform-daemons changes are introduced.
+
+Read-only inspection of AS5835 hardware with YM-1401A PSUs confirmed both PSU telemetry paths, voltage/current readings, coretemp channels, firmware inventory paths and the wdat_wdt identity. This confirms underlying hardware interfaces, not validation of the new sensor implementation on a community image. Hardware PSU temperature warning limits remain unavailable through the inspected driver; airflow mapping is unchanged.
+
+All **118 Accton/PDDF tests pass**, including six new native-sensor regressions covering both PSUs, units, limits, missing/invalid readings, recovery, extrema and chassis integration. AS5835 community-image validation remains outstanding.
