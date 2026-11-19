@@ -411,7 +411,9 @@ Each row answers: what is different, does native VRRP still work, and does it ma
 | 11 | `version` | CLI `config interface vrrp version` | Not in `openconfig-if-ip` VRRP grouping | Not mapped. Native default (v3) applies. Google did not ask for this leaf |
 | 12 | `admin_status` / CLI shutdown | CLI `vrrp shutdown/startup` | Not in OC VRRP grouping | Not mapped. Google did not ask for this leaf. Enable is presence of the `VRRP`/`VRRP6` row |
 | 13 | `FEATURE\|*` | Native feature flag | Not an OpenConfig object | UMF never writes it |
-| 14 | Subinterface index | Native allows Ethernet/Vlan/PortChannel | Google paths use `subinterface[index=0]` | UMF implements index 0 as the parent L3 interface, matching other OpenConfig interface work. Non-zero subinterface index is not covered here |
+| 14 | Subinterface index | Native allows Ethernet/Vlan/PortChannel | Google paths use `subinterface[index=0]` | Index `0` is the parent L3 interface. Non-zero index is **rejected** (`NotSupported`) so it cannot collide with the parent group's Redis key |
+| 15 | OC keys VRRP by L3 **address**; native keys `{if}\|{vrid}` | Feature does not store the parent address on the VRRP row | Path includes `address[ip=...]` | Two OC addresses on the same interface with the same VRID share one Redis row. The address in the path selects IPv4 vs IPv6 only |
+| 16 | One OC `priority-decrement` vs N native TRACK rows | Native allows a different increment per tracked interface | OC has one scalar | SET writes the same value to every TRACK row for that group. GET returns the last collected increment. Values outside 10..50 (including explicit `0`) are `InvalidArgs` |
 
 **Coverage vs Google's ask:** every `openconfig-if-ip` 3.9.0 `vrrp-group` leaf on all four bases is accepted on gNMI GET/SET/DELETE/SUBSCRIBE. The two behavioral gaps are `current-priority` (not live) and `accept-mode` (not programmed to FRR). Those are native-feature gaps, not missing OpenConfig paths.
 
