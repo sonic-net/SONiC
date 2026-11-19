@@ -200,6 +200,8 @@ The value should contain a JSON serialized as a string.
 | /container | object | no        | Container related properties.                                                                    |
 | /container/privileged         | string          | no        | Start the container in privileged mode. Later versions of manifest might extend container properties to include docker capabilities instead of privileged mode. Defaults to False. |
 | /container/volumes            | list of strings | no        | List of mounts for a container. The same syntax used for '-v' parameter for "docker run".<p>Example: "\<src\>:\<dest\>:\<options\>". Defaults to [].                               |
+| /container/network           | string           | no        | Define the container network type. e.g.: 'bridge', 'host', etc.
+| /container/ports             | list of strings  | no        | List of ports to publish for the docker. e.g.: ["8080:8080", "22:22"]
 | /container/mounts             | list of objects | no        | List of mounts for a container. Defaults to [].                                                                                                                                    |
 | /container/mounts/[id]/source | string          | yes       | Source for mount                                                                                                                                                                   |
 | /container/mounts/[id]/target | string          | yes       | Target for mount                                                                                                                                                                   |
