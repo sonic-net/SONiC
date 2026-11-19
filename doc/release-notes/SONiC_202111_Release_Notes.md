@@ -154,7 +154,7 @@ Refer [PR#8191](https://github.com/sonic-net/sonic-buildimage/pull/8191) for mor
 #### One line command to extract multiple DBs info of a SONiC component  
 In SONiC, there usually exists a set of tables related/relevant to a particular module. All of these have to be looked at to confirm whether any configuration update is properly applied and propagated.The task of debugging quickly becomes tedious because currently, there is no utility which does print a unified view of the redis-state. This is the problem which is addressed by this dump utility.This utility provides the base infrastructure and guidelines to make is easy for the developers to extend and support the utility for different modules.
  
-Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/Dump-Utility.md) and below mentioned PR's for more details. 
+Refer [HLD document](https://github.com/sonic-net/SONiC/blob/master/doc/dump-utility/Dump-Utility.md) and below mentioned PR's for more details. 
 <br> **Pull Requests** : [789](https://github.com/sonic-net/SONiC/pull/789), [1666](https://github.com/sonic-net/sonic-utilities/pull/1666), [1667](https://github.com/sonic-net/sonic-utilities/pull/1667), [1668](https://github.com/sonic-net/sonic-utilities/pull/1668), [1669](https://github.com/sonic-net/sonic-utilities/pull/1669), [1670](https://github.com/sonic-net/sonic-utilities/pull/1670), [1853](https://github.com/sonic-net/sonic-utilities/pull/1853), [1877](https://github.com/sonic-net/sonic-utilities/pull/1877), [1913](https://github.com/sonic-net/sonic-utilities/pull/1913) & [1892](https://github.com/sonic-net/sonic-utilities/pull/1892)
           
 #### Overlay ECMP        
