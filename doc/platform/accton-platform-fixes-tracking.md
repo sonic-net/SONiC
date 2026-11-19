@@ -2,20 +2,7 @@
 
 ## Overview
 
-This document tracks the related changes in `sonic-buildimage` and
-`sonic-platform-common` to address Accton/Edgecore platform initialization and
-hardware-health failures.
-
-On AS7326-56X with newer Broadcom SAI/SDK versions, insufficient stable-cache
-allocation prevents SDK initialization, leaving front-panel interfaces
-unavailable. Once initialization succeeds, additional platform integration
-issues affect health reporting, status LEDs, watchdog access, thermal control
-and PSU monitoring.
-
-The implementation also addresses corresponding code and configuration in
-AS5835-54X, AS7726-32X and AS7816-64X where applicable. Hardware validation has
-been performed on AS7326-56X; the changes do not imply that every model has
-the same failure or requires every fix.
+This document tracks sonic-buildimage #30780 and the shared Linux watchdog helper in sonic-platform-common #808. SDK stable-cache exhaustion diagnosed on AS7326 exposed further platform health and monitoring gaps. The implementation includes model-specific fixes for AS5835, AS7326, AS7726 and AS7816; direct hardware validation currently covers AS7326 and AS7726.
 
 ## Related pull requests
 
@@ -45,137 +32,87 @@ reviewed and merged independently of #808 and #30780.
 ## Scope
 
 | Area | Change | Platforms |
-| --- | --- | --- |
-| SDK initialization | Increase stable cache to 128 MiB; select the packaged Cancun `default` symlink on AS7326/AS7726. | AS5835, AS7326, AS7726 |
-| VXLAN configuration | Restore nine settings from Edgecore's matching BCM profiles, preserving model-specific overlay resource allocations. | AS5835, AS7326, AS7726 |
-| Health and LEDs | Implement the PDDF chassis health LED APIs and align color labels with health configuration. | AS7326, AS7726, AS7816 |
-| Watchdog | Provide thin platform adapters using the shared `LinuxWatchdog` helper; add the native AS5835 getter and the missing PDDF `syslog` import. | AS5835, AS7326, AS7726, AS7816 |
-| Thermal control | Request full fan speed when required sensor data is unavailable, retry through the existing polling loop and resume the normal policy when readings recover. | AS5835, AS7326, AS7726, AS7816 |
-| Clock initialization | Order existing IDT setup before PDDF claims the I2C muxes. | AS7326, AS7726 |
-| PSU monitoring | Expose AS7326/AS7726 PMBus voltage limits, correct AS5835 manufacturer voltage-limit decoding, and exclude unsupported per-PSU-fan target-speed comparisons; recognize the observed `F2B*` airflow label on AS7326 only. | AS5835, AS7326, AS7726 |
-| CPU monitoring | Append dynamically discovered coretemp package/core sensors after the existing board inventory; read kernel thresholds and report unavailable inputs. | AS5835, AS7726 |
+|---|---|---|
+| SDK and Cancun | 128 MiB stable cache on AS5835/AS7326/AS7726; packaged Cancun `default` path on AS7326/AS7726. | AS5835, AS7326, AS7726 |
+| VXLAN/RIOT | Nine model-specific settings from the matching Edgecore profiles; preserve different resource allocations. | AS5835, AS7326, AS7726 |
+| Health/LEDs | Implement missing PDDF health LED methods and align color labels. | AS7326, AS7726, AS7816 |
+| Watchdog | Thin adapters around platform-common's shared Linux watchdog helper; query without arming hardware. | AS5835, AS7326, AS7726, AS7816 |
+| Fan/thermal recovery | Preserve startup speeds and normal policies; use full-speed fallback for unavailable required readings and recover when available. Retry negative PDDF path lookups. Restore AS7326 integer PWM reporting. | Model-specific monitors; shared PDDF retry; AS7326 rounding |
+| Clock ordering | Existing IDT setup runs before PDDF claims muxes. | AS7326, AS7726 |
+| PSU health | Hardware voltage limits, AS5835 model-aware voltage decoding, narrow unsupported target-speed exclusions, observed F2B* labels on AS7326/AS7726, and hardware temperature warning limits on AS7326/AS7726. | AS5835, AS7326, AS7726 |
+| Voltage/current CLI | PSU-backed sensor adapters and opt-in existing sensormond; V/A to mV/mA conversion, unavailable readings handled explicitly. | AS7326, AS7726 |
+| CPU inventory | Discover coretemp package/core channels after board inventory; use kernel thresholds. | AS5835, AS7326, AS7726 |
+| BIOS inventory | Read-only DMI BIOS version through existing PDDF component API. | AS7326, AS7726 |
 
-Vendor configuration references come from [Edgecore's platform sources](https://github.com/edge-core/sonic-buildimage/tree/d39662e996c0e8748c9b96ad88dc5f5f524e8048/device/accton).
-Clock ordering also follows the approach proposed in
-[sonic-buildimage #30498](https://github.com/sonic-net/sonic-buildimage/pull/30498).
-The implementation PR contains the individual changes and additional related
-reports.
+The 128 MiB stable-cache allocation is a working value, not a measured minimum. Port/lane mappings, existing startup fan speeds and normal thermal policies are preserved. The PSU-fan exclusions cover only unsupported independent target comparisons; presence, status, airflow and supported measurements remain monitored. AS7326 temperature checks are now enabled with hardware warning limits.
+
+Vendor references: [Edgecore source at d39662e9](https://github.com/edge-core/sonic-buildimage/tree/d39662e996c0e8748c9b96ad88dc5f5f524e8048/device/accton); clock ordering also follows [#30498](https://github.com/sonic-net/sonic-buildimage/pull/30498).
 
 ## Dependency and merge order
 
-`sonic-platform-common` PR #808 introduces
-`sonic_platform_base.linux_watchdog.LinuxWatchdog`. It implements the existing
-watchdog interface for the Linux `iTCO_wdt` and `wdat_wdt` driver identities.
-Construction and status queries use sysfs without opening the watchdog
-character device or changing the armed state. Explicit arm/disarm operations
-use the character device and kernel ioctls.
+The watchdog adapters depend on [sonic-platform-common PR #808](https://github.com/sonic-net/sonic-platform-common/pull/808), linked to [issue #807](https://github.com/sonic-net/sonic-platform-common/issues/807). The buildimage submodule pointer records published review commit `1c8e439f9f14ef04dd05fa62d79e635c215d24d6`. Merge #808 first, then select an upstream revision containing the helper before merging buildimage #30780. The helper is independent of the Accton changes.
 
-The Accton watchdog adapters in `sonic-buildimage` PR #30780 import this helper.
-They therefore require a `sonic-platform-common` revision containing #808.
-The shared helper does not depend on the Accton platform changes, so the
-dependency is one-way.
+The latest monitoring changes reuse existing platform-daemons functionality. They add no platform-daemons submodule changes. The experimental sairedis rollback used for hardware validation is not part of buildimage #30780.
 
-Merge sequence:
+## Latest implementation follow-ups
 
-1. Review and merge `sonic-platform-common` PR #808.
-2. Update the `src/sonic-platform-common` submodule pointer in buildimage
-   PR #30780 to an upstream revision containing the merged helper, then rerun
-   the relevant regression checks.
-3. Merge buildimage PR #30780 after its platform review and checks complete.
-
-The buildimage PR currently pins the published review commit
-`1c8e439f9f14ef04dd05fa62d79e635c215d24d6`. This is a review dependency, not the
-final upstream integration revision. Before merge, recursive submodule fetches
-must be able to obtain the selected commit from the configured upstream remote.
+| Commit | Follow-up |
+|---|---|
+| `01fe703ff` | Expose AS7326/AS7726 PSU voltage/current through existing sensormond; reuse PSU APIs and hardware voltage limits. |
+| `a91476558` | Preserve AS7326 integer PWM reporting: full PWM reports 100%, not 101%; retain the original PWM targets and policy. |
+| `2e33f40db` | Retry PDDF missing sensor paths instead of caching empty lookups permanently; keep positive caching. |
+| `09289bde8` | Add AS7326 CPU package/core inventory after the original board sensors. |
+| `08c890784` | Expose AS7326 hardware PSU OT_WARN_LIMIT and remove the obsolete PSU temperature health exclusion. |
+| `e58a14a1d` | Add read-only BIOS inventory on AS7326/AS7726 through the existing PDDF component API. |
 
 ## Validation
 
-### Software
+### Software validation
 
-The master-based buildimage checkout and companion platform-common change pass
-39 regression tests and 41 subtests. Coverage includes the Linux watchdog
-helper and platform adapters, health LED delegation, thermal failure/recovery,
-PSU voltage, airflow and narrowly scoped health exclusions, and AS5835/AS7726 CPU
-discovery, kernel thresholds, read failures/recovery and chassis integration.
+- **112 tests passed** across the Accton platform and PDDF suites (64 Accton, 48 PDDF).
+- **Five watchdog-helper tests passed** separately.
+- `git diff --check` passes.
 
-The watchdog helper's standalone suite passes five tests with fake sysfs and
-mocked device/ioctl operations. The combined totals above include these tests.
+```bash
+PYTHONPATH=src/sonic-platform-common:src/sonic-py-common:platform/pddf/platform-api-pddf-base \
+  python3 -m pytest -q -p no:cacheprovider -o addopts='' \
+  platform/broadcom/sonic-platform-modules-accton/tests \
+  platform/pddf/platform-api-pddf-base/tests
 
-### AS7326-56X hardware
+PYTHONPATH=src/sonic-platform-common:src/sonic-py-common \
+  python3 -m pytest --import-mode=importlib -q -p no:cacheprovider -o addopts='' \
+  src/sonic-platform-common/tests/linux_watchdog_test.py
+```
 
-Equivalent platform patches were exercised in
-`SONiC.202605-itjamie.20261113-17-ztp`, built from upstream `5ef9e45c`, with
-Broadcom XGS SAI `15.2.1.0.0.0.50.1` and SDK `6.5.35-SP1`.
+Regressions cover PSU sensor units, unavailable readings and recovery; hardware voltage/temperature definitions; every AS7326 PWM step and 38/75/100% round trips; recovery from delayed hwmon registration without restarting the controller; CPU discovery and kernel thresholds; read-only BIOS inventory; existing LED/watchdog/thermal behavior; and compiled AS5835 voltage conversion callbacks. Simulated failures do not require fault injection on hardware.
 
-- SDK initialization succeeds and all 56 front-panel ports are available.
-- Fresh-install ZTP completes and saved configuration survives reboot.
-- System health reports green, with services and hardware OK.
-- Boot-time watchdog disarm succeeds.
-- Two L2 VNIs are created and advertised, and IPv4/EVPN BGP sessions establish
-  to the connected spine.
-- Both FSF019-611 PSUs expose voltage limits of 11.390/12.593 V through sysfs,
-  the platform API and STATE_DB.
-- No container or systemd automatic restarts were observed during approximately
-  34 minutes of post-boot observation.
+### Hardware validation on AS7326 and AS7726 (2026-11-18–19)
 
-### AS7726 vendor comparison
+Both models ran `SONiC.accton-fixes2-itjamie.20261118-20-ztp` (master-derived source `892dccbb`, Debian 13.7, Broadcom XGS SAI `15.2.1.0.0.0.50.1`). That experimental image pins sairedis to the SAI-header rollback in [sonic-sairedis #2170](https://github.com/sonic-net/sonic-sairedis/pull/2170). **The sairedis rollback is not part of this PR.** The latest monitoring fixes were applied live to that image and tested after the relevant service restarts; a full image containing the latest follow-ups has not been built.
 
-Read-only comparison used working Edgecore ec202111 (SDK 6.5.21) and Broadcom
-Enterprise 4.5.1 installations. Both report FSF019 PSU voltage limits of
-11.390/12.593 V; the enterprise PDDF definitions specify voltage-limit
-registers `0xa4`/`0xa5` on PSU1 bus/address `0x32/0x5b` and PSU2 `0x31/0x58`.
-The community change adds these mappings without hardcoding voltage limits.
+| Check | AS7326-56X | AS7726-32X |
+|---|---|---|
+| SDK, interfaces and provisioning | SDK running, 56 ports present, fresh-install ZTP successful | SDK running, 32 ports present, fresh-install ZTP successful |
+| Chassis fans | All twelve present/healthy; speed and target 38%; the original 38/75/100% policy is preserved | All twelve present/healthy; speed and target 38%; original policy preserved |
+| Temperature recovery | Reproduced the persistent negative-path cache; patched lookups recover, and the running controller returned from full-speed fallback to 38% | Existing thermal monitor remains healthy |
+| Voltage/current CLI | Both PSU output readings populated by sensormond, in mV/mA | Same |
+| PSU hardware limits | FSF019-611 voltage limits 11.390/12.593 V; OT_WARN_LIMIT exposed as 70000 millidegrees / 70°C on both supplies | Same voltage and temperature limits |
+| PSU health | Presence, power-good, airflow and temperature checks enabled; obsolete temperature exclusion removed | Presence, power-good, airflow and temperature checks enabled |
+| CPU inventory | Four board sensors retained, followed by CPU package and four cores; kernel thresholds 82/104°C | Five board sensors retained, followed by CPU package and four cores; kernel thresholds 82/104°C |
+| Firmware inventory | BIOS `v40.01.01.00` reported by `show platform firmware status` | Same |
+| Health and watchdog | Services/hardware OK, status LED green, no failed systemd units; boot watchdog disarm and non-arming status queries work | Same |
+| Existing connectivity | Both active 100G uplinks and IPv4/EVPN sessions stayed established | Active 100G uplink and IPv4/EVPN session stayed established |
 
-The enterprise API leaves PSU fan target speed unsupported, while Edgecore
-returns the measured speed as its target. Neither provides an independent
-expected-speed reference. Only the two PSU-fan target-speed comparisons are
-excluded; other PSU/fan monitoring remains enabled.
+syncd, SWSS and BGP were not restarted for the live monitoring edits. Unsupported current thresholds remain N/A; BIOS inventory does not imply CPLD version or firmware-update support. End-to-end VXLAN forwarding, warm restart, resource-stress testing and a fresh image/reboot with the latest commits remain outstanding. AS5835 and AS7816 still require community-image hardware validation.
 
-Edgecore exposes CPU package/core sensors through the coretemp platform
-path. The new community reader discovers those labelled channels, reads
-kernel thresholds and tolerates hwmon/channel renumbering. Invalid or missing
-readings are unavailable, rather than 0 degrees. CPU sensors are discovered
-at chassis construction; an absent optional coretemp device does not block
-the existing five PDDF board sensors.
+### Earlier 202605 validation
 
-These observations inform the implementation and its software tests; they
-do not establish hardware validation of the new AS7726 community changes.
+Equivalent platform fixes were exercised on AS7326 and applied live to AS7726 using `SONiC.202605-itjamie.20261113-17-ztp` (upstream `5ef9e45c`). These checks included SDK startup, interfaces, ZTP, health, watchdog disarm, PSU voltage limits and IPv4/EVPN connectivity. These older observations are distinct from the current master-derived image plus live follow-ups above.
 
-### AS5835 vendor comparison and software regressions
+### AS5835 validation scope
 
-Working Edgecore ec202111 AS5835-54X observations identified YM-1401A PSU
-manufacturer voltage limits of -768/1472 V, already incorrect in native
-sysfs. The shared `ym2651y` driver registered these thresholds with its
-LINEAR11 callback instead of its existing model-aware voltage callback.
-The fix selects VOUT_MODE decoding for YM1401A/YM2401 and retains LINEAR11
-for other supported supplies; it does not hardcode voltage limits.
-A compiled regression executes the production functions and registered
-callbacks for both formats and fails with the original callback wiring.
-
-The native PSU fan target method no longer returns measured speed as its
-own target. Only `PSU-1 FAN-1.speed` and `PSU-2 FAN-1.speed` comparisons are
-excluded. Chassis PWM targets, presence/fault checks and airflow mappings
-remain unchanged.
-
-CPU package/core sensors are appended after the four existing board sensors.
-Tests cover sparse kernel labels (cores 2/6/8/12), kernel-provided 71/91 degree
-thresholds, renumbering, invalid/missing inputs and native chassis integration.
-Fan startup speeds and control policy remain unchanged. These additions are
-software-tested; AS5835 community-image hardware validation is outstanding.
-
-### Remaining validation
-
-A full master image build and hardware checks on AS5835, AS7726 and AS7816
-remain outstanding. End-to-end VXLAN forwarding, warm restart and
-maximum-resource workloads are not established by the current tests.
-
-The 128 MiB stable-cache allocation is a working value, not a measured minimum.
-The PSU-fan exclusions remove only target-speed comparisons where a usable
-target is unavailable; presence/status, measured speed, airflow and voltage
-checks remain enabled.
+Working Edgecore ec202111 AS5835 observations identified bad YM-1401A manufacturer voltage-limit decoding. The shared ym2651y fix selects its existing VOUT_MODE-aware callback for YM1401A/YM2401 and preserves LINEAR11 for other supported models. A compiled regression exercises the production callback wiring. CPU discovery and kernel-threshold tests also pass, including sparse core labels. Community-image hardware validation remains outstanding for AS5835 and AS7816.
 
 ## Release integration
 
-The implementation PRs target master. No release-branch backport is requested
-at this stage; any later backport needs the helper dependency and validation
-for the selected branch.
+The implementation PRs target master. No release backport is requested here. A branch-specific backport requires the watchdog dependency and validation against that branch. Latest follow-ups have not been rebuilt into a fresh image; cold-boot integration with those commits, end-to-end VXLAN forwarding, warm restart and resource-stress testing remain outstanding.
