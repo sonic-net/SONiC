@@ -108,6 +108,7 @@ This document describes the high level design details of PDDF and its components
 | GPIO                     | General Purpose Input Output |
 | PSU                      | Power Supply Unit |
 | I2C                      | Inter-integrated Circuit communication protocol |
+| SPI                      | Serial Peripheral Interface communication protocol |
 | SysFS                    | Virtual File System provided by the Linux Kernel |
 | BMC                      | Baseboard Management Controller |
 
@@ -1218,7 +1219,7 @@ Multi-FPGAPCIe support the following PDDF components:
 Multi-FPGAPCIe supports the following IP blocks:
  - I2C (Assumes Xilinx I2C, like [FPGAPCIe Component](#3412-pfgapcie-component))
  - GPIO (TODO)
- - SPI (TODO)
+ - SPI (Assumes Xilinx SPI)
 
 ##### 3.4.13.1 Multi-FPGAPCIe Sysfs Design
 
@@ -1340,6 +1341,293 @@ echo 1 > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/i2c/new_i2c_adapter
 ```bash
 # delete the first I2C bus of FPGA 0000:04:00.0
 echo 0 > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/i2c/del_i2c_adapter
+```
+
+#### 3.4.13.1.3 SPI Controller and Device Support
+
+PDDF provides support for SPI (Serial Peripheral Interface) controllers and SPI devices. This enables platforms to manage SPI-based peripherals such as FPGA configuration flash memories, boot flash devices, and other SPI-connected components through a standardized framework.
+
+The SPI support in PDDF consists of two main components:
+1. **SPI Controllers (SPI Masters)**: Hardware SPI controllers, typically implemented in FPGAs, that manage SPI bus communication
+2. **SPI Devices (SPI Slaves)**: Peripheral devices connected to SPI controllers, such as SPI NOR flash memories
+
+##### SPI Controller Module Sysfs Controls (Per-FPGA)
+
+These controls are located within each FPGA's BDF directory under the `spi` subdirectory (e.g., `/sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi`). They manage the creation and deletion of SPI controllers.
+
+1.  **`spi_base_addr`**:
+    * **Purpose**: Defines the memory offset within the FPGA's mapped BAR where the SPI controller registers are located.
+    * **Usage**: Write a hexadecimal value representing the base address offset.
+    * **Example**:
+```bash
+echo '0x50000' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/spi_base_addr
+```
+
+2.  **`virt_spi_controllers`**:
+    * **Purpose**: Specifies the number of virtual SPI controllers to be created from this FPGA.
+    * **Usage**: Write a decimal value (typically "1" for most platforms).
+    * **Example**:
+```bash
+echo '1' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/virt_spi_controllers
+```
+
+3.  **`virt_spi_controller_size`**:
+    * **Purpose**: Specifies the size (in bytes) of the SPI controller's register space.
+    * **Usage**: Write a hexadecimal value.
+    * **Example**:
+```bash
+echo '0x200' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/virt_spi_controller_size
+```
+
+4.  **`spi_driver`**:
+    * **Purpose**: Specifies the Linux kernel SPI controller driver to use (e.g., "xilinx_spi" for Xilinx SPI IP cores).
+    * **Usage**: Write the driver name as a string.
+    * **Example**:
+```bash
+echo 'xilinx_spi' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/spi_driver
+```
+
+5.  **`spi_num_cs`**:
+    * **Purpose**: Specifies the number of chip select lines available on the SPI controller.
+    * **Usage**: Write a decimal value.
+    * **Example**:
+```bash
+echo '5' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/spi_num_cs
+```
+
+6.  **`spi_controller_name`**:
+    * **Purpose**: Assigns a unique name to the SPI controller for reference in device creation. Used by SPI device to associate with the controller.
+    * **Usage**: Write a string identifier matching the controller name in the JSON configuration.
+    * **Example**:
+```bash
+echo 'CPUCARD_SPI_CONTROLLER' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/spi_controller_name
+```
+
+7.  **`new_spi_controller` (Write-only)**:
+    * **Purpose**: Creates a new SPI controller with the previously configured parameters.
+    * **Usage**: Write a unique controller index. This index must be globally unique across all SPI controllers in the platform.
+    * **Result**: A new SPI controller (e.g., `spi1`, `spi2`) will be registered with the Linux kernel and appear under `/sys/bus/spi/devices/`.
+    * **Example**:
+```bash
+echo '1' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/new_spi_controller
+```
+
+8.  **`del_spi_controller` (Write-only)**:
+    * **Purpose**: Deletes an existing SPI controller previously created by this FPGA.
+    * **Usage**: Write the controller index to be removed.
+    * **Example**:
+```bash
+echo '1' > /sys/kernel/pddf/devices/multifpgapci/0000:04:00.0/spi/del_spi_controller
+```
+
+##### SPI Device Module Sysfs Controls (Global)
+
+These controls are located at `/sys/kernel/pddf/devices/spi/` and manage the creation and deletion of SPI devices.
+
+**Important:**
+* The SPI sysfs interface at `/sys/kernel/pddf/devices/spi/` is always available after PDDF initialization (when the `pddf_spi_module` is loaded).
+* **The SPI controller must be created first before any SPI device operations** if not created by PDDF as part of MULTIFPGA device creation. Use the per-FPGA sysfs controls to create the controller (see [SPI Controller Module Sysfs Controls](#spi-controller-module-sysfs-controls-per-fpga)).
+* **The `spi_controller_name` specified when creating an SPI device must exactly match the name of an existing SPI controller.** The controller name is set via the `spi_controller_name` attribute during controller creation and must match the `device_parent` field in the SPI device's JSON configuration.
+* If the specified `spi_controller_name` does not exist or has a typo, the SPI device creation will fail with the following error in kernel logs:
+```
+SPI: [create_spi_device] Unable to get the spi controller spi_controller_name: <controller_name> for device_name: <device_name>
+```
+
+1.  **`create_spi_device` (Write-only)**:
+    * **Purpose**: Creates a new SPI device on a specified SPI controller.
+    * **Usage**: Write a space-separated string with the following format:
+      ```
+      <device_name> <spi_controller_name> <modalias> <max_speed_hz> <chip_select>
+      ```
+      - `device_name`: Unique identifier for the SPI device
+      - `spi_controller_name`: Name of the parent SPI controller
+      - `modalias`: Linux driver name for the device (e.g., "spi-nor" for SPI NOR flash)
+      - `max_speed_hz`: Maximum SPI clock frequency in Hz
+      - `chip_select`: Chip select line number (0-based)
+    * **Result**: A new SPI device (e.g., `spi1.0`) will appear under `/sys/bus/spi/devices/`, and associated device nodes (e.g., `/dev/mtd0` for flash devices) will be created.
+    * **Example**:
+```bash
+echo 'GE_FPGA_FLASH CPUCARD_SPI_CONTROLLER spi-nor 26000000 0' > /sys/kernel/pddf/devices/spi/create_spi_device
+```
+
+2.  **`delete_spi_device` (Write-only)**:
+    * **Purpose**: Deletes an existing SPI device.
+    * **Usage**: Write the device name to be removed.
+    * **Example**:
+```bash
+echo 'GE_FPGA_FLASH' > /sys/kernel/pddf/devices/spi/delete_spi_device
+```
+
+##### SPI Controller JSON Design
+
+SPI controllers are defined in the platform's `pddf-device.json` file. Each SPI controller must be associated with a parent FPGA device.
+SPI controllers are managed and are always created by the parent FPGA device.
+
+```json
+"CPUCARD_SPI_CONTROLLER": {
+  "dev_info": {
+    "device_type": "SPI_CONTROLLER",
+    "device_parent": "MULTIFPGAPCIE0"
+  },
+  "spi_mode_commands": [
+    {
+      "enable": "fpga write32 CPUCARD_FPGA 0x4 --bits=0:0 0x1",
+      "disable": "fpga write32 CPUCARD_FPGA 0x4 --bits=0:0 0x0",
+      "comment": "Enable output to on-board SPI devices"
+    }
+  ],
+  "dev_attr": {
+    "spi_base_addr": "0x50000",
+    "virt_spi_controllers": "1",
+    "virt_spi_controller_size": "0x200",
+    "spi_driver": "xilinx_spi",
+    "spi_num_cs": 5,
+    "spi_controller_name": "CPUCARD_SPI_CONTROLLER",
+    "spi_controller_idx": 1
+  },
+  "spi_devices": ["SWITCHCARD_CONFIG_FLASH"]
+}
+```
+
+Description of SPI controller fields:
+
+> **device_type**: Must be set to `SPI_CONTROLLER`
+
+> **device_parent**: Name of the parent FPGA device (must be a `MULTIFPGAPCIE` device)
+
+> **spi_mode_commands**: Optional array of FPGA register commands to execute when enabling/disabling the SPI controller. Each command object can contain:
+  - `enable`: Command to execute when creating the controller
+  - `disable`: Command to execute when deleting the controller
+  - `comment`: Optional description of the command's purpose
+
+> **spi_base_addr**: Hexadecimal offset within the FPGA's BAR where SPI controller registers are located
+
+> **virt_spi_controllers**: Number of virtual SPI controllers (typically "1")
+
+> **virt_spi_controller_size**: Size in bytes of the SPI controller register space
+
+> **spi_driver**: Linux kernel driver name (e.g., "xilinx_spi")
+
+> **spi_num_cs**: Number of chip select lines available
+
+> **spi_controller_name**: Unique identifier for this controller
+
+> **spi_controller_idx**: Globally unique index for this controller (must be unique across all SPI controllers in the platform). Maps to the `new_spi_controller` sysfs attribute.
+
+> **spi_devices**: Array of SPI device names that are children of this controller
+
+The SPI controller must also be registered in the parent FPGA's configuration:
+
+```json
+"MULTIFPGAPCIE0": {
+  "dev_info": {
+    "device_type": "MULTIFPGAPCIE",
+    "device_name": "CPUCARD_FPGA",
+    "device_bdf": "0000:04:00.0"
+  },
+  "spi_controllers": ["CPUCARD_SPI_CONTROLLER"],
+  "i2c": {
+    ...
+  }
+}
+```
+
+##### SPI Device JSON Design
+
+SPI devices are defined as separate objects in the `pddf-device.json` file:
+
+```json
+"SWITCHCARD_CONFIG_FLASH": {
+  "dev_info": {
+    "device_type": "SPI_DEVICE",
+    "device_name": "SWITCHCARD_CONFIG_FLASH",
+    "device_parent": "CPUCARD_SPI_CONTROLLER"
+  },
+  "is_persistent": false,
+  "spi_mode_commands": [
+    {
+      "enable": "fpga write32 CPUCARD_FPGA 0x44 --bits=11:11 0x1",
+      "disable": "fpga write32 CPUCARD_FPGA 0x44 --bits=11:11 0x0",
+      "comment": "Komodo controls Switch Card SPI config Flash"
+    },
+    {
+      "enable": "fpga write32 CPUCARD_FPGA 0x44 --bits=10:10 0x0",
+      "comment": "Select SPI protocol for config flash"
+    }
+  ],
+  "dev_attr": {
+    "spi_device_driver": "spi-nor",
+    "max_speed_hz": 26000000,
+    "chip_select": 0
+  }
+}
+```
+
+Description of SPI device fields:
+
+> **device_type**: Must be set to `SPI_DEVICE`
+
+> **device_name**: Unique identifier for this SPI device
+
+> **device_parent**: Name of the parent SPI controller
+
+> **is_persistent**: Boolean flag indicating whether the device should be automatically created when the controller is created (`true`) or manually created /deleted on-demand (`false`) (typically `pddfparse.py --<create|delete>-subtree <SPI_DEVICE_NAME>`)
+
+> **spi_mode_commands**: Optional array of FPGA register commands to execute when enabling/disabling access to this specific SPI device
+
+> **spi_device_driver**: Linux kernel driver name for the device (e.g., "spi-nor" for SPI NOR flash)
+
+> **max_speed_hz**: Maximum SPI clock frequency in Hz
+
+> **chip_select**: Chip select line number (0-based, must be less than `spi_num_cs` of the parent controller)
+
+##### Usage Examples
+
+**Creating an SPI Device using pddfparse:**
+
+```bash
+# For non-persistent devices, manually create them
+sudo pddfparse.py --create-subtree SWITCHCARD_CONFIG_FLASH
+
+# Verify the device was created
+ls /sys/bus/spi/devices/
+# Output: spiX.Y
+# where X is the SPI controller index and Y is the device chipselect.
+
+# Verify the device was created
+ls /dev/mtd*
+# Output: /dev/mtd0  /dev/mtd0ro
+
+# Check device information
+sudo mtd_debug info /dev/mtd0
+
+# The mtd device numbering starts with 0. Each device created takes the lowest available number.
+sudo pddfparse.py --create-subtree ASIC_BOOT_FLASH
+
+ls /dev/mtd*
+# Output: /dev/mtd0  /dev/mtd0ro  /dev/mtd1  /dev/mtd1ro
+```
+
+**Deleting an SPI Device and Controller:**
+
+```bash
+# Delete the SPI device
+sudo pddfparse.py --delete-subtree SWITCHCARD_CONFIG_FLASH
+sudo pddfparse.py --delete-subtree ASIC_BOOT_FLASH
+
+# Verify device is removed
+ls /dev/mtd*
+# Output: ls: cannot access '/dev/mtd*': No such file or directory
+```
+
+**Manual SPI Device Creation (for testing):**
+
+```bash
+# Create device using sysfs directly
+echo 'GE_FPGA_FLASH CPUCARD_SPI_CONTROLLER spi-nor 26000000 0' > /sys/kernel/pddf/devices/spi/create_spi_device
+
+# Delete device using sysfs directly
+echo 'GE_FPGA_FLASH' > /sys/kernel/pddf/devices/spi/delete_spi_device
 ```
 
 ##### 3.4.13.2 Multi-FPGAPCIe System JSON Design
