@@ -69,7 +69,7 @@ The latest monitoring changes reuse existing platform-daemons functionality. The
 
 ### Software validation
 
-- **140 tests passed** across the Accton platform and PDDF suites (92 Accton, 48 PDDF).
+- **144 tests passed** across the Accton platform and PDDF suites (96 Accton, 48 PDDF).
 - **Five watchdog-helper tests passed** separately.
 - `git diff --check` passes.
 
@@ -124,7 +124,7 @@ Signed-off buildimage commit `b64a2fcbd` adds native AS5835-54X PSU voltage/curr
 
 Read-only inspection of AS5835 hardware with YM-1401A PSUs confirmed both PSU telemetry paths, voltage/current readings, coretemp channels, firmware inventory paths and the wdat_wdt identity. This confirms underlying hardware interfaces, not validation of the new sensor implementation on a community image. Hardware PSU temperature warning limits remain unavailable through the inspected driver; airflow mapping is unchanged.
 
-All **140 Accton/PDDF tests pass**, including six new native-sensor regressions covering both PSUs, units, limits, missing/invalid readings, recovery, extrema and chassis integration. AS5835 community-image validation remains outstanding.
+All **144 Accton/PDDF tests pass**, including six new native-sensor regressions covering both PSUs, units, limits, missing/invalid readings, recovery, extrema and chassis integration. AS5835 community-image validation remains outstanding.
 
 
 ### AS7326/AS7726 input telemetry follow-up (2026-11-19)
@@ -133,7 +133,7 @@ Signed-off commit `5b9c212e4` registers input voltage/current/power (PMBus READ_
 
 Read-only PMBus checks on FSF019-611 PSUs in both models returned input voltage around 226–228 V, current around 0.31–0.38 A and input power around 72–80 W. All four supplies remained power-good. These checks validate hardware telemetry, not deployment of the new reporting code. AS5835 YM-1401A input voltage/current/power registers returned zeros despite active output; AS5835 input telemetry remains unsupported.
 
-All **140 Accton/PDDF tests pass** (92 Accton, 48 PDDF), including six input telemetry tests for register mappings, units, unavailable readings, recovery, sensor limits and AS5835 exclusion. The new reporting still needs deployment validation.
+All **144 Accton/PDDF tests pass** (96 Accton, 48 PDDF), including six input telemetry tests for register mappings, units, unavailable readings, recovery, sensor limits and AS5835 exclusion. The new reporting still needs deployment validation.
 
 
 ### AS7816 environmental validation and follow-up (2026-11-19)
@@ -153,4 +153,13 @@ Signed-off buildimage commit `45a93cbc9` completes AS7816-64X environmental moni
 
 SAI and port configuration were left untouched. syncd/SWSS container identities and start times were unchanged; front-panel port operation and forwarding were intentionally outside this validation. A fresh image containing the latest changes still needs build/reboot validation.
 
-All **140 Accton/PDDF tests pass** (92 Accton, 48 PDDF), including AS7816 PSU register mappings and API units, dynamic capacity, unsupported inputs, airflow labels, CPU/BIOS inventory, preserved fan policy and delayed-hwmon recovery. No platform-daemons source changes are added.
+All **144 Accton/PDDF tests pass** (96 Accton, 48 PDDF), including AS7816 PSU register mappings and API units, dynamic capacity, unsupported inputs, airflow labels, CPU/BIOS inventory, preserved fan policy and delayed-hwmon recovery. No platform-daemons source changes are added.
+
+
+### AS7326/AS7726 hardware PSU capacity follow-up (2026-11-19)
+
+Signed-off commit `25e1c0590` registers MFR_POUT_MAX (PMBus 0xa7) on both PSU interfaces for AS7326-56X and AS7726-32X. Both `get_maximum_supplied_power()` and `get_capacity()` now use the manufacturer reading through PDDF's existing milliwatt-to-watt conversion, replacing the former 1200 W constants. AS7816 already uses the same hardware-derived capacity approach; AS5835 capacity reporting is unchanged.
+
+Live checks on FSF019-611-equipped AS7326 and AS7726 switches returned **650000 mW / 650 W from all four supplies**. After re-registering only the PSU telemetry interfaces and restarting only psud, both capacity APIs returned 650 W, all supplies remained power-good, system health stayed green and chassis fans retained their 38% targets. Capacity is read dynamically rather than replaced with a 650 W constant. SAI and port configuration were untouched.
+
+All **144 Accton/PDDF tests pass** (96 Accton, 48 PDDF). Four new capacity regressions cover each interface's bus/address/register, both API units, changing manufacturer readings, and missing/failed reads without a fabricated fallback rating. The latest live-tested changes still need validation in a freshly built image.
