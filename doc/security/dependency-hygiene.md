@@ -47,7 +47,7 @@
 | 0.7 | 2026-11-13 | Brad House (Nexthop) | GitHub Actions pinned to a digest. Dependabot security updates stay on where Python packages are. The ruleset that replaces a rule matching every branch leaves out branches with their own rules. Branch builds skip Renovate branches. The merge queue. |
 | 0.8 | 2026-11-17 | Brad House (Nexthop) | Renovate merges labeled security updates itself, with the `renovate-approve` app's approval, in every repository without the `go.sum` workflow. The merge robot stays for those with it. The FIPS Go custom manager reads only trixie's pin, and `sonic-buildimage` turns off the `dockerfile` manager. The OpenTelemetry Collector has no custom manager, since its downloads are checked against pinned SHA256s a version bump does not update. A ruleset that targets all branches excludes `renovate/**`, since its force-push and deletion rules block rebases and branch cleanup. A repository keeping classic protection narrows its wildcard rule to `[0-9]*` instead of moving it to a ruleset. |
 | 0.9 | 2026-11-20 | Brad House (Nexthop) | FIPS Go takes patch releases only, since a new Go minor needs `FIPS_GOLANG_MAIN_VERSION` and a new FIPS package line. A read-only check that steps 1 to 7 are in place before a repository's `renovate.json` merges. |
-| 0.10 | 2026-11-20 | Brad House (Nexthop) | `go.mod` requires a published `sonic-mgmt-common` and the build adds the `replace`, so Renovate updates `go.sum` itself. No `go.sum` fixup workflow, and no merge robot path: Renovate merges every unattended update with `renovate-approve`'s approval. The pin moves weekly. Release branches rely on OSV, and those that restrict pushes allow the Renovate app. Tested by building `sonic-mgmt-framework` and `sonic-gnmi` both ways. |
+| 0.10 | 2026-11-20 | Brad House (Nexthop) | `go.mod` requires a published `sonic-mgmt-common` and the build adds the `replace`, so Renovate updates `go.sum` itself. No `go.sum` fixup workflow, and no merge robot path: Renovate merges every unattended update with `renovate-approve`'s approval. The pin moves weekly, and is the one update outside security updates that merges unattended. Release branches rely on OSV, and those that restrict pushes allow the Renovate app. Tested by building `sonic-mgmt-framework` and `sonic-gnmi` both ways. |
 
 ### 2. Scope
 
@@ -195,13 +195,14 @@ Renovate then owns its branches. Nothing else commits to them, so Renovate rebas
   "matchUpdateTypes": ["digest"],
   "minimumReleaseAge": "7 days",
   "schedule": ["before 6am on monday"],
+  "rebaseWhen": "behind-base-branch",
   "automerge": true,
   "automergeType": "pr",
   "platformAutomerge": false
 }
 ```
 
-A pin update raises the versions `sonic-mgmt-common` requires in the build, so it is a real change. Those versions are already reviewed in `sonic-mgmt-common`, and Renovate merges the update only once every check, the full build included, has passed. Semgrep's `renovate-missing-minimum-release-age` rule accepts only `"7 days"` or `false`, and Renovate's validator accepts only a string, so the pin takes the newest commit at least 7 days old.
+A pin update raises the versions `sonic-mgmt-common` requires in the build, so it is a real change. Those versions are already reviewed in `sonic-mgmt-common`, and Renovate merges the update only once every check, the full build included, has passed. It is the one update that is not a security update and still merges unattended: `automerge: true` makes Renovate write `**Automerge**: Enabled` in its body, so `renovate-approve` approves it ([7.6](#76-approval-and-merge)). A person reviewing a weekly update whose versions were reviewed upstream would add noise, not scrutiny. It carries no `automerge` label, so it sets `rebaseWhen` itself: the preset rebases only labeled updates when they fall behind ([7.5](#75-branch-policy)), and a base branch that requires branches to be up to date would otherwise hold it open for good. Semgrep's `renovate-missing-minimum-release-age` rule accepts only `"7 days"` or `false`, and Renovate's validator accepts only a string, so the pin takes the newest commit at least 7 days old.
 
 On a release branch the preset turns ordinary `gomod` updates off ([7.5](#75-branch-policy)), so the pin stays where it was at the branch cut. The build is unaffected, since it compiles against the release branch's checkout. A backport that makes the repository import a package newer than the pin shows as an artifact error on the branch's security updates, which then wait for a reviewer, and the branch's pin is moved by hand to the head of `sonic-mgmt-common`'s release branch.
 
@@ -424,7 +425,7 @@ A release branch depends on OSV. GitHub computes Dependabot alerts for the defau
 }
 ```
 
-A security update that needs a major version opens with the `security` label alone and waits for a reviewer. So does one to a module a repository marks `patched-module` ([7.3](#73-hand-pinned-versions)). Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
+Besides these, only the weekly `sonic-mgmt-common` pin update merges unattended ([7.2](#72-native-managers)). A security update that needs a major version opens with the `security` label alone and waits for a reviewer. So does one to a module a repository marks `patched-module` ([7.3](#73-hand-pinned-versions)). Renovate adds the vulnerability rules after the preset's own. Its first pass over the rules sets the security flag, and a later pass, which starts from that result, matches the `automerge` rule on the flag and the update type.
 
 **Rebasing.** A base branch that requires branches to be up to date before merging makes Renovate's default, `rebaseWhen: auto`, rebase every open pull request each time the base branch moves. Each rebase is a new push, with its own build, review requests and notifications. The preset sets `rebaseWhen: conflicted`, so an update is rebased only when it conflicts with the base branch, or when a reviewer ticks the rebase box on the pull request or the Dependency Dashboard before merging it. The `automerge` rule sets `behind-base-branch`, so an update that merges unattended is always current when it is evaluated.
 
@@ -801,7 +802,7 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Patched modules wait for approval | The Dependency Dashboard lists each patched module under pending approval, and no pull request opens for it |
 | The pin resolves without a checkout | In a copy of the repository alone, with no build step run, `go mod tidy -diff` exits 0. A Renovate update there leaves a `go.sum` the build accepts, with no artifact error |
 | The pin leaves the build unchanged | With the pin at the commit `sonic-buildimage` checks out, the package built with the committed `replace` and with the build-time one holds the same files, and `go version -m` lists the same module versions in every binary |
-| The pin moves weekly | Renovate opens one digest update for `sonic-mgmt-common` on a Monday, which merges once its checks pass, and opens none on a release branch |
+| The pin moves weekly | Renovate opens one digest update for `sonic-mgmt-common` on a Monday, which `renovate-approve` approves and Renovate merges once its checks pass, and opens none on a release branch. On a base branch that requires branches to be up to date, the update is rebased when it falls behind, and still merges |
 | Renovate merges a labeled update | A labeled security update is approved by `renovate-approve` when it opens, and Renovate merges it on a run after its last check passes. With a check the branch does not require left failing, or still running, it does not |
 | `renovate-approve` approves only automerge pull requests | A major security update and an ordinary update get no approval |
 | Renovate leaves a pushed branch alone | After someone else pushes to a labeled Renovate branch, Renovate does not merge it, and `renovate-approve` does not approve it again |
