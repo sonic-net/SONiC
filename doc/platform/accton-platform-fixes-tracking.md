@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document tracks sonic-buildimage #30780 and the shared Linux watchdog helper in sonic-platform-common #808. SDK stable-cache exhaustion diagnosed on AS7326 exposed further platform health and monitoring gaps. The implementation includes model-specific fixes for AS5835, AS7326, AS7726 and AS7816; hardware validation covers AS7326/AS7726 and AS7816 environmental monitoring. AS5835 read-only environmental checks are complete; activation of its new PDDF port remains pending.
+This document tracks sonic-buildimage #30780 and the shared Linux watchdog helper in sonic-platform-common #808. SDK stable-cache exhaustion diagnosed on AS7326 exposed further platform health and monitoring gaps. The implementation includes model-specific fixes for AS5835, AS7326, AS7726 and AS7816; hardware validation covers AS7326/AS7726 and AS7816 environmental monitoring. AS5835 environmental monitoring and startup follow-ups were validated live.
 
 ## Related pull requests
 
@@ -41,7 +41,7 @@ reviewed and merged independently of #808 and #30780.
 | Clock ordering | Existing IDT setup runs before PDDF claims muxes. | AS7326, AS7726 |
 | PSU health | Hardware voltage/temperature limits where verified, AS5835 model-aware voltage decoding, measured standard airflow labels and narrow unsupported target-speed exclusions; AS7326/AS7726/AS7816 capacity read from hardware. | AS5835, AS7326, AS7726, AS7816 |
 | Voltage/current CLI | PSU-backed output sensors through existing sensormond on all four models; AS7326/AS7726 additionally expose verified input telemetry. Unavailable readings are handled explicitly. | AS5835, AS7326, AS7726, AS7816 |
-| Environmental APIs | PDDF fan/fan-drawer/PSU/board-thermal APIs over native drivers; repair Linux 6.12 fan/PSU hwmon registration. Preserve native device ownership and cooling policy. | AS5835 |
+| Environmental APIs | PDDF fan/fan-drawer/PSU/board-thermal APIs over native drivers; repair Linux 6.12 fan/PSU hwmon registration and host initialization order. Preserve native device ownership and cooling policy; scope PSU airflow health exclusions. | AS5835 |
 | CPU inventory | Discover coretemp package/core channels after board inventory; use kernel thresholds. | AS5835, AS7326, AS7726, AS7816 |
 | BIOS inventory | Read-only DMI BIOS version through existing PDDF component API. | AS7326, AS7726, AS7816 |
 
@@ -66,7 +66,7 @@ The latest monitoring changes reuse existing platform-daemons functionality. The
 
 ### Software validation
 
-- **149 tests passed** across the Accton platform and PDDF suites (101 Accton, 48 PDDF).
+- **157 tests passed** across the Accton platform and PDDF suites (109 Accton, 48 PDDF).
 - **Five watchdog-helper tests passed** separately.
 - `git diff --check` passes.
 
@@ -100,7 +100,7 @@ Both models ran `SONiC.accton-fixes2-itjamie.20261118-20-ztp` (master-derived so
 | Health and watchdog | Services/hardware OK, status LED green, no failed systemd units; boot watchdog disarm and non-arming status queries work | Same |
 | Existing connectivity | Both active 100G uplinks and IPv4/EVPN sessions stayed established | Active 100G uplink and IPv4/EVPN session stayed established |
 
-syncd, SWSS and BGP were not restarted for the live monitoring edits. Unsupported current thresholds remain N/A; BIOS inventory does not imply CPLD version or firmware-update support. End-to-end VXLAN forwarding, warm restart, resource-stress testing and a fresh image/reboot with the latest commits remain outstanding. AS5835 still requires community-image hardware validation. AS7816 environmental validation is documented below; SAI and front-panel port operation were outside that check.
+syncd, SWSS and BGP were not restarted for the live monitoring edits. Unsupported current thresholds remain N/A; BIOS inventory does not imply CPLD version or firmware-update support. End-to-end VXLAN forwarding, warm restart, resource-stress testing and a fresh image/reboot with the latest commits remain outstanding. AS5835 community-image hardware results are documented below. AS7816 environmental validation is documented below; SAI and front-panel port operation were outside that check.
 
 ### Earlier 202605 validation
 
@@ -108,32 +108,39 @@ Equivalent platform fixes were exercised on AS7326 and applied live to AS7726 us
 
 ### AS5835 validation scope
 
-Working Edgecore ec202111 AS5835 observations identified bad YM-1401A manufacturer voltage-limit decoding. The shared ym2651y fix selects its existing VOUT_MODE-aware callback for YM1401A/YM2401 and preserves LINEAR11 for other supported models. A compiled regression exercises the production callback wiring. CPU discovery and kernel-threshold tests also pass, including sparse core labels. AS5835 full-image validation remains outstanding; AS7816 environmental validation is recorded below.
+Working Edgecore ec202111 AS5835 observations identified bad YM-1401A manufacturer voltage-limit decoding. The shared ym2651y fix selects its existing VOUT_MODE-aware callback for YM1401A/YM2401 and preserves LINEAR11 for other supported models. A compiled regression exercises the production callback wiring. CPU discovery and kernel-threshold tests also pass, including sparse core labels. AS5835 and AS7816 environmental validation is recorded below.
 
 ## Release integration
 
 The implementation PRs target master. No release backport is requested here. A branch-specific backport requires the watchdog dependency and validation against that branch. Latest follow-ups have not been rebuilt into a fresh image; cold-boot integration with those commits, end-to-end VXLAN forwarding, warm restart and resource-stress testing remain outstanding.
 
 
-### AS5835 PDDF environmental migration (2026-11-19)
+### AS5835 PDDF environmental migration and live validation (2026-11-20)
 
-Two signed-off commits extend the AS5835-54X support:
-
-| Commit | Change |
+| Signed-off commit | Change |
 | --- | --- |
-| [`308c2305e`](https://github.com/ITJamie/sonic-buildimage/commit/308c2305e) | Fix native fan/PSU hwmon registration: the chip-info registration API returned EINVAL with no chip-info table on Linux 6.12, removing fan PWM/presence and PSU presence/power-good attributes. Use the group-registration API for the existing client-attribute layout. |
-| [`54a93bf6f`](https://github.com/ITJamie/sonic-buildimage/commit/54a93bf6f) | Use PDDF fan, fan-drawer, PSU and board-thermal APIs over native-driver sysfs mappings; reuse shared PSU output voltage/current adapters and report hardware capacity. |
+| [`308c2305e`](https://github.com/ITJamie/sonic-buildimage/commit/308c2305e) | Fix native fan/PSU hwmon registration for the existing client-attribute layout. |
+| [`54a93bf6f`](https://github.com/ITJamie/sonic-buildimage/commit/54a93bf6f) | Use PDDF environmental APIs over native-driver sysfs mappings, including both fan rotors and shared PSU output sensors. |
+| [`a181355f4`](https://github.com/ITJamie/sonic-buildimage/commit/a181355f4) | Construct PddfApi before reading plugin data so host startup creates the platform link before EEPROM, health and watchdog API initialization. |
+| [`890a7ccdd`](https://github.com/ITJamie/sonic-buildimage/commit/890a7ccdd) | Exclude only the two PSU fan direction comparisons under the explicit AS5835 policy assumption that installed PSU airflow matches the chassis. |
 
-The native platform service retains I2C client creation and the original 40/65/80/100% cooling policy. Native LEDs, EEPROM, firmware inventory, watchdog, SFP handling and port events are preserved. These are environmental API mappings, not a generic PDDF device-creation topology. Both rotors per tray are mapped; missing fault data stays unhealthy. Existing names and narrow unsupported PSU health exclusions are preserved. CPU sensors remain appended after the four board sensors. Native YM-1401A output power is converted from mW to W. Input telemetry and PSU fan targets remain explicitly unsupported.
+The native platform service retains I2C client creation, the original 40/65/80/100% cooling policy, LEDs, EEPROM, firmware inventory, watchdog, SFP handling and port events. These are environmental API mappings; generic PDDF device creation is not enabled. CPU sensors remain appended after the four board sensors. Native YM-1401A power is converted from mW to W, with capacity read from hardware. Input telemetry and PSU fan target speeds remain unsupported. No sonic-platform-daemons changes are included.
 
-The earlier native output-sensor implementation from `05f661409` is superseded by shared PDDF adapters, retaining unavailable-reading handling and the existing sensormond integration. No sonic-platform-daemons changes are included.
+The startup issue was reproduced on the host: the AS5835 native initialization path leaves `/usr/share/sonic/platform` absent, and reading `pd-plugin.json` before constructing PddfApi raises FileNotFoundError. EEPROM identity decoding consequently fails, ZTP sends error text in its identity headers, and system-health/watchdog-control fail to start. Constructing PddfApi first follows the initialization order used by the working PDDF models and preserves PMON's existing directory layout.
 
-Validation:
+Airflow policy is explicit: raw chassis readings report intake and raw PSU readings report exhaust. Those values remain visible. Physical alignment is assumed by operator policy; only `PSU-1 FAN-1.direction` and `PSU-2 FAN-1.direction` health comparisons are excluded. PSU fan presence/status, chassis fan direction/speed and PSU voltage checks remain enabled. Existing unsupported PSU target-speed and PSU temperature-threshold exclusions are unchanged.
 
-- **149 Accton/PDDF tests pass** (101 Accton, 48 PDDF), including real PDDF path resolution, both PSU interfaces, rotor RPM/faults, unscaled native PWM writes, API units, missing/malformed samples, inventory and recovery.
-- Fan, PSU and dependent CPLD modules compile and link against Debian Linux 6.12.117 headers.
-- Read-only checks on AS5835 hardware running the existing community image confirm PDDF access to both PSUs' voltage/current/power, hardware voltage limits, 400 W capacity, RPM and temperature, plus all four board temperatures and 80°C thresholds.
-- Corrected modules have not been loaded on the exact SONiC kernel. Live fan/presence/health validation and a full image/reboot with the migration remain pending; the older installed image also lacks the shared PSU sensor module included by this branch.
+| Hardware check | AS5835-54X result |
+| --- | --- |
+| Image | `SONiC.accton-fixes2-itjamie.20261120-12-ztp`, Debian 13.7 / Linux 6.12.94; the two follow-ups were applied live. The experimental sairedis rollback remains outside this PR. |
+| SDK and inventory | SAI running; all 54 interfaces present, with two 100G physical links up. |
+| Fans and PSUs | All ten chassis rotors and both PSUs present and healthy; normal chassis speed/target 40%. YM-1401A capacity 400 W through the PSU API. |
+| Sensors | Board/CPU/PSU temperatures and output voltage/current commands work. Voltage limits are hardware-derived; CPU thresholds are 71/91°C. |
+| EEPROM and ZTP identity | Product, serial and base-MAC decoding succeeds. A request using the ZTP identity headers receives HTTP 200 through the management VRF; existing provisioning was not re-executed. |
+| Watchdog | wdat_wdt passed a real 30-second arm/immediate-disarm test; watchdog-control completes successfully. |
+| System health | Service runs successfully. Services OK / Hardware OK and physical LED green under the documented airflow policy; no failed systemd units. |
+
+**157 Accton/PDDF tests pass** (109 Accton, 48 PDDF), plus **five watchdog-helper tests**. Four startup regressions use the production context loader and PDDF initialization against a temporary filesystem: missing/existing host aliases, PMON directory layout and initialization errors. Four airflow regressions exercise the production SONiC health checker to verify the narrow exclusions, retained PSU presence/status and chassis direction/speed faults, and unchanged raw direction reporting.
 
 
 ### AS7326/AS7726 input telemetry follow-up (2026-11-19)
