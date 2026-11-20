@@ -46,6 +46,7 @@
 | 0.6 | 2026-11-12 | Brad House (Nexthop) | Branch protection does not count dispatched runs, so the robot approves the fixup's pull request runs instead, and evaluates only the pull request's checks. No dispatch step and no loop backstop in the `go.sum` workflow. The robot accepts a `github-actions[bot]` commit only as a fixup a run started by Renovate recorded. |
 | 0.7 | 2026-11-13 | Brad House (Nexthop) | GitHub Actions pinned to a digest. Dependabot security updates stay on where Python packages are. The ruleset that replaces a rule matching every branch leaves out branches with their own rules. Branch builds skip Renovate branches. The merge queue. |
 | 0.8 | 2026-11-17 | Brad House (Nexthop) | Renovate merges labeled security updates itself, with the `renovate-approve` app's approval, in every repository without the `go.sum` workflow. The merge robot stays for those with it. The FIPS Go custom manager reads only trixie's pin, and `sonic-buildimage` turns off the `dockerfile` manager. The OpenTelemetry Collector has no custom manager, since its downloads are checked against pinned SHA256s a version bump does not update. A ruleset that targets all branches excludes `renovate/**`, since its force-push and deletion rules block rebases and branch cleanup. A repository keeping classic protection narrows its wildcard rule to `[0-9]*` instead of moving it to a ruleset. |
+| 0.9 | 2026-11-20 | Brad House (Nexthop) | FIPS Go takes patch releases only, since a new Go minor needs `FIPS_GOLANG_MAIN_VERSION` and a new FIPS package line. A read-only check that steps 1 to 7 are in place before a repository's `renovate.json` merges. |
 
 ### 2. Scope
 
@@ -277,11 +278,23 @@ The `suite` parameter and the stripped suffix both name the image distribution, 
 
 ```json
 {
-  "matchManagers": ["custom.regex"],
-  "matchDatasources": ["golang-version"],
-  "dependencyDashboardApproval": true
+  "packageRules": [
+    {
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["golang-version"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["golang-version"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
+    }
+  ]
 }
 ```
+
+Only patch releases are proposed. The custom manager captures `1.26.7` in `FIPS_GOLANG_VERSION = 1.26.7-1+fips` and keeps the Debian revision, but `FIPS_GOLANG_MAIN_VERSION = 1.26` beside it names the package (`golang-1.26_...`), and the regex cannot change it. A minor bump would leave the two disagreeing, and the build would look for a package that does not exist. A new Go minor is a new FIPS package line, which `@sonic-net/sonic-build` starts by hand, changing both values together.
 
 The FIPS Go entry names its dependency `go`, so `ignoreDeps` for the `go` directive ([7.2](#72-native-managers)) is set in each Go repository rather than in the shared preset.
 
@@ -722,6 +735,13 @@ The preset:
       "matchManagers": ["custom.regex"],
       "matchDatasources": ["golang-version"],
       "dependencyDashboardApproval": true
+    },
+    {
+      "description": "FIPS Go takes patch releases only. A new Go minor also changes FIPS_GOLANG_MAIN_VERSION, which the custom manager cannot",
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["golang-version"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
     }
   ]
 }
@@ -744,6 +764,18 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 | 9 | Each repository's owners | Close the open Dependabot pull requests once Renovate's Dependency Dashboard issue appears |
 
 Renovate opens nothing in a repository but its onboarding pull request until step 8. Steps 1 to 7 come first, so the first Renovate pull requests clear `EasyCLA`, reach their reviewers, and are approved when they open. A pull request Renovate opened before step 1 keeps its failed `EasyCLA` status until someone comments `/easycla` on it.
+
+A missed step shows only indirectly. A push of Renovate's own that the branch rules refuse appears only in its debug log ([7.2](#72-native-managers)), a refused fixup fails the `go.sum` workflow's check among the other checks, and a merge the robot cannot make leaves the pull request open with no comment. The change that adds a repository's `renovate.json` therefore records, in its description, the output of a read-only check run by someone with admin access to the repository:
+
+| Check | Pass |
+|-------|------|
+| `gh api repos/{repo}/rules/branches/renovate%2Fcheck` | `[]`: no ruleset applies to a Renovate branch |
+| `gh api graphql` for the repository's `branchProtectionRules` and their `matchingRefs` | No classic rule matches `renovate/check` |
+| With the `go.sum` workflow, `gh api repos/{repo}/branches/{branch}/protection` for each branch Renovate targets | `required_status_checks.strict` is `false`, and `required_pull_request_reviews.bypass_pull_request_allowances.teams` names `sonic-automation`, unless the review requirement is absent |
+| With the `go.sum` workflow, `gh api repos/{repo}/rules/branches/{branch}` for each branch Renovate targets | Every ruleset holding a `pull_request` or `required_status_checks` rule lists `sonic-automation` in its bypass actors, in the "For pull requests only" mode |
+| `gh api repos/sonic-net/sonic-pipelines/contents/azure-pipelines/automation-pr-scan.yml` | The repository is in the robot's `repos` parameter |
+
+`sonic-mgmt-framework` adopted Renovate before this check existed. Its wildcard rule refused every `go.sum` fixup for five days, failing the workflow with "2 of 2 required status checks are expected", and `master` required a review `mssonicbld` could not bypass and branches up to date, so no security update merged. The pull requests showed only as blocked, and the Dependency Dashboard showed nothing.
 
 A later repository repeats steps 2 (the team's Read access), 3, 5, 6, 8 and 9, and closes its onboarding pull request if one is open.
 
@@ -780,7 +812,7 @@ No change. Nothing is added to the image.
 | Renovate merges only on its next run | A security update merges some time after its last check passes, not at once |
 | `renovate-approve` approves a pull request only when it opens | One opened before its repository's merge rule waits for a reviewer, or for Renovate to open it again. See [7.6](#76-approval-and-merge) |
 | A security fix to a v0 Go module can change its API | Go treats a v0 minor bump as compatible, and labels it accordingly. Security updates take the lowest fixed version, and the build and tests gate the merge |
-| The FIPS Go pin depends on a SONiC FIPS build | Renovate lists the upstream release on the dashboard. The bump lands after SONiC publishes the package |
+| The FIPS Go pin depends on a SONiC FIPS build | Renovate lists the upstream patch release on the dashboard. The bump lands after SONiC publishes the package. A new Go minor is moved by hand, with `FIPS_GOLANG_MAIN_VERSION`. See [7.3](#73-hand-pinned-versions) |
 | A vulnerable crate held only in a `Cargo.lock` gets no security pull request | Renovate raises security updates only for the crates a `Cargo.toml` names. Lock file maintenance moves the crate on `master` within a week, after review. On a release branch it is updated by hand. See [7.2](#72-native-managers) |
 | Renovate reads only what a manifest declares | Versions resolved at build time belong to the version freeze pipeline |
 | npm lockfiles inside Debian's Go and Ruby packages are not reached | They are part of Debian's packages and are not SONiC dependencies |
@@ -800,6 +832,8 @@ Renovate ships no code into SONiC. The configuration is tested:
 | Configuration is valid | `npx --yes --package renovate -- renovate-config-validator` in CI on every change to a `renovate.json` or the preset |
 | Custom managers match the right lines | A Renovate run against a fork finds `DOCKER_VERSION`, `CONTAINERD_IO_VERSION`, `FIPS_GOLANG_VERSION` and the `rustup` toolchain, and nothing else |
 | Custom managers write the right value | In that run, each pushed branch's diff keeps the `~$IMAGE_DISTRO` suffix, `containerd.io` tracks its own package, and the new version exists in the apt index |
+| FIPS Go takes patch releases only | With a newer Go patch and a newer Go minor both released, the Dependency Dashboard lists the patch for approval and not the minor, and the approved branch's diff keeps `-1+fips` and changes nothing else |
+| The setup check catches a missed step | Run against a repository with a wildcard rule, a review requirement without the `sonic-automation` bypass, and branches required up to date, the check in [9.5](#95-setup-steps) fails each row. After steps 5 and 6, it passes |
 | Release branch rules hold | A run against a release branch from `202611` on proposes security updates and hand-pinned patch and minor updates only |
 | Grouping is correct | A run against `master` proposes one pull request per ecosystem per update type, and majors one per dependency |
 | A major security update is not labeled `automerge` | A run against a fork pinned to a vulnerable version whose fix needs a major bump opens a pull request with the `security` label alone |
