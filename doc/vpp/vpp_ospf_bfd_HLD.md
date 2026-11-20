@@ -143,8 +143,8 @@ The provider-level test creates an in-process linux-cp test pair and verifies:
 
 1. OSPFv2 multicast to `224.0.0.5` reaches the paired host interface.
 2. OSPFv3 multicast to `ff02::5` reaches the paired host interface.
-3. Local IPv4 UDP/3784 reaches the paired host interface.
-4. Local IPv6 UDP/3784 reaches the paired host interface.
+3. Local IPv4 UDP/3784 and UDP/3785 reach the paired host interface.
+4. Local IPv6 UDP/3784 and UDP/3785 reach the paired host interface.
 
 The linux-cp unittest `test lcp add` helper creates the pair and punt redirects, but it does not generate Linux Netlink address events. The test therefore explicitly installs the same multicast ingress `ACCEPT` and table-local forwarding paths that production linux-cp installs from those events. This is test setup only; it does not add production configuration or alter another platform.
 
@@ -167,7 +167,7 @@ The prior combined-image qualification validates the sonic-mgmt setup and assert
 
 | Repository | File | Purpose |
 |---|---|---|
-| `sonic-platform-vpp` | provider-level linux-cp OSPF/BFD test | Reproduce production multicast state and verify existing OSPF and BFD delivery paths. |
+| `sonic-platform-vpp` | `vppbld/plugins/tests/linux_cp/test_linux_cp_ospf_bfd.py` | Reproduce production multicast state and verify existing OSPF and BFD delivery paths. |
 | `sonic-mgmt` | `tests/ospf/` and VPP CI selectors | End-to-end OSPF and FRR BFD qualification. |
 
 ## Alternatives Considered
