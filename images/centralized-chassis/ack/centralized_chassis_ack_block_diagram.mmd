@@ -1,0 +1,70 @@
+%%{init: {
+  "flowchart": {
+    "htmlLabels": true,
+    "useMaxWidth": false,
+    "nodeSpacing": 80,
+    "rankSpacing": 90,
+    "padding": 30
+  },
+  "themeVariables": {
+    "fontSize": "20px",
+    "fontFamily": "arial",
+    "primaryTextColor": "#1a1a1a",
+    "lineColor": "#546e7a",
+    "edgeLabelBackground": "#ffffff"
+  }
+}}%%
+flowchart TB
+    subgraph SUP["Supervisor"]
+        direction LR
+        subgraph PSTStack[" "]
+            direction TB
+            FPMS["System Object Producer<br/>and ACK Consumer<br/>(fpmsyncd)"]
+            PST["ProducerStateTable<br/>(ACK-enabled SET/DEL)"]
+            FPMS ~~~ PST
+        end
+        TRK["AckProducerTracker<br/>(standalone service)"]
+    end
+
+    subgraph Redis["Redis DB"]
+        direction TB
+        subgraph RedisTop[" "]
+            direction LR
+            AT["<div style='min-width:680px;white-space:nowrap;font-size:20px;color:#BF360C'>ACK_TABLE per sys_obj_key (e.g. ACK_TABLE:ROUTE_TABLE:&lt;Key&gt;)</div>"]
+            AP0["ACK_PRODUCER_TABLE 0<br/>(master producer bitlist)"]
+        end
+        subgraph RedisRow[" "]
+            direction LR
+            APS["ACK_PRODUCER_TABLE snapshot<br/>(per-object snapshot)"]
+            ATSA["ACK_TABLE:SNAPSHOT_AGG<br/>per sys_obj_key"]
+            AOT["ACK_STATUS_TABLE<br/>per sys_obj_key / producer_id"]
+        end
+        RedisTop ~~~ RedisRow
+    end
+
+    subgraph LC["LC"]
+        direction LR
+        RO["ACK_PRODUCER (RouteOrch)<br/>(Producer ID)"]
+    end
+
+    PST ~~~ AT
+    AP0 ~~~ RO
+
+    PST -->|"set / del"| AT
+    TRK -->|"set/remove bitlist"| AP0
+    RO -->|"AckProducer set"| AOT
+
+    classDef rpNode fill:#FFFFFF,stroke:#4A6F95,stroke-width:2px,color:#0F172A
+    classDef redisNode fill:#FFFFFF,stroke:#A06B3A,stroke-width:2px,color:#0F172A
+    classDef lcNode fill:#FFFFFF,stroke:#3D7A52,stroke-width:2px,color:#0F172A
+
+    class PST,TRK,FPMS rpNode
+    class AP0,APS,AT,ATSA,AOT redisNode
+    class RO lcNode
+
+    style SUP fill:#DBE8F8,stroke:#2E5A87,stroke-width:3px,color:#1E3A5F
+    style Redis fill:#F3E4D3,stroke:#8B5A2B,stroke-width:3px,color:#5C3A12
+    style LC fill:#D8EAED,stroke:#2E6B45,stroke-width:3px,color:#1A4D2E
+    style PSTStack fill:none,stroke:none,color:none
+    style RedisTop fill:none,stroke:none,color:none
+    style RedisRow fill:none,stroke:none,color:none
