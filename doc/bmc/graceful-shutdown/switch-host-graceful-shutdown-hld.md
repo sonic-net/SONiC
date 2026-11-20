@@ -539,10 +539,11 @@ confirmed, a cycle, or a label a preempted operation left behind leaves power un
 makes its power-off call. A guard that cannot read the status runs the request.
 
 The guard runs for every dequeued item, during the boot delay included: on a liquid-cooled host the queue is
-served through the same dispatch while the power-on delay runs. The automatic startup raise is queued like
-any other request, and dropped at dispatch when `admin_status` is no longer `up` or a Rack-Manager power
-removal is recorded — a `POWER_OFF` or `GRACEFUL_SHUT` row that is `PENDING`, `IN_PROGRESS` or `DONE`, or
-`FAILED` as `ABANDONED`, or has no status yet — or when those two preconditions cannot be read.
+served through the same dispatch while the power-on delay runs. The automatic startup raise is not queued: the
+existing startup sequence issues it in place, after its own checks, through the same dispatch, so it is
+recorded, gated and ended by a queued power removal like any other raise. On a liquid-cooled host that sequence
+holds the raise back when a Rack-Manager `POWER_ON`, `POWER_OFF` or `GRACEFUL_SHUT` row is `IN_PROGRESS` or
+`DONE`, as before, and now also when such a row is `FAILED` as `ABANDONED`.
 
 Preemption stops the BMC's own waiting, and that is its whole scope. **A call already running is not
 displaceable** — there is no cancellation point inside one, and a cancellation is observed only between
@@ -937,8 +938,8 @@ name a restart, here and in [§13.2](#132-system-test-cases), belong to the defe
   the host accepts, after acceptance but before the watchdog arm, and after the arm — only the last returns the
   host to service on its own.
 - **The accepted startup window** — with no critical row published, a startup power-on proceeds; with one
-  already published, it is refused; and a startup raise queued behind an admitted power removal is
-  dropped.
+  already published, it is refused; and a startup raise that finds a power removal queued ends before the
+  platform call.
 
 #### 13.2. System Test cases
 
