@@ -120,3 +120,6 @@
     - [TACACS+ Test Plan.md](doc/aaa/TACACS+%20Test%20Plan.md)
   - logging
     - [Logging_and_sysdump_arch_spec.md](doc/logging/Logging_and_sysdump_arch_spec.md)
+  - pon
+    - [pon_hld.md](doc/pon/pon_hld.md)
+    - [pon_db_schema.md](doc/pon/pon_db_schema.md)
