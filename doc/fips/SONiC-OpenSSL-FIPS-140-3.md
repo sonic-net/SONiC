@@ -46,7 +46,7 @@ SONiC only uses cryptographic modules validated by FIPS 140-3, Make SONiC compli
 | -------------------- | --------------- | -------------------------------------------- |
 | OpenSSL              | Python, OpenSSH | Cyptography and SSL/TLS ToolKit              |
 | Kerberos             | OpenSSH         | Kerboros contains builtin crypto module      |
-| Golang               | sonic-restapi   | Golang contains builtin crypto module         |
+| Golang               | sonic-restapi, sonic-gnmi   | Golang contains builtin crypto module         |
 | Libgcrypto           | GPG             | A general purpose cryptographic library originally based on code from GnuPG |
 | Kernel Crypto        | --              | Linux crypto kernel module |
 
