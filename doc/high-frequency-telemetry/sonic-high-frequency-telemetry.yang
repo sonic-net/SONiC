@@ -21,9 +21,11 @@ module sonic-high-frequency-telemetry {
         prefix bql;
     }
 
+    description "Sub-second counter polling configuration for high-frequency telemetry in SONiC.";
+
     container sonic-high-frequency-telemetry {
         container HIGH_FREQUENCY_TELEMETRY_PROFILE {
-            description "HIGH_FREQUENCY_TELEMETRY_PROFILE part of config_db.json";
+            description "Sub-second counter polling profiles for high-frequency telemetry.";
             list HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST {
 
                 key "name";
@@ -32,6 +34,7 @@ module sonic-high-frequency-telemetry {
                     type string {
                         length 1..128;
                     }
+                    description "Unique name for this telemetry profile.";
                 }
 
                 leaf stream_state {
@@ -39,29 +42,120 @@ module sonic-high-frequency-telemetry {
                     type string {
                         pattern "enabled|disabled";
                     }
+                    description "Whether this telemetry stream is enabled or disabled.";
                 }
 
                 leaf poll_interval {
                     mandatory true;
-                    description "The interval to poll counter, unit milliseconds.";
-                    type uint32;
+                    description "The interval to poll counter, unit microseconds. For a heatmap byte-delta counter without explicit bounds, the nominal interval is this value when reporting_rate is absent and max(poll_interval, reporting_rate) otherwise.";
+                    type uint32 {
+                        range "1..max";
+                    }
+                }
+
+                leaf aggregator {
+                    description "Optional aggregator configuration applied by this profile.";
+                    type leafref {
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST/name";
+                    }
+                }
+
+                leaf otel_endpoint {
+                    description "The endpoint of OpenTelemetry collector. E.G. 192.168.0.100:4318. It will use the local OpenTelemetry collector if this value isn't provided.";
+                    type string {
+                        length 1..4096;
+                    }
+                }
+
+                leaf otel_certs {
+                    description "The path of certificates for OpenTelemetry collector. E.G. /etc/sonic/otel/cert.private. If this value isn't provided, we will use a non-secure channel.";
+                    type string {
+                        length 1..4096;
+                    }
                 }
 
             }
         }
 
-        container HIGH_FREQUENCY_TELEMETRY_GROUP {
-            description "HIGH_FREQUENCY_TELEMETRY_GROUP part of config_db.json";
-            list HIGH_FREQUENCY_TELEMETRY_GROUP_LIST {
-                key "profile_name group_name";
+        container HIGH_FREQUENCY_TELEMETRY_AGGREGATOR {
+            description "Aggregator configuration for high-frequency telemetry profiles.";
+            list HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST {
+                key "name";
 
-                leaf profile_name {
-                    type leafref {
-                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_PROFILE/HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST/name";
+                leaf name {
+                    type string {
+                        length 1..128;
+                        pattern '[^|]+' {
+                            error-message "Aggregator name must not contain '|'.";
+                        }
+                        pattern '\S(.*\S)?' {
+                            error-message "Aggregator name must not have leading or trailing whitespace.";
+                        }
+                    }
+                    description "Unique name for this aggregator configuration.";
+                }
+
+                leaf reporting_rate {
+                    description "The reporting interval after aggregation, unit microseconds. For default byte-delta heatmap bounds, the nominal interval is max(reporting_rate, the bound profile poll_interval).";
+                    type uint32 {
+                        range "1..max";
                     }
                 }
 
-                // The table name of config db
+                leaf-list rollover_counters {
+                    description "List of group and counter pairs that require rollover correction. Each entry uses the GROUP|COUNTER format. A selected counter with no HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER row uses an effective width of 32 bits.";
+                    type string;
+                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )";
+                    must "not(contains(substring-after(current(), '|'), 'WATERMARK') or contains(substring-after(current(), '|'), 'CURR_OCCUPANCY'))" {
+                        error-message "Watermark and current-occupancy counters must not be configured in rollover_counters.";
+                    }
+                }
+
+                leaf heatmap_interval {
+                    description "Independent heatmap aggregation interval, unit microseconds.";
+                    type uint32 {
+                        range "1..max";
+                    }
+                }
+
+                leaf-list heatmap_counters {
+                    description
+                        "List of group and counter pairs that should be treated as heatmap data. Each entry uses the "
+                        + "GROUP|COUNTER format. Runtime classifies counters from numeric SAI object and stat IDs. "
+                        + "Cumulative byte/octet counters use raw byte deltas; cumulative packet, error, and discard "
+                        + "counters use raw count deltas; watermark and current-occupancy byte counters use raw "
+                        + "absolute bytes; and cell counters use raw cells. Values are not normalized into per-second "
+                        + "rates. A selected counter without a child histogram row uses its fixed semantic default "
+                        + "layout, resolved once for the effective profile and aggregator configuration.";
+                    type string;
+                    must "( substring-before(current(), '|') = 'PORT' and re-match(substring-after(current(), '|'), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( substring-before(current(), '|') = 'BUFFER_POOL' and re-match(substring-after(current(), '|'), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'INGRESS_PRIORITY_GROUP' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( substring-before(current(), '|') = 'QUEUE' and re-match(substring-after(current(), '|'), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )";
+                }
+
+                must "(not(heatmap_interval) and count(heatmap_counters) = 0) or (heatmap_interval and count(heatmap_counters) > 0)" {
+                    error-message "heatmap_interval and heatmap_counters must be configured together.";
+                }
+
+            }
+        }
+
+        container HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER {
+            description "Optional per-counter width overrides for rollover counters. A counter selected in the parent rollover_counters with no row here uses an effective width of 32 bits.";
+            list HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_ROLLOVER_LIST {
+                key "aggregator_name group_name counter_name";
+
+                leaf aggregator_name {
+                    type leafref {
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST/name";
+                    }
+                    description "Reference to the parent aggregator configuration.";
+                }
+
                 leaf group_name {
                     type enumeration {
                         enum PORT;
@@ -69,9 +163,122 @@ module sonic-high-frequency-telemetry {
                         enum QUEUE;
                         enum INGRESS_PRIORITY_GROUP;
                     }
+                    description "SAI object type for the rollover counter.";
+                }
+
+                leaf counter_name {
+                    type string;
+                    description "Counter selected for a rollover width override.";
+                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'QUEUE' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )" {
+                        error-message "counter_name is not valid for group_name.";
+                    }
+                    must "concat(../group_name, '|', current()) = /sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST[name = current()/../aggregator_name]/rollover_counters" {
+                        error-message "Rollover counter must be selected in the parent rollover_counters.";
+                    }
+                }
+
+                leaf bit_width {
+                    mandatory true;
+                    type uint8 {
+                        range "1..63";
+                    }
+                    description "Counter width override. This leaf has no default; absence of the entire row selects the effective 32-bit width.";
+                }
+            }
+        }
+
+        container HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM {
+            description
+                "Per-counter explicit histogram layouts for high-frequency telemetry aggregators. "
+                + "A child row overrides the selected counter's semantic default. Without a row, runtime classifies "
+                + "numeric SAI object/stat IDs as delta bytes, absolute bytes, delta count, absolute cells, or native. "
+                + "Delta-byte bounds use 50,75,90,95,98,99,99.5,99.8,100 percent of common "
+                + "100,200,400,800,1600 Gbit/s link speeds. The sorted, deduplicated union includes zero and uses "
+                + "the exact formula floor(speed_gbps * utilization_basis_points * nominal_interval_us / 80), where the nominal interval is "
+                + "max(reporting_rate, profile poll_interval) when both exist, or whichever exists. Absolute-byte bounds are "
+                + "0,512,1024,524288,1048576,5242880,10485760,52428800,104857600. Delta-count bounds are "
+                + "0,1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,"
+                + "2000000,5000000,10000000,20000000,50000000,100000000,200000000,500000000. Absolute-cell "
+                + "bounds are 0 followed by powers 2^0 through 2^24; native bounds are 0 followed by powers 2^0 "
+                + "through 2^53. These layouts have 43, 10, 29, 27, and 56 buckets respectively. Values and OTLP "
+                + "units remain raw and are never normalized into per-second rates. OTLP identifies the quantity "
+                + "with heatmap_quantity and the complete effective layout with heatmap_schema.";
+            list HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_HISTOGRAM_LIST {
+                key "aggregator_name group_name counter_name";
+
+                leaf aggregator_name {
+                    type leafref {
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST/name";
+                    }
+                    description "Reference to the parent aggregator configuration.";
+                }
+
+                leaf group_name {
+                    type enumeration {
+                        enum PORT;
+                        enum BUFFER_POOL;
+                        enum QUEUE;
+                        enum INGRESS_PRIORITY_GROUP;
+                    }
+                    description "SAI object type for the histogram counter.";
+                }
+
+                leaf counter_name {
+                    type string;
+                    description "Counter selected for a custom explicit histogram layout.";
+                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'QUEUE' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )" {
+                        error-message "counter_name is not valid for group_name.";
+                    }
+                    must "concat(../group_name, '|', current()) = /sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR/HIGH_FREQUENCY_TELEMETRY_AGGREGATOR_LIST[name = current()/../aggregator_name]/heatmap_counters" {
+                        error-message "Histogram counter must be selected in the parent heatmap_counters.";
+                    }
+                }
+
+                leaf-list explicit_bounds {
+                    type uint64 {
+                        range "0..9007199254740992";
+                    }
+                    ordered-by user;
+                    min-elements 1;
+                    max-elements 511;
+                    description "Strictly increasing inclusive upper bounds for this counter's OTLP histogram. These bounds override the semantic default layout and use the counter's unchanged raw heatmap unit.";
+                    must "boolean(../explicit_bounds[. = current() and position() = count(../explicit_bounds[. <= current()])])" {
+                        error-message "explicit_bounds must be strictly increasing.";
+                    }
+                }
+            }
+        }
+
+        container HIGH_FREQUENCY_TELEMETRY_GROUP {
+            description "Groups of SAI objects and counters monitored by a high-frequency telemetry profile.";
+            list HIGH_FREQUENCY_TELEMETRY_GROUP_LIST {
+                key "profile_name group_name";
+
+                leaf profile_name {
+                    type leafref {
+                        path "/sonic-high-frequency-telemetry:sonic-high-frequency-telemetry/HIGH_FREQUENCY_TELEMETRY_PROFILE/HIGH_FREQUENCY_TELEMETRY_PROFILE_LIST/name";
+                    }
+                    description "Reference to the parent telemetry profile.";
+                }
+
+                leaf group_name {
+                    type enumeration {
+                        enum PORT;
+                        enum BUFFER_POOL;
+                        enum QUEUE;
+                        enum INGRESS_PRIORITY_GROUP;
+                    }
+                    description "SAI object type to monitor in this group.";
                 }
 
                 leaf-list object_names {
+                   description "SAI object instances to poll for this group.";
                    type string;
                    must "( ../group_name = 'PORT' and current() = /port:sonic-port/port:PORT/port:PORT_LIST/port:name )"
                         + " or ( ../group_name = 'BUFFER_POOL' and current() = /bpl:sonic-buffer-pool/bpl:BUFFER_POOL/bpl:BUFFER_POOL_LIST/bpl:name )"
@@ -79,14 +286,13 @@ module sonic-high-frequency-telemetry {
                         + " or ( ../group_name = 'QUEUE' and substring-before(current(), '|') = /bql:sonic-buffer-queue/bql:BUFFER_QUEUE/bql:BUFFER_QUEUE_LIST/bql:port and re-match(substring-after(current(), '|'), '[0-9]+') )";
                 }
 
-                must "count(object_names) > 0";
-
                 leaf-list object_counters {
+                    description "Counter names to collect for the objects in this group.";
                     type string;
-                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES') )"
-                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES') )"
-                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS') )"
-                        + " or ( ../group_name = 'QUEUE' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS') )";
+                    must "( ../group_name = 'PORT' and re-match(current(), 'IF_IN_OCTETS|IF_IN_UCAST_PKTS|IF_IN_DISCARDS|IF_IN_ERRORS|IN_CURR_OCCUPANCY_BYTES|IF_OUT_OCTETS|IF_OUT_DISCARDS|IF_OUT_ERRORS|IF_OUT_UCAST_PKTS|OUT_CURR_OCCUPANCY_BYTES|TRIM_PACKETS|PAUSE_RX_PKTS|PAUSE_TX_PKTS|PFC_[0-7]_RX_PKTS|PFC_[0-7]_TX_PKTS') )"
+                        + " or ( ../group_name = 'BUFFER_POOL' and re-match(current(), 'DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_WATERMARK_BYTES|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'INGRESS_PRIORITY_GROUP' and re-match(current(), 'PACKETS|BYTES|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|XOFF_ROOM_CURR_OCCUPANCY_BYTES|XOFF_ROOM_WATERMARK_BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS|XOFF_ROOM_CURR_OCCUPANCY_CELLS|XOFF_ROOM_WATERMARK_CELLS') )"
+                        + " or ( ../group_name = 'QUEUE' and re-match(current(), 'PACKETS|BYTES|DROPPED_PACKETS|CURR_OCCUPANCY_BYTES|WATERMARK_BYTES|WRED_ECN_MARKED_PACKETS|TRIM_PACKETS|CURR_OCCUPANCY_CELLS|WATERMARK_CELLS') )";
                 }
 
             }
