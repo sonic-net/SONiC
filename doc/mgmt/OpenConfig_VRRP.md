@@ -76,6 +76,7 @@ Mapping tables: [Section 4](#4-mapping-tables)
 | 0.4 | 11/19/2026 | Malavika Unnikrishnan | Align HLD to Network Instance format; add CLI → YANG → OC mapping and deviations |
 | 0.5 | 11/19/2026 | Malavika Unnikrishnan | Bind OpenConfig GET/DELETE to the interface IP used at SET (`oc_ip`) |
 | 0.6 | 11/19/2026 | Malavika Unnikrishnan | Drop OpenConfig support for preempt-delay and accept-mode; do not map version or admin_status |
+| 0.7 | 11/22/2026 | Malavika Unnikrishnan | Drop `oc_ip` from CVL; GET of any L3 address on `{if}|{vrid}` fans out |
 
 # About this Manual
 This document describes OpenConfig configuration and management of VRRP in SONiC. Google / PINS clients walk the `openconfig-interfaces` tree. `openconfig-if-ip` 3.9.0 adds `ipv4` / `ipv6` / `vrrp` / `vrrp-group` onto that tree (and onto `openconfig-vlan:routed-vlan` for SVIs). There is no `/openconfig-if-ip:` root.
@@ -267,17 +268,17 @@ None. VRRP uses base `openconfig-if-ip` 3.9.0. There is no SONiC VRRP extension 
 - **Unit tests:** [Section 7](#7-unit-test-cases).
 
 ## 3.2 DB Changes
-OpenConfig VRRP uses existing CONFIG_DB tables. `oc_ip` is added on `VRRP` / `VRRP6` in CVL so OpenConfig can bind GET/DELETE to the path address. `frrcfgd` ignores it. No new Redis tables.
+OpenConfig VRRP uses existing CONFIG_DB tables. No OpenConfig-only leaf is added to `sonic-vrrp.yang`. No new Redis tables.
 
 ### 3.2.1 CONFIG DB
 | Table | Key | Fields UMF writes |
 |-------|-----|-------------------|
-| `VRRP` | `{if}\|{vrid}` | `vid`, `priority`, `preempt`, `adv_interval`, `vip@`, `oc_ip` |
+| `VRRP` | `{if}\|{vrid}` | `vid`, `priority`, `preempt`, `adv_interval`, `vip@` |
 | `VRRP_TRACK` | `{if}\|{vrid}\|{track_if}` | `priority_increment` |
 | `VRRP6` | `{if}\|{vrid}` | same as `VRRP` |
 | `VRRP6_TRACK` | `{if}\|{vrid}\|{track_if}` | `priority_increment` |
 
-UMF does not SET `version`, `admin_status`, `preempt_delay`, or `accept_mode`. `oc_ip` is the OpenConfig parent L3 address from `address[ip=...]` at SET. It is not the VIP (`virtual-address`). `frrcfgd` ignores it.
+UMF does not SET `version`, `admin_status`, `preempt_delay`, or `accept_mode`. Native VRRP is keyed `{if}|{vrid}`, so GET/SET/DELETE of any L3 address on that interface sees the same group. The VIP remains `virtual-address`.
 
 ### 3.2.2 APP DB
 No APPL_DB fields are used. `state/current-priority` GET mirrors configured `priority` until a native current-priority field exists.
@@ -328,7 +329,6 @@ Native click CLI from [VRRP_Adaptation_HLD.md](../vrrp/VRRP_Adaptation_HLD.md). 
 | `config interface vrrp6 ipv6 add/remove <if> <vrid> <ip>` | `VRRP6_LIST/vip` | `VRRP6.vip@` (global and `fe80:` share this list) |
 | `config interface vrrp6 priority / adv_interval / pre_empt / track_interface / shutdown` | matching `VRRP6` / `VRRP6_TRACK` leaves | same field names as IPv4 |
 | *(no CLI today)* | `VRRP_LIST/preempt_delay`, `VRRP6_LIST/preempt_delay` | native CVL only; OpenConfig `preempt-delay` is not-supported |
-| *(no CLI today)* | `VRRP_LIST/oc_ip`, `VRRP6_LIST/oc_ip` | OpenConfig parent interface IP; ignored by `frrcfgd` |
 
 `show vrrp` / `show vrrp6` read the same tables. They are out of scope for UMF.
 
@@ -347,10 +347,9 @@ Suffixes below are relative to a `vrrp-group[virtual-router-id=<id>]` on one of 
 | `preempt` (`enabled`/`disabled`) | `config/preempt`, `state/preempt` | OC boolean |
 | `preempt_delay` | — | Native CVL only. OpenConfig `preempt-delay` is not-supported |
 | `accept_mode` | — | Not in CVL. OpenConfig `accept-mode` is not-supported |
-| `oc_ip` | — (not an OpenConfig leaf) | UMF-only. SET stores `address[ip]`. GET/DELETE of a sibling INTERFACE IP is empty / no-op when `oc_ip` is set. CLI-created rows with empty `oc_ip` still fan out |
 | `adv_interval` (seconds 1..40) | `config/advertisement-interval`, `state/advertisement-interval` | OC units are centiseconds. UMF divides/multiplies by 100 |
 | `VRRP_TRACK_LIST/track_if` | `interface-tracking/config/track-interface`, `.../state/track-interface` | One OC container expands to N TRACK rows |
-| `VRRP_TRACK_LIST/priority_increment` | `interface-tracking/config/priority-decrement`, `.../state/priority-decrement` | Same integer; native name is increment. CVL range 10..50 |
+| `VRRP_TRACK_LIST/priority_increment` | `interface-tracking/config/priority-decrement`, `.../state/priority-decrement` | Same integer. Native field name is increment; frrcfgd decreases priority while the tracked interface is down. CVL range 10..50 |
 | `version` | — | No OpenConfig leaf. UMF does not SET it |
 | `admin_status` | — | No OpenConfig leaf. UMF does not SET it |
 
@@ -362,7 +361,7 @@ Same leaf mapping on all four bases. Table name is `VRRP` or `VRRP6` from the IP
 
 | OpenConfig YANG Node | DB Name | Table:Field | Notes |
 |----------------------|---------|-------------|-------|
-| **vrrp-group** | CONFIG_DB | VRRP or VRRP6 | table `vrrp_table_xfmr`; key `vrrp_group_key_xfmr`; subtree `vrrp_group_xfmr`; Redis key `{if}\|{vrid}`; SET writes `oc_ip` from the path address |
+| **vrrp-group** | CONFIG_DB | VRRP or VRRP6 | table `vrrp_table_xfmr`; key `vrrp_group_key_xfmr`; subtree `vrrp_group_xfmr` on both `vrrp` and `vrrp-group`; Redis key `{if}\|{vrid}` |
 | virtual-router-id | CONFIG_DB | key `{vrid}` / `vid` | list key |
 | **vrrp-group/config** and **vrrp-group/state** | | | |
 | virtual-router-id | CONFIG_DB | VRRP:vid | field `vrrp_virtual_router_id_xfmr` |
@@ -413,7 +412,7 @@ Each row answers: what is different, does native VRRP still work, and does it ma
 | 12 | `admin_status` / CLI shutdown | CLI `vrrp shutdown/startup` | Not in OC VRRP grouping | Not mapped. UMF never writes it. Enable is presence of the `VRRP`/`VRRP6` row |
 | 13 | `FEATURE\|*` | Native feature flag | Not an OpenConfig object | UMF never writes it |
 | 14 | Subinterface index | Native allows Ethernet/Vlan/PortChannel | Google paths use `subinterface[index=0]` | Index `0` is the parent L3 interface. Non-zero index is **rejected** (`NotSupported`) so it cannot collide with the parent group's Redis key |
-| 15 | OC keys VRRP by L3 **address**; native keys `{if}\|{vrid}` | Feature does not store the parent address on the VRRP row | Path `address[ip]` is the **interface** L3 address, not the VIP | Native Redis key stays `{if}\|{vrid}`. SET stores that interface IP in `oc_ip` (ignored by `frrcfgd`). GET/DELETE of a **sibling** INTERFACE IP is empty / no-op. Last SET rebinds `oc_ip`. CLI-created rows with empty `oc_ip` still fan out. VIP stays `virtual-address` |
+| 15 | OC keys VRRP by L3 **address**; native keys `{if}\|{vrid}` | Feature does not store the parent address on the VRRP row | Path `address[ip]` is the **interface** L3 address, not the VIP | Native Redis key stays `{if}\|{vrid}`. There is no OpenConfig-only field in `sonic-vrrp.yang`. GET/SET of any L3 address on that interface fans out to the same group. DELETE of any address of `{if}|{vrid}` deletes the native row. VIP stays `virtual-address` |
 | 16 | One OC `priority-decrement` vs N native TRACK rows | Native allows a different increment per tracked interface | OC has one scalar | SET writes the same value to every TRACK row for that group. GET returns the last collected increment. Values outside 10..50 (including explicit `0`) are `InvalidArgs` |
 
 **Coverage vs Google's ask:** every `openconfig-if-ip` 3.9.0 `vrrp-group` leaf on all four bases is accepted except `preempt-delay` and `accept-mode` (not-supported). `current-priority` GET mirrors configured priority (not live).
@@ -585,7 +584,7 @@ Invalid configurations report an error. Examples include:
 10. PUT routed-vlan IPv4 `/config/virtual-address` writes `VRRP.vip@`.
 11. PUT `/config/advertisement-interval` 200 writes `adv_interval=2`.
 12. Deviation tests (`Test_oc_vrrp_deviations`): GET `config/priority` and `state/priority` after SET; GET `state/current-priority` mirrors configured priority; GET `advertisement-interval` returns centiseconds; GET VIP has no prefix; SET `virtual-address` preserves `fe80:`; SET of `preempt-delay` and `accept-mode` is `NotSupported`; SET does not write `version`, `admin_status`, `preempt_delay`, `accept_mode`, or `FEATURE|*`.
-13. Owner-IP bind (`Test_oc_vrrp_owner_ip_bind`): SET under `address[ip=10.10.10.1]`; GET/DELETE of sibling `10.10.10.2` is empty / no-op; last SET rebinds `oc_ip`. Path IP is the interface address, not the VIP.
+13. Address fan-out (`Test_oc_vrrp_address_fanout`): SET under `address[ip=10.10.10.1]`; GET of sibling `10.10.10.2` returns the same group. Path IP is the interface address, not the VIP.
 
 ## 7.2 Negative Test Cases
 1. SET of `/config/virtual-link-local` on an IPv4 `vrrp-group` is rejected (leaf is IPv6-only in OpenConfig; transformer also guards).
