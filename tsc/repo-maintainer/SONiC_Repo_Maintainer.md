@@ -42,9 +42,7 @@
 |  | sonic-platform-pdk-pde-maintainer | Vamsi Punati(Google) | vamsipunati | GitHub team membership verified 2026-11-04 |
 | sonic-py-swsssdk | sonic-py-swsssdk-maintainer | Prince Sunny (Microsoft) | prsunny | enabled |
 | sonic-restapi | sonic-restapi-maintainer | Lawrence Lee (Microsoft) | theasianpianist | enabled |
-| sonic-sairedis | sonic-sairedis-maintainer | Kamil Cudnik (Microsoft) | kcudnik | added |
-|  | sonic-sairedis-maintainer | Junhua Zhai (Microsoft) | jimmyzhai | added |
-|  | sonic-sairedis-maintainer | Andriy Kokhan (Intel) | akokhan | enabled |
+| sonic-sairedis | sonic-sairedis-maintainer | Andriy Kokhan (Intel) | akokhan | enabled |
 |  | sonic-sairedis-maintainer | Volodymyr Boiko (Intel) | vboykox | enabled |
 |  | sonic-sairedis-maintainer | Kishore Gummadidala(Google) | erohsik | invitation sent |
 |  | sonic-sairedis-maintainer | Vishnu Shetty | vishnushetty | enabled |
