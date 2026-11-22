@@ -48,6 +48,7 @@
 | 0.8 | 2026-11-17 | Brad House (Nexthop) | Renovate merges labeled security updates itself, with the `renovate-approve` app's approval, in every repository without the `go.sum` workflow. The merge robot stays for those with it. The FIPS Go custom manager reads only trixie's pin, and `sonic-buildimage` turns off the `dockerfile` manager. The OpenTelemetry Collector has no custom manager, since its downloads are checked against pinned SHA256s a version bump does not update. A ruleset that targets all branches excludes `renovate/**`, since its force-push and deletion rules block rebases and branch cleanup. A repository keeping classic protection narrows its wildcard rule to `[0-9]*` instead of moving it to a ruleset. |
 | 0.9 | 2026-11-20 | Brad House (Nexthop) | FIPS Go takes patch releases only, since a new Go minor needs `FIPS_GOLANG_MAIN_VERSION` and a new FIPS package line. A read-only check that steps 1 to 7 are in place before a repository's `renovate.json` merges. |
 | 0.10 | 2026-11-20 | Brad House (Nexthop) | `go.mod` requires a published `sonic-mgmt-common` and the build adds the `replace`, so Renovate updates `go.sum` itself. No `go.sum` fixup workflow, and no merge robot path: Renovate merges every unattended update with `renovate-approve`'s approval. The pin moves weekly, and is the one update outside security updates that merges unattended. Release branches rely on OSV, and those that restrict pushes allow the Renovate app. Tested by building `sonic-mgmt-framework` and `sonic-gnmi` both ways. |
+| 0.11 | 2026-11-22 | Brad House (Nexthop) | Renovate takes Python: the pip build hook releases the frozen pins an install's own requirements rule out, and no longer retries a failed install without constraints. Dependabot security updates are off everywhere. `sonic-buildimage` clones `sonic-swss-common`, which its crates depend on by path. An onboarding pull request merged by mistake is replaced by the repository's own `renovate.json`. |
 
 ### 2. Scope
 
@@ -97,7 +98,7 @@ Each source of third party code has one owner:
 
 | Source | Where the version is set | Kept current by |
 |--------|--------------------------|-----------------|
-| Go, Rust and Python modules | `go.mod`, `Cargo.toml`, `requirements.txt`, `setup.py` | Renovate, native managers |
+| Go, Rust and Python modules | `go.mod`, `Cargo.toml`, `requirements*.txt`, `setup.py`, `pyproject.toml` | Renovate, native managers |
 | GitHub Actions and Dockerfile base images | Workflow files, Dockerfiles | Renovate, native managers |
 | Versions pinned by hand | `build_debian.sh`, Dockerfile templates, `rules/*.mk` | Renovate, custom managers |
 | Stock Debian packages | The Debian snapshot and `files/build/versions*` | Version freeze pipeline |
@@ -147,7 +148,7 @@ Renovate runs as the hosted GitHub App. Nothing is installed on build machines. 
 | Submodules owned by `sonic-net` | Yes |
 | Third party submodules (FRR, scapy, supervisor, vendor platform repositories) | No. Their dependencies arrive through the pinned submodule commit |
 
-A repository adopts Renovate through a change that adds its `renovate.json`, reviewed like any other. Renovate's own onboarding pull request ("Configure Renovate") is never merged: it carries `config:recommended` alone, without the shared preset, the reviewers or the patched-module rules, and it leaves Dependabot running.
+A repository adopts Renovate through a change that adds its `renovate.json`, reviewed like any other. Renovate's own onboarding pull request ("Configure Renovate") is never merged: it carries `config:recommended` alone, without the shared preset, the reviewers or the patched-module rules, and it leaves Dependabot running. One merged by mistake, as `sonic-buildimage`'s was, is replaced by the change that adds the repository's own `renovate.json`, which edits the file instead of adding it. Until then, Renovate runs with `config:recommended` alone; once the preset applies, it closes the pull requests the preset does not allow.
 
 The app is installed on all repositories, and opens an onboarding pull request in each one without a `renovate.json`. Each onboarding pull request is closed without merging. Renovate does not reopen one that was closed unmerged, and picks a repository up on its next run once the repository's own `renovate.json` merges. A repository created later gets its own onboarding pull request, closed the same way.
 
@@ -161,10 +162,14 @@ The repositories that are mostly Go come first: `sonic-mgmt-common` and `sonic-g
 | `cargo` | `Cargo.toml` | Yes |
 | `github-actions` | `.github/workflows/*.yml` | Yes |
 | `dockerfile` | `Dockerfile` | Yes |
-| `pip_requirements`, `setup-py` | `requirements.txt`, `setup.py` | No, until the pip constraint seam is resolved. See [7.8](#78-existing-automation) |
+| `pip_requirements`, `pip_setup`, `pep621` | `requirements*.txt`, `setup.py`, `pyproject.toml` | Yes. The pip build hook lets a requirement an install states win over the frozen pin. See the pip seam in [7.8](#78-existing-automation) |
 | `git-submodules` | `.gitmodules` | No. The submodule update pipeline owns submodule pointers |
 
 `gomod` runs `go mod tidy` after each update, and rewrites import paths on a major bump.
+
+A Python lower bound (`>=`) that already allows the newest release is left as it is. Exact pins (`==`) and upper bounds are raised.
+
+**Submodules a manifest reads.** Renovate does not clone submodules, and a manifest that depends on a path inside one cannot be resolved without it. In `sonic-buildimage`, five crates depend on `src/sonic-swss-common/crates/swss-common` by path, so `cargo` fails to load them and every lock file update in those workspaces reports an artifact error. `sonic-buildimage`'s `renovate.json` sets `cloneSubmodules` with `cloneSubmodulesFilter` naming `src/sonic-swss-common` only. The `git-submodules` manager stays off: cloning a submodule does not update its pointer.
 
 **GitHub Actions are pinned to a digest.** Semgrep's blocking `github-actions-mutable-action-tag` rule fails every changed `uses:` line that names a tag, so an update from one tag to another would fail the required Semgrep check. The preset pins each action to a commit digest, with its version as a comment. In a repository that still uses tags, Renovate first opens one pull request that pins them all.
 
@@ -208,7 +213,7 @@ On a release branch the preset turns ordinary `gomod` updates off ([7.5](#75-bra
 
 **Generated packages.** `go mod tidy` loads every package the repository imports, so a package that exists only after a build step fails it, wherever the `replace` points. `sonic-mgmt-framework`'s `rest/main` imported `build/rest_server/dist/openapi`, which codegen creates. Its committed `routes.go` moved to `rest/openapi`, codegen generates the server code beside it, `.gitignore` covers the generated files, and the `gofmt` check covers only committed code. A package with at least one committed file resolves, so `translib/ocbinds`, whose `ocbinds.go` `sonic-mgmt-common` generates, needs nothing.
 
-**Branch protection on Renovate branches.** This applies to every repository that adopts Renovate. Renovate adds commits to an existing Renovate branch whenever it rebases it or moves it to a newer version. A branch protection rule that matches every branch, rather than only the default and release branches, rejects those commits when it requires a pull request or status checks: the commit is not a pull request, and a new commit cannot have passed the required checks. Such a rule does not block branch creation, so Renovate's own branches still appear, but nothing can be added to them afterwards, and a rebase someone asks for does nothing. Exempting the bots from the pull request requirement is not enough, because the required checks still apply. The protection is moved to a branch ruleset with the same rules, and the wildcard rule is deleted ([9.5](#95-setup-steps)). A classic rule gives way to a more specific one, such as the default branch's, a release branch's or `commit-validation`'s, but a ruleset applies on top of every classic rule. The ruleset therefore includes all branches and excludes `renovate/**`, the default branch, and every branch with a classic rule of its own, so it covers only what the wildcard rule covered. Where Dependabot security updates stay on ([7.8](#78-existing-automation)), it also excludes `dependabot/**`, which the wildcard rule blocks the same way. A ruleset that already targets all branches blocks Renovate on its own, with no classic rule involved: a restrict-force-pushes rule refuses every rebase, which Renovate pushes as a force-push, and a restrict-deletions rule keeps Renovate from deleting the branches it no longer needs. Such a ruleset excludes `renovate/**` as well. Its bypass list has the repository admin role where the wildcard rule did not apply to administrators.
+**Branch protection on Renovate branches.** This applies to every repository that adopts Renovate. Renovate adds commits to an existing Renovate branch whenever it rebases it or moves it to a newer version. A branch protection rule that matches every branch, rather than only the default and release branches, rejects those commits when it requires a pull request or status checks: the commit is not a pull request, and a new commit cannot have passed the required checks. Such a rule does not block branch creation, so Renovate's own branches still appear, but nothing can be added to them afterwards, and a rebase someone asks for does nothing. Exempting the bots from the pull request requirement is not enough, because the required checks still apply. The protection is moved to a branch ruleset with the same rules, and the wildcard rule is deleted ([9.5](#95-setup-steps)). A classic rule gives way to a more specific one, such as the default branch's, a release branch's or `commit-validation`'s, but a ruleset applies on top of every classic rule. The ruleset therefore includes all branches and excludes `renovate/**`, the default branch, and every branch with a classic rule of its own, so it covers only what the wildcard rule covered. A ruleset that already targets all branches blocks Renovate on its own, with no classic rule involved: a restrict-force-pushes rule refuses every rebase, which Renovate pushes as a force-push, and a restrict-deletions rule keeps Renovate from deleting the branches it no longer needs. Such a ruleset excludes `renovate/**` as well. Its bypass list has the repository admin role where the wildcard rule did not apply to administrators.
 
 A repository that keeps classic protection narrows the wildcard rule's pattern instead. A classic rule has a single pattern and no exclusions, and GitHub matches it with `File.fnmatch` and `File::FNM_PATHNAME`, so `*` does not cross a `/`. The wildcard rule becomes `[0-9]*`, which matches release branches such as `202611` and no `renovate/` or `dependabot/` branch, with its settings unchanged. The default branch and any other branch that has to stay protected, such as `release` or `commit-validation`, keep or get a rule of their own naming them. Other branches, such as a person's working branch, are no longer protected. A more permissive `renovate/**` rule beside the wildcard rule does not work: of two wildcard rules matching a branch, GitHub applies the one created first, so the existing wildcard rule still governs Renovate's branches.
 
@@ -542,7 +547,7 @@ What the freeze pipelines keep current, and Renovate does not:
 |------|--------------|------------------|
 | Stock Debian packages, including Debian security and LTS fixes | `versions-mirror`, `versions-deb-*` | No manifest names them, and Renovate has no Debian advisory feed |
 | Python packages Debian installs, such as `python3-brotli` | `versions-py3`, through `pip3 freeze` | They are Debian packages. `pip` reports their upstream version |
-| Python packages a build installs with `pip` | `versions-py3` | The pip seam below |
+| Python packages a build installs with `pip` | `versions-py3` | Renovate updates the requirements a manifest states. The packages those resolve to, and every transitive one, are pinned by the freeze. See the pip seam below |
 | Docker base images named in Dockerfile templates, such as `debian:trixie` | `versions-docker`, by digest | The `dockerfile` manager does not read a `.j2` template such as `FROM {{ prefix }}debian:trixie` ([7.3](#73-hand-pinned-versions)) |
 | What a pinned download or clone fetched | `versions-web`, `versions-git` | These record what a build fetched. A hand-pinned version in the URL is Renovate's ([7.3](#73-hand-pinned-versions)) |
 
@@ -551,18 +556,22 @@ What the freeze pipelines keep current, and Renovate does not:
 | Part | With Renovate | Reason |
 |------|---------------|--------|
 | Dependabot alerts | On | Renovate reads them for GitHub's vulnerability data |
-| Dependabot security updates | Off, except in a repository with Python packages, until Renovate takes pip | Each vulnerability would get a pull request from both bots. Renovate does not take Python packages yet, so in a repository with them Dependabot stays the only source of their security updates, and the reviewer closes Dependabot's copy of any other fix |
+| Dependabot security updates | Off | Each vulnerability would get a pull request from both bots. Renovate takes every ecosystem Dependabot covered here, Python included |
 | Dependabot version updates (`.github/dependabot.yml`) | Removed in the change that adds `renovate.json` | Renovate does the same work. The preset's `minimumReleaseAge` replaces a cooldown it set |
 
-Open Dependabot pull requests are closed once Renovate runs, except Python ones; Renovate opens its own.
+Open Dependabot pull requests are closed once Renovate runs; Renovate opens its own.
 
-**The pip seam.** The pip build hook in `src/sonic-build-hooks/scripts/buildinfo_base.sh` passes the frozen `versions-py3` file to every `pip install` as a constraint file. It releases a package from the constraint only when an exact version appears on the command line, and it does not read `-r requirements.txt`. A Renovate bump to a `requirements.txt` therefore conflicts with the frozen constraint until the next freeze.
+**The pip seam.** The pip build hook in `src/sonic-build-hooks/scripts/buildinfo_base.sh` passes the frozen `versions-py3` file to every `pip install` as a constraint file. It used to release a package from the constraint only when an exact version appeared on the command line. A requirement in a `requirements.txt`, or in a wheel's `Requires-Dist` from a `setup.py`, that the frozen version did not satisfy made `pip` fail, and the hook then retried the install with no constraints at all: every package in it took its newest version, and the build passed without being reproducible. A Renovate bump to a pin would have done exactly that.
 
 | Resolution | Effect |
 |------------|--------|
-| Exclude `pip_requirements` and `setup-py` | Python stays with the freeze pipeline. Chosen for the first phases |
-| Teach the build hook to read requirements files | Removes the seam |
+| Exclude `pip_requirements` and `pip_setup` | Python stays with the freeze pipeline, and Dependabot stays on for it. Chosen for the first phases |
+| Teach the build hook to read the requirements an install states | Removes the seam. Chosen |
 | Order the Renovate pull request behind a re-freeze | Keeps both, with a dependency between them |
+
+Before each install, `src/sonic-build-hooks/scripts/pip_release_constraints.py`, run by the wrapped `pip`'s own interpreter with `pip`'s vendored `packaging`, reads the requirements the install states: on the command line, in requirements files (nested `-r` included), and in local wheels' `Requires-Dist`, with markers and extras evaluated. It drops the pin of each package a stated requirement excludes, and of each local wheel's own package; every other pin stays, and each dropped pin is logged. The unconstrained retry is gone, so an install that still fails, such as one whose new release needs a newer transitive package, fails the build and names the frozen file. The next freeze records what the build installed. A Renovate change to a `setup.py` in a submodule reaches the hook through the submodule update, the same way. The preset enables the Python managers only after the hook change merges (sonic-net/sonic-buildimage#30963, sonic-net/sonic-pipelines#262).
+
+The frozen `versions-py3` files are not given to Renovate. About half their entries are Python packages Debian installs (G5 in [7.9](#79-gaps-outside-both)): raising such a pin changes nothing the build installs, the next freeze writes Debian's version back, and Renovate would open the same pull request again. On `master`, the nightly freeze moves the rest.
 
 #### 7.9 Gaps outside both
 
@@ -590,7 +599,7 @@ Shipped images are covered. Each official image's SBOM is published beside it an
 | 3 | Native managers on `master` in `sonic-buildimage` and the remaining owned repositories holding `go.mod` or `Cargo.toml` |
 | 4 | Rust and FIPS Go custom managers |
 | 5 | Remaining owned repositories, and the `202611` branch |
-| 6 | A resolution for the pip seam |
+| 6 | Python managers, after the pip build hook releases the pins an install's requirements rule out |
 
 The Go repositories come first because they need no custom manager. Each repository adds the rule that lets Renovate merge ([7.6](#76-approval-and-merge)) once `renovate-approve` is installed, in its own change or in the one that adds its `renovate.json`.
 
@@ -639,7 +648,7 @@ The preset:
   "separateMinorPatch": true,
   "rebaseWhen": "conflicted",
   "commitBody": "Signed-off-by: {{{gitAuthor}}}",
-  "enabledManagers": ["gomod", "cargo", "github-actions", "dockerfile", "custom.regex"],
+  "enabledManagers": ["gomod", "cargo", "pip_requirements", "pip_setup", "pep621", "github-actions", "dockerfile", "custom.regex"],
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
   "lockFileMaintenance": { "enabled": true },
   "vulnerabilityAlerts": {
@@ -716,7 +725,7 @@ This is the file committed to `sonic-pipelines`. Its `description` names this do
 |------|-----|------|
 | 1 | SONiC Foundation EasyCLA administrators | Add `renovate[bot]` to the EasyCLA approved list, as `mssonicbld` is |
 | 2 | Organization administrator, Security WG | Create the `sonic-security-wg` team as set out in [7.7](#77-reviewers): visible, no parent team, the public Working Group membership with at least one member as team maintainer, and Read on each repository Renovate runs in |
-| 3 | Each repository's administrators | Leave Dependabot alerts on, and turn Dependabot security updates off, unless the repository has Python packages. See [7.8](#78-existing-automation) |
+| 3 | Each repository's administrators | Leave Dependabot alerts on, and turn Dependabot security updates off. See [7.8](#78-existing-automation) |
 | 4 | `sonic-pipelines` maintainers | Merge `renovate/default.json`, and remove the merge robot's Renovate support from `automation-pr-scan.yml` ([7.6](#76-approval-and-merge)) |
 | 5 | Organization administrator | On each branch Renovate targets whose protection restricts who can push, add the Renovate app to the actors allowed to push, once the branch's release manager agrees ([7.6](#76-approval-and-merge)) |
 | 6 | Each repository's administrators | Where a branch protection rule matches every branch, replace that rule with a branch ruleset that includes all branches, excludes `renovate/**`, the default branch and every branch with a classic rule of its own, keeps the same rules, and lets the repository admin role bypass where the wildcard rule did not apply to administrators, so Renovate can add commits to Renovate branches. A repository that keeps classic protection instead changes the wildcard rule's pattern to `[0-9]*`, and adds a rule naming each other branch that has to stay protected ([7.2](#72-native-managers)). Every existing ruleset that targets all branches also excludes `renovate/**` |
@@ -780,7 +789,7 @@ No change. Nothing is added to the image.
 | Findings with no published fix are not addressed | Nothing can update to a fix that does not exist. Shipping less is the [EOL plan](../eol-planning/202611-eol-and-deprecation.md)'s remit |
 | SONiC's Debian rebuilds are not covered | SBOM-driven triage covers them |
 | A bump can conflict with a local patch | Components built from source with a patch series are out of scope. Ordinary updates to patched modules wait for dashboard approval. A security update to one opens on its own, with the `patched-module` label and no `automerge`, so a reviewer checks each patch. See [7.3](#73-hand-pinned-versions) |
-| Python is excluded | See the pip seam in [7.8](#78-existing-automation) |
+| Renovate does not read the frozen `versions-py3` files | Half their entries are Debian's packages, which a pin cannot move (G5). The nightly freeze moves the rest on `master`. See the pip seam in [7.8](#78-existing-automation) |
 
 ### 13. Testing Requirements/Design
 
@@ -846,7 +855,7 @@ Owners come from `CODEOWNERS` where a repository has one, and from the organizat
 | 5 | Update the description of the preset's `automerge` rule, which still names the merge robot ([9.4](#94-renovate-configuration)) | `renovate/default.json` | `sonic-pipelines` maintainers |
 | 6 | Land the shared preset at `renovate/default.json` | `sonic-pipelines` | `sonic-pipelines` maintainers |
 | 7 | Add the release manager reviewer rule in [7.7](#77-reviewers) once the `release-manager-202611` team exists | `renovate/default.json` | Security WG, 202611 release manager |
-| 8 | Choose a resolution for the pip seam | `src/sonic-build-hooks/` | `@sonic-net/sonic-build` |
+| 8 | Merge the pip build hook change, then the preset's Python managers (sonic-net/sonic-buildimage#30963, sonic-net/sonic-pipelines#262) | `src/sonic-build-hooks/`, `renovate/default.json` | `@sonic-net/sonic-build`, `sonic-pipelines` maintainers |
 | 9 | Confirm the FIPS Go release cadence, so the toolchain pin has something to track | `src/sonic-fips/`, `rules/sonic-fips.mk` | `@sonic-net/sonic-build` |
 | 10 | Stand up SBOM-driven triage for the Debian packages SONiC rebuilds | — | Security WG |
 | 11 | Confirm the release branch policy in [7.5](#75-branch-policy) | `renovate.json` | Security WG |
