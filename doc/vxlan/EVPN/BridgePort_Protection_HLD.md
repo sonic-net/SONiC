@@ -48,6 +48,9 @@
 | 1.0 | 2026-09-18 | Patrice Brissette - Cisco<br>Manas Kumar Mandal - Cisco | Initial draft |
 | 1.1 | 2026-10-08 | Patrice Brissette - Cisco | Align with FRR HLD: drop Member VNI; flush and rebuild on every new FPM session (warm reboot and reconciliation out of scope) |
 | 1.2 | 2026-10-14 | Patrice Brissette - Cisco | Align with FRR HLD rev 1.2: one Group per ES; Group carries full Members; RMAC applied as a tunnel `set`; add O4 (ID ownership) |
+| 1.3 | 2026-10-26 | Patrice Brissette - Cisco | Align with FRR HLD rev 1.3 and the SONiC id allocator HLD: fpmsyncd publishes stable SONiC ids; Group carries its ESI; replay ends with `REPLAY_DONE`; reconciliation replaces the session-start flush |
+| 1.4 | 2026-10-27 | Patrice Brissette - Cisco | Align with FRR HLD rev 1.4: the protected bridge port is the ES PortChannel (the .1Q bridge port), one Binding per ES; VLAN sub-interfaces are not separate bridge ports |
+| 1.11 | 2026-11-24 | Patrice Brissette - Cisco | Align recovery defaults with SAI; bound pending state and use one CONFIG_DB enable; define tagged restart cleanup and replay outage; add sonic-sairedis/syncd notification support; align RMAC and protection ID ownership with FRR; handle PortChannel oper-down failover and recovery in both modes |
 
 ---
 
@@ -58,9 +61,9 @@ This document describes the SONiC design for **primary/backup path protection pe
 - **Primary** = the local bridge port (host reachable through the local access link).
 - **Backup** = an **ECMP group of VXLAN L3 tunnels** to peer VTEPs, learned from **BGP EVPN RT-1 aliasing** and downloaded to SONiC over **FPM**.
 
-Protection is enabled on the parent interface that owns the Ethernet Segment.
-Every eligible bridge port or sub-interface below that interface inherits the
-same protection Group and receives its own port-scoped Binding.
+Protection is enabled on the interface that owns the Ethernet Segment (the
+PortChannel). That PortChannel is the protected bridge port in the .1Q
+bridge, as for L2 EVPN-MH; all its VLANs share one Group and one Binding.
 
 The initial protection behavior is **all-active L3MH**: the local bridge port
 is primary and all eligible remote leaves are backup Members. Single-active
@@ -70,7 +73,7 @@ On a platform that passes the routed-traffic validation in [system test 2](#142-
 
 The presence or absence of an **L2VNI must not matter** for the protection concept.
 
-This HLD covers the SONiC components only (fpmsyncd, orchagent, SAI). The FRR/zebra/bgpd control-plane behavior is specified in the companion FRR design (see [References](#4-references)).
+This HLD covers the SONiC components only: fpmsyncd, orchagent, `sonic-sairedis`, syncd, and the SAI adapter/ASIC. The hardware switchover callback requires notification metadata, serialization, and delivery through `sonic-sairedis`/syncd to orchagent. FRR/zebra/bgpd control-plane behavior is specified in the companion FRR design (see [References](#4-references)).
 
 ---
 
@@ -159,7 +162,7 @@ graph LR
     class B2 dead;
 ```
 
-Because the Linux kernel has no way to express "local port as primary, tunnel-ECMP as backup, for *routed* traffic," this protection lives entirely in SONiC and is carried **end-to-end over FPM → SONiC → SAI**. The kernel still gets the ordinary MAC/neighbor entries it always did (for local forwarding and learning); the protection object is the only new thing.
+Because the Linux kernel has no way to express "local port as primary, tunnel-ECMP as backup, for *routed* traffic," this protection lives entirely in SONiC and is carried **end-to-end over FPM → SONiC → SAI**. Existing L3MH MAC/neighbor synchronization is unchanged by this protection design and is outside its scope; the new objects here are the protection Member, Group, and Binding.
 
 ### What FRR hands to SONiC
 
@@ -168,7 +171,7 @@ FRR computes the backup set from BGP EVPN and sends **three small objects** down
 | # | Object | Meaning | APPL_DB |
 |---|---|---|---|
 | 1 | **Member** (per peer VTEP) | one VXLAN L3 tunnel endpoint (`type=l3` in this release) + `{ remote_vtep, type, router_mac (RMAC) }`; the Member is VRF-independent, while SAI selects the encapsulation L3VNI from the packet VRF through tunnel maps | `L2_NEXTHOP_GROUP_TABLE:<nh_id>` |
-| 2 | **Group** (per protected ES) | the ECMP list of member ids shared by every bridge port of the ES | `L2_NEXTHOP_GROUP_TABLE:<nhg_id>` |
+| 2 | **Group** (per protected ES) | the ECMP list of member ids used as the backup of the ES bridge port | `L2_NEXTHOP_GROUP_TABLE:<nhg_id>` |
 | 3 | **Binding** (per port) | "this bridge port's backup is that group" | `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` |
 
 ### The two SONiC components
@@ -180,7 +183,7 @@ Two orchs do the work, and both are named throughout the rest of this document, 
 
 Protection is an **attribute on the bridge port**, not a two-member protection group. The primary path *is* the bridge port that carries the attribute, so only the backup needs naming — there is no enclosing group and no primary "member" to encode. The complete object model, including the switchover mode, committed-path state, recovery policy, hardware notification, and tunnel RMAC, is defined by the pinned [SAI EVPN-MH model](#4-references).
 
-The protection capability has two operating models. In **software protection**, `bpProtOrch` observes bridge-port operational state from `PortsOrch`; on a qualified port failure it explicitly sets `SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_ADMIN_MODE=PROTECTION`, and on recovery it applies the configured revertive/wait-to-restore policy before setting `PRIMARY`. In software mode `bpProtOrch` drives the SAI admin mode to `PRIMARY` or `PROTECTION` only and **never programs SAI `AUTO`** (SAI `AUTO` means the ASIC decides, which applies only to hardware mode). In **hardware protection**, the ASIC performs the primary-to-backup transition autonomously and then reports the committed state to SONiC. Hardware protection is required for [R4](#61-functional-requirements); software protection is a functional fallback but does not claim the same failover time.
+The protection capability has two operating models. In **software protection**, `bpProtOrch` observes bridge-port operational state from `PortsOrch` and drives the SAI admin mode directly. In **hardware protection**, the ASIC handles failures it can detect autonomously and reports the committed state to SONiC. In either mode, a protected PortChannel reported operationally down by `PortsOrch` triggers a software failover override: `bpProtOrch` sets `SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_ADMIN_MODE=PROTECTION`. This covers loss of the last LACP member even when that member's carrier remains up and the ASIC does not recognize the aggregate as failed. On recovery, `bpProtOrch` restores the configured admin intent using the revertive and wait-to-restore policy. Software mode programs only `PRIMARY` or `PROTECTION`, never SAI `AUTO`; in hardware mode `AUTO` is used again only after the PortChannel is confirmed up and recovery policy allows it. Hardware protection is required for [R4](#61-functional-requirements); software protection is a functional fallback but does not claim the same failover time.
 
 ### Room to grow
 
@@ -211,43 +214,42 @@ More broadly, the SAI attach point sees only a next-hop-group oid; the encapsula
 
 - The base feature is derived from existing EVPN-MH configuration (ESI on the access port, SVI in a VRF/GRT with an L3VNI) and from received EVPN routes. FRR/zebra owns the control plane and emits the protection objects over FPM.
 
-FRR uses the per-interface `evpn mh bridge-port-protection` command to enable
-the protection group for a specific ES. L3MH neighbor synchronization is
-orthogonal and is not a prerequisite for constructing the protection group.
+The `BRIDGE_PORT_PROTECTION|<ifname>` CONFIG_DB row is the single operator
+enable and policy source for the protected bridge port. The SONiC configuration
+manager renders the FRR interface command `evpn mh bridge-port-protection`
+from this row on the ES-owning PortChannel; deleting the row removes the FRR
+command. This keeps FRR object generation and SONiC attachment policy from
+being enabled independently. L3MH neighbor synchronization is orthogonal and
+is not a prerequisite for constructing the protection group.
 
-FRR exports objects only when the per-interface command is configured, local ES
-state is eligible, and EVPN contexts are compatible. SONiC's
-`BRIDGE_PORT_PROTECTION|<ifname>` CONFIG_DB row is the
-per-port policy that controls whether an exported Binding is attached and which
-hardware/software protection mode is used. The operator does not configure the
-backup NHG in SONiC.
-
-Removing the interface command causes FRR to publish deletes for the Binding,
+FRR exports objects only while the rendered command is configured, local ES
+state is eligible, and EVPN contexts are compatible. The CONFIG_DB row also
+selects the hardware/software protection mode and the per-port recovery and
+reconciliation policy. The operator does not configure the backup NHG in
+SONiC. When the command is removed, FRR publishes deletes for the Binding,
 Group, and unreferenced Members. `bpProtOrch` and `L2NhgOrch` enforce safe
 detach-before-unref ordering while reconciling those independent updates.
-Changes to SONiC's per-port policy affect attachment and mode, not FRR object
-construction.
 
-  * **SONiC CONFIG_DB schema:** stores the bridge-port protection policy for the protected port, including protection mode, administrative override, recovery policy, and reconciliation parameters. The backup NHG identifier is not duplicated in CONFIG_DB; it remains FRR-owned state in `EVPN_ES_BACKUP_NHG_TABLE`.
-    * **Per-bridge-port `convergence_mode`** (HW protection only). Controls whether `bpProtOrch` reconciles the ASIC switchover state against the software view for that protected bridge port. With `convergence: enabled` (default), `bpProtOrch` participates in the role decision and reconciles the two views. With `convergence: disabled`, `bpProtOrch` only observes the switchover notification and publishes state without attempting software/hardware convergence.
+  * **SONiC CONFIG_DB schema:** stores the bridge-port protection policy for the protected port, including protection mode, administrative override, recovery policy, and reconciliation parameters. The backup NHG identifier is not duplicated in CONFIG_DB; it is derived from FRR state and published by fpmsyncd in `EVPN_ES_BACKUP_NHG_TABLE`.
+    * **Per-bridge-port `convergence_mode`** (HW protection only). Controls whether `bpProtOrch` reconciles ASIC-detected switchover state against the software view for that protected bridge port. With `convergence: enabled` (default), `bpProtOrch` participates in the role decision and reconciles the two views. With `convergence: disabled`, `bpProtOrch` only observes ASIC notifications and publishes state without general software/hardware convergence. In both settings, `PortsOrch` oper-down still triggers the software `PROTECTION` override for failures the ASIC may not detect.
     * **Per-bridge-port `t_resync_period_ms`** (HW protection only). Sets the periodic check for that protected bridge port (default 30 s) that reads hardware state and maintains eventual consistency between software and hardware. This is helpful when notifications are lost. Set this field to `0` to disable the periodic check.
 
-These opt-outs may be combined on the same bridge-port protection object. With `convergence: disabled` and `t_resync_period_ms = 0`, `bpProtOrch` performs no reconciliation and no periodic consistency check: the ASIC alone drives failover, there is no automatic recovery from a lost notification, and the `admin_mode` setting (SAI `..._PROTECTION_ADMIN_MODE`) is the only remaining software override.
+These opt-outs may be combined on the same bridge-port protection object. With `convergence: disabled` and `t_resync_period_ms = 0`, `bpProtOrch` performs no general reconciliation and no periodic consistency check, and there is no automatic recovery from a lost ASIC notification. The `PortsOrch` oper-down override remains active in either setting because hardware may not detect a PortChannel failure caused by LACP member removal; its recovery follows the configured admin intent and revertive policy.
 
 ### 6.3 Scalability requirements
 
 - Protection state is **O(bridge ports / ESIs)**, independent of the number of MACs or host routes behind the port.
-- Backup NHG membership is **O(ESIs)**; membership changes are **in-place NHG updates** (stable `nhg_id`/oid).
+- Backup NHG membership is **O(ESIs)**; membership changes are **in-place NHG updates** (stable `nhg_id`/oid while zebra stays running).
 
 ### 6.4 Warm boot requirements
 
-- Warm reboot and reconciliation are out of scope for this release. Every new FPM session starts from empty: fpmsyncd flushes the FPM-produced protection rows and zebra's full replay rebuilds them ([§11](#11-warmboot-and-fastboot-design-impact)). The primary path is unaffected; protection is unavailable until the replay completes.
+- Warm reboot, reconciliation, and ID persistence across restart are out of scope. Each new FPM session starts with protection rows removed and zebra's replay rebuilds them. The primary path remains intact, but protection is unavailable until the replay reattaches the Binding; if a port is already using its backup when the session starts, traffic can be interrupted until replay completes ([§11](#11-warmboot-and-fastboot-design-impact)).
 
 ---
 
 ## 7. Architecture Design
 
-FRR (top) computes the protection objects and sends them down **two independent channels**: the ordinary **kernel netlink** path — unchanged, this is the primary MAC/neighbor traffic — and the existing **FPM** path, extended with protection objects. Inside SONiC the FPM objects fan out to **two orchs**: `L2NhgOrch`, which builds the backup **tunnel group**, and the new `bpProtOrch`, which **binds that group to the port** as a protection object. Everything then lands in the ASIC. Only the **highlighted** boxes are new or change; the rest is existing EVPN/VXLAN plumbing reused as-is.
+This architecture view follows the bridge-port protection objects from FRR over FPM through SONiC to SAI. Existing L3MH MAC/neighbor synchronization is unchanged and outside this design's scope. Inside SONiC the protection objects fan out to `L2NhgOrch`, which builds the backup tunnel group, and the new `bpProtOrch`, which binds that group to the port. Only the highlighted boxes are new or change; other EVPN/VXLAN paths are shown only where they interact with protection.
 
 ### 7.1 High-level architecture
 
@@ -260,30 +262,24 @@ graph TB
     end
 
     subgraph CH["Channels"]
-        KERN["Kernel netlink<br/>(plain MAC / neighbor)"]
+        KERN["Kernel netlink<br/>(existing NHA_FDB groups)"]
         FPM["FPM<br/>(protection objects)"]
     end
 
     subgraph SONIC["SONiC"]
-        NEIGHSY["neighSyncd<br/>(netlink → APPL_DB)"]
         FDBSY["fdbsyncd<br/>(syncd)"]
         FPMSY["fpmsyncd<br/>(syncd)"]
-        NEIGH["NeighOrch / FdbOrch<br/>(unchanged)"]
         L2NHG["L2NhgOrch<br/>(tunnel NHG → SAI)"]
         BPPROT["bpProtOrch (NEW)<br/>(port → protection)"]
         SAI["SAI / ASIC<br/>bridge-port protection attr + port-state failover"]
-        NEIGHSY --> NEIGH
         FDBSY --> L2NHG
         FPMSY --> L2NHG
         FPMSY --> BPPROT
-        NEIGH --> SAI
         L2NHG --> SAI
         BPPROT --> SAI
     end
 
-    ZEBRA -->|"MAC/neigh (as-is)"| KERN
     ZEBRA -->|"L2_NEXTHOP_GROUP + EVPN_ES_BACKUP_NHG"| FPM
-    KERN --> NEIGHSY
     KERN --> FDBSY
     FPM --> FPMSY
 
@@ -294,15 +290,15 @@ graph TB
 | Layer | Module | Role | Change |
 |---|---|---|---|
 | FRR | **bgpd** | Computes the eligible peer VTEPs for the ES (valid in every IP-VRF of the ES) and each peer's RMAC (Router's MAC EC of its IP A-D per-EVI routes); sends them to zebra. | FRR-side; see FRR HLD |
-| FRR | **zebra** | Owns the NHG; builds one Group per ES from the peers bgpd sends; binds it to each bridge port of the ES. | New **FPM emitters** for the objects; peer RMAC on routed members |
+| FRR | **zebra** | Owns the NHG; builds one Group per ES from the peers bgpd sends; binds it to the ES bridge port (PortChannel). | New **FPM emitters** for the objects; peer RMAC on routed members |
 | Channel | **FPM** | Carries the protection objects (rich, kernel-independent). | New/extended messages |
-| Channel | **Kernel netlink** | Carries **plain** local MAC / neighbor (for local forwarding + learning). | No change |
-| SONiC | **fdbsyncd** | Kernel FDB → `FDB_TABLE` / `VXLAN_FDB_TABLE`; parses `NHA_FDB` groups → `L2_NEXTHOP_GROUP_TABLE` (`onMsgNhg`); handles `NDA_NH_ID`. | No change (primary path) |
+| Channel | **Kernel netlink** | Carries the existing `NHA_FDB` groups consumed by `fdbsyncd`; other MAC/neighbor synchronization is outside this design's scope. | No change |
+| SONiC | **fdbsyncd** | Parses kernel `NHA_FDB` groups → `L2_NEXTHOP_GROUP_TABLE` (`onMsgNhg`); handles `NDA_NH_ID`. | Existing L2 NHG path; not changed for protection |
 | SONiC | **fpmsyncd** | FRR FPM → `ROUTE_TABLE` / `NEXTHOP_GROUP_TABLE`; already parses `RTM_FPM_*` EVPN-MH (SHL/DF/ES-backup-NHG) → `EVPN_ES_BACKUP_NHG_TABLE`. | New parsing for the tunnel NHG (Member/Group) over FPM |
 | SONiC | **L2NhgOrch** | Consumes `L2_NEXTHOP_GROUP_TABLE`; builds SAI NHG + members (`createSaiNextHop(l2_nhg_id, tunnel_id, remote_vtep_ip)`, `createSaiNextHopGroup()`) — already **`BRIDGE_PORT` type**, which is what the attach point requires. | Resolve a P2P tunnel per peer VTEP carrying the RMAC; expose the NHG oid — see [8.3](#83-l2nhgorch--vxlantunnelorch-changes-backup-group) |
-| SONiC | **NeighOrch** | Programs neighbor on the SVI RIF; observes **FdbOrch**; joins on **(VLAN, MAC)**; gates HW programming via `is_fdb_programmed_to_vxlan_tunnel()`. | No change (primary path) |
-| SONiC | **FdbOrch** | FDB (MAC→port); notifies observers on learn/move/age/delete; supplies the bridge/VLAN the L2 NHG lacks. | No change (primary path) |
+| SONiC | **NeighOrch / FdbOrch** | Existing L3MH neighbor and FDB orchestration; detailed synchronization is outside this protection design. | No change |
 | SONiC | **bpProtOrch (NEW)** | Consume `EVPN_ES_BACKUP_NHG_TABLE`, resolve the NHG, set the bridge-port protection attributes on the protected port. | **New orch** |
+| SONiC | **sonic-sairedis / syncd** | Serialize and deliver the SAI switch-level hardware-protection switchover notification to orchagent. | **New notification metadata, serializer, handler, and processor support** |
 | SONiC | **SAI / ASIC** | Bridge-port protection attach point; **port-state-driven** primary↔protection switchover. | Attributes from the pinned SAI model — see [§9](#9-sai-api) |
 
 ### How FRR builds the backup tunnel list
@@ -364,14 +360,14 @@ sequenceDiagram
 
     Note over FPM,APP: Member + Group build the backup NHG
     FPM->>SY: L2_NEXTHOP member(s) (per VTEP: vtep,type,rmac)
-    SY->>APP: SET L2_NEXTHOP_GROUP_TABLE:{nh_id} (member rows)
-    FPM->>SY: L2_NEXTHOP_GROUP (nhg_id + member ids)
-    SY->>APP: SET L2_NEXTHOP_GROUP_TABLE:{nhg_id} (group row)
+    SY->>APP: SET L2_NEXTHOP_GROUP_TABLE:{member_id} (member rows)
+    FPM->>SY: L2_NEXTHOP_GROUP (FRR nhg_id + ESI + members)
+    SY->>APP: SET L2_NEXTHOP_GROUP_TABLE:{nhg_id} (group row, FPM ID)
     APP-->>L2: notify member + group rows
     L2->>SAI: existing P2P tunnel per VTEP + tunnel RMAC + BRIDGE_PORT nexthops
     L2->>SAI: BRIDGE_PORT-type NHG → oid(nhg_id)
     Note over FPM,APP: Binding attaches the group to the port
-    FPM->>SY: EVPN_ES_BACKUP_NHG (ifname + nhg_id)
+    FPM->>SY: EVPN_ES_BACKUP_NHG (ifname + FRR nhg_id)
     SY->>APP: SET EVPN_ES_BACKUP_NHG_TABLE:{ifname} = {nexthop_group:nhg_id}
     APP-->>BP: notify EVPN_ES_BACKUP_NHG_TABLE:{ifname}
     BP->>L2: getNhgOid(nhg_id) (+ ref-hold)
@@ -390,10 +386,8 @@ flowchart TB
     FPMSY -->|"L2_NEXTHOP_GROUP_TABLE<br/>(vtep,type,rmac / member ids)"| L2[L2NhgOrch]
     FPMSY -->|"EVPN_ES_BACKUP_NHG_TABLE<br/>(ifname → nhg_id)"| BP["bpProtOrch (NEW)"]
 
-    KERN["Kernel netlink"] --> FDBSY["fdbsyncd"]
-    KERN --> NEIGHSY["neighsyncd"]
-    FDBSY -->|"FDB_TABLE"| FDB[FdbOrch]
-    NEIGHSY -->|"NEIGH_TABLE"| NEIGH[NeighOrch]
+    KERN["Kernel netlink<br/>(existing NHA_FDB groups)"] --> FDBSY["fdbsyncd"]
+    FDBSY -->|"L2_NEXTHOP_GROUP_TABLE"| L2
 
     L2 -->|"resolve/create P2P tunnel(vtep, rmac)"| VX[VxlanTunnelOrch]
     VX -->|"SAI TUNNEL + VXLAN_TUNNEL_MAC = RMAC"| SAI[(SAI / ASIC)]
@@ -403,8 +397,6 @@ flowchart TB
     BP -->|"set bridge-port protection attrs (group, mode, policy)"| SAI
     PO[PortsOrch] -->|"bridge-port oid + oper-state notifications"| BP
     L2 -->|"getTunnelPort / bridge port"| PO
-    FDB -->|"FDB (primary)"| SAI
-    NEIGH -->|"neighbor (primary)"| SAI
 ```
 
 **Flow (the coupling that matters):**
@@ -414,10 +406,10 @@ flowchart TB
 3. **bpProtOrch → L2NhgOrch — the one new cross-orch link** (see [Cross-orch contract](#85-cross-orch-contract-l2nhgorch--bpprotorch)). bpProtOrch joins by `nhg_id`, calls `getNhgOid(nhg_id)` + `refNhg()` (pin — no route references it), then sets the bridge-port protection attributes on the protected port with that oid as the protection path.
    - **Ordering:** binding may arrive before the NHG → bpProtOrch **parks & retries** via the observer mechanism.
    - **Teardown:** the protection attribute is cleared first, then `unrefNhg()` — ref gates the SAI NHG delete.
-   - **Membership churn:** L2NhgOrch mutates members in place; `nhg_id`/oid stable → bpProtOrch does nothing.
+   - **Membership churn:** L2NhgOrch mutates members in place; `nhg_id`/oid stay stable while zebra runs → bpProtOrch does nothing.
 4. **FdbOrch / NeighOrch.** Program MAC / neighbor for the **primary** path exactly as today; they don't know about protection — it lives on the bridge port beneath them.
 
-**Software-mode transition.** On a qualified protected-port failure, PortsOrch notifies `bpProtOrch`, which sets `PROTECTION_ADMIN_MODE=PROTECTION`. On recovery, `bpProtOrch` either remains on protection when `revertive=false`, or runs the wait-to-restore **link-stability window** (started on port-up, cancelled on any down, restarted fresh) and only then sets `PRIMARY` and verifies the committed state. In software mode `bpProtOrch` programs only `PRIMARY`/`PROTECTION`, never SAI `AUTO`, and tracks port state regardless of `admin_mode` (full behavior in [§8.4.1 Software protection](#841-hardware-protection-reconciliation-state)). Hardware mode does not execute this transition; it consumes the ASIC notification and reconciles against `PROTECTION_STATE`.
+**Port-oper-down transition (both modes).** On protected PortChannel oper-down, `PortsOrch` notifies `bpProtOrch`, which sets `PROTECTION_ADMIN_MODE=PROTECTION`, including when hardware mode is configured. The override covers LACP removal of the last collecting/distributing member while carrier remains up. It takes precedence over configured `admin_mode=PRIMARY` while the local path is down. On oper-up, software mode applies the revertive/WTR policy before restoring the configured intent; hardware mode releases to `AUTO` only after oper-up is confirmed, allowing the ASIC's revertive/WTR policy to act. In software mode `bpProtOrch` programs only `PRIMARY`/`PROTECTION`, never SAI `AUTO`. This transition is independent of hardware convergence and is detailed in [§8.4.1](#841-hardware-protection-reconciliation-state).
 
 ---
 
@@ -435,7 +427,7 @@ This section **follows the data as it travels**, so it can be read straight thro
 
 To keep the rest of this section concrete, we thread a single scenario through it:
 
-> This leaf protects bridge port **`Bond0`** (an all-active ES). Two peer leaves attach to the same ES, at VTEPs **`10.0.0.2`** and **`10.0.0.3`**, with router-MACs **`00:00:5e:00:53:02`** and **`00:00:5e:00:53:03`**. The protected routed traffic is in **L3VNI 5000**, selected from its VRF through the tunnel map. FRR allocates member ids **`0x40000007`** / **`0x40000008`** and group id **`0x80000001`**.
+> This leaf protects bridge port **`Bond0`** (an all-active ES). Two peer leaves attach to the same ES, at VTEPs **`10.0.0.2`** and **`10.0.0.3`**, with router-MACs **`00:00:5e:00:53:02`** and **`00:00:5e:00:53:03`**. The protected routed traffic is in **L3VNI 5000**, selected from its VRF through the tunnel map. FRR publishes member ids **`0x40000007`** / **`0x40000008`** and group id **`0x80000001`** (FPM IDs, [§8.2](#82-fpmsyncd-changes)).
 
 With those values, the three FPM objects become the three APPL_DB rows below, and `bpProtOrch` ends up setting `Bond0`'s bridge-port protection path to `nhg 0x80000001`:
 
@@ -489,14 +481,14 @@ RTM_FPM_DEL_EVPN_ES_BACKUP_NHG
 
 #### 8.1.3 `L2_NEXTHOP_GROUP` messages — Member & Group (NEW over FPM)
 
-Two **new** `RTM_FPM_*` messages feed the `L2_NEXTHOP_GROUP_TABLE` (the two row kinds of the [Reconciliation model](#87-reconciliation-model)). Like `EVPN_ES_BACKUP_NHG` (the binding above) they are **raw-processed C-struct payloads** (no rtattr TLVs). The **Member** message is **fixed-size**; the **Group** message is a **fixed header followed by a variable-length array** of full Member entries. The Member message carries one encap; the Group message repeats each Member in full so every Group is self-contained (needed for future reconciliation).
+Two **new** `RTM_FPM_*` messages feed the `L2_NEXTHOP_GROUP_TABLE` (the two row kinds of the [Reconciliation model](#87-reconciliation-model)). Like `EVPN_ES_BACKUP_NHG` (the binding above) they are **raw-processed C-struct payloads** (no rtattr TLVs). The **Member** message is **fixed-size**; the **Group** message is a **fixed header followed by a variable-length array** of full Member entries. The Member message carries one encap; the Group message carries its ESI and repeats each Member in full, so every Group is self-contained and identifies its owning ES even though its FPM ID is session-scoped.
 
 ```c
 /* Shared FPM API header used by FRR and fpmsyncd. */
 
 /* Message 1 — per-VTEP tunnel member (carries the encap) */
 struct __attribute__((packed)) l2_nhg_member_msg {
-    uint32_t l2nm_nh_id;             /* member id (nh_id) — table key             */
+    uint32_t l2nm_nh_id;             /* member id (nh_id)                         */
     uint8_t  l2nm_type;              /* 0 = L2 (bridged backup), 1 = L3 (routed)  */
     uint8_t  l2nm_family;            /* AF_INET | AF_INET6 (remote_vtep family)   */
   union {
@@ -511,7 +503,8 @@ RTM_FPM_DEL_L2_NEXTHOP
 
 /* Message 2 — per-ES group (full Member entries) */
 struct __attribute__((packed)) l2_nhg_group_msg {
-  uint32_t l2ng_nhg_id;            /* group id (nhg_id) — table key             */
+  uint32_t l2ng_nhg_id;            /* group id (nhg_id)                         */
+  uint8_t  l2ng_esi[10];           /* owning ES; metadata, not a persistent ID */
   uint32_t l2ng_count;             /* number of members that follow             */
   struct l2_nhg_member_msg l2ng_members[]; /* sorted by l2nm_nh_id           */
 };
@@ -521,6 +514,7 @@ struct __attribute__((packed)) l2_nhg_group_msg {
 ```text
 RTM_FPM_ADD_L2_NEXTHOP_GROUP
 RTM_FPM_DEL_L2_NEXTHOP_GROUP
+RTM_FPM_EVPN_MH_REPLAY_DONE      ; no payload; sent once after a full replay
 ```
 
 The Member API field order is `nh_id, type, family, remote_vtep,
@@ -529,8 +523,9 @@ Group Member ID list is sorted in ascending unsigned `nh_id` order before every
 Group Add or update. A membership set with unchanged IDs must not generate
 NHG churn merely because its input order changed.
 
-- **Message 1 (Member)** → fpmsyncd writes `L2_NEXTHOP_GROUP_TABLE:<nh_id>` = `{ remote_vtep, type` (+ `router_mac` when `type=l3`) `}`. `router_mac` is programmed onto the peer's P2P tunnel. The Member carries no VNI: it is VRF-independent, and SONiC selects the encapsulation L3VNI from the packet's VRF through tunnel maps, never from the `BRIDGE_PORT` next hop. `type` is on the wire mainly for **[R6](#61-functional-requirements)** (future L2).
-- **Message 2 (Group)** → fpmsyncd writes `L2_NEXTHOP_GROUP_TABLE:<nhg_id>` = `{ nexthop_group: "<nh_id>,<nh_id>,…" }` from the `l2nm_nh_id` of each entry in `l2ng_members[]`. The full Member entries are kept for future reconciliation; in this release fpmsyncd only checks each entry is well-formed. **No** `router_mac` is written on the group row because it is per member.
+- **Message 1 (Member)** → fpmsyncd writes `L2_NEXTHOP_GROUP_TABLE:<member id>` = `{ remote_vtep, type` (+ `router_mac` when `type=l3`) `}`. `router_mac` is programmed onto the peer's P2P tunnel. The Member carries no VNI: it is VRF-independent, and SONiC selects the encapsulation L3VNI from the packet's VRF through tunnel maps, never from the `BRIDGE_PORT` next hop. `type` is on the wire mainly for **[R6](#61-functional-requirements)** (future L2).
+- **Message 2 (Group)** → fpmsyncd writes `L2_NEXTHOP_GROUP_TABLE:<group id>` = `{ nexthop_group: "<member id>,<member id>,…" }`, resolving each entry of `l2ng_members[]` to its member id by `(type, VTEP)`. **No** `router_mac` is written on the group row because it is per member.
+- **`REPLAY_DONE`** ends a replay. fpmsyncd then removes the protection rows the replay did not refresh ([§8.2](#82-fpmsyncd-changes)).
 - Both are **new FPM API messages** emitted by the FRR dplane provider and
     consumed by fpmsyncd handlers (`RouteSync::onL2NhgMemberMsg` /
     `RouteSync::onL2NhgGroupMsg`).
@@ -539,16 +534,17 @@ NHG churn merely because its input order changed.
   - **Hard reject (drop + log, no DB mutation):** an unknown/unsupported message type, an unknown or missing address family, a `type=l3` member missing its mandatory RMAC, or any field inconsistent with `type` (e.g., `l3` without an RMAC). The offending frame is dropped and logged (`WARN`, or `ERROR` for framing errors), and **any existing row for that `nh_id` is left untouched** — fpmsyncd neither partially overwrites it nor deletes it. Because zebra is the source of truth, it re-emits a corrected Member or an explicit delete; fpmsyncd never fabricates a correction.
   - **Known-but-deferred (accept + inert):** a well-formed `type=l2` member is valid on the wire but L2 backup is deferred ([R6](#61-functional-requirements)); the row is written and `L2NhgOrch` simply builds no SAI object for it yet, logging once. Fields that are meaningless for the declared `type` (e.g., RMAC on `type=l2`) are ignored rather than treated as errors.
   - **Deletes always honored.** A delete removes the row idempotently (unknown id → no-op), so a withdrawal — or a follow-up delete after a rejected update — always clears state and can never leave a stale row.
-- **Idempotent by id:** re-send of the same `nh_id`/`nhg_id` overwrites the row; delete removes it. Group + member are reconciled by member id (see [Reconciliation model](#87-reconciliation-model)).
+- **Idempotent:** re-send of the same object overwrites its row; delete removes it. Group + member are joined by member id (see [Reconciliation model](#87-reconciliation-model)).
 
 ### 8.2 fpmsyncd changes
 
-fpmsyncd is the **translator**: it turns the raw FPM messages above into APPL_DB rows and does nothing clever beyond that. Three thin handlers are added/used:
+fpmsyncd is the **translator**: it turns the raw FPM messages above into APPL_DB rows. Three thin handlers are added/used:
 
 - New handlers `RouteSync::onL2NhgMemberMsg()` / `onL2NhgGroupMsg()` write the two `L2_NEXTHOP_GROUP_TABLE` row kinds.
-- `RouteSync::onEvpnEsBackupNhgMsg()` (binding) writes `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` with `nexthop_group = <id>`. (The struct exists today; the FRR emitter is new.)
-- All are **idempotent by id**: re-send overwrites the row; delete removes it.
-- **Flush on new FPM session.** When an FPM session comes up, fpmsyncd deletes every FPM-produced protection row (`EVPN_ES_BACKUP_NHG_TABLE`, then group rows, then member rows) before applying any object from the session. zebra's full replay then rebuilds them. See [§11](#11-warmboot-and-fastboot-design-impact).
+- `RouteSync::onEvpnEsBackupNhgMsg()` (binding) writes `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` with `nexthop_group = <group id>`. (The struct exists today; the FRR emitter is new.) A Binding whose Group is not yet known is held and written when the Group arrives.
+- All are **idempotent**: re-send overwrites the row; delete removes it.
+- **FPM IDs and producer ownership.** Member and Group IDs from FRR are used as APPL_DB keys. Their protection-specific FPM type tags distinguish these rows from existing kernel `NHA_FDB` group rows. These IDs are valid only for the zebra lifetime and may be reused after restart; stable ID persistence is out of scope ([O4](#15-open--action-items)).
+- **Scoped cleanup on new FPM session.** Before replay, fpmsyncd finds its existing Binding rows and the FPM-tagged protection Member/Group keys, then issues individual keyed deletes in the order Binding, Group, Member. It never bulk-deletes the shared `L2_NEXTHOP_GROUP_TABLE` or deletes rows outside the protection tags. The same cleanup handles reconnect, fpmsyncd restart, zebra restart, and SONiC reboot. The replay then rebuilds protection using the IDs in the current FPM session; see [§11](#11-warmboot-and-fastboot-design-impact).
 - **Producer ownership.** The matching FPM **encoders** run in the SONiC-owned `dplane_fpm_sonic` dataplane plugin (maintained in `sonic-buildimage`, loaded by zebra), not in upstream FRR. Both ends of the wire — the `dplane_fpm_sonic` encoder and these fpmsyncd decoders — are SONiC code sharing one packed-struct contract; the zebra `DPLANE_OP_*` context that feeds the plugin is FRR-side (companion FRR HLD).
 
 ### 8.3 L2NhgOrch / VxlanTunnelOrch changes (backup group)
@@ -557,7 +553,7 @@ fpmsyncd is the **translator**: it turns the raw FPM messages above into APPL_DB
 
 What changes is where the routed-encap information goes.
 
-- **RMAC is programmed on the P2P tunnel.** `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` supplies the inner DMAC for routed packets sent through that peer's tunnel. An RMAC update is a `set` on the existing tunnel, not a nexthop rebuild. A `type=l3` member without an RMAC is deferred, retried when the RMAC appears or changes, and withdrawn when the RMAC is removed.
+- **RMAC is programmed on the P2P tunnel.** `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` supplies the inner DMAC for routed packets sent through that peer's tunnel. FRR sends one Member per peer VTEP with the latest RMAC; an update to that Member is a `set` on the existing tunnel, not a new Member or nexthop rebuild. An `l3` Member without an RMAC is invalid and is rejected by fpmsyncd (§8.1.3); SONiC does not defer it while waiting for RMAC resolution.
 - **L3VNI is selected by tunnel maps.** The Member carries no VNI. On encap, `VIRTUAL_ROUTER_ID_TO_VNI` selects the L3VNI from the packet's VRF; on decap, `VNI_TO_VIRTUAL_ROUTER_ID` maps the received L3VNI back to the VRF ([row 3](#sai-row-3)). The per-peer P2P tunnel uses the common VLAN and VRF mapper sets, so it can serve multiple VRFs when their mappings exist and they share the same peer RMAC.
 - **Members** are built by the existing path: `IP` = peer VTEP, `TUNNEL_ID` = that peer's P2P tunnel. Both are `MANDATORY_ON_CREATE` for `SAI_NEXT_HOP_TYPE_BRIDGE_PORT`.
 - **Group** stays `SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT` with one member per peer, so traffic load-balances across the peers after switchover.
@@ -616,7 +612,7 @@ The backup `BRIDGE_PORT` next hop uses the existing per-peer P2P tunnel returned
 
 The sharing rules are:
 
-- **Across VRFs:** tunnel maps select the L3VNI from the packet's VRF on encap and identify the VRF from the L3VNI on decap. One P2P tunnel can therefore serve several VRFs when the required maps exist and all use the same peer RMAC. Different RMACs for the same peer VTEP cannot share the tunnel; see [O1](#15-open--action-items).
+- **Across VRFs:** tunnel maps select the L3VNI from the packet's VRF on encap and identify the VRF from the L3VNI on decap. One P2P tunnel and one Member per peer VTEP serve the VRFs that share that peer. FRR updates the Member with the latest RMAC and logs a mismatch across VRFs; SONiC applies that RMAC to the shared tunnel and does not create per-VRF Members or tunnel identities. Deployments must resolve RMAC mismatches so the selected RMAC is valid for routed traffic in every sharing VRF; see [O1](#15-open--action-items).
 - **Across protected VRFs on one port:** protection is attached to the bridge port, not to a VRF. Its backup NHG must therefore contain only peers valid for every protected VRF on that port. Different peer sets per VRF require a finer-grained SAI attachment point and are outside this release.
 - **With existing L2 users:** `TUNNEL_USER_IMR`, `TUNNEL_USER_MAC`, and existing L2NhgOrch aliasing members continue to share and reference-count the tunnel. The RMAC applies only to routed encapsulation; bridged packets retain their original inner Ethernet header.
 - **Protection may be the only tunnel user (no IMET).** The per-peer P2P tunnel is reference-counted across `tunnel_user_t` users (IMR/MAC/IP). In routed-only L3MH with no L2VNI there is **no IMET**, so `L2NhgOrch` takes its **own tunnel-user reference** when it builds the backup member — creating or pinning the tunnel so the tunnel and its `VXLAN_TUNNEL_MAC` exist independent of any IMET/MAC/IP user — and releases it when the last backup member for that peer is removed. This is what keeps [R7](#61-functional-requirements) (L2VNI-independence) satisfiable.
@@ -676,14 +672,13 @@ In the running example, this step produces **`nhg 0x80000001`** — a `BRIDGE_PO
 
 #### 8.4.1 Hardware protection reconciliation state
 
-This is not a forwarding or failover state machine: the ASIC selects `PRIMARY` or `PROTECTION`. It is a `bpProtOrch` health tracker used only to reconcile the ASIC's reported path with the path SONiC expects from policy and link state. `bpProtOrch` maintains one tracker per protected bridge port. The actual path is the read-only SAI `..._PROTECTION_STATE`; the expected path is calculated from the policy, the qualified `PortsOrch` link observation, and the last committed path:
+This section describes hardware-mode state tracking and convergence. In both protection modes, `bpProtOrch` also monitors the protected PortChannel's `PortsOrch` oper-state. An observed oper-down is a software-detected failure and always triggers `ADMIN_MODE=PROTECTION`, even if the configured operator intent is `PRIMARY`, the carrier on the last LACP member is still up, or `convergence_mode=disabled`. The configured `admin_mode` remains operator intent; the SAI admin-mode write is a temporary oper-down override. `bpProtOrch` tracks that override separately from the last committed SAI path.
 
-- An explicit `ADMIN_MODE=PRIMARY` or `PROTECTION` is the expected path until the operator returns the mode to `AUTO`.
-- A port-down observation expects `PROTECTION`.
-- On port recovery, `revertive=true` requests `PRIMARY` after `wait_to_restore_time_ms`. With `revertive=false`, a port already committed to `PROTECTION` remains there; a port that has not switched over remains `PRIMARY`.
-- **A hardware-committed `PROTECTION` is authoritative.** When the ASIC reports `PROTECTION` (switchover notification or read-back), `bpProtOrch` treats it as a valid failure indication and **adopts it as the expected path** — it never tries to correct it back to `PRIMARY`. The ASIC can switch over **before** `PortsOrch` observes link-down, so a software view that still says "port up" is **stale, not authoritative**, and must not drive a revert.
+- On oper-down, the expected path is `PROTECTION`; retain the SAI `ADMIN_MODE=PROTECTION` override for the whole time the PortChannel remains down. Do not release it merely because the ASIC confirms `PROTECTION`.
+- On confirmed oper-up, resolve the override according to configured intent. `admin_mode=PROTECTION` remains pinned to protection. `admin_mode=PRIMARY` returns to primary after the PortChannel is stably up for `wait_to_restore_time_ms`. With `admin_mode=AUTO`, hardware mode releases the override to `AUTO` only after oper-up, allowing SAI's `revertive` and wait-to-restore behavior to take effect; software mode returns to `PRIMARY` after the configured WTR only when `revertive=true`, otherwise it remains on protection.
+- **A hardware-committed `PROTECTION` is authoritative for ASIC-detected failures.** When the ASIC reports `PROTECTION` (switchover notification or read-back) before a PortChannel oper-down is observed, `bpProtOrch` adopts it as the expected path; a stale software view that still says "port up" must not drive a revert. If `PortsOrch` later reports oper-down, the software override is held until the recovery rules above permit its release.
 
-The tracker records whether a recovery transition is pending and the last committed path, so a PortsOrch up event alone never overrides valid non-revertive operation. Reconciliation is therefore **fail-safe and asymmetric**: it may drive toward `PROTECTION` immediately, but it reverts to `PRIMARY` **only** on a positively confirmed, debounced `PortsOrch` link-up under the revertive/WTR policy, or on an explicit operator `ADMIN_MODE=PRIMARY` — never because software has simply not yet observed the down.
+The tracker records the cause and duration of an oper-down override, whether a recovery transition is pending, and the last committed path. Reconciliation remains **fail-safe and asymmetric**: it may drive toward `PROTECTION` immediately, but it releases an oper-down override only after a positively confirmed PortChannel oper-up and the configured recovery policy. A configured `PRIMARY` pin cannot force traffic onto a PortChannel that SONiC reports down.
 
 ##### Hardware protection, with `convergence_mode=enabled`
 
@@ -697,11 +692,11 @@ Each port has three reconciliation states:
 
 1. **Refresh the observed state.** Every ASIC notification updates the cached `PROTECTION_STATE`, the last committed path, and `last_cache_update_ts`. At a reconciliation deadline or `t_resync_period_ms` tick, `bpProtOrch` uses that cache only while it is no older than `t_cache_fresh_threshold_ms`; otherwise it reads `..._PROTECTION_STATE` with `sai_get`, refreshes the cache, and records whether the result came from the cache or SAI.
 2. **Compare observed and expected paths.** If the observed state matches the expected path, `bpProtOrch` records `last_arbitration_outcome=matched` and returns to `STEADY`.
-3. **Request correction when they differ — asymmetrically.** Correcting **toward `PROTECTION`** is fail-safe and is applied immediately. Correcting **toward `PRIMARY`** is applied **only** when the expected `PRIMARY` is backed by a confirmed, debounced `PortsOrch` link-up (and, in `AUTO`, the revertive/WTR policy) or by an explicit operator override. If the ASIC reports `PROTECTION` while software expects `PRIMARY` **only because it has not yet seen link-down**, `bpProtOrch` **adopts `PROTECTION`** (updates the expected path) instead of forcing `PRIMARY`. When a corrective write is warranted it temporarily sets `ADMIN_MODE=PRIMARY` or `PROTECTION` to request the expected path, records `last_arbitration_outcome=corrective_override`, and remains `CONVERGING` while it waits for confirmation.
-4. **Verify and release the temporary override.** Once an ASIC notification or read-back confirms the requested state, `bpProtOrch` restores `ADMIN_MODE=AUTO` and reads the protection state again. If it remains aligned with the expected path, the port returns to `STEADY`; otherwise a new `CONVERGING` cycle begins.
+3. **Request correction when they differ — asymmetrically.** Correcting **toward `PROTECTION`** is fail-safe and is applied immediately. Correcting **toward `PRIMARY`** is applied only when the expected `PRIMARY` is backed by a confirmed PortChannel oper-up and the configured recovery policy. If the ASIC reports `PROTECTION` while software expects `PRIMARY` only because it has not yet seen link-down, `bpProtOrch` adopts `PROTECTION` instead of forcing `PRIMARY`. When a corrective write is warranted it temporarily sets `ADMIN_MODE=PRIMARY` or `PROTECTION`, records `last_arbitration_outcome=corrective_override`, and remains `CONVERGING` while it waits for confirmation.
+4. **Verify and release the temporary override.** For ASIC-detected failures, once a corrective state is confirmed, `bpProtOrch` releases any corrective admin override and reads the protection state again. For a `PortsOrch` oper-down failure, it keeps `ADMIN_MODE=PROTECTION` even after confirmation and releases or changes it only after oper-up and the recovery rules above. If the state remains aligned with the expected path, the port returns to `STEADY`; otherwise a new `CONVERGING` cycle begins.
 5. **Record failures.** A failed SAI read or corrective write records `last_arbitration_outcome=failed` and enters `INCONSISTENT`. A later matching notification or successful read-back clears `INCONSISTENT` and returns the port to `STEADY`.
 
-An explicit operator-selected `ADMIN_MODE=PRIMARY` or `PROTECTION` is never cleared automatically.
+The configured operator `admin_mode` intent is never changed by a temporary SAI override. An oper-down override takes precedence over `PRIMARY` while the PortChannel is down; on recovery `bpProtOrch` restores the configured intent (`PRIMARY`, `PROTECTION`, or `AUTO`) under the recovery policy above.
 
 ```mermaid
 stateDiagram-v2
@@ -715,25 +710,25 @@ stateDiagram-v2
 
 ##### Hardware protection, with `convergence_mode=disabled`
 
-No reconciliation deadline is armed. ASIC notifications update `protection_state` directly in STATE_DB; `bpProtOrch` does not compare them with the PortsOrch observation. It still records SAI programming failures as `INCONSISTENT` and honors explicit administrative overrides.
+No general hardware-reconciliation deadline is armed. ASIC notifications update `protection_state` directly in STATE_DB; `bpProtOrch` does not reconcile ASIC-detected switchover against `PortsOrch`. The separate oper-down override remains active: `PortsOrch` down sets SAI admin mode to `PROTECTION`, and confirmed oper-up restores the configured intent according to the recovery policy. `bpProtOrch` also records SAI programming failures as `INCONSISTENT`.
 
 ##### Software protection
 
 Software protection does not use the hardware reconciliation above. `bpProtOrch` observes `PortsOrch` and drives the SAI admin mode directly, programming **only `PRIMARY` or `PROTECTION`, never SAI `AUTO`** (SAI `AUTO` means the ASIC decides, which applies only to hardware mode). It **tracks each protected port's oper-state at all times, regardless of `admin_mode`**, so a later configuration change acts on the real current state.
 
-Behavior is driven by the operator `admin_mode` (intent):
+Behavior follows operator `admin_mode` intent, with a PortChannel oper-down override that takes precedence over `PRIMARY`:
 
 | `admin_mode` | On apply | Port down | Port up |
 |---|---|---|---|
-| `AUTO` | evaluate current state (below) | write `PROTECTION` | `revertive=false` keep `PROTECTION`; `revertive=true` run the WTR window, then write `PRIMARY` |
-| `PRIMARY` (pin local) | write `PRIMARY` | ignore (state still tracked) | ignore |
-| `PROTECTION` (pin backup) | write `PROTECTION` | ignore | ignore |
+| `AUTO` | evaluate current state (below) | force `PROTECTION` | `revertive=false` keep `PROTECTION`; `revertive=true` run the WTR window, then write `PRIMARY` |
+| `PRIMARY` (pin local) | write `PRIMARY` unless oper-down | force `PROTECTION` while down | after the WTR stability window, restore `PRIMARY` |
+| `PROTECTION` (pin backup) | write `PROTECTION` | keep `PROTECTION` | keep `PROTECTION` |
 
-**Wait-to-restore is a link-stability window.** In `AUTO` with `revertive=true`, the `wait_to_restore_time_ms` timer is started **on port-up** and the port must stay up the whole period before reverting. A port-down **cancels** the timer (stay `PROTECTION`); the next port-up **restarts it fresh**. Only a clean expiry writes `PRIMARY`. This damps a flapping link so the port reverts only once it has been stable for the full window.
+**Wait-to-restore is a link-stability window.** When recovery policy calls for returning to `PRIMARY`, `wait_to_restore_time_ms` starts on confirmed PortChannel oper-up and the interface must stay up for the whole period. Any oper-down cancels the timer and retains `PROTECTION`; the next oper-up restarts it fresh. This applies to `AUTO` with `revertive=true` and to an explicit `PRIMARY` intent recovering from an oper-down override. `AUTO` with `revertive=false` stays on protection; explicit `admin_mode=PROTECTION` remains pinned there.
 
 **Runtime `admin_mode` changes** re-evaluate against the tracked port state:
 
-- → `PRIMARY`: write `PRIMARY`. This is how an operator manually returns a non-revertive port to the local port (with `AUTO` + `revertive=false` it never auto-reverts).
+- → `PRIMARY`: write `PRIMARY` only when the PortChannel is up; if it is down, retain the temporary `PROTECTION` override and restore `PRIMARY` after the WTR stability window.
 - → `PROTECTION`: write `PROTECTION`.
 - → `AUTO`: resume link-driven behavior from the **current** state — do not blindly force `PRIMARY`: port down → `PROTECTION`; port up on `PROTECTION` → apply the revertive procedure (`revertive=false` keep `PROTECTION`; `revertive=true` run the WTR window then `PRIMARY`); port up on `PRIMARY` → stay `PRIMARY`.
 
@@ -752,6 +747,7 @@ private:
         sai_object_id_t bridge_port_oid;/* the protected bridge port       */
         sai_object_id_t prot_nhg_oid;   /* protection path (L2NhgOrch NHG) */
         bool            nhg_ref_held;   /* ref-hold on the L2 NHG          */
+        bool            oper_down_override; /* hold SAI PROTECTION until PortChannel recovery */
     };
     std::map<std::string /*ifname*/, BpProtEntry> m_entries;
 
@@ -759,6 +755,7 @@ private:
     bool resolveNhg(uint32_t nhg_id, sai_object_id_t &oid); /* via L2NhgOrch::getNhgOid; false on miss */
     bool attachProtection(BpProtEntry &e);       /* set bridge-port protection attrs */
     bool detachProtection(BpProtEntry &e);       /* clear attr, then unref           */
+    void onPortOperState(const std::string &ifname, bool oper_up); /* software failover/recovery in both modes */
     void onHwSwitchover(const sai_bridge_port_hw_protection_switchover_notification_data_t &ev);
 };
 ```
@@ -784,11 +781,12 @@ BRIDGE_PORT_PROTECTION|{{ifname}}
     protection_mode          = STRING          ; HARDWARE | SOFTWARE; default: HARDWARE when supported, otherwise SOFTWARE
     convergence_mode         = STRING          ; enabled | disabled; default: enabled
     admin_mode               = STRING          ; AUTO | PRIMARY | PROTECTION; default: AUTO
-    revertive                = BOOL            ; default: false (non-revertive)
+    revertive                = BOOL            ; default: true (revertive; aligns with SAI default)
     wait_to_restore_time_ms  = INTEGER         ; default: 0 (ms)
     t_reconcile_default_ms   = INTEGER         ; default: 600; reconciliation deadline for hardware protection
     t_resync_period_ms       = INTEGER         ; default: 30000; 0 disables periodic resync
     t_cache_fresh_threshold_ms = INTEGER       ; default: 1200; maximum age of cached hardware state before SAI read-back
+    t_binding_hold_ms        = INTEGER         ; default: 5000; maximum time to suppress an FDB flush while Binding/Group resolution or replay is pending
 ```
 **CONFIG_DB field semantics:**
 
@@ -796,11 +794,12 @@ BRIDGE_PORT_PROTECTION|{{ifname}}
 - At startup, `bpProtOrch` probes and publishes `SWITCH_CAPABILITY|switch.BRIDGE_PORT_HW_PROTECTION_CAPABLE`. When a `HARDWARE` request is unsupported, it logs the condition and applies `SOFTWARE`; the resulting `protection_type` in STATE_DB is authoritative.
 - `convergence_mode` controls whether `bpProtOrch` reconciles the software view with ASIC state for hardware protection. It is `enabled` by default and is not applicable to software protection.
 - `admin_mode` is the requested bridge-port override (operator intent): `AUTO` follows normal protection behavior, `PRIMARY` pins the local bridge port, and `PROTECTION` forces the backup NHG. In software mode `bpProtOrch` realizes `AUTO` by driving the SAI admin mode to `PRIMARY`/`PROTECTION` from link state and never programs SAI `AUTO`; in hardware mode `AUTO` maps to SAI `AUTO` (the ASIC decides).
-- `revertive` controls whether the bridge port returns to the local primary path after recovery. In hardware mode it is programmed into SAI; in software mode `bpProtOrch` enforces it locally. The default is `false` (non-revertive): after a switchover the port stays on the backup path until an operator action.
+- `revertive` controls whether the bridge port returns to the local primary path after recovery. In hardware mode it is programmed into SAI; in software mode `bpProtOrch` enforces it locally. The default is `true`, matching the SAI default and returning all-active traffic to the local path after recovery. An operator may explicitly configure `false` to remain on the backup path; an adapter that does not support `false` may reject that SAI set with `SAI_STATUS_NOT_SUPPORTED`, which `bpProtOrch` reports as a programming failure rather than silently changing the requested policy.
 - `wait_to_restore_time_ms` delays a revertive transition after recovery. `0` means no delay. The SAI attribute is hardware-mode-only; the same CONFIG_DB value drives a software timer in software mode.
 - `t_reconcile_default_ms` is the default time allowed for software and ASIC views to converge after a hardware-protection transition.
 - `t_resync_period_ms` is the periodic hardware-state read interval. `0` disables periodic resynchronization, but not the startup read.
 - `t_cache_fresh_threshold_ms` is the maximum age of cached ASIC state before reconciliation must read SAI again.
+- `t_binding_hold_ms` bounds how long a port may remain `PENDING` while FRR's Binding or its backup Group is expected but not yet resolved, including the session-start cleanup/replay window. It is not an FDB-aging timer. A reattached Binding cancels the timer; a withdrawal or empty Group leaves the port pending only until the deadline, after which a deferred FDB flush may run if the port is down.
 ```text
 ; STATE_DB — live bridge-port protection state for the same object
 BRIDGE_PORT_PROTECTION_STATE|{{ifname}}
@@ -830,31 +829,31 @@ One table is brand new to a consumer, one gains a few fields, and the rest are u
 ```text
 ; APPL_DB — NEW consumer needed; produced by fpmsyncd (RTM_FPM_*), consumed by bpProtOrch
 EVPN_ES_BACKUP_NHG_TABLE:{{ifname}}
-    nexthop_group = STRING     ; backup NHG id for the protected parent
+    nexthop_group = STRING     ; FPM ID of the backup Group for the protected parent
 
-; exists — producer fdbsyncd (kernel) [+ fpmsyncd NEW], consumer L2NhgOrch
-; two producers, disjoint zebra-allocated id subsets — see "Two producers, one table" below
+; shared table — existing kernel NHA_FDB groups plus FPM protection rows; consumer L2NhgOrch
+; protection rows use dedicated type tags — see "Protection IDs in the shared table" below
 ; TWO row kinds keyed by id — a given row is EITHER a member OR a group, never both:
 
-;  (1) MEMBER row — one per shared VTEP/tunnel identity (keyed by member nh_id)
-L2_NEXTHOP_GROUP_TABLE:{{nh_id}}
+;  (1) MEMBER row — one per shared VTEP/tunnel identity (keyed by FPM member id)
+L2_NEXTHOP_GROUP_TABLE:{{member_id}}
     remote_vtep = IP           ; the VTEP endpoint (the member)
     type        = l2 | l3      ; [NEW] routed (l3) vs bridged (l2, R6) backup
     router_mac  = MAC          ; [NEW] peer RMAC (type=l3) — set on the P2P tunnel
 
-;  (2) GROUP row — one per protected ES (keyed by nhg_id); references member ids ONLY
-L2_NEXTHOP_GROUP_TABLE:{{nhg_id}}
-    nexthop_group = STRING     ; "nh_id,nh_id,..." member ids (no router_mac here)
+;  (2) GROUP row — one per protected ES (keyed by FPM group id); references member ids ONLY
+L2_NEXTHOP_GROUP_TABLE:{{group_id}}
+    nexthop_group = STRING     ; "member_id,member_id,..." (no router_mac here)
 
-; unchanged — VXLAN_FDB_TABLE, NEIGH_TABLE (primary path)
+; unchanged by bridge-port protection — VXLAN_FDB_TABLE, NEIGH_TABLE
 ; NOT used — NEXTHOP_GROUP_TABLE (underlay L3 ECMP, no VXLAN encap)
 ```
 
-**Two producers, one table — no id collision, scoped deletes.** `L2_NEXTHOP_GROUP_TABLE` has two producers — `fdbsyncd` (the existing kernel FDB L2 NHGs) and `fpmsyncd` (the new EVPN-MH Member/Group rows) — yet they never contend for a key, because **zebra is the sole allocator** of every id. Zebra draws all of them from one 32-bit id space and tags the **top 4 bits** as an NHG type (`NHG_ID_TYPE_POS = 28`; `enum nhg_type` = `NHG_TYPE_L3` / `NHG_TYPE_L2_NH` / `NHG_TYPE_L2`, surfaced as `EVPN_NH_ID_TYPE_BIT` / `EVPN_NHG_ID_TYPE_BIT`). This yields three guarantees:
+**Protection IDs in the shared table — no collision, scoped deletes.** This design adds FPM-produced protection Member/Group rows to `L2_NEXTHOP_GROUP_TABLE`, alongside existing kernel `NHA_FDB` groups written by `fdbsyncd`. The protection IDs use the shared 32-bit layout with a 4-bit type tag at bit 28 (`NHG_ID_TYPE_POS = 28`; `enum nhg_type`). This design specifies ownership and cleanup only for its protection rows:
 
-- **Globally unique ids, disjoint per channel.** Neither producer allocates — both only relay ids minted by zebra — and zebra emits any given id on **exactly one** channel (kernel netlink → `fdbsyncd`, FPM → `fpmsyncd`). The type-tagged id space is partitioned so the two channels carry **disjoint id subsets**; the same key can never be created by both. This disjointness is the invariant SONiC relies on and is owned by zebra/the companion [FRR HLD](#4-references).
-- **Exact-key, self-scoped deletes.** Each producer issues a keyed `DEL` of a specific id it previously `SET`; neither enumerates the table nor bulk-deletes by producer. Because the subsets are disjoint, a delete from one producer can never remove a row written by the other.
-- **The consumer keys purely on the id.** `L2NhgOrch` treats the id as an opaque join key, preserved bit-for-bit (see [§8.7](#87-reconciliation-model)); the zebra type tag is exactly what keeps the two producers' rows from aliasing.
+- **Disjoint protection ids.** Protection Members and Groups carry the FPM-only tags ([O4](#15-open--action-items)), distinct from IDs used by the existing kernel `NHA_FDB` groups, so protection cleanup cannot select those kernel rows.
+- **Tagged discovery, exact-key deletion.** On a new FPM session, fpmsyncd scans the shared table keys and selects only IDs with FPM-only protection tags. It then issues a keyed `DEL` for each stale protection row; it never bulk-deletes the table or deletes rows outside those protection tags. The same ordering applies to the Binding table, which is owned by fpmsyncd.
+- **The consumer keys purely on the id.** `L2NhgOrch` treats the id as an opaque join key (see [§8.7](#87-reconciliation-model)); the protection type tags keep protection rows from aliasing the existing kernel `NHA_FDB` rows.
 
 The important distinction is:
 
@@ -871,15 +870,15 @@ This keeps the model aligned with the actual design: `L2NhgOrch` creates and own
 The three objects arrive on **independent streams** and are never assumed to be ordered — they simply **re-join by id**. That is the whole reconciliation story:
 
 ```text
-L2_NEXTHOP_GROUP_TABLE:<nh_id>     = { remote_vtep, type=l3, router_mac }      ┐ member rows
-L2_NEXTHOP_GROUP_TABLE:<nhg_id>    = { nexthop_group: "<nh_id>,<nh_id>,…" }        ┘→ L2NhgOrch → SAI tunnel NHG
-EVPN_ES_BACKUP_NHG_TABLE:<ifname>  = { nexthop_group: <nhg_id> }                    → bpProtOrch → SAI protection
-                              └──────── join by <nhg_id> ────────┘
-FDB_TABLE / NEIGH_TABLE            = unchanged (primary path)
+L2_NEXTHOP_GROUP_TABLE:<member_id> = { remote_vtep, type=l3, router_mac }      ┐ member rows
+L2_NEXTHOP_GROUP_TABLE:<group_id>  = { nexthop_group: "<member_id>,<member_id>,…" } ┘→ L2NhgOrch → SAI tunnel NHG
+EVPN_ES_BACKUP_NHG_TABLE:<ifname>  = { nexthop_group: <group_id> }                  → bpProtOrch → SAI protection
+                              └──────── join by <group_id> ────────┘
+FDB_TABLE / NEIGH_TABLE            = existing state; synchronization outside this design
 ```
 
-- **Group** reconciled by **NHG id**; **binding** reconciled by **ifname**.
-- Ids carry FRR type bits (`EVPN_NHG_ID_TYPE_BIT` / `EVPN_NH_ID_TYPE_BIT`) and **must be preserved bit-for-bit** between the FPM message and the APPL_DB key. SONiC uses `nhg_id` only as a join key and never allocates or renumbers it.
+- **Group** reconciled by **group id**; **binding** reconciled by **ifname**.
+- APPL_DB keys use the FPM IDs carried by FRR. These IDs are scoped to the zebra lifetime and can be reused after restart; fpmsyncd's session-start cleanup removes all FPM-tagged rows before replay so a reused ID cannot leave a Binding attached to an old Group.
 - **MAC/neighbor** untouched; they inherit protection via the port.
 
 In the running example, this is just: `EVPN_ES_BACKUP_NHG_TABLE:Bond0` and the group row `…:0x80000001` **meet on `0x80000001`**, whichever arrives first — so `bpProtOrch` can always end up with `Bond0`'s protection path set to `nhg 0x80000001` regardless of ordering.
@@ -951,28 +950,61 @@ Two details matter. First, the early return must suppress **both** the flush and
 
 How `FdbOrch` learns that a port is protected is an open item ([O3](#15-open--action-items)). The natural shape mirrors MLAG — a predicate on the orch that owns the state, `gBpProtOrch->isProtectedBridgePort(alias)` sitting alongside `gMlagOrch->isMlagInterface(alias)`.
 
-On the question of what drives it: the origin is **FRR**. The presence of `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` is what declares a port protected, and `bpProtOrch` already consumes that table, so `bpProtOrch` is the natural in-orchagent authority and no new configuration or plumbing is required to answer the question.
+The CONFIG_DB row is the single operator enable and policy source; FRR is the
+source of the usable backup path. A port is `PROTECTED` only when the FPM
+Binding resolves to a non-empty NHG and the protection attribute is attached.
+`bpProtOrch` consumes both inputs and is the in-orchagent authority for
+`FdbOrch`; it also owns the bounded pending timer that prevents a policy row
+alone from suppressing a flush indefinitely.
 
 Because those signals and the port-down event race, the predicate is **tri-state**, not a boolean:
 
 | Result | Meaning for `FdbOrch` | When `bpProtOrch` returns it |
 |---|---|---|
 | `PROTECTED` | suppress the flush | the binding resolves to a group with at least one member, and the protection attribute is attached on the bridge port |
-| `PENDING` | suppress the flush (conservative) | protection is intended or in-progress but not yet attached — see below |
-| `NONE` | flush normally | no protection intent and no binding |
+| `PENDING` | suppress the flush only until its deadline | the CONFIG_DB enable was just applied, a Binding/Group/bridge-port dependency is unresolved, or a Binding was removed during session cleanup or FRR withdrawal |
+| `NONE` | flush normally | protection is disabled or the pending deadline expired without an attached non-empty backup |
 
-`PENDING` is the concrete state the reviewer asks about. It is **any** of:
+`PENDING` is a bounded transition state, not evidence that a backup path is
+available. Its timer starts when the CONFIG_DB enable is applied without an
+FRR Binding, when a Binding arrives before its Group/bridge port is resolvable,
+or when a Binding is removed while the policy remains enabled. A successful
+attachment changes the state to `PROTECTED` and cancels the timer. The
+`t_binding_hold_ms` default is 5 seconds. This bounds both ordinary FRR
+withdrawals and the gap between session-start cleanup and replay.
 
-- **Policy-before-binding.** `CONFIG_DB BRIDGE_PORT_PROTECTION|<ifname>` exists (the operator has enabled protection) but the FRR `EVPN_ES_BACKUP_NHG_TABLE:<ifname>` binding has not arrived yet. This also covers the replay after a session-start flush ([§11](#11-warmboot-and-fastboot-design-impact)), so no end-of-replay signal is needed.
-- **Binding-before-NHG (parked).** The binding is present but the backup NHG is not yet resolved/attached, so `bpProtOrch` has parked it (the same park/retry as [§8.5](#85-cross-orch-contract-l2nhgorch--bpprotorch) step 2).
+The pending cases are:
 
-A port leaves `PENDING` for `PROTECTED` when the binding attaches, or for `NONE` only on a **confirmed** withdrawal — the CONFIG policy is gone and the binding is gone. That confirmed `PENDING→NONE` (or `PROTECTED→NONE`) transition is exactly what fires the deferred flush described above: if the port is still down at that point, `bpProtOrch` asks `FdbOrch` to run the flush then. So the conservative default — suppress while `PROTECTED` *or* `PENDING`, flush only on confirmed `NONE` — never loses the FDB under a live failover and never leaks stale MACs after a real withdrawal.
+- **Enable-before-binding.** The CONFIG_DB row has enabled protection and rendered the FRR command, but FRR has not yet produced `EVPN_ES_BACKUP_NHG_TABLE:<ifname>`. This is only pending for `t_binding_hold_ms`; a config row alone never suppresses a flush indefinitely.
+- **Binding-before-dependencies.** The Binding is present but its Group is not resolved or the bridge-port oid is not ready, so `bpProtOrch` has parked it for retry as described in [§8.5](#85-cross-orch-contract-l2nhgorch--bpprotorch) step 2. This wait is bounded by the same timer.
+- **Binding removed while enabled.** Session-start cleanup or an FRR withdrawal removes the Binding while CONFIG_DB policy remains. Keep `PENDING` only through the same bounded hold; if replay or a new eligible Binding does not restore protection by expiry, transition to `NONE`.
+
+FRR exports no Binding when protection is disabled, the ES is not eligible for
+L3MH protection, or the eligible peer set is empty; it withdraws an existing
+Binding and Group when the last eligible Member disappears (see the
+[FRR HLD](https://github.com/sonic-net/SONiC/pull/2576)). A Binding delete or
+empty Group starts or continues the bounded hold, not an indefinite pending
+state. Timer expiry transitions to `NONE`. Timer expiry changes the
+FDB flush classification but does not discard the Binding or cancel its
+observer-based resolution retry; a late-resolving non-empty Group can still be
+attached. If the port is down when `PENDING` becomes `NONE`, `bpProtOrch` asks
+`FdbOrch` to run the deferred flush; if it is up, a later port-down event
+follows the normal flush path. Thus only an attached non-empty backup
+suppresses a flush indefinitely.
 
 ---
 
 ## 9. SAI API
 
 **No new SAI object is required beyond the pinned model.** The VXLAN tunnels, VRF, SVI and underlay routes are standard EVPN/VXLAN programming. The pinned [SAI EVPN-MH model](#4-references) defines `SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT` and `SAI_NEXT_HOP_TYPE_BRIDGE_PORT` in §3.2.1, the protection attach point in §3.2.4, and the software/hardware control, recovery, notification, and tunnel-RMAC attributes in §3.2.6. What is new in SONiC is a consumer and orchestration path for that surface.
+
+The switch-level `SAI_SWITCH_ATTR_BRIDGE_PORT_HW_PROTECTION_SWITCHOVER_NOTIFY`
+callback also requires `sonic-sairedis` and syncd changes. Add a notification
+class and serializer under `meta/`, then decode and dispatch it through syncd's
+`NotificationHandler` and `NotificationProcessor` to `bpProtOrch`, following
+the existing BFD session-state notification pattern. This path delivers the
+ASIC's committed state and reason; `bpProtOrch` still treats the read-only
+`..._PROTECTION_STATE` attribute as authoritative.
 
 Protection is an attribute on the bridge port: the **primary path is the bridge port that carries the attribute**, so only the protection path is named (see [§7.2](#72-new-component--bpprotorch)).
 
@@ -990,10 +1022,10 @@ Objects programmed (dependency-ordered).
 | 8 | `SAI_OBJECT_TYPE_NEXT_HOP_GROUP` of type `SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT`, plus `SAI_OBJECT_TYPE_NEXT_HOP_GROUP_MEMBER` per peer, so traffic is load-balanced across the peers after switchover | L2NhgOrch | reused |
 | 9 | `SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_NEXT_HOP_GROUP_ID` on the protected bridge port (`SAI_BRIDGE_PORT_TYPE_PORT`, `@allownull`) — the protection path | **bpProtOrch** | **new consumer** |
 | 10 | `..._PROTECTION_MODE`, `..._PROTECTION_ADMIN_MODE`, read-only `..._PROTECTION_STATE`, `..._PROTECTION_REVERTIVE`, `..._PROTECTION_WAIT_TO_RESTORE_TIME` | **bpProtOrch** | **attributes from pinned SAI model** |
-| 11 | `SAI_SWITCH_ATTR_BRIDGE_PORT_HW_PROTECTION_SWITCHOVER_NOTIFY` and its notification handler | **bpProtOrch** | **attribute from pinned SAI model** |
+| 11 | `SAI_SWITCH_ATTR_BRIDGE_PORT_HW_PROTECTION_SWITCHOVER_NOTIFY`; `sonic-sairedis` notification metadata/serializer; syncd `NotificationHandler`/`NotificationProcessor`; orchagent callback | **sonic-sairedis / syncd / bpProtOrch** | **SAI attribute from pinned model; new notification plumbing** |
 | 12-16 | Bridge port, neighbor, FDB, host `/32` route, DF/non-DF | PortsOrch / NeighOrch / FdbOrch / RouteOrch / EvpnMhOrch | reused (primary path) |
 
-Instantiated with the running example's values, that table is the following object graph. The hex values (`0x8000…`, `0x4000…`) are **FRR/APPL_DB logical ids** — join keys carried in the Member/Group rows, never SAI handles; every box is the **SAI object** (an `OID`) that `L2NhgOrch` creates from the row bearing that id. Every edge is a SAI attribute, and the only edge `bpProtOrch` writes is the top one — and it references the **SAI NHG OID**, not the logical `nhg_id`:
+Instantiated with the running example's values, that table is the following object graph. The hex values (`0x8000…`, `0x4000…`) are **FPM/APPL_DB logical IDs** — join keys carried in the Member/Group rows, never SAI handles; every box is the **SAI object** (an `OID`) that `L2NhgOrch` creates from the row bearing that ID. Every edge is a SAI attribute, and the only edge `bpProtOrch` writes is the top one — and it references the **SAI NHG OID**, not the logical `nhg_id`:
 
 ```mermaid
 graph TB
@@ -1031,7 +1063,7 @@ graph TB
     class BPORT consumer;
 ```
 
-**Logical id vs SAI OID.** The `nhg_id`/`nh_id` hex values live only in the FPM messages and APPL_DB rows; they are join keys, never SAI handles. `L2NhgOrch` creates the SAI next-hop-group and member objects and owns the mapping `nhg_id → SAI NHG OID` (and `nh_id → SAI next-hop OID`). `bpProtOrch` obtains the group's OID via `getNhgOid(nhg_id)` ([§8.3](#83-l2nhgorch--vxlantunnelorch-changes-backup-group)) and writes **that OID** into `SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_NEXT_HOP_GROUP_ID` — the bridge-port attribute references the SAI NHG OID, not the logical `nhg_id`.
+**Logical id vs SAI OID.** The `nhg_id`/`nh_id` hex values live only in the APPL_DB rows; they are join keys, never SAI handles. `L2NhgOrch` creates the SAI next-hop-group and member objects and owns the mapping `nhg_id → SAI NHG OID` (and `nh_id → SAI next-hop OID`). `bpProtOrch` obtains the group's OID via `getNhgOid(nhg_id)` ([§8.3](#83-l2nhgorch--vxlantunnelorch-changes-backup-group)) and writes **that OID** into `SAI_BRIDGE_PORT_ATTR_BRIDGE_PORT_PROTECTION_NEXT_HOP_GROUP_ID` — the bridge-port attribute references the SAI NHG OID, not the logical `nhg_id`.
 
 The tunnel-map entries are shared because they encode the VRF/L3VNI mapping, not the peer RMAC. The RMAC remains on each peer P2P tunnel ([row 6](#sai-row-6)). If multiple VRFs share one peer P2P tunnel, they share the same RMAC on that tunnel and differ by their VRF/L3VNI tunnel-map entries.
 
@@ -1051,7 +1083,7 @@ Not applicable — this is not an Application Extension.
 
 ### 10.2 CLI / YANG model Enhancements
 
-A new `sonic-bridge-port-protection.yang` model validates the per-interface `BRIDGE_PORT_PROTECTION` configuration: `protection_mode`, `convergence_mode`, `admin_mode`, `revertive`, `wait_to_restore_time_ms`, `t_reconcile_default_ms`, `t_resync_period_ms`, and `t_cache_fresh_threshold_ms`. The model rejects unsupported enum values and negative timer values.
+A new `sonic-bridge-port-protection.yang` model validates the per-interface `BRIDGE_PORT_PROTECTION` configuration: `protection_mode`, `convergence_mode`, `admin_mode`, `revertive`, `wait_to_restore_time_ms`, `t_reconcile_default_ms`, `t_resync_period_ms`, `t_cache_fresh_threshold_ms`, and `t_binding_hold_ms`. The model rejects unsupported enum values and negative timer values. The EVPN-MH configuration renderer (`EvpnMhEsMgr`) reads the same row and renders/removes the FRR `evpn mh bridge-port-protection` command, so there is no separate enable bit to drift from SONiC policy.
 
 `show bridge-port-protection` displays one row per protected bridge port from `STATE_DB BRIDGE_PORT_PROTECTION_STATE`.
 
@@ -1079,7 +1111,7 @@ PortChannel20  PROTECTION  hw_protection  enabled      CONVERGING      2026-09-1
 
 ### 10.3 Config DB Enhancements
 
-For each protected interface, the operator configures `BRIDGE_PORT_PROTECTION|<ifname>` through the YANG/CLI path. This row tells `bpProtOrch` how to operate protection: hardware or software mode, recovery behavior, administrative override, and hardware reconciliation timers.
+For each protected interface, the operator configures `BRIDGE_PORT_PROTECTION|<ifname>` through the YANG/CLI path. This row is the single enable and policy source: its presence enables protection and causes the SONiC configuration manager to render `evpn mh bridge-port-protection` under the ES-owning PortChannel; deleting it removes the FRR command. The other fields tell `bpProtOrch` how to operate protection: hardware or software mode, recovery behavior, administrative override, hardware reconciliation timers, and the bounded Binding hold time.
 
 The operator does **not** configure the backup NHG. FRR derives it from EVPN state and sends the port-to-NHG association over FPM. fpmsyncd stores that association in `EVPN_ES_BACKUP_NHG_TABLE`, and `bpProtOrch` combines it with the per-port CONFIG_DB policy to program the bridge-port protection attributes. See [DB schema changes](#86-db-schema-changes) for the complete field list.
 
@@ -1087,21 +1119,18 @@ The operator does **not** configure the backup NHG. FRR derives it from EVPN sta
 
 ## 11. Warmboot and Fastboot Design Impact
 
-- **Out of scope: warm reboot and reconciliation.** Warm reboot, reconciliation of protection objects, ID persistence, and protection without a gap across an FRR/zebra, fpmsyncd, or SONiC restart are out of scope for this release. For protection, every restart is treated as cold.
-- **Flush on every new FPM session.** A restarted zebra may reuse an `nhg_id`/`nh_id` for a different object, so a leftover Binding could otherwise point to a Group with a different meaning. To prevent that, fpmsyncd deletes all FPM-produced protection rows (Binding → Group → Member) whenever an FPM session comes up, before applying the replay ([§8.2](#82-fpmsyncd-changes)). The same rule covers FPM reconnect, fpmsyncd restart, SONiC reboot, and zebra restart.
-- **Binding-before-NHG during replay.** The same ordering tolerance as steady state applies: if a Binding is replayed before its group, `bpProtOrch` **parks and retries via the observer** — it never drops the binding.
-- **Primary path unchanged.** The flush only detaches protection; the FDB/neighbor primary path is unaffected. Protection is unavailable until the replay completes.
-- **Two guarantees, kept distinct.**
-  - **Required (zebra alive — FPM reconnect, fpmsyncd restart, swss/orchagent warm restart):** no primary-path flap. No FDB flush, no neighbor/route change, no transient `PRIMARY`→`PROTECTION` switch. A Binding removed by the session flush is not treated as a protection withdrawal, so it does not trigger the withdraw-while-down FDB flush ([§8.8](#88-mac-neighbor-and-fdb-lifecycle-constraints)) unless the replay fails to restore it within a hold time.
-  - **Allowed:** a protection gap from flush until replay re-attaches the backup.
-  - **Future:** warm reboot and reconciliation that close the protection gap.
+- **Out of scope: warm reboot and ID persistence.** Protection IDs are not persisted across zebra/SONiC restarts. A new FPM session may reuse an ID for a different object, so stale FPM protection rows must be removed before replay.
+- **Tagged cleanup and rebuild.** On every new FPM session, fpmsyncd finds its Binding rows and scans `L2_NEXTHOP_GROUP_TABLE` for FPM-only type tags, then issues individual deletes in Binding → Group → Member order. It does not bulk-delete the shared table or touch kernel-tagged rows. Zebra then replays the complete current protection state; `REPLAY_DONE` marks replay completion, with a hold timer bounding the wait if the marker is missing.
+- **Binding-before-NHG during replay.** If a Binding arrives before its group is rebuilt, `bpProtOrch` **parks and retries via the observer** — it never drops the binding.
+- **Protection gap allowed.** Cleanup removes the protection attachment; it does not directly reprogram routes or neighbors. FDB/neighbor handling follows the bounded withdrawal behavior in [§8.8](#88-mac-neighbor-and-fdb-lifecycle-constraints). Protection is unavailable until replay reattaches the Binding. If a protected port was already committed to its backup NHG when the FPM session started, traffic can be interrupted until replay completes because the local path is down and its backup has been detached.
+- **Cold reboot.** APPL_DB starts empty; protection is rebuilt from the replay. The same replay outage applies if a port cannot use its local primary path.
 
 ---
 
 ## 12. Memory Consumption
 
 - Protection state is **O(bridge ports / ESIs)**, not O(MACs/routes).
-- Member `l2_nh` objects are **shared per (VTEP, tunnel)** and ref-counted; the P2P tunnel objects they reference are shared per peer VTEP. Group `nhg_id` is stable for the ES lifetime with **in-place** membership updates.
+- Member `l2_nh` objects are **shared per (VTEP, tunnel)** and ref-counted; the P2P tunnel objects they reference are shared per peer VTEP. The Group ID is stable for the ES lifetime while zebra stays running, with **in-place** membership updates; it may change after restart.
 - No measurable steady-state memory impact beyond the per-port protection entry and the backup NHG members.
 
 ---
@@ -1109,8 +1138,9 @@ The operator does **not** configure the backup NHG. FRR derives it from EVPN sta
 ## 13. Restrictions / Limitations
 
 - Initial release supports **L3 VXLAN** backup tunnels only; **L2 VXLAN** members (`type=l2`) are deferred ([R6](#61-functional-requirements)).
-- Protection is configured per parent interface and applied to every eligible
-  bridge port below it; each bridge port has its own Binding to the Group.
+- Protection is configured on the ES PortChannel and applies to all its VLANs
+  through one Binding on that bridge port. VLAN sub-interfaces are not
+  separate protected bridge ports.
 - Assumes **symmetric IRB** with (effectively) **1:1 VRF↔L3VNI**. Multiple VRFs may share the same peer P2P tunnel because tunnel maps provide VRF↔L3VNI selection, but they must use a common peer RMAC and the port-level backup NHG must use a peer set valid for every protected VRF on that port.
 - The bridge-port protection attributes this design consumes are defined by the pinned revision 0.4 [SAI EVPN-MH model](#4-references), whose status is **In review** rather than merged into the upstream SAI specification.
 - `SAI_BRIDGE_PORT_PROTECTION_MODE_HARDWARE` is **optional ASIC functionality**. On a platform that does not support it, the binding still programs and protection falls back to `SOFTWARE` mode. Software mode provides functional switchover without the fast data-plane timing guarantee; **[R4](#61-functional-requirements)** applies to hardware mode.
@@ -1126,25 +1156,27 @@ Testing splits cleanly along the same seam as the design: **unit tests** prove e
 ### 14.1 Unit test cases
 
 1. **fpmsyncd parsing** — `l2_nhg_member_msg` / `l2_nhg_group_msg` / `evpn_backup_nhg_msg` produce the correct `L2_NEXTHOP_GROUP_TABLE` member/group rows and `EVPN_ES_BACKUP_NHG_TABLE` rows; the Member carries no VNI, so SONiC never emits `SAI_NEXT_HOP_ATTR_TUNNEL_VNI`; add/update/delete are idempotent by id. A Member with an unknown type/address family or an `l3` member missing its RMAC is **rejected with no DB write** and leaves any existing row for that id untouched (no partial or stale state); a follow-up delete clears the row.
-2. **L2NhgOrch / VxlanTunnelOrch builder** — a `type=l3` member resolves a `PEER_MODE_P2P` tunnel to the peer VTEP with `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` = the member's RMAC, and produces a `SAI_NEXT_HOP_TYPE_BRIDGE_PORT` nexthop `{IP, TUNNEL_ID}`; the group is `SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT`; a second compatible context shares the existing Member/tunnel when the RMAC matches; an RMAC update arrives as the same `nh_id` with a new `router_mac` and is applied as a `set` of `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` on the existing tunnel, with no next-hop or group rebuild; a different RMAC creates a separate tunnel identity and Member when SONiC supports multiple identities to the peer, otherwise the context is parked/rejected and the port is degraded.
+2. **L2NhgOrch / VxlanTunnelOrch builder** — a `type=l3` member resolves a `PEER_MODE_P2P` tunnel to the peer VTEP with `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` = the member's RMAC, and produces a `SAI_NEXT_HOP_TYPE_BRIDGE_PORT` nexthop `{IP, TUNNEL_ID}`; the group is `SAI_NEXT_HOP_GROUP_TYPE_BRIDGE_PORT`; an RMAC update arrives on the same `nh_id` with a new `router_mac` and is applied as a `set` of `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` on the existing tunnel, without creating another Member/tunnel or rebuilding the next hop/group. A mismatch between RMACs from different VRFs is logged by FRR; SONiC applies the latest RMAC received to the shared peer tunnel.
 3. **L2NhgOrch resolve/ref API** — `getNhgOid`/`refNhg`/`unrefNhg` behave correctly; ref pin blocks NHG delete.
-4. **bpProtOrch** — on `EVPN_ES_BACKUP_NHG_TABLE` set/del, resolves the NHG and sets/clears the bridge-port protection attributes; ordering race (binding before NHG) parks and retries via the observer; teardown clears the attribute before unref; a hardware switchover notification updates cached state and is reconciled against read-only `..._PROTECTION_STATE`; in software mode a PortsOrch down/up notification drives `PROTECTION` and the configured recovery sequence.
-5. **Reconciliation** — id bit-preservation between message and APPL_DB key; join by `nhg_id`/`ifname`; process Member, Group, and Binding rows correctly regardless of arrival order.
-6. **Management and capability** — YANG validation populates `BRIDGE_PORT_PROTECTION`; `bpProtOrch` applies policy updates independently of FPM binding updates, publishes `BRIDGE_PORT_HW_PROTECTION_CAPABLE`, and falls back from an unsupported `HARDWARE` request to `SOFTWARE`.
-7. **Shared Member lifecycle** — deleting one L3VNI/RMAC context does not delete a Member still referenced by another compatible context; deleting the final context removes the Member after the Group update.
+4. **bpProtOrch** — on `EVPN_ES_BACKUP_NHG_TABLE` set/del, resolves the NHG and sets/clears the bridge-port protection attributes; ordering race (Binding before NHG) parks and retries via the observer but suppresses FDB flushes only until `t_binding_hold_ms`; an absent or empty Group transitions to `NONE` after replay completion or timer expiry; teardown clears the attribute before unref; a hardware switchover notification updates cached state and is reconciled against read-only `..._PROTECTION_STATE`; a PortsOrch oper-down forces SAI `PROTECTION` in both modes, including when configured `admin_mode=PRIMARY` or hardware convergence is disabled, and recovery follows the configured intent/revertive/WTR policy.
+5. **Reconciliation** — Member and Group rows use the FPM IDs from zebra; two ESes have distinct Group IDs; a Binding is held until its Group is known; rows are processed correctly regardless of arrival order; at FPM session start fpmsyncd removes only FPM-tagged rows with individual keyed deletes, in Binding → Group → Member order, before replay.
+6. **Management and capability** — YANG validation populates `BRIDGE_PORT_PROTECTION`; the configuration manager renders/removes `evpn mh bridge-port-protection` from that same row; `bpProtOrch` applies policy updates independently of FPM binding updates, publishes `BRIDGE_PORT_HW_PROTECTION_CAPABLE`, falls back from an unsupported `HARDWARE` request to `SOFTWARE`, reports an explicit `revertive=false` request as a programming failure if the adapter returns `SAI_STATUS_NOT_SUPPORTED`, and expires unresolved `PENDING` state at `t_binding_hold_ms`.
+7. **Shared Member lifecycle** — deleting one Group reference does not delete a peer Member still referenced by another Group; deleting its final reference removes the Member after the Group update.
 
 ### 14.2 System test cases
 
 1. **Provisioning / steady state** — primary up, backup NHG programmed, traffic through the local port.
 2. **(A) Local access-link down and routed-traffic platform gate** — for each protection mode claimed as supported on the platform, install a host neighbor/FDB entry and tenant-VRF route resolving through the protected bridge port; send routed traffic through the SVI, bring the local access link down, and verify packets are redirected to the backup tunnel NHG with the expected peer RMAC and L3VNI. Verify the peer delivers traffic to the host, then restore the link and verify recovery. Confirm no route, neighbor, or FDB reprogramming is needed. A platform passes the gate only if routed forwarding succeeds; bridged-only redirection does not qualify. In HARDWARE mode, also verify fast data-plane switchover without control-plane reconvergence.
-3. **Revert** — access link up → revert to primary.
-4. **(B) Remote leaf/member loss** — in-place NHG membership shrink; **no** primary switchover.
-5. **Membership churn** — leaf joins/leaves the ES; `nhg_id`/oid stable; `bpProtOrch` takes no action.
-6. **RMAC ordering** — member arrives before its RMAC: member deferred, installed on RMAC resolve.
-7. **Scale** — many ESIs/ports with ECMP backup groups; convergence and memory targets.
-8. **Flush and rebuild** — on FPM reconnect, fpmsyncd restart, and zebra restart, verify the protection rows are flushed (Binding → Group → Member) before the replay is applied, that protection is re-established after the replay, that no Binding references a Group rebuilt with a recycled ID, and that the primary path does not flap.
-9. **Host import** — a synchronized MAC/neighbor and its tenant-VRF host route install so that routed traffic resolves through the protected bridge port.
-10. **Multiple VRFs on one protected port** — packets from two VRFs select different L3VNIs through `VR_ID_TO_VNI` while sharing the same peer P2P tunnel and RMAC; a peer not valid for every protected VRF is excluded from the port-level backup NHG.
+3. **LACP aggregate oper-down with carrier up** — remove the final collecting/distributing member while its carrier remains up and verify `PortsOrch` reports the protected PortChannel down. In both HARDWARE and SOFTWARE modes, including `convergence_mode=disabled` and configured `admin_mode=PRIMARY`, verify `bpProtOrch` forces SAI admin mode to `PROTECTION` and holds it for the entire oper-down interval. After oper-up, verify WTR/revertive behavior restores the configured intent; verify `revertive=false` remains on protection for `AUTO`.
+4. **Revert** — access link up → revert to primary.
+5. **(B) Remote leaf/member loss** — in-place NHG membership shrink; **no** primary switchover.
+6. **Membership churn** — while zebra stays running, a leaf joins/leaves the ES; `nhg_id`/oid stay stable and `bpProtOrch` takes no action.
+7. **RMAC update** — FRR updates the existing Member for a peer VTEP with a new RMAC; verify fpmsyncd updates the same row and L2NhgOrch sets `SAI_TUNNEL_ATTR_VXLAN_TUNNEL_MAC` on the existing P2P tunnel without creating another Member, tunnel, next hop, or group.
+8. **Scale** — many ESIs/ports with ECMP backup groups; convergence and memory targets.
+9. **Restart and reconnect** — on FPM reconnect, fpmsyncd restart, and zebra restart, verify fpmsyncd deletes only FPM-tagged rows by key before replay and leaves kernel-tagged rows untouched. Verify the primary path does not flap and document that a port already using the backup is unprotected until replay reattaches it. Remove a peer while FRR is down and verify stale protection rows are removed after `REPLAY_DONE`.
+10. **Host import** — a synchronized MAC/neighbor and its tenant-VRF host route install so that routed traffic resolves through the protected bridge port.
+11. **Multiple VRFs on one protected port** — packets from two VRFs select different L3VNIs through `VR_ID_TO_VNI` while sharing the same peer P2P tunnel and RMAC; a peer not valid for every protected VRF is excluded from the port-level backup NHG.
+12. **No eligible Binding** — with protection enabled but FRR disabled, the ES ineligible for L3MH, or the peer Group empty, verify no Binding is exported; `PENDING` expires (or ends at `REPLAY_DONE`), and a down port's deferred FDB flush runs after transition to `NONE`. Also verify a Binding that resolves before the hold deadline becomes `PROTECTED` and cancels the timer.
 
 ---
 
@@ -1154,6 +1186,6 @@ The SAI shape used here is the pinned revision 0.4 [SAI EVPN-MH model](#4-refere
 
 | # | Item | Notes |
 |---|---|---|
-| O1 | **Shared RMAC requirement** | Because the RMAC is now a **tunnel** attribute and not part of the base SAI P2P tunnel key, two VRFs reaching the same peer VTEP can share one P2P tunnel only when they use the same peer RMAC. If a deployment needs different RMACs for the same peer VTEP, this release must reject/defer the second member or add a separate tunnel context outside the current base SAI model. |
-| O3 | **Identifying a protected bridge port in FdbOrch** | Needed for [R10](#61-functional-requirements). Shape mirrors MLAG: `gBpProtOrch->isProtectedBridgePort(alias)` next to `gMlagOrch->isMlagInterface(alias)`, sourced from `EVPN_ES_BACKUP_NHG_TABLE` (so FRR-driven, no new config). The predicate is tri-state (`PROTECTED`/`PENDING`/`NONE`) to resolve the ordering cases: port-down before the binding arrives, port-down after withdrawal, and port-down during the replay after a session-start flush. See [8.8](#88-mac-neighbor-and-fdb-lifecycle-constraints). |
-| O4 | **Identifier format and channel ownership** | `L2_NEXTHOP_GROUP_TABLE` has two producers (`fdbsyncd` from kernel netlink, `fpmsyncd` from FPM) and relies on zebra emitting each id on exactly one channel ([§8.6](#86-db-schema-changes)). SONiC defines and publishes in the shared FPM header: the type tags for the protection Group (per-ES, e.g. `NHG_TYPE_L3_BPP`) and its L3 Members (e.g. `NHG_TYPE_L3_BPP_NH`), distinct from the kernel-only `NHG_TYPE_L2` / `NHG_TYPE_L2_NH`; the type mask; and per-object channel ownership (protection Group and L3 Members on FPM only; L2 ES NHG and L2 NHs on kernel netlink only). FRR consumes these values; the FRR dev plan Phase 8 is gated on this item. |
+| O1 | **RMAC consistency across VRFs** | FRR sends one Member per peer VTEP with the latest RMAC and logs a mismatch when VRFs use different RMACs. SONiC cannot see a second per-VRF RMAC or reject/defer a second Member; it applies the received RMAC to the shared P2P tunnel. A mismatch must be resolved so the selected RMAC is valid for routed traffic in every VRF sharing that peer tunnel. |
+| O3 | **Identifying a protected bridge port in FdbOrch** | Needed for [R10](#61-functional-requirements). Shape mirrors MLAG: `gBpProtOrch->isProtectedBridgePort(alias)` next to `gMlagOrch->isMlagInterface(alias)`, using the CONFIG_DB enable/policy plus `EVPN_ES_BACKUP_NHG_TABLE` state. The predicate is tri-state (`PROTECTED`/`PENDING`/`NONE`); `PENDING` suppresses a flush only until `t_binding_hold_ms` expires, including after a Binding withdrawal. See [8.8](#88-mac-neighbor-and-fdb-lifecycle-constraints). |
+| O4 | **Protection identifier format and ownership** | SONiC defines and publishes in the shared FPM header the protection Group and Member type tags (e.g. `NHG_TYPE_L3_BPP` / `NHG_TYPE_L3_BPP_NH`) and type mask, distinct from IDs used by existing kernel `NHA_FDB` groups ([§8.6](#86-db-schema-changes)). FRR applies these tags to protection IDs; fpmsyncd uses them to find and delete only stale protection rows by key. This item defines ownership for the protection rows only. The contract also includes `l2ng_esi[10]` in the Group message and `RTM_FPM_EVPN_MH_REPLAY_DONE`. FRR dev plan Phases 8, 9, and 12 are gated on this item. |
