@@ -21,7 +21,7 @@ packets (due to MAC mismatch).
 
 With the LACP fallback feature, the switch allows the server to bring up the
 LAG (before receiving any LACP PDUs from the server) and keeps a single port
-active until it receive the LACP PDUs from the server. The wait before that
+active until it receives the LACP PDUs from the server. The wait before that
 fallback port is activated is configurable per LAG. This allows the PXE boot
 server to establish a connection over one Ethernet port, download its boot
 image and then continue the booting process. When the server boot process is
@@ -113,26 +113,25 @@ LACP PDU, it moves to CURRENT and LACP negotiation with the peer restarts.
 
 - Fallback Eligible:
 
-This checks whether LACP fallback feature is configured on this LAG. One and
-only one member port can be put into fallback mode per LAG. And the server is
-supposed to use only the member port in fallback mode to communicate with
-switch.
-
-When fallback is enabled, teamd elects exactly one DEFAULTED member:
+When fallback is enabled, a member is eligible only if it is DEFAULTED and has
+completed `fallback_timeout`. teamd elects exactly one such ready member. The
+server is supposed to use only that elected member during fallback.
 
 - If any member is CURRENT or EXPIRED, election result is none (fallback does
   not displace a live or recovering partner).
-- Among DEFAULTED members, elect the lowest actor port id.
-- After each port state change, election is recomputed. If the elected member
-  changes, aggregator membership is re-evaluated so the previous member is
-  released and the new one is selected.
+- Among ready DEFAULTED members, elect the lowest LACP priority, tie-broken by
+  lowest actor port id. A member still waiting does not block a ready sibling.
+- After each port state change or fallback timer expiry, election is
+  recomputed. If the elected member changes, aggregator membership is
+  re-evaluated so the previous member is released and the new one is selected.
 
 With fallback active, teamd can keep LAG carrier up on the elected member even
 if enabled members are below configured min_links.
 
 To summarize, in the defaulted state, we have
 ```
-If member port is configured with fallback enable
+If fallback is enabled
+    AND the member is DEFAULTED and has completed fallback_timeout
     AND it is the elected fallback member
 	Selectable = 1
 Else
@@ -142,11 +141,12 @@ Else
 ## Fallback timeout
 
 If fallback is enabled, fallback_timeout controls how long a member stays in
-EXPIRED before transitioning to DEFAULTED. Range is 1..300 seconds; default is
-90 seconds. teammgr maps PORTCHANNEL config to teamd runner settings when the
-PortChannel is created: if fallback is false, fallback_timeout is not sent and
-teamd runtime is 0; if fallback is true and timeout is unset, the default is
-used; if fallback is true and timeout is set, the configured value is sent.
+DEFAULTED before it is eligible for fallback election. Range is 1..300 seconds;
+default is 90 seconds. teammgr maps PORTCHANNEL config to teamd runner settings
+when the PortChannel is created: if fallback is false, fallback_timeout is not
+sent and teamd runtime is 0; if fallback is true and timeout is unset, the
+default is used; if fallback is true and timeout is set, the configured value
+is sent.
 
 ![Fallback_timeout.svg](Fallback_timeout.svg)
 

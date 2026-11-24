@@ -58,7 +58,7 @@
 
   <path d="M625 138 L735 180 L625 222 L515 180 Z" fill="#fff" stroke="#548235" stroke-width="2.5"/>
   <text class="t" x="625" y="176" text-anchor="middle" font-size="12">Elected member?</text>
-  <text class="t" x="625" y="190" text-anchor="middle" font-size="9">lowest actor port id</text>
+  <text class="t" x="625" y="190" text-anchor="middle" font-size="9">ready after fallback_timeout</text>
 
   <path d="M625 258 L735 304 L625 350 L515 304 Z" fill="#fff" stroke="#548235" stroke-width="2.5"/>
   <text class="t" x="625" y="300" text-anchor="middle" font-size="13">Fallback</text>
