@@ -79,6 +79,7 @@ Mapping tables: [Section 4](#4-mapping-tables)
 | 0.7 | 11/22/2026 | Malavika Unnikrishnan | Drop `oc_ip` from CVL; GET of any L3 address on `{if}|{vrid}` fans out |
 | 0.8 | 11/24/2026 | Malavika Unnikrishnan | Google `virtual-router-id` maps only to Redis key `{vrid}`; UMF does not write hash field `vid` |
 | 0.9 | 11/24/2026 | Malavika Unnikrishnan | First leaf SET creates the group; `virtual-address` SET replaces `vip@`; duplicate VIP is rejected |
+| 1.0 | 11/24/2026 | Malavika Unnikrishnan | VIP uniqueness is by host address (prefix length ignored). IPv6 link-local uniqueness is per hosting interface |
 
 # About this Manual
 This document describes OpenConfig configuration and management of VRRP in SONiC. Google / PINS clients walk the `openconfig-interfaces` tree. `openconfig-if-ip` 3.9.0 adds `ipv4` / `ipv6` / `vrrp` / `vrrp-group` onto that tree (and onto `openconfig-vlan:routed-vlan` for SVIs). There is no `/openconfig-if-ip:` root.
@@ -566,7 +567,7 @@ Invalid configurations report an error. Examples include:
 - `preempt` value that is not a boolean → transformer error
 - `virtual-link-local` on an IPv4 `vrrp-group` → not-supported
 - VIP that is not an IP address of the matching family → transformer / CVL error
-- VIP already used by another VRRP / VRRP6 group → `InvalidArgs` (`VIP must be unique across VRRP groups`)
+- VIP already used by another VRRP / VRRP6 group (same host address, any prefix length) → `InvalidArgs` (`VIP must be unique across VRRP groups`). IPv6 link-local `fe80:` addresses are unique per hosting interface only, so `fe80::1` may exist on both Vlan100 and Vlan200
 - `priority-decrement` outside 10..50 → `InvalidArgs` from UMF (CVL would also reject)
 - VRRP on an interface that is not an existing L3 INTERFACE / PORTCHANNEL_INTERFACE / VLAN_INTERFACE → CVL error
 
@@ -589,6 +590,7 @@ Invalid configurations report an error. Examples include:
 14. PATCH of `/config/priority` on a new `virtual-router-id` creates the Redis row (`Test_oc_vrrp_create_replace_unique`).
 15. PATCH of `/config/virtual-address` replaces `vip@` globals; leftover addresses are removed.
 16. PATCH of a VIP already owned by another `{if}|{vrid}` is rejected; same-group UPDATE of the group's own VIP succeeds.
+17. PATCH of the same host address with a different prefix length is rejected. PATCH of the same IPv6 link-local on a different interface succeeds; a second VRID on the same interface is rejected.
 
 ## 7.2 Negative Test Cases
 1. SET of `/config/virtual-link-local` on an IPv4 `vrrp-group` is rejected (leaf is IPv6-only in OpenConfig; transformer also guards).
@@ -597,4 +599,4 @@ Invalid configurations report an error. Examples include:
 4. SET of `/config/preempt-delay` or `/config/accept-mode` is `NotSupported`.
 5. SET of `priority-decrement` outside 10..50 is rejected by UMF.
 6. SET of VRRP on a non-L3 interface is rejected by CVL.
-7. SET of `/config/virtual-address` to a VIP already owned by another group is `InvalidArgs`.
+7. SET of `/config/virtual-address` to a VIP already owned by another group is `InvalidArgs`, including the same host address with a different prefix length. Reusing an IPv6 link-local VIP on a different interface is allowed.
