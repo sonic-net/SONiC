@@ -1,7 +1,7 @@
 # OpenConfig Model Support for SONiC VRRP Feature
 
 # High Level Design Document
-#### Rev 0.6
+#### Rev 0.9
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -77,6 +77,8 @@ Mapping tables: [Section 4](#4-mapping-tables)
 | 0.5 | 11/19/2026 | Malavika Unnikrishnan | Bind OpenConfig GET/DELETE to the interface IP used at SET (`oc_ip`) |
 | 0.6 | 11/19/2026 | Malavika Unnikrishnan | Drop OpenConfig support for preempt-delay and accept-mode; do not map version or admin_status |
 | 0.7 | 11/22/2026 | Malavika Unnikrishnan | Drop `oc_ip` from CVL; GET of any L3 address on `{if}|{vrid}` fans out |
+| 0.8 | 11/24/2026 | Malavika Unnikrishnan | Google `virtual-router-id` maps only to Redis key `{vrid}`; UMF does not write hash field `vid` |
+| 0.9 | 11/24/2026 | Malavika Unnikrishnan | First leaf SET creates the group; `virtual-address` SET replaces `vip@`; duplicate VIP is rejected |
 
 # About this Manual
 This document describes OpenConfig configuration and management of VRRP in SONiC. Google / PINS clients walk the `openconfig-interfaces` tree. `openconfig-if-ip` 3.9.0 adds `ipv4` / `ipv6` / `vrrp` / `vrrp-group` onto that tree (and onto `openconfig-vlan:routed-vlan` for SVIs). There is no `/openconfig-if-ip:` root.
@@ -273,7 +275,7 @@ OpenConfig VRRP uses existing CONFIG_DB tables. No OpenConfig-only leaf is added
 ### 3.2.1 CONFIG DB
 | Table | Key | Fields UMF writes |
 |-------|-----|-------------------|
-| `VRRP` | `{if}\|{vrid}` | `vid`, `priority`, `preempt`, `adv_interval`, `vip@` |
+| `VRRP` | `{if}\|{vrid}` | `priority`, `preempt`, `adv_interval`, `vip@` |
 | `VRRP_TRACK` | `{if}\|{vrid}\|{track_if}` | `priority_increment` |
 | `VRRP6` | `{if}\|{vrid}` | same as `VRRP` |
 | `VRRP6_TRACK` | `{if}\|{vrid}\|{track_if}` | `priority_increment` |
@@ -338,8 +340,7 @@ Suffixes below are relative to a `vrrp-group[virtual-router-id=<id>]` on one of 
 
 | SONiC YANG leaf | OpenConfig node (config and state, unless noted) | Notes |
 |-----------------|--------------------------------------------------|-------|
-| list key `ifname` + `vrid` | list `vrrp-group[virtual-router-id]` under the interface's IPv4 or IPv6 **address** | OC also keys VRRP by the L3 address (`address[ip=...]`). Native CLI keys only `{if}\|{vrid}` |
-| `vid` | `config/virtual-router-id`, `state/virtual-router-id`, list key `virtual-router-id` | Same value as YANG `vrid` |
+| list key `ifname` + `vrid` | list `vrrp-group[virtual-router-id]`, `config/virtual-router-id`, `state/virtual-router-id` | Google has one identifier. Native Redis key is `{if}\|{vrid}`. UMF does not write a duplicate hash field |
 | `vip` (non-link-local) | `config/virtual-address`, `state/virtual-address` | OC is `ip-address` (no prefix). UMF stores native `/32` or `/128` |
 | `vip` (`fe80:`) | `config/virtual-link-local`, `state/virtual-link-local` | IPv6 only. Native has one `vip` list; OC splits global vs link-local |
 | `priority` | `config/priority`, `state/priority` | 1..254 |
@@ -353,7 +354,7 @@ Suffixes below are relative to a `vrrp-group[virtual-router-id=<id>]` on one of 
 | `version` | — | No OpenConfig leaf. UMF does not SET it |
 | `admin_status` | — | No OpenConfig leaf. UMF does not SET it |
 
-Creating the OpenConfig `vrrp-group` list entry is the equivalent of `config interface vrrp add` / `vrrp6 add`. Deleting it is the equivalent of `remove`. UMF never writes `FEATURE|*`.
+Creating the OpenConfig `vrrp-group` list entry is the equivalent of `config interface vrrp add` / `vrrp6 add`. A keyed leaf SET (for example `/config/priority`) of a `virtual-router-id` that does not yet exist creates `VRRP|{if}|{vrid}` / `VRRP6|{if}|{vrid}`. Deleting the list entry is the equivalent of `remove`. UMF never writes `FEATURE|*`.
 
 ## 4.3 OpenConfig to CONFIG_DB
 
@@ -362,10 +363,9 @@ Same leaf mapping on all four bases. Table name is `VRRP` or `VRRP6` from the IP
 | OpenConfig YANG Node | DB Name | Table:Field | Notes |
 |----------------------|---------|-------------|-------|
 | **vrrp-group** | CONFIG_DB | VRRP or VRRP6 | table `vrrp_table_xfmr`; key `vrrp_group_key_xfmr`; subtree `vrrp_group_xfmr` on both `vrrp` and `vrrp-group`; Redis key `{if}\|{vrid}` |
-| virtual-router-id | CONFIG_DB | key `{vrid}` / `vid` | list key |
+| virtual-router-id | CONFIG_DB | Derived `{vrid}` | Google list key and `config/state/virtual-router-id`. GET via `vrrp_virtual_router_id_xfmr` from the Redis key. UMF does not write hash field `vid` |
 | **vrrp-group/config** and **vrrp-group/state** | | | |
-| virtual-router-id | CONFIG_DB | VRRP:vid | field `vrrp_virtual_router_id_xfmr` |
-| virtual-address | CONFIG_DB | VRRP:vip | field `vrrp_virtual_address_xfmr`; UMF appends `/32` or `/128`; DELETE removes listed members |
+| virtual-address | CONFIG_DB | VRRP:vip | field `vrrp_virtual_address_xfmr`; UMF stores host prefix `/32` or `/128`. SET replaces the global `vip@` members (does not append leftover globals). A VIP already owned by another `{if}\|{vrid}` is `InvalidArgs`. DELETE removes listed members |
 | virtual-link-local | CONFIG_DB | VRRP6:vip | IPv6 only; field `vrrp_virtual_link_local_xfmr`; `fe80:` entries in the same `vip@` list |
 | priority | CONFIG_DB | VRRP:priority | field `vrrp_priority_xfmr` |
 | preempt | CONFIG_DB | VRRP:preempt | field `vrrp_preempt_xfmr`; OC bool → `enabled`/`disabled` |
@@ -566,6 +566,7 @@ Invalid configurations report an error. Examples include:
 - `preempt` value that is not a boolean → transformer error
 - `virtual-link-local` on an IPv4 `vrrp-group` → not-supported
 - VIP that is not an IP address of the matching family → transformer / CVL error
+- VIP already used by another VRRP / VRRP6 group → `InvalidArgs` (`VIP must be unique across VRRP groups`)
 - `priority-decrement` outside 10..50 → `InvalidArgs` from UMF (CVL would also reject)
 - VRRP on an interface that is not an existing L3 INTERFACE / PORTCHANNEL_INTERFACE / VLAN_INTERFACE → CVL error
 
@@ -585,6 +586,9 @@ Invalid configurations report an error. Examples include:
 11. PUT `/config/advertisement-interval` 200 writes `adv_interval=2`.
 12. Deviation tests (`Test_oc_vrrp_deviations`): GET `config/priority` and `state/priority` after SET; GET `state/current-priority` mirrors configured priority; GET `advertisement-interval` returns centiseconds; GET VIP has no prefix; SET `virtual-address` preserves `fe80:`; SET of `preempt-delay` and `accept-mode` is `NotSupported`; SET does not write `version`, `admin_status`, `preempt_delay`, `accept_mode`, or `FEATURE|*`.
 13. Address fan-out (`Test_oc_vrrp_address_fanout`): SET under `address[ip=10.10.10.1]`; GET of sibling `10.10.10.2` returns the same group. Path IP is the interface address, not the VIP.
+14. PATCH of `/config/priority` on a new `virtual-router-id` creates the Redis row (`Test_oc_vrrp_create_replace_unique`).
+15. PATCH of `/config/virtual-address` replaces `vip@` globals; leftover addresses are removed.
+16. PATCH of a VIP already owned by another `{if}|{vrid}` is rejected; same-group UPDATE of the group's own VIP succeeds.
 
 ## 7.2 Negative Test Cases
 1. SET of `/config/virtual-link-local` on an IPv4 `vrrp-group` is rejected (leaf is IPv6-only in OpenConfig; transformer also guards).
@@ -593,3 +597,4 @@ Invalid configurations report an error. Examples include:
 4. SET of `/config/preempt-delay` or `/config/accept-mode` is `NotSupported`.
 5. SET of `priority-decrement` outside 10..50 is rejected by UMF.
 6. SET of VRRP on a non-L3 interface is rejected by CVL.
+7. SET of `/config/virtual-address` to a VIP already owned by another group is `InvalidArgs`.
