@@ -26,8 +26,6 @@
 
         * [Pre-emption](#pre-emption)
 
-        * [Virtual Router Owner](#virtual-router-owner)
-
         * [Virtual MAC Address](#virtual-mac-address)
 
         * [VRRP Advertisement Frame](#vrrp-advertisement-frame)
@@ -89,7 +87,7 @@
 | Rev | Date        | Author        | Change Description |
 | :-- | :---------- | :----------   | :----------------- |
 | 0.1 | Aug-16-2023 | Philo-micas   | Initial version    |
-| 0.2 | Sep-09-2026 | Balachandar Rajarathinam (Nokia)  | VIP datatype (inet:ip-address) as per IETF                |
+| 0.2 | Sep-09-2026 | balanokia (Nokia) sriniketh-nokia (Nokia) | 1.VIP datatype (inet:ip-address) as per IETF <br> 2.vrrpmgrd in swss container as per SONiC NBI <br> 3.macvlan nomenclature
 
 ### Scope
 
@@ -101,7 +99,7 @@ Table 1: Abbreviations
 
 | Abbreviation  | Description                                                                                                         |
 | :------------ | :------------------------------------------------------------------------------------------------------------------ |
-| VRRP          | Virtual Router Redundency Protocol                                                                                  |
+| VRRP          | Virtual Router Redundancy Protocol                                                                                  |
 | ARP           | Address Resolution Protocol                                                                                         |
 | FRR           | Free Range Routing Stack                                                                                            |
 | CLI           | Command Line Interface                                                                                              |
@@ -149,28 +147,28 @@ If you are using iproute2, the configuration is as follows:
 
 ```
 ip link add vrrp4-2-1 link eth0 addrgenmode random type macvlan mode bridge
-ip link set dev vrrp4-2-1 address 00:00:5e:00:01:05
-ip addr add 10.0.2.16/24 dev vrrp4-2-1
-ip link set dev vrrp4-2-1 up
+ip link set dev vrrp4-500000f address 00:00:5e:00:01:05
+ip addr add 10.0.2.16/24 dev vrrp4-500000f
+ip link set dev vrrp4-500000f up
 
-ip link add vrrp6-2-1 link eth0 addrgenmode random type macvlan mode bridge
-ip link set dev vrrp6-2-1 address 00:00:5e:00:02:05
-ip addr add 2001:db8::370:7334/64 dev vrrp6-2-1
-ip link set dev vrrp6-2-1 up
+ip link add vrrp6-500000f link eth0 addrgenmode random type macvlan mode bridge
+ip link set dev vrrp6-500000f address 00:00:5e:00:02:05
+ip addr add 2001:db8::370:7334/64 dev vrrp6-500000f
+ip link set dev vrrp6-500000f up
 ```
 
 The created interfaces will look like this:
 
 ```
-$ ip addr show vrrp4-2-1
+$ ip addr show vrrp4-500000f
 5: vrrp4-2-1@eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
     link/ether 00:00:5e:00:01:05 brd ff:ff:ff:ff:ff:ff
-    inet 10.0.2.16/24 scope global vrrp4-2-1
+    inet 10.0.2.16/24 scope global vrrp4-500000f
        valid_lft forever preferred_lft forever
     inet6 fe80::dc56:d11a:e69d:ea72/64 scope link stable-privacy
        valid_lft forever preferred_lft forever
 
-$ ip addr show vrrp6-2-1
+$ ip addr show vrrp6-500000f
 8: vrrp6-2-1@eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
  link/ether 00:00:5e:00:02:05 brd ff:ff:ff:ff:ff:ff
  inet6 2001:db8::370:7334/64 scope global
@@ -179,7 +177,7 @@ $ ip addr show vrrp6-2-1
     valid_lft forever preferred_lft forever
 ```
 
-Using vrrp4-2-1 as an example, a few things to note about this interface:
+Using vrrp4-500000f as an example, a few things to note about this interface:
 
 * It is slaved to eth0; any packets transmitted on this interface will egress via eth0
 
@@ -203,9 +201,6 @@ Optionally specify the protocol version(VRRPv2 or VRRPv3). If the protocol versi
 
 Toggle preempt mode. When enabled, preemption allows Backup routers with higher priority to take over Master status from the existing Master. Enabled by default.
 
-##### Virtual Router Owner
-
-VRRP instance whose virtual IP address (VIP) is same as real interface address is called the owner of virtual router and has the highest priority (255). VRRP owner is supported in SONIC's VRRP implementation. VRRP owner node will pre-empt the active master even when pre-emption is disabled for that particular VRRP instance.
 
 ##### Virtual MAC Address
 
@@ -225,6 +220,19 @@ The point of failure which VRRP safeguards against is the interface on which VRR
 ![1.00](images/VRRP_Tracking_Interface_Scenarios_Diagram.png "Figure 1: VRRP Tracking Interface Scenarios")
 
 As shown in the figure，Configure VRRP backup groups between RouterA and RouterB, Both RouterA and RouterB operate in preemptive mode. On RouterA, configure to monitor the uplink interface Interface1. When Interface1 fails, RouterA lowers its priority and, through packet negotiation, RouterB preempts and becomes the Master, ensuring that user traffic is forwarded normally.
+
+#### Nomenclature of Linux Kernel MACVLAN child interface
+Algorithm:
+
+1. Encode parent ifindex in lowercase Base36.
+2. Left-pad to six characters.
+3. Reject values exceeding six Base36 digits.
+4. Concatenate AF prefix, decimal VRID, and encoded ifindex.
+5. Reject names whose size reaches or exceeds `IFNAMSIZ`
+
+Examples,
+Vrrp4-1900000a
+Vrrp6-2550000z
 
 ### Architecture Design
 
@@ -621,7 +629,7 @@ admin@sonic:~$ show vrrp interface Ethernet50
  Autoconfigured                       No                  
  Shutdown                             No                  
  Interface                            Ethernet50          
- VRRP interface (v4)                  Vrrp4-5             
+ VRRP interface (v4)                  vrrp4-500000f             
  VRRP interface (v6)                  None                
  Primary IP (v4)                      10.0.0.98           
  Primary IP (v6)                      ::                  
@@ -701,37 +709,9 @@ Unit test cases for this specification are as listed below:
 
 N/A
 
-This feature will extend functionality implemented in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features.
 
-![1.00](https://user-images.githubusercontent.com/114622132/222537856-eefb1a13-bcc0-495b-938a-7ea3abee0c18.png)
+#### Limitations
 
-Diagram 1. Diagram showing the existing framework that is being extended to include support for now ISIS config schemas. This diagram is taken from and further explained in it's original feature introduction in [SONiC FRR-BGP Extended Unified Configuration Management Framework](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md) to support additional SONiC FRR-ISIS features.
-
-The Management framework will convert the YANG-based config data into requests that will write the configs into Redis DB. Redis DB events will trigger frrcfgd when the field frr\_mgmt\_framework\_config set to "true" in the DEVICE\_METADATA table, and then frrcfgd will configure FRR-ISIS using FRR CLI commands.
-
-#### Change Overview
-
-This enhancement will support FRR-ISIS features used in SONiC and all changes will reside in the sonic-buildimage repository. Changes include:
-
-* SONiC FRR-ISIS YANG models and YANG validation tests
-
-  * /src/sonic-yang-models
-
-* FRR-ISIS config template files and isisd enabled by default in the FRR container
-
-  * /dockers/docker-fpm-frr
-
-* Enable ISIS trap messages
-
-  * /files/image\_config/copp
-
-* Added support for ISIS tables in frrcfgd and extended frrcfgd unit tests for FRR-ISIS configs
-
-  * /src/sonic-frr-mgmt-framework
-
-* Support ISIS show commands and show command unittests
-
-  * sonic-utilities/show
-
-  * sonic-utilities/tests
-
+* Configuration of accept-mode shall not be supported. Default: False
+* IPv6 Virtual LLA shall not be supported.
+* Address owner shall not be supported.
