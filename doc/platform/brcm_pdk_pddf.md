@@ -42,6 +42,7 @@
 		 * [Multi-FPGAPCIe Component](#3413-multi-fpgapcie-component)
 		 * [Multi-Protocol Support Design](#3414-multi-protocol-support-design)
 		 * [Child-Card Discovery via Card EEPROM](#3415-child-card-discovery-via-card-eeprom)
+		 * [Multi-FPGAPCIe I3C Controller and Native-I3C Optics](#3416-multi-fpgapcie-i3c-controller-and-native-i3c-optics)
 	 * [PDDF BMC Component Design](#pddf-bmc-component-design)
 		 * [PSU JSON](#psu-json)
 		 * [FAN JSON](#fan-json)
@@ -83,6 +84,7 @@
 | 0.9 | 05/31/2025  |  Nexthop AI                 | Multi-FPGAPCIe component support  |
 | 1.0 | 10/26/2025  |  Nexthop AI                 | Multi-FPGAPCIe Multi-Protocol support |
 | 1.1 | 08/04/2026  |  Nexthop AI                 | Child-card discovery via card EEPROM |
+| 1.2 | 11/25/2026  |  Pavan Naregundi (Marvell)  | Multi-FPGAPCIe I3C master and native-I3C optics support |
 
 # About this Manual
 Platform Driver Development Framework (PDDF) is part of SONiC Platform Development Kit (PDK), which enables rapid development of platform drivers and APIs for SONiC platforms. PDK consists of
@@ -108,6 +110,9 @@ This document describes the high level design details of PDDF and its components
 | GPIO                     | General Purpose Input Output |
 | PSU                      | Power Supply Unit |
 | I2C                      | Inter-integrated Circuit communication protocol |
+| I3C                      | MIPI Improved Inter-Integrated Circuit communication protocol |
+| DAA                      | I3C Dynamic Address Assignment |
+| PID                      | I3C 48-bit Provisioned ID (manufacturer ID, part ID, instance ID) |
 | SysFS                    | Virtual File System provided by the Linux Kernel |
 | BMC                      | Baseboard Management Controller |
 
@@ -160,7 +165,7 @@ Define Platform driver development framework to enable platform vendors to devel
 	 - Optic Transceivers (sonic_platform_base/sfp_base.py)
 	 - EEPROM (sonic_platform_base/sonic_eeprom)
      - Thermals (sonic_platform_base/thermal_base.py)
-	
+
  - Current SONiC platform CLIs shall be supported
 
 ### 1.3 Scalability Requirements
@@ -1006,6 +1011,8 @@ PDDF has the following three different drivers for optics.
 	2) Devices with two I2C addresses (eg SFP) use I2C address 0x50(A0h) and 0x51(A2h)
 * Expose eeprom bin attribute under the same path.
 
+The I3C sibling driver `optoe_i3c` is used instead of `optoe` for EEPROM access. See [Multi-FPGAPCIe I3C Controller and Native-I3C Optics](#3416-multi-fpgapcie-i3c-controller-and-native-i3c-optics).
+
 #### Optic_pddf_module:
   * Create the access data attributes to transfer the access data from user space to kernel.
   * Populates the access data into SFP client's *platform_data*. (Information collected from the JSON parsing)
@@ -1219,6 +1226,7 @@ Multi-FPGAPCIe supports the following IP blocks:
  - I2C (Assumes Xilinx I2C, like [FPGAPCIe Component](#3412-pfgapcie-component))
  - GPIO (TODO)
  - SPI (TODO)
+ - I3C master (see [Multi-FPGAPCIe I3C Controller and Native-I3C Optics](#3416-multi-fpgapcie-i3c-controller-and-native-i3c-optics))
 
 ##### 3.4.13.1 Multi-FPGAPCIe Sysfs Design
 
@@ -1664,6 +1672,11 @@ The framework supports flexible module loading:
 - Registers with the core driver using the protocol registration system
 - Implements attach/detach callbacks for FPGA device management
 
+**I3C Protocol Module** (`pddf_multifpgapci_i3c_module.c`):
+- Registers with the core driver under the protocol name `i3c`
+- Implements attach/detach callbacks that create and remove the per-FPGA `i3c` sysfs directory
+- Instantiates I3C master platform devices inside the FPGA BAR windows. See [Multi-FPGAPCIe I3C Controller and Native-I3C Optics](#3416-multi-fpgapcie-i3c-controller-and-native-i3c-optics)
+
 **Additional Protocol Support**:
 - **SPI Protocol**: Future support for SPI controller operations
 
@@ -1789,6 +1802,198 @@ A platform adopting `CHILD_CARDS` must ensure the canonical `pddf-device.json` a
 `expand_child_cards` then reads `.base`, merges, and atomically writes the to the canonical `<file>` (via `os.replace`, leaving `.base` intact) — so every reader transparently sees the merged view and `.base` preserves the pre-merge view for debugging.
 
 Platforms that declare no `CHILD_CARDS` are unaffected — the step is a no-op.
+
+#### 3.4.16 Multi-FPGAPCIe I3C Controller and Native-I3C Optics
+
+Some platforms place one or more I3C master controllers inside a PCIe FPGA, and connect optical transceivers that expose a native I3C management interface. Unlike I2C, I3C targets have no static address: the master assigns each target a dynamic address during Dynamic Address Assignment (DAA), and the target is identified by its 48-bit Provisioned ID (PID). PDDF supports this with three pieces:
+
+* **`pddf_multifpgapci_i3c_module`**: a [Multi-Protocol](#3414-multi-protocol-support-design) module (protocol name `i3c`) that instantiates I3C master platform devices inside the BAR window(s) of a `MULTIFPGAPCIE` FPGA.
+* **`I3C_CONTROLLER` device type in `pddfparse.py`**: creates and deletes those masters from `pddf-device.json`, programs the `optoe_i3c` ID table, and publishes a stable per-port EEPROM symlink.
+* **`optoe_i3c` kernel driver** (`CONFIG_EEPROM_OPTOE_I3C`, added in [sonic-linux-kernel#675](https://github.com/sonic-net/sonic-linux-kernel/pull/675)): the I3C sibling of `optoe`.
+
+##### 3.4.16.1 I3C Module Sysfs Controls (Per-FPGA)
+
+When `pddf_multifpgapci_i3c_module` is loaded, each FPGA's BDF directory gets an `i3c` subdirectory:
+
+```
+/sys/kernel/pddf/devices/multifpgapci/0000:01:00.0/i3c
+├── del_i3c_master
+├── i3c_bar_index
+├── i3c_base_addr
+├── i3c_clk_hz
+├── i3c_controller_name
+├── i3c_driver
+├── i3c_scl_hz
+├── new_i3c_master
+└── virt_i3c_controller_size
+```
+
+The configuration attributes are staging values: they are consumed when `new_i3c_master` is written, so stage all of them first.
+
+| Attribute | Format | Description |
+|-----------|--------|-------------|
+| `i3c_driver` | string | Name of the I3C master platform driver to bind. Required. |
+| `i3c_controller_name` | string | PDDF device-table name for the controller (matches the JSON `device_name`). |
+| `i3c_bar_index` | hex | PCIe BAR that holds the controller's register window. Default `0`. |
+| `i3c_base_addr` | hex | Offset of the controller within that BAR. Default `0`. |
+| `virt_i3c_controller_size` | hex | Size of the register window. `0` means the rest of the BAR after `i3c_base_addr`. |
+| `i3c_clk_hz` | decimal | Rate of the fixed input (AXI/functional) clock registered for the controller. |
+| `i3c_scl_hz` | decimal | Optional SCL rate passed as the `i3c-scl-hz` property. `0` keeps the I3C core default. |
+| `new_i3c_master` | decimal | Write a 1-based index (1..16) to create the controller. |
+| `del_i3c_master` | decimal | Write the same 1-based index to delete the controller. |
+
+Writing `new_i3c_master` with index *N*:
+1. Validates the BAR and checks that the window fits inside it.
+2. Registers a fixed-rate clock and a clkdev lookup for device `<i3c_driver>.<N>`.
+3. Adds the platform device `<i3c_driver>.<N>` with the BAR window as its memory resource, parented to the FPGA PCI device.
+
+The controller driver then probes, registers the I3C bus and runs DAA. Writing `del_i3c_master` unregisters the platform device, and with it all DAA-discovered targets, before the clock is removed. Detaching the FPGA removes any controllers that are left.
+
+Example manual bring-up:
+
+```bash
+BDF=0000:01:00.0
+I3C=/sys/kernel/pddf/devices/multifpgapci/$BDF/i3c
+# 1. Program optoe_i3c IDs once, before any master is created
+echo 0x0104 0x1381 > /sys/bus/i3c/drivers/optoe_i3c/new_id
+# 2. Stage the controller settings
+echo i3c-master      > $I3C/i3c_driver
+echo SMB_I3C_MASTER1 > $I3C/i3c_controller_name
+echo 0x0             > $I3C/i3c_bar_index
+echo 0x8000          > $I3C/i3c_base_addr
+echo 0x1000          > $I3C/virt_i3c_controller_size
+echo 175000000       > $I3C/i3c_clk_hz
+echo 12500000        > $I3C/i3c_scl_hz
+# 3. Create the controller: i3c-master.1 probes and DAA runs
+echo 1 > $I3C/new_i3c_master
+# 4. The optic is bound after DAA (the PID part of the name is assigned at runtime)
+ls /sys/bus/i3c/devices/0-*/eeprom
+# Tear down
+echo 1 > $I3C/del_i3c_master
+```
+
+##### 3.4.16.2 I3C Controller JSON Design
+
+The FPGA lists its I3C masters in an `i3c_controllers` array. Each entry names an `I3C_CONTROLLER` object:
+
+```
+"SMB_FPGA": {
+    "dev_info": {
+        "device_type": "MULTIFPGAPCIE",
+        "device_name": "SMB_FPGA",
+        "device_parent": "PCIE0",
+        "device_bdf": "0000:01:00.0",
+        "dev_attr": {}
+    },
+    "dev_attr": {"reg_width": 32},
+    ...
+    "i3c_controllers": [
+        "SMB_I3C_MASTER1"
+    ]
+},
+
+"SMB_I3C_MASTER1": {
+    "dev_info": {
+        "device_type": "I3C_CONTROLLER",
+        "device_name": "SMB_I3C_MASTER1",
+        "device_parent": "SMB_FPGA"
+    },
+    "dev_attr": {
+        "i3c_bar_index": 0,
+        "i3c_base_addr": "0x8000",
+        "virt_i3c_controller_size": "0x1000",
+        "i3c_driver": "i3c-master",
+        "i3c_clk_hz": 175000000,
+        "i3c_scl_hz": 12500000,
+        "i3c_controller_name": "SMB_I3C_MASTER1",
+        "i3c_controller_idx": 1
+    },
+    "i3c_mode_commands": [
+        { "enable": "<command run before the master is created>",
+          "disable": "<command run after the master is deleted>" }
+    ]
+}
+```
+
+> **device_type**: Must be set to `I3C_CONTROLLER`.
+
+> **device_parent**: Must be the `MULTIFPGAPCIE` node that owns the controller. Its `device_bdf` selects the sysfs directory.
+
+> **dev_attr**: Each key is written, in JSON order, to the sysfs attribute of the same name (see [3.4.16.1](#34161-i3c-module-sysfs-controls-per-fpga)). The exception is `i3c_controller_idx`, which is written to `new_i3c_master`. It must therefore be the **last** key, so that every other value is staged before the controller is created. On delete, the same index is written to `del_i3c_master`.
+
+> **i3c_mode_commands** (optional): A list of objects with optional `enable` and `disable` shell commands. For example, these can switch FPGA-shared pins into I3C mode. `enable` commands run before the controller is created, and `disable` commands run after it is deleted.
+
+##### 3.4.16.3 Native-I3C Optic JSON Design
+
+A native-I3C optic uses the usual `PORT` / `PORT-EEPROM` / `PORT-CTRL` split described in [Optics JSON Design](#34102-json-design). The EEPROM interface is declared under an `i3c` object instead of `i2c`. Control attributes such as presence and reset stay on I2C/FPGA.
+
+```
+"PORT1": {
+    "dev_info": {"device_type": "OSFP", "device_name": "PORT1", "device_parent": "MCB_MUX"},
+    "dev_attr": {"dev_idx": "1"},
+    "i2c": {
+        "interface": [
+            {"itf": "control", "dev": "PORT1-CTRL"}
+        ]
+    },
+    "i3c": {
+        "interface": [
+            {"itf": "eeprom", "dev": "PORT1-EEPROM"}
+        ]
+    }
+},
+
+"PORT1-EEPROM": {
+    "dev_info": {"device_type": "", "device_name": "PORT1-EEPROM", "device_parent": "SMB_I3C_MASTER1", "virt_parent": "PORT1"},
+    "i3c": {
+        "topo_info": {"parent_bus": "0x00", "dev_type": "optoe3_i3c", "manuf_id": "0x0104", "part_id": "0x1381"},
+        "attr_list": [
+            {"attr_name": "eeprom"}
+        ]
+    }
+},
+```
+
+Description of the fields inside *i3c.topo_info*
+
+> **dev_type**: Must be set to `optoe3_i3c`. This value marks the node as a native-I3C optic EEPROM handled by `optoe_i3c`.
+
+> **parent_bus**: The kernel I3C bus number of the segment the optic sits on, i.e. the `<bus>` in `/sys/bus/i3c/devices/<bus>-<pid>`. Required for the EEPROM symlink.
+
+> **manuf_id**: The MIPI manufacturer ID from the optic's PID. Required.
+
+> **part_id** (optional): The part ID from the optic's PID. If it is omitted, the entry matches any part from that manufacturer.
+
+> **device_parent**: Must resolve, possibly through intermediate nodes such as an I3C mux, to the owning `I3C_CONTROLLER`. PDDF walks the `device_parent` chain to find which master an optic belongs to.
+
+##### 3.4.16.4 optoe_i3c Driver and PDDF Flow
+
+`optoe_i3c` does not compile in any match IDs. Matching IDs are written to the driver's `new_id` attribute, with up to 16 entries:
+
+```bash
+# manuf only: matches any part from that vendor
+echo 0x1abc > /sys/bus/i3c/drivers/optoe_i3c/new_id
+# manuf + part: matches that specific part only
+echo 0x1abc 0x5678 > /sys/bus/i3c/drivers/optoe_i3c/new_id
+# show the programmed IDs
+cat /sys/bus/i3c/drivers/optoe_i3c/new_id
+```
+
+The PID instance bits (15:12) are not compared. IDs must be programmed **before** the I3C master is registered: targets are bound as DAA adds them, so IDs written later do not match targets that were already added. Once bound, the module EEPROM is exposed at `/sys/bus/i3c/devices/<bus>-<pid>/eeprom`.
+
+Both the `optoe_i3c` and `pddf_multifpgapci_i3c_module` kernel modules must be loaded before device creation. For an FPGA that lists `i3c_controllers`, `pddfparse.py` creates the devices in this order:
+
+1. **Program IDs**: Scan every node whose `i3c.topo_info.dev_type` is `optoe3_i3c`, regardless of which master or mux it is under. Write each unique `(manuf_id, part_id)` pair once to `/sys/bus/i3c/drivers/optoe_i3c/new_id`.
+2. **Create each master**: Run the `enable` commands from `i3c_mode_commands`, then write `dev_attr` to `/sys/kernel/pddf/devices/multifpgapci/<BDF>/i3c/`, ending with `new_i3c_master`. No separate target-creation step is needed, because DAA discovers the targets.
+3. **Publish EEPROM symlinks**: For each optic under that master, look for `/sys/bus/i3c/devices/<parent_bus>-*/eeprom`, retrying up to 5 times at 0.2 s intervals while DAA and driver binding complete. Then create the following stable symlink, named after the port (the `virt_parent`, or the node's own `device_name` if it has no `virt_parent`):
+
+```
+/var/run/pddf/i3c/<port>/eeprom -> /sys/bus/i3c/devices/<parent_bus>-<pid>/eeprom
+```
+
+Because the PID part of the sysfs name is only known at runtime, consumers such as the platform APIs or CPO configuration (for example `cpo.json`) should use this symlink rather than the raw sysfs path. The lookup takes the first match on `parent_bus`, so each optic needs its own I3C bus number.
+
+On delete, `pddfparse.py` removes the `/var/run/pddf/i3c/<port>` symlinks, then writes `i3c_controller_idx` to `del_i3c_master`, and then runs the `disable` commands from `i3c_mode_commands`.
 
 ### 3.6 PDDF BMC Component Design
 
