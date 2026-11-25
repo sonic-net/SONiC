@@ -83,6 +83,7 @@ Mapping tables: [Section 4](#4-mapping-tables)
 | 1.0 | 11/24/2026 | Malavika Unnikrishnan | VIP uniqueness is by host address (prefix length ignored). IPv6 link-local uniqueness is per hosting interface |
 | 1.1 | 11/24/2026 | Malavika Unnikrishnan | Join OC `address[ip]` to INTERFACE; multi-IP is different-subnet prefixes on one if sharing `{if}\|{vrid}` |
 | 1.2 | 11/25/2026 | Malavika Unnikrishnan | Canonical IPv6 VIPs; empty virtual-address HDEL; unkeyed DELETE/REPLACE require VRID; uniqueness is CLI+UMF not CVL |
+| 1.3 | 11/25/2026 | Malavika Unnikrishnan | JSON annot marks preempt-delay/accept-mode not-supported; REPLACE of config omits VIP category as delete; Subscribe address[ip=*] fans out |
 
 # About this Manual
 This document describes OpenConfig configuration and management of VRRP in SONiC. Google / PINS clients walk the `openconfig-interfaces` tree. `openconfig-if-ip` 3.9.0 adds `ipv4` / `ipv6` / `vrrp` / `vrrp-group` onto that tree (and onto `openconfig-vlan:routed-vlan` for SVIs). There is no `/openconfig-if-ip:` root.
@@ -454,7 +455,7 @@ Each row answers: what is different, does native VRRP still work, and does it ma
 | 3 | `advertisement-interval` is centiseconds in OC; `adv_interval` is seconds 1..40 in YANG | Native interval is seconds (CVL). Original click HLD text used milliseconds; CVL is the contract | OC leaf with centisecond units | Supported by conversion. SET must be a multiple of 100 (100 → 1s). Not a `not-supported` deviation |
 | 4 | `preempt` is boolean in OC, `enabled`/`disabled` in YANG/CLI | Native enum | OC boolean | Supported by translation |
 | 5 | `virtual-address` is prefix-less in OC; native `vip` is `/32` or `/128` | Native stores prefixes | OC `ip-address` | Supported. UMF adds/strips the host prefix |
-| 6 | IPv6 VIP is one native list; OC splits `virtual-address` and `virtual-link-local` | `vrrp6 ipv6 add` accepts either | Both OC leaves | Supported. SET of one list preserves the other family in `vip@` |
+| 6 | IPv6 VIP is one native list; OC splits `virtual-address` and `virtual-link-local` | `vrrp6 ipv6 add` accepts either | Both OC leaves | Supported. Leaf SET of one list preserves the other family in `vip@`. REPLACE of the whole `config` or `vrrp-group` treats an omitted VIP category as delete |
 | 7 | `priority-decrement` (OC) vs `priority_increment` (YANG/CLI) | Native 10..50 | OC integer, no 10..50 range in the model | Mapped. Values outside 10..50 fail in UMF (`InvalidArgs`) and CVL |
 | 8 | `current-priority` | Native has no APPL_DB current-priority field | OC operational leaf | GET mirrors configured `priority`. Live master/backup priority is **not** returned. Does **not** fully match the OC operational meaning |
 | 9 | `accept-mode` | No CLI. Not in CVL | OC config/state leaf | **not-supported** |
@@ -648,6 +649,8 @@ Invalid configurations report an error. Examples include:
 19. IPv6 `2001:db8:1:2:3:4::1` stores as `2001:db8:1:2:3:4:0:1/128`.
 20. Unkeyed DELETE and REPLACE of `/vrrp-group` require `virtual-router-id`; Redis rows survive.
 21. GET of `address[ip]` that is not on the interface is empty / gNMI `NOT_FOUND`, not `InvalidArgs`.
+22. REPLACE of `/config` that supplies `virtual-address` and omits `virtual-link-local` drops `fe80:` from `vip@`. Leaf PATCH of `virtual-address` still preserves `fe80:`.
+23. Wildcard Subscribe `address[ip=*]` fans out ON_CHANGE to every configured L3 address of that family (`ProcessOnChange_vrrp`), not only `hosts[0]`.
 
 ## 7.2 Negative Test Cases
 1. SET of `/config/virtual-link-local` on an IPv4 `vrrp-group` is rejected (leaf is IPv6-only in OpenConfig; transformer also guards).
