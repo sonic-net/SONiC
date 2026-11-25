@@ -6,21 +6,22 @@
 - [2 Scope](#2-scope)
 - [3 Definitions/Abbreviations](#3-definitionsabbreviations)
 - [4 Overview](#4-overview)
+  - [4.1 Background](#41-background)
+  - [4.2 Motivations](#42-motivations)
 - [5 Requirements](#5-requirements)
+  - [5.1 G1: One platform, one HWSKU, any breakout](#51-g1-one-platform-one-hwsku-any-breakout)
+  - [5.2 G2: Qualify once per platform, not per breakout](#52-g2-qualify-once-per-platform-not-per-breakout)
 - [6 Architecture Design](#6-architecture-design)
 - [7 High-Level Design](#7-high-level-design)
-  - [7.1 Default HWSKU definition](#71-default-hwsku-definition)
-  - [7.2 Deprecate or converge HWSKU-specific configurations](#72-deprecate-or-converge-hwsku-specific-configurations)
-    - [7.2.1 Deprecate port and breakout configurations](#721-deprecate-port-and-breakout-configurations)
-    - [7.2.2 Converge lossless PG profiles](#722-converge-lossless-pg-profiles)
-    - [7.2.3 Converge QoS related settings](#723-converge-qos-related-settings)
-    - [7.2.4 Converge buffer-related settings](#724-converge-buffer-related-settings)
-    - [7.2.5 Converge SAI and SDK-related settings](#725-converge-sai-and-sdk-related-settings)
-    - [7.2.6 Converge media settings](#726-converge-media-settings)
-    - [7.2.7 Do not generate non-default HWSKU folders](#727-do-not-generate-non-default-hwsku-folders)
-  - [7.3 Step 4: Qualification workflow](#73-step-4-qualification-workflow)
-    - [7.3.1 Qualification requirements](#731-qualification-requirements)
-    - [7.3.2 sonic-mgmt workflow updates](#732-sonic-mgmt-workflow-updates)
+  - [7.1 Generic HWSKU definition](#71-generic-hwsku-definition)
+  - [7.2 Vendor generic HWSKU creation request](#72-vendor-generic-hwsku-creation-request)
+  - [7.3 Dynamic HWSKU creation with specific port breakout](#73-dynamic-hwsku-creation-with-specific-port-breakout)
+    - [7.3.1 Step 1: Create a symlink to the base HWSKU folder](#731-step-1-create-a-symlink-to-the-base-hwsku-folder)
+    - [7.3.2 Step 2: Create config_db.json for the target breakout](#732-step-2-create-config_dbjson-for-the-target-breakout)
+    - [7.3.3 Step 3: Run config reload to load config_db.json](#733-step-3-run-config-reload-to-load-config_dbjson)
+  - [7.4 HWSKU qualification process](#74-hwsku-qualification-process)
+    - [7.4.1 sonic-mgmt nightly tests](#741-sonic-mgmt-nightly-tests)
+    - [7.4.2 snappi-test / NUT tests](#742-snappi-test--nut-tests)
 - [8 SAI API](#8-sai-api)
 - [9 Configuration and Management](#9-configuration-and-management)
   - [9.1 CLI/YANG model Enhancements](#91-cliyang-model-enhancements)
@@ -40,424 +41,336 @@
 | Rev | Date       | Author      | Change Description |
 |:---:|:-----------|:------------|:-------------------|
 | 0.1 | 11/06/2025 | Riff Jiang  | Initial version |
-| 0.2 | 02/26/2026 | Bing Wang   | Added SAI profile and qualification updates |
-| 0.3 | 03/23/2026 | Bing Wang   | Reworked into SONiC HLD structure and clarified workflow deliverables |
+| 0.2 | 02/26/2026 | Bing Wang   | Updated SAI profile and qualification sections |
+| 0.3 | 03/23/2026 | Bing Wang   | Reworked into SONiC HLD structure |
+| 0.4 | 05/26/2026 | Riff Jiang  | Restructured: vendor request, dynamic HWSKU creation approaches, qualification feature-coverage framing |
+| 0.5 | 11/25/2026 | Bing Wang   | Synced with the latest generic HWSKU design |
 
 ## 2 Scope
 
-This document describes the high-level design for defining, delivering, and qualifying generic HWSKUs in SONiC.
+This document describes the high-level design of the generic HWSKU model in SONiC:
 
-The scope of this HLD is the workflow and artifact model needed to reduce the number of per-breakout HWSKUs that must be authored and qualified independently. It covers the responsibilities associated with requirement definition, platform artifact delivery, and SONiC integration across repositories such as `sonic-buildimage`, `sonic-mgmt`, and `SONiC/doc`.
+- What a generic HWSKU is.
+- What a platform vendor delivers for a new platform under the generic HWSKU model.
+- How a HWSKU with a specific port breakout is realized at deploy time from the generic base HWSKU.
+- How qualification is organized so that its cost scales per platform rather than per breakout.
 
-This HLD is intentionally focused on platform definition and qualification workflow. It is not a runtime data plane feature design for SWSS, Syncd, or SAI.
+This HLD does not introduce a new runtime component, SAI API, or CONFIG_DB table.
 
 ## 3 Definitions/Abbreviations
 
 | Term | Definition |
 |------|------------|
-| HWSKU | Hardware SKU. A hardware configuration identified by platform family, model, and port breakout or use-case-specific settings. |
-| Generic HWSKU | A base HWSKU that captures platform-wide capabilities and defaults without binding the design to a single breakout configuration. |
-| Platform requirements owner | The organization or team defining the target platform requirements and qualification expectations. |
-| Platform maintainer | The party responsible for providing platform-specific implementation artifacts and qualification results. |
-| Port breakout | Splitting one physical port into multiple logical ports. |
+| Base HWSKU | The single generic HWSKU folder shipped for a platform, named `<Vendor>-<Model>` and referenced by `default_sku`. |
+| DPB | Dynamic Port Breakout — SONiC runtime feature for changing individual port breakouts after first boot. |
+| Generic HWSKU | A HWSKU model in which a single HWSKU folder per platform can run any port breakout the hardware supports. |
+| HWSKU | Hardware SKU — per-device configuration bundle (port layout, buffers, QoS, SAI init) inside a SONiC platform folder. |
+| MMU | Memory Management Unit — the ASIC's packet buffer subsystem. |
+| NUT | Network Under Test. |
+| PG | Priority Group — ingress buffer entity associated with a TC. |
+| Platform requirements owner | The operator or team that defines the platform requirements and qualification expectations. |
+| Platform vendor | The party that delivers the platform folder and base HWSKU artifacts. |
+| Port breakout | Splitting one physical port (cage) into one or more logical ports. |
 | QoS | Quality of Service. |
 | RDMA | Remote Direct Memory Access. |
-| OS ratio | Oversubscription ratio. |
-| SAI | Switch Abstraction Interface. |
-| SI settings | Signal integrity settings for optics or copper media. |
+| Realized HWSKU | A breakout-suffixed HWSKU name (for example `Mellanox-SN5640-C512S2`) materialized at deploy time as a symlink to the base HWSKU folder. |
+| SAI | Switch Abstraction Interface — vendor-agnostic ASIC programming API. |
+| TC | Traffic Class — QoS scheduling class. |
+| WRED | Weighted Random Early Detection. |
 
 ## 4 Overview
 
-Traditional SONiC onboarding has relied on many pre-defined HWSKUs, often one per breakout configuration or deployment scenario. That model makes requirements explicit, but it does not scale well as modern platforms support more breakout combinations, optics, media tuning options, and QoS variants.
+### 4.1 Background
 
-The goal of this HLD is to define a community-reviewable workflow for onboarding platforms with a generic HWSKU model. The intent is to reduce duplicated platform artifacts, make qualification more reusable across related breakout variants, and keep the implementation path explicit across `sonic-buildimage`, `sonic-mgmt`, and associated tooling.
+In SONiC, a **HWSKU folder** is the configuration bundle a device runs: it sits inside a platform folder and pins down one specific way of using that hardware (port layout, buffers, QoS, SAI init). A typical HWSKU folder today contains:
+
+- Port layout: `port_config.ini`, `hwsku.json`
+- Lossless headroom lookup: `pg_profile_lookup.ini`
+- Buffer templates: `buffers.json.j2`, `buffers_defaults_*.j2`, `buffer_ports.j2`
+- QoS templates: `qos.json.j2`
+- SAI / SDK init: `sai.profile` and the vendor SAI init file (for example `config.bcm` or `sai.xml`)
+- Media settings: `media_settings.json`, `optics_si_settings.json`
+
+The key property of today's HWSKU model is that **a HWSKU folder is a frozen port-breakout decision** — almost every file inside is shaped by how the platform's ports are sliced. So a different breakout means a different HWSKU folder. The same physical chassis routinely ships with many HWSKU folders that differ only in breakout math.
+
+The **generic HWSKU** effort aims to break that 1:1 link, so one HWSKU per platform can cover any supported port slicing.
+
+### 4.2 Motivations
+
+Generic HWSKU is needed to unblock faster onboarding of new network scenarios. Two compounding problems flow from today's "one HWSKU folder per breakout" model: new scenarios are slow to onboard because they require a new breakout (weeks to create, months more to qualify), and the qualification matrix grows with every new HWSKU that is added.
+
+#### 4.2.1 M1: New scenarios are blocked by weeks-to-months breakout turnaround
+
+In production, changing a device's port breakout means picking a different HWSKU folder — which means a different image config bundle, a different qualification record, and a re-onboarding. The HWSKU folder is breakout-shaped end to end: `port_config.ini`, `hwsku.json`, buffer pool sizes, QoS maps, `SAI_NUM_ECMP_MEMBERS`, and — most tightly coupled of all — the vendor-supplied SAI init file.
+
+The Dynamic Port Breakout (DPB) machinery in swss exists but doesn't help here: a new scenario almost always needs a new breakout the platform's HWSKU folders don't already cover, which means **authoring a new HWSKU folder + a new qualification record before the scenario can deploy**. End-to-end turnaround is **weeks for breakout creation and months for the new qualification cycle on top**, even though the underlying ASIC supports the breakout out of the box. That latency directly slows down the rollout of new networking scenarios.
+
+#### 4.2.2 M2: Qualification explodes combinatorially
+
+Every (HWSKU, topology) pair has to be qualified independently, because each HWSKU is a distinct artifact even when the only real difference from a sibling is the breakout. This compounds in two ways:
+
+- **Per-scenario cost.** Each new scenario — which in practice almost always means a new breakout — drags a new HWSKU folder and a full qualification cycle along with it on top of the breakout work itself.
+- **Engineering cost from the combinatorial blow-up.** More HWSKUs means more testbeds to set up, more lab capacity consumed, and a longer overall qualification cycle. Cost and cycle time grow with the matrix, not with the underlying scenario count.
 
 ## 5 Requirements
 
-Platforms adopting the generic HWSKU model should satisfy the following requirements:
+### 5.1 G1: One platform, one HWSKU, any breakout
 
-- Define a base HWSKU for the platform instead of requiring a separate pre-defined HWSKU for every expected breakout mode.
-- Describe the maximum supported breakout capability and the common per-port feature set, including items such as speed, auto-negotiation, FEC, and supported optics.
-- Allow deployment-specific QoS, buffer, media, and qualification requirements to be layered on top of the base platform definition instead of being duplicated in many HWSKU folders.
-- Preserve compatibility with current SONiC onboarding flows during transition, while enabling a simpler long-term artifact model.
-- Minimize impact to existing platforms and allow incremental adoption, starting with new platforms.
+A single HWSKU folder per platform should be able to run any breakout the hardware supports, without authoring a new HWSKU. Port-dependent state is derived at config time from declarative inputs (`platform.json` + per-device wiring) and applied to CONFIG_DB, and the vendor SAI init contract evolves so it no longer requires a new file per breakout. This unblocks new-scenario onboarding by removing the new-HWSKU + new-qualification prerequisite that today gates every new breakout.
+
+### 5.2 G2: Qualify once per platform, not per breakout
+
+Only a representative topology needs full qualification on a given platform; other supported breakouts are covered by reduced, targeted testing instead of a full re-qualification. This shrinks the qualification matrix from (HWSKU × topology) to roughly per platform, and turns the marginal cost of a new use case from "new HWSKU + full qualification" into "new config + targeted qualification on the delta".
 
 ## 6 Architecture Design
 
-This design does not introduce a new SONiC runtime component. Instead, it defines a workflow and artifact model across existing SONiC repositories and scripts.
+Generic HWSKU does not introduce a new SONiC runtime component. It changes how platform and HWSKU artifacts are organized, how a specific port breakout is realized at deploy time, and how qualification is scoped.
 
 The following repositories and components are impacted:
 
-- `SONiC/doc`
-  - HLD and process documentation for generic HWSKU onboarding and qualification.
-- `sonic-buildimage`
-  - Platform artifacts such as `default_sku`, `platform.json`, shared templates, QoS/buffer settings, SAI profile templates, and media/SI settings.
-- `sonic-mgmt`
-  - Inventory metadata, deployment logic, qualification selection, and testbed preparation for breakout-specific validation.
-- Management and utility scripts
-  - Scripts and helpers that currently assume HWSKU-local files such as `port_config.ini`, `hwsku.json`, or HWSKU-specific templates.
-
-The design has two phases:
-
-- Transition phase
-  - Generic HWSKU onboarding must work with the current SONiC configuration and deployment flow, including environments that still use minigraph-based generation.
-- Target phase
-  - Platform capabilities and common templates are owned at the platform level, while deployment-specific `PORT` and `BREAKOUT_CFG` data come from the effective configuration source used by the system.
-
-Generic HWSKU must not depend exclusively on future migration to `golden_config_db.json`. It should remain implementable with current flows and become simpler as newer configuration models are adopted.
+| Repository / component | Impact |
+|------------------------|--------|
+| `sonic-buildimage` — platform folder | `platform.json` is the authoritative list of supported breakouts. `default_sku` references the base HWSKU. `pg_profile_lookup.ini` moves from the HWSKU folder to the platform folder. |
+| `sonic-buildimage` — base HWSKU folder | Named `<Vendor>-<Model>`. Ships no `port_config.ini` or `hwsku.json`. Buffer and QoS templates render correctly for any supported breakout. |
+| `sonic-buildimage` — `sonic-cfggen` | Expands a per-port `hwsku.json` plus `platform.json` into `PORT` entries ([Approach 2](#7322-approach-2-push-hwskujson-and-run-sonic-cfggen)). |
+| `sonic-buildimage` — `minigraph.py` | Creates the realized HWSKU symlink and writes `PORT` from `hwsku.json` ([Approach 3](#7323-approach-3-use-minigraphxml-with-hwskujson)). |
+| `sonic-mgmt` | Deploy tooling materializes the realized HWSKU symlink. The nightly qualification matrix is selected by feature coverage ([7.4](#74-hwsku-qualification-process)). |
+| Platform vendor deliverables | Platform folder, base HWSKU, and platform documentation delivered against the generic HWSKU definition doc ([7.2](#72-vendor-generic-hwsku-creation-request)). |
 
 ## 7 High-Level Design
 
-### 7.1 Default HWSKU definition
+### 7.1 Generic HWSKU definition
 
-A HWSKU with minimum breakout mode should be defined for each platform. The naming convention continues to follow the existing platform naming pattern:
+A generic HWSKU is a single HWSKU folder per platform, defined by four properties:
 
-```text
-<Manufacturer>-<Model>-<Minimum Breakout Mode>
+1. **All supported port breakouts are declared in `platform.json`.**
+   - Today `platform.json` already carries valid `breakout_modes` per cage.
+   - Under generic HWSKU it is the **authoritative source** for what the platform supports.
+   - The HWSKU folder itself carries no breakout-specific configuration files.
+2. **Base HWSKU with minimum breakout as default.**
+   - In the platform folder, a single base HWSKU is provided. On top of it, breakout-specific HWSKUs are created on the fly at deploy time.
+   - The base HWSKU folder is named **`<Vendor>-<Model>`** — no breakout suffix, because the folder is breakout-agnostic.
+     - Example: `Mellanox-SN5640`.
+   - When no per-port breakout selection is supplied, the base HWSKU is interpreted as the platform's **minimum breakout** (one logical port per physical cage at the max supported speed). This is a semantic default, not a folder-name encoding.
+   - The realized HWSKU name carrying the breakout suffix (for example `Mellanox-SN5640-P64`, `Mellanox-SN5640-C512S2`) is materialized at deploy time as a symlink to the base HWSKU folder. See [7.3 Dynamic HWSKU creation with specific port breakout](#73-dynamic-hwsku-creation-with-specific-port-breakout).
+3. **No per-port information lives in the HWSKU folder.**
+   - Per-port state (breakout mode, lane assignment, speed, FEC, alias) lives in SONiC CONFIG_DB / `config_db.json`, never in HWSKU files.
+   - `hwsku.json` and `port_config.ini` are explicitly not shipped from the HWSKU folder.
+   - Runtime tooling reads per-port config only from CONFIG_DB.
+4. **Buffer, headroom, and QoS configuration covers every supported breakout.**
+   - Buffer templates (`buffer_ports.j2`, `buffers_defaults_*.j2`, `buffers.json.j2`) and QoS templates (`qos.json.j2`) must render correctly for any breakout the platform supports.
+   - No breakout-tuned constants, and no DSCP-map stripping that breaks RDMA.
+   - Headroom lookup (`pg_profile_lookup.ini`) is a strict speed-superset covering every (speed, cable_len) combination any supported breakout can produce.
+     - `pg_profile_lookup.ini` **will be moved from the HWSKU folder to the platform folder** so a single file covers every breakout the platform can run, and multiple HWSKU revisions can share it. Today the file lives per HWSKU and typically carries rows only for that HWSKU's own breakout speeds; under generic HWSKU it lives at platform level and must be a strict superset.
+
+### 7.2 Vendor generic HWSKU creation request
+
+When a new platform comes out, a generic HWSKU creation process is kicked off as part of the platform bring-up work. The handoff from the platform requirements owner to the platform vendor is driven by a single **generic HWSKU definition doc** per platform, which replaces today's "one HWSKU definition doc per breakout" model. RDMA requirements are folded into the same doc so the vendor receives a single, complete request per platform.
+
+1. **The platform requirements owner provides a generic HWSKU definition doc** per platform, which contains the fields a vendor needs to ship a generic base HWSKU:
+   1. **Min port breakout to support** — the minimum slicing every port must support, which defines the lower bound of the port count the platform will run.
+   2. **Per-port speed / mode / feature matrix** — for each port, all speeds, modes, and features (for example AN and FEC) that must be supported.
+   3. **Per-port optics list** — for each port, all optic types that must be supported.
+   4. **RDMA requirements per (speed, cable_length)** — all (speed, cable_length) combinations that must support RDMA, so the vendor can size headroom and pool memory up front. No separate per-use-case RDMA doc is needed; everything the vendor needs to ship a complete base HWSKU is in this one document.
+2. **The vendor delivers the base HWSKU** that meets the [generic HWSKU definition](#71-generic-hwsku-definition) properties above:
+   - The platform folder with all supported port breakouts declared in `platform.json`.
+   - A base HWSKU folder named **`<Vendor>-<Model>`** (no breakout suffix), referenced by `default_sku`.
+   - **No `port_config.ini` and no `hwsku.json`** in the HWSKU folder — per-port state comes from CONFIG_DB at runtime (see [sonic-buildimage#24494](https://github.com/sonic-net/sonic-buildimage/issues/24494)).
+   - **RDMA settings included in the platform-level `pg_profile_lookup.ini`** — the file moves out of the HWSKU folder up to the platform folder, and every (speed, cable_length) from the request gets a row, so `buffermgrd` can apply lossless headroom for any realized breakout without further per-use-case overrides.
+   - **QoS templates render correctly for any breakout** the platform supports — no breakout-tuned constants and no DSCP-map stripping. The template enumerates ports from `CONFIG_DB.PORT` rather than hardcoded ranges.
+   - Platform documentation listing ASIC / switch limit factors: per-port or per-port-group breakout limits, optics support limits, and any other capability constraints that can't be encoded in `platform.json` today.
+
+### 7.3 Dynamic HWSKU creation with specific port breakout
+
+The base generic HWSKU is breakout-agnostic — it ships as `<Vendor>-<Model>` and defaults to the minimum breakout when nothing else is specified. Any specific port breakout — including the breakout-suffixed names operators use operationally (for example `Mellanox-SN5640-P64`, `Mellanox-SN5640-C512S2`) — is materialized at deploy time, not shipped as a separate HWSKU folder.
+
+The workflow has three steps:
+
+```mermaid
+flowchart TD
+    S1["Step 1: Create realized HWSKU symlink<br/>Mellanox-SN5640-C512S2 → Mellanox-SN5640"]
+    subgraph S2["Step 2: Produce config_db.json (PORT only, no BREAKOUT_CFG)"]
+        direction LR
+        A1["Approach 1<br/>Push config_db.json"]
+        A2["Approach 2<br/>Push hwsku.json<br/>Run sonic-cfggen"]
+        A3["Approach 3<br/>Push minigraph.xml + hwsku.json<br/>minigraph.py (also performs Step 1)"]
+    end
+    CDB["config_db.json"]
+    S3["Step 3: config reload<br/>Load CONFIG_DB, re-render buffer / QoS templates"]
+    S1 --> S2
+    A1 --> CDB
+    A2 --> CDB
+    A3 --> CDB
+    CDB --> S3
 ```
 
-The name represents the platform at the minimum breakout view, meaning one logical port per physical port.
+#### 7.3.1 Step 1: Create a symlink to the base HWSKU folder
 
-Examples:
+A soft link is created from the breakout-suffixed HWSKU name the operator uses (for example `Mellanox-SN5640-C512S2`) to the base generic HWSKU folder (`Mellanox-SN5640`). This preserves operational HWSKU-by-name lookup — existing tooling that resolves HWSKU by name keeps working unchanged.
 
-- `Mellanox-SN5640-P64`
-- `Arista-7060X6-64PE-B-P64`
-- `Nokia-IXR7220-H6-P128`
+Who creates the symlink depends on the Step 2 approach:
 
-The HWSKU with minimum breakout is defined as the default HWSKU or base HWSKU. The default HWSKU should be referenced by the `default_sku` file under the platform directory.
+- **Approach 1 (direct `config_db.json`) / Approach 2 (`hwsku.json` + `sonic-cfggen`):** the operator (or deploy tooling) creates the symlink explicitly before Step 2 runs.
+- **Approach 3 (`minigraph.xml` + `hwsku.json`):** `minigraph.py` creates the symlink as part of its own processing — see [Approach 3](#7323-approach-3-use-minigraphxml-with-hwskujson) below.
 
-### 7.2 Deprecate or converge HWSKU-specific configurations
-
-Historically, one HWSKU definition often contained all of the following:
-
-- Port configurations, such as `port_config.ini`
-- Default port breakout mode, such as `hwsku.json`
-- Lossless PG profiles, such as `pg_profile_lookup.ini`
-- QoS related settings, such as `qos.json.j2`
-- Buffer related settings, such as `buffer_ports.j2`, `buffers.json.j2` and `buffers_defaults.j2` for different roles
-- SAI and SDK related settings, such as `sai.profile`, `config.bcm` and `sai.xml`
-- Media settings for optics, such as `media_settings.json` and `optics_si_settings.json`
-
-For generic HWSKU enablement, these HWSKU-specific settings should either be removed from per-HWSKU folders or converged into platform-level shared configurations.
-
-The goal is a clear target state:
-
-- Platform capability and common defaults are defined once at platform level.
-- Deployment-specific configuration is derived from the active system configuration.
-- Breakout-specific qualification remains explicit.
-
-The following sections describe the expected direction for each artifact type.
-
-#### 7.2.1 Deprecate port and breakout configurations
-
-A typical `port_config.ini` is shown below.
-
-```ini
-# name       lanes                            alias  index  speed   fec
-Ethernet0    17,18,19,20,21,22,23,24          etp1    1      800000  rs
-Ethernet8    1,2,3,4,5,6,7,8                  etp2    2      800000  rs
-Ethernet16   9,10,11,12,13,14,15,16           etp3    3      800000  rs
-Ethernet24   25,26,27,28,29,30,31,32          etp4    4      800000  rs
-```
-This file defines port names and aliases, lanes, port index, speed, and FEC configuration. Today, `port_config.ini` is referenced by `minigraph.py` when generating the `PORT` table in `config_db`, and by some utility scripts that read port configuration.
-
-A typical `hwsku.json` file specifies the default breakout mode for the current HWSKU. The major purpose of `hwsku.json` is to generate the `BREAKOUT_CFG` table in `config_db` when loading minigraph.
-```json
-{
-    "interfaces": {
-        "Ethernet0": {
-            "default_brkout_mode": "1x800G[400G]"
-        },
-        "Ethernet8": {
-            "default_brkout_mode": "1x800G[400G]"
-        },
-        "Ethernet16": {
-            "default_brkout_mode": "1x800G[400G]"
-        },
-        ...
-    }
-}
-```
-In the long-term target state, `PORT` and `BREAKOUT_CFG` should come from the active configuration source rather than from HWSKU-local static files. `golden_config_db.json` is one possible source of that data, but generic HWSKU should not rely on that migration being complete before adoption begins.
-
-Here is the intended direction for `port_config.ini` and `hwsku.json`:
-
-1. ASIC and SDK initialization should follow effective `PORT` and `BREAKOUT_CFG` data from `config_db`.
-2. New platforms adopting generic HWSKU should avoid introducing new HWSKU-specific `port_config.ini` and `hwsku.json` files where the same information can be provided through platform capability data and active configuration.
-3. Platform capability and supported breakout modes should be documented at platform level, for example in `platform.json` and accompanying platform documentation.
-4. Existing code paths that read `port_config.ini` or `hwsku.json` must be updated to tolerate their absence and to use the platform-level or active configuration source instead.
-
-This means the document is not proposing that `hwsku.json` disappears everywhere immediately. It is proposing that generic HWSKU onboarding move away from using HWSKU-local copies of these files as the primary source of truth.
-
-#### 7.2.2 Converge lossless PG profiles
-
-A typical lossless PG profile lookup table is shown below:
-```ini
-# PG lossless profiles
-# speed cable  size   xon    xoff   threshold
-10000   5m  19456  19456  20480  0
-25000   5m  19456  19456  21504  0
-40000   5m  19456  19456  24576  0
-```
-Since it is a lookup table, all supported or required port speed and cable length combinations can be stored in a common `pg_profile_lookup.ini` at platform level. The file can be placed in the default HWSKU folder.
-
-SONiC code also needs to be improved so that `pg_profile_lookup.ini` in the platform folder is used when the file is not present in the HWSKU folder.
-
-#### 7.2.3 Converge QoS related settings
-
-For most HWSKUs, the `qos.json.j2` is just a reference to template file `qos_config.j2`. 
-
-```json
-{%- include 'qos_config.j2' %}
-```
-For these HWSKUs, the preferred approach is to remove `qos.json.j2` from the HWSKU folder. SONiC code then needs to fall back to `qos_config.j2` in the template folder when `qos.json.j2` is not present.
-
-Some HWSKUs also define dedicated macros in `qos.json.j2`. These are usually used to generate HWSKU-specific WRED configurations or QoS mappings such as `DSCP_TO_TC_MAP` and `TC_TO_QUEUE_MAP`.
-
-```json
-{%- macro generate_wred_profiles() %}
-    "WRED_PROFILE": {
-        "AZURE_LOSSLESS" : {
-            "wred_green_enable"      : "true",
-            "wred_yellow_enable"     : "true",
-            "wred_red_enable"        : "true",
-            ...
-        }
-    },
-{%- endmacro %}
-{%- macro  generate_normal_dscp_to_tc_map() -%}
-        {
-            "0" : "1",
-            "1" : "1",
-            "2" : "1",
-            "3" : "3",
-            ...
-            "63": "1"
-        }
-{%- endmacro -%}
-```
-For these HWSKUs, the recommendation is to converge QoS templates into a common file located in the platform folder. The template should then be rendered according to input from `config_db`. For example:
-```json
-{{%- macro generate_dscp_to_tc_map() %}
-    "DSCP_TO_TC_MAP": {
-{% if ('type' in DEVICE_METADATA['localhost'] and DEVICE_METADATA['localhost']['type'] == 'LeafRouter') %}
-        "AZURE_UPLINK":
-        {{ generate_normal_dscp_to_tc_map() }},
-        "AZURE":
-        {{ generate_dscp_to_tc_map_with_addition_lossless_pgs_n_queues() }}
-{% endif %}
-    },
-{%- endmacro %}
-``` 
-
-#### 7.2.4 Converge buffer-related settings
-
-Typically, there are three different kinds of buffer-related configurations in the HWSKU folder.
-
-- buffers.json.j2
-
-  For most HWSKUs, `buffers.json.j2` is only a reference to `buffers_config.j2`. The recommended direction is to move it to the platform folder and share the common file across HWSKUs.
-
-
-```ini
-  {%- set default_topo = 't0' %}
-  {%- include 'buffers_config.j2' %}
-```
-
-- buffers_defaults_t0.j2/buffers_defaults_t1.j2/buffers_defaults_t2.j2
-
-  `BUFFER_POOL` and `BUFFER_PROFILE` tables are defined in these template files. A typical `buffer_defaults` template file is shown below.
-
-```json
-  {%- set default_cable = '5m' %}
-
-  {%- include 'buffer_ports.j2' %}
-
-  {%- macro generate_buffer_pool_and_profiles() %}
-      "BUFFER_POOL": {
-          "ingress_lossless_pool": {
-              ...
-          },
-          "egress_lossless_pool": {
-              ...
-          }
-      },
-      "BUFFER_PROFILE": {
-          "egress_lossy_profile": {
-              ...
-          },
-          "egress_lossless_profile": {
-              ...
-          },
-          "ingress_lossy_profile": {
-              ...
-          }
-      },
-  {%- endmacro %}
-```
-
-There are three options for these HWSKU-specific buffer configurations:
-
-1. Use a unified set of values for all HWSKUs on a platform.
-2. Render the values according to port breakout mode and/or device role.
-3. Calculate the values dynamically according to port breakout mode. An example is [buffers_defaults_objects.j2](https://github.com/sonic-net/sonic-buildimage/blob/master/device/mellanox/x86_64-nvidia_sn5600-r0/Mellanox-SN5600-C256S1/buffers_defaults_objects.j2).
-
-
-#### 7.2.5 Converge SAI and SDK-related settings
-
-SAI and SDK-related settings are platform-dependent. Typically, there are two kinds of settings:
-- sai.profile
-
-  This file contains a set of key-value pairs. `sai.profile` is referenced at runtime by the syncd init script, which passes it to the syncd binary.
-
-  ```
-  SAI_INIT_CONFIG_FILE=/usr/share/sonic/hwsku/config.bcm
-  SAI_NUM_ECMP_MEMBERS=96
-  SAI_NHG_HIERARCHICAL_NEXTHOP=false
-  ``` 
-
-  The guidance for `sai.profile` is to move HWSKU-specific SAI settings into `config_db` where possible. If there is no SAI API available, the key-value pair should be moved into a common template profile file in the platform folder. The template should be rendered according to input from `config_db`.
-
-- SDK or ASIC-related settings
-
-  SDK or ASIC-related settings are platform-dependent. For example, they may be represented as an XML file on a `Mellanox` platform and as a YAML file on a `Broadcom` platform.
-  
-  The guidance is to avoid HWSKU-specific settings in SDK configuration wherever possible. Instead, the configuration should be driven by `config_db`, or generated dynamically according to port breakout mode.
-  
-  If HWSKU specific settings have to be used, the guidance is to render different SDK configurations according to the input from `config_db`. An example is [sai.profile](https://github.com/sonic-net/sonic-buildimage/blob/master/device/celestica/x86_64-cel_seastone_2-r0/Seastone_2/sai.profile.j2).
-
-#### 7.2.6 Converge media settings
-
-Some HWSKUs also include media or optics-related settings. These configuration files define per-port or per-media (optic/cable) tuning parameters.
-
-Such parameters should be defined in the platform folder instead of in the HWSKU folder.
-
-
-#### 7.2.7 Do not generate non-default HWSKU folders
-
-Once the configuration files currently stored in HWSKU folders are deprecated or moved to the platform folder, the recommendation for new platforms is to avoid generating non-default HWSKU folders.
-
-To support this, SONiC scripts need to be improved so that configuration and show commands continue to work when only the default HWSKU folder exists.
-
-
-### 7.3 Step 4: Qualification workflow
-
-Qualification continues to be executed against concrete HWSKUs or breakout-specific operating points even when the base platform uses a generic HWSKU model.
-
-#### 7.3.1 Qualification requirements
-
-The qualification request should still identify the actual breakout variant under test. For example:
-
-- `Mellanox-SN5640-C512S2`
-
-Two qualification models are supported:
-
-- Current model:
-  - Specify HWSKU, topology, and required tests explicitly for each variant.
-- Optimized model:
-  - Select one or two representative base variants and run broad coverage there.
-  - For other variants of the same platform, run a reduced qualification set focused on data plane and QoS deltas.
-
-Examples of representative qualification:
-
-- Run full `t0` and `t1` coverage on a maximum-scale breakout variant.
-- Run reduced delta coverage for smaller breakout variants on the same platform.
-
-#### 7.3.2 sonic-mgmt workflow updates
-
-To support generic HWSKU qualification, `sonic-mgmt` is expected to support:
-
-- Inventory metadata that reflects the desired breakout mode.
-- Minigraph deployment logic that can operate against a generic base HWSKU.
-- Mapping or symlink handling from a concrete breakout-specific HWSKU name to the generic base HWSKU, for example:
+Example:
 
 ```text
 Mellanox-SN5640-C512S2 -> Mellanox-SN5640
 ```
 
-- Re-evaluation of templates after minigraph deployment so that QoS and other derived parameters are applied correctly.
+#### 7.3.2 Step 2: Create config_db.json for the target breakout
 
+The `config_db.json` carries the `PORT` entries for the realized breakout. There are three approaches for producing it; all end with a `config_db.json` ready to be loaded.
+
+> **PORT only — no BREAKOUT_CFG writes.** Generic HWSKU populates only `CONFIG_DB.PORT`. The `BREAKOUT_CFG` table is intentionally not written by any of the three approaches: `PORT` carries the realized lane assignment / speed / alias / FEC for each materialized port, which is everything downstream consumers (`portsyncd`, `buffermgrd`, Jinja templates) need to compute the running state. Carrying the same breakout decision in a second table only adds drift risk between the two.
+
+In Approach 2 and Approach 3, `hwsku.json` is a deploy-time input provided by the operator; it is not shipped in the HWSKU folder.
+
+##### 7.3.2.1 Approach 1: Push config_db.json directly
+
+In this approach:
+
+- The operator authors (or generates out of band) a `config_db.json` with `PORT` entries already populated for the target breakout, and pushes it to the device.
+- Validation that the breakout satisfies the cage's valid `breakout_modes` from `platform.json` is the responsibility of the out-of-band tooling that produces the file.
+
+This is typical for operators who maintain an authoritative active config (for example `golden_config_db.json`) and want CONFIG_DB to be the single source of truth without any intermediate templating step.
+
+##### 7.3.2.2 Approach 2: Push hwsku.json and run sonic-cfggen
+
+In this approach:
+
+- The operator pushes a per-port `hwsku.json` carrying one breakout-mode string per port — a much smaller and more declarative input than the full `PORT` entries it produces.
+- `sonic-cfggen` reads `platform.json` + `hwsku.json`, validates each selection against the cage's valid `breakout_modes`, and expands the breakout-mode strings into the corresponding `PORT` entries (lane lists, aliases, speeds, FEC) in `config_db.json`.
+  - `hwsku.json` supports `autoneg` and `fec` attributes, which is enough to replace `port_config.ini`.
+- When no `hwsku.json` is provided, `sonic-cfggen` falls back to the platform's **minimum breakout** (one logical port per physical cage at the max supported speed).
+
+Here is an example of `hwsku.json`:
+
+```json
+{
+    "interfaces": {
+        "Ethernet0": {
+            "default_brkout_mode": "8x100G[50G]",
+            "autoneg": "off",
+            "fec": "rs"
+        },
+        ...
+    }
+}
+```
+
+This approach simplifies configuration generation for operators: they don't have to generate the full `config_db.json`, only specify the breakout mode for each port.
+
+##### 7.3.2.3 Approach 3: Use minigraph.xml with hwsku.json
+
+In this approach:
+
+- The operator pushes `minigraph.xml` (carrying the breakout-suffixed HWSKU name in `<HwSku>`) plus a per-port `hwsku.json`.
+- `minigraph.py` processes the inputs in three steps (tracked by [sonic-buildimage#25751](https://github.com/sonic-net/sonic-buildimage/issues/25751); step 1 is already in place, steps 2 and 3 are new):
+  1. **Parse the HWSKU name from `minigraph.xml`** via `parse_device`.
+  2. **If the HWSKU folder doesn't exist, create it via symlink** to the base generic HWSKU folder. For example, `Mellanox-SN5640-C512S2` → `Mellanox-SN5640`.
+  3. **Take `hwsku.json` as input and write `CONFIG_DB.PORT`** for the realized breakout. `BREAKOUT_CFG` should not be written.
+- When no `hwsku.json` is provided, the platform's **minimum breakout** is used as the default — the same fallback as Approach 2.
+
+This is typical for existing minigraph-based deploy flows that already carry the breakout-suffixed HWSKU name (for example `Mellanox-SN5640-C512S2`) in `<HwSku>` and want the breakout to be realized through the same pipeline.
+
+#### 7.3.3 Step 3: Run config reload to load config_db.json
+
+`config reload` loads the `config_db.json` from Step 2 into CONFIG_DB, which triggers a re-render of buffer / QoS templates against the realized breakout's CONFIG_DB state — picking up the right `pg_profile_lookup.ini` rows and QoS map for the materialized port set.
+
+### 7.4 HWSKU qualification process
+
+**Simplifying qualification is one of the primary goals of generic HWSKU** — see [M2](#422-m2-qualification-explodes-combinatorially) and [G2](#52-g2-qualify-once-per-platform-not-per-breakout).
+
+Qualification still consumes the realized (breakout-suffixed) HWSKU the same way as today — the breakout suffix stays in the HWSKU name for inventory and result-reporting purposes. What changes is **how the test matrix is sliced**, so the full qualification cost is not paid for every breakout the platform supports.
+
+#### 7.4.1 sonic-mgmt nightly tests
+
+Today nightly coverage is driven by the HWSKU matrix — every supported breakout gets its own qualification cycle. This is the combinatorial problem described in [M2](#422-m2-qualification-explodes-combinatorially). Under generic HWSKU, nightly coverage is instead driven by the feature surface: tests are organized around the features each platform must support, and HWSKUs are selected to cover that feature surface with as few entries as possible.
+
+Two HWSKUs per platform are sufficient for most coverage:
+
+1. **Max port breakout HWSKU** — exercises control-plane behavior and data-plane forwarding at the platform's scale ceiling. Runs on the max port breakout against the full topology of each type (t0 / t1 / t2). For example, on SN5640 this is `Mellanox-SN5640-C512S2` with t0 / t1 / t2 topologies.
+2. **Multi-speed coverage HWSKU** — exercises port / optics / L1 / MMU / QoS behavior across every port speed the platform supports. A dedicated HWSKU is chosen so that every supported speed appears at least once, and the test topology is sized for per-speed evaluation rather than scale.
+
+A third HWSKU is added to the nightly matrix only when it covers a feature these two cannot reach. Other breakouts on the same platform receive reduced coverage focused on the delta instead of a full re-qualification.
+
+#### 7.4.2 snappi-test / NUT tests
+
+snappi-test and NUT (Network Under Test) runs are left as-is — they are more ad hoc and focused on specific scenarios, so the per-breakout structure they already have continues to make sense.
 
 ## 8 SAI API
 
-This workflow HLD does not introduce new SAI APIs.
+This HLD does not introduce new SAI APIs.
 
-The expectation is that existing platform-specific SAI profiles, SDK configuration mechanisms, and breakout-capable platform data models are used where needed. Any additional SAI capability required by a specific platform should be handled by the corresponding implementation HLD or platform onboarding work, not by this workflow document.
+Per [G1](#51-g1-one-platform-one-hwsku-any-breakout), the vendor SAI init contract needs to evolve so it no longer requires a new SAI init file per breakout. That change is vendor and platform specific, and is tracked by platform onboarding work and [sonic-buildimage#25720](https://github.com/sonic-net/sonic-buildimage/issues/25720).
 
 ## 9 Configuration and Management
 
 ### 9.1 CLI/YANG model Enhancements
 
-No new user-facing CLI or YANG model is introduced by this workflow HLD.
-
-Any CLI or management changes required to consume generic HWSKU data should be documented in the corresponding implementation HLD for the affected repository.
+No new user-facing CLI or YANG model is introduced by this HLD.
 
 ### 9.2 Config DB Enhancements
 
 This HLD does not define a new CONFIG_DB table or schema.
 
-However, it does rely on existing configuration tables such as `PORT`, `BREAKOUT_CFG`, and `DEVICE_METADATA` becoming the effective source for runtime configuration selection. The main change in this document is how platform artifacts are organized and selected, not the addition of new Config DB tables.
-
+It relies on the existing `PORT` table as the single source of per-port state for the realized breakout (lanes, speed, alias, FEC, autoneg). `BREAKOUT_CFG` is intentionally not written; see [7.3.2](#732-step-2-create-config_dbjson-for-the-target-breakout).
 
 ## 10 Warmboot and Fastboot Design Impact
 
-This workflow itself does not change warmboot or fastboot behavior.
-
-Warm reboot expectations remain part of platform qualification requirements. If a specific platform implementation changes boot-time behavior, warmboot behavior, or fastboot timing, that impact must be captured in the corresponding implementation HLD and validation plan.
+Generic HWSKU does not change warmboot or fastboot behavior. Applying a new breakout goes through `config reload` ([Step 3](#733-step-3-run-config-reload-to-load-config_dbjson)) and is not a warm or fast reboot path. Warm and fast reboot expectations remain part of platform qualification.
 
 ### 10.1 Warmboot and Fastboot Performance Impact
 
-No direct runtime performance impact is introduced by this document.
-
-Any impact would come from concrete implementation changes in `sonic-buildimage`, `sonic-mgmt`, or platform-specific templates, and should be analyzed in those follow-on implementation documents.
+No direct warmboot or fastboot performance impact is expected.
 
 ## 11 Memory Consumption
 
-No direct memory impact is expected from this workflow HLD because it defines process and artifact organization rather than a new runtime feature.
+No direct runtime memory impact is expected. Because realized HWSKUs are symlinks to the base HWSKU folder, per-breakout HWSKU folders no longer need to be shipped in the image.
 
 ## 12 Restrictions/Limitations
 
-The current design has the following limitations:
-
-- It is better suited for new platforms than for large-scale retrofitting of old platforms.
-- Some platforms may still require breakout-specific SDK or template special casing, which reduces the benefit of a unified base HWSKU.
-- Some current scripts and deployment flows still assume HWSKU-local files and will require follow-on implementation work before the target model is fully achieved.
-
+- Platform limit factors that can't be encoded in `platform.json` today (per-port or per-port-group breakout limits, optics support limits, and other capability constraints) are captured in vendor platform documentation rather than enforced by tooling.
+- In Approach 1, validating the breakout against `breakout_modes` is the responsibility of the out-of-band tooling that produces `config_db.json`.
+- Platforms whose vendor SAI init still requires a per-breakout SAI init file cannot fully meet [G1](#51-g1-one-platform-one-hwsku-any-breakout) until the SAI init contract evolves.
+- Applying a new breakout requires `config reload`.
+- snappi-test and NUT runs keep their per-breakout structure.
 
 ## 13 Testing Requirements/Design
 
-Testing for this HLD is primarily workflow and artifact validation rather than unit testing of a new runtime component.
-
-The design should be validated through:
-
-- Documentation review of the generic HWSKU process.
-- Review of platform deliverables for `platform.json`, `default_sku`, shared QoS artifacts, shared buffer artifacts, SAI/SDK templates, and media/SI tuning.
-- Where transition compatibility is needed, verify fallback behavior for legacy consumers of `port_config.ini` and `hwsku.json`.
-- Verification that `sonic-mgmt` can select and deploy the intended breakout-specific testbed configuration.
-- Qualification execution against at least one representative base variant and one derived breakout-specific variant.
-
 ### 13.1 Unit Test cases
 
-There are no direct unit tests for this workflow document itself.
+Implementation changes should add unit tests covering:
 
-Follow-on implementation changes in `sonic-mgmt` or platform tooling should add unit tests where logic is modified.
+- `sonic-cfggen`: expanding a per-port `hwsku.json` plus `platform.json` into `PORT` entries, rejecting breakout modes not listed in `breakout_modes`, honoring `autoneg` and `fec`, and falling back to the minimum breakout when no `hwsku.json` is provided.
+- `minigraph.py`: creating the realized HWSKU symlink when the folder doesn't exist, writing `PORT` from `hwsku.json`, and not writing `BREAKOUT_CFG`.
+- Buffer and QoS template rendering for each supported breakout of a reference platform, including lossless headroom lookup from the platform-level `pg_profile_lookup.ini`.
 
 ### 13.2 System Test cases
 
-Representative system validation should include:
-
-- Deploying a generic base HWSKU and confirming the expected platform defaults are applied.
-- Deploying a breakout-specific qualification variant and confirming the derived QoS and template data are applied correctly.
-- Running qualification suites for representative topologies such as `t0` and `t1`.
-- Verifying result reporting remains tied to the concrete tested breakout configuration.
+- Deploy the base HWSKU without a per-port breakout selection and verify that the minimum breakout is applied.
+- Deploy a realized HWSKU with each approach in [7.3.2](#732-step-2-create-config_dbjson-for-the-target-breakout) and verify that `PORT` matches the target breakout, `BREAKOUT_CFG` is not written, and buffer and QoS configuration is re-rendered after `config reload`.
+- Run the nightly qualification matrix described in [7.4.1](#741-sonic-mgmt-nightly-tests).
+- Verify that result reporting stays tied to the realized (breakout-suffixed) HWSKU name.
 
 ## 14 Open/Action items
 
-- Define the minimum implementation changes required in `sonic-buildimage`, `sonic-mgmt`, and helper scripts before generic HWSKU onboarding can be enabled broadly.
-- Decide whether platform capability documentation should be represented only in `platform.json` or also in a human-readable platform-level document.
-- Define the transition plan for environments that still depend on minigraph-generated `PORT` and `BREAKOUT_CFG` content.
-- Clarify the preferred strategy for buffer convergence: unified values, rendered values, or fully dynamic calculation.
-- Define qualification rules for when reduced coverage is acceptable for derived breakout variants.
+Implementation items:
+
+- [sonic-buildimage#24494](https://github.com/sonic-net/sonic-buildimage/issues/24494): Clean up `port_config.ini` dependencies.
+- [sonic-buildimage#25718](https://github.com/sonic-net/sonic-buildimage/issues/25718): Enhance `hwsku.json` (per-port `autoneg` and `fec`) for [Approach 2](#7322-approach-2-push-hwskujson-and-run-sonic-cfggen).
+- [sonic-buildimage#25716](https://github.com/sonic-net/sonic-buildimage/issues/25716): Move `pg_profile_lookup.ini` to the platform folder.
+- [sonic-buildimage#25747](https://github.com/sonic-net/sonic-buildimage/issues/25747): Make buffer and QoS templates render for any supported breakout.
+- [sonic-buildimage#25720](https://github.com/sonic-net/sonic-buildimage/issues/25720): Unify SAI profile and SDK configuration across HWSKUs.
+- [sonic-buildimage#25751](https://github.com/sonic-net/sonic-buildimage/issues/25751): Realized HWSKU symlink and `PORT` generation from `hwsku.json` in `minigraph.py` ([Approach 3](#7323-approach-3-use-minigraphxml-with-hwskujson)).
+- `sonic-mgmt`: Create the realized HWSKU symlink during deployment, and select the nightly qualification matrix as described in [7.4.1](#741-sonic-mgmt-nightly-tests).
+
+Open questions:
+
+- Interaction with runtime DPB (`config interface breakout`), which today reads the current breakout mode from `BREAKOUT_CFG`.
+- How to encode platform limit factors that `platform.json` can't express today.
 
 ## 15 References
 
@@ -468,4 +381,3 @@ Representative system validation should include:
 - [Enhancement: Unified SAI profile and SDK configuration across different HWSKU](https://github.com/sonic-net/sonic-buildimage/issues/25720)
 - [Enhancement: Enhance buffer and QoS template to support generic HWSKU](https://github.com/sonic-net/sonic-buildimage/issues/25747)
 - [Enhancement: Ensure minigraph-based provisioning is compatible with generic HWSKU](https://github.com/sonic-net/sonic-buildimage/issues/25751)
-
