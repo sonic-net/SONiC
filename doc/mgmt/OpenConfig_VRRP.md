@@ -1,7 +1,7 @@
 # OpenConfig Model Support for SONiC VRRP Feature
 
 # High Level Design Document
-#### Rev 1.1
+#### Rev 1.2
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -82,6 +82,7 @@ Mapping tables: [Section 4](#4-mapping-tables)
 | 0.9 | 11/24/2026 | Malavika Unnikrishnan | First leaf SET creates the group; `virtual-address` SET replaces `vip@`; duplicate VIP is rejected |
 | 1.0 | 11/24/2026 | Malavika Unnikrishnan | VIP uniqueness is by host address (prefix length ignored). IPv6 link-local uniqueness is per hosting interface |
 | 1.1 | 11/24/2026 | Malavika Unnikrishnan | Join OC `address[ip]` to INTERFACE; multi-IP is different-subnet prefixes on one if sharing `{if}\|{vrid}` |
+| 1.2 | 11/25/2026 | Malavika Unnikrishnan | Canonical IPv6 VIPs; empty virtual-address HDEL; unkeyed DELETE/REPLACE require VRID; uniqueness is CLI+UMF not CVL |
 
 # About this Manual
 This document describes OpenConfig configuration and management of VRRP in SONiC. Google / PINS clients walk the `openconfig-interfaces` tree. `openconfig-if-ip` 3.9.0 adds `ipv4` / `ipv6` / `vrrp` / `vrrp-group` onto that tree (and onto `openconfig-vlan:routed-vlan` for SVIs). There is no `/openconfig-if-ip:` root.
@@ -281,7 +282,7 @@ OpenConfig hangs `vrrp-group` off `addresses/address[ip]`. Native VRRP does not:
 | Path IP | Result |
 |---------|--------|
 | Configured on that interface, same family as the `ipv4` / `ipv6` node | Use `VRRP\|{if}\|{vrid}` or `VRRP6\|{if}\|{vrid}` |
-| Not on that interface, or wrong family | SET/DELETE: `InvalidArgs`. GET: empty / hidden |
+| Not on that interface, or wrong family | SET/DELETE: `InvalidArgs`. GET: empty in translib (`{}`); live gNMI `NOT_FOUND` (that address is not an L3 object). Not `InvalidArgs` and not another group's VRRP |
 
 The path IP is the **interface** address, not the VIP. The VIP is still `virtual-address` / `virtual-link-local` stored in `vip@`.
 
@@ -303,11 +304,17 @@ GET   .../ipv4/addresses/address[ip=2.2.2.1]/vrrp/vrrp-group[virtual-router-id=1
        → same row (fan-out)
 SET   on 2.2.2.1 with the same VRID
        → updates the same row
-DELETE of VRRP on 2.2.2.1
-       → deletes VRRP|Ethernet1|1 (shared native row)
+DELETE of vrrp-group[virtual-router-id=1] on 2.2.2.1
+       → native `config interface vrrp remove Ethernet1 1` (shared row)
+DELETE of unkeyed /vrrp or /vrrp-group
+       → InvalidArgs (`VRRP DELETE requires virtual-router-id`); native CLI always takes `<vrid>`
+REPLACE of unkeyed /vrrp or /vrrp-group
+       → InvalidArgs (`VRRP REPLACE requires virtual-router-id`); same reason as DELETE
 ```
 
-That is native semantics, not a second group. Google cannot have a different VRRP config per subnet on one interface without a stored locator IP, which is not in `sonic-vrrp.yang`.
+That is native semantics, not a second group. Google cannot have a different VRRP config per subnet on one interface without a stored locator IP, which is not in `sonic-vrrp.yang`. IPv6 VIP aliases (`2001:db8:1:2:3:4::1` vs `2001:db8:1:2:3:4:0:1`) are the same host; UMF stores `net.IP` canonical form so uniqueness matches native VIP list compare.
+
+**VIP uniqueness.** Native CLI rejects a VIP that is already on any VRRP/VRRP6 row (exact string). OpenConfig UMF rejects the same **host** on another `{if}|{vrid}` (prefix length ignored; IPv6 link-local unique per hosting interface). CVL does **not** enforce uniqueness, so JSON `config load` of two groups sharing a host will succeed. Operators who load JSON must not introduce duplicate VIP hosts.
 
 **CLI / JSON monitor.** A group created by CLI has no OpenConfig cookie. GET of any configured address of that family on the interface returns the group. That is how OpenConfig-only monitoring of CLI config works.
 
@@ -456,7 +463,7 @@ Each row answers: what is different, does native VRRP still work, and does it ma
 | 12 | `admin_status` / CLI shutdown | CLI `vrrp shutdown/startup` | Not in OC VRRP grouping | Not mapped. UMF never writes it. Enable is presence of the `VRRP`/`VRRP6` row |
 | 13 | `FEATURE\|*` | Native feature flag | Not an OpenConfig object | UMF never writes it |
 | 14 | Subinterface index | Native allows Ethernet/Vlan/PortChannel | Google paths use `subinterface[index=0]` | Index `0` is the parent L3 interface. Non-zero index is **rejected** (`NotSupported`) so it cannot collide with the parent group's Redis key |
-| 15 | OC keys VRRP by L3 **address**; native keys `{if}\|{vrid}` | Feature does not store the parent address on the VRRP row | Path `address[ip]` is the **interface** L3 address, not the VIP | Native Redis key stays `{if}\|{vrid}`. There is no OpenConfig-only field in `sonic-vrrp.yang`. UMF joins `address[ip]` to `INTERFACE`/`PORTCHANNEL_INTERFACE`/`VLAN_INTERFACE`: the IP must exist on the path's interface. GET/SET/DELETE of any **configured** L3 address of that family on the if uses the same group. SET/DELETE of an IP that is not on the if is `InvalidArgs`; GET of that path is empty. DELETE of a configured sibling IP still deletes the native row. VIP stays `virtual-address` |
+| 15 | OC keys VRRP by L3 **address**; native keys `{if}\|{vrid}` | Feature does not store the parent address on the VRRP row | Path `address[ip]` is the **interface** L3 address, not the VIP | Native Redis key stays `{if}\|{vrid}`. There is no OpenConfig-only field in `sonic-vrrp.yang`. UMF joins `address[ip]` to `INTERFACE`/`PORTCHANNEL_INTERFACE`/`VLAN_INTERFACE`: the IP must exist on the path's interface. GET/SET/DELETE of any **configured** L3 address of that family on the if uses the same group. SET/DELETE of an IP that is not on the if is `InvalidArgs`. GET of that path is empty in translib (`{}`); live gNMI reports `NOT_FOUND` because the address is not an L3 object. Neither InvalidArgs nor another group's VRRP. DELETE of a configured sibling IP still deletes the native row. VIP stays `virtual-address` |
 | 16 | One OC `priority-decrement` vs N native TRACK rows | Native allows a different increment per tracked interface | OC has one scalar | SET writes the same value to every TRACK row for that group. GET returns the last collected increment. Values outside 10..50 (including explicit `0`) are `InvalidArgs` |
 
 **Coverage vs Google's ask:** every `openconfig-if-ip` 3.9.0 `vrrp-group` leaf on all four bases is accepted except `preempt-delay` and `accept-mode` (not-supported). `current-priority` GET mirrors configured priority (not live).
@@ -610,7 +617,8 @@ Invalid configurations report an error. Examples include:
 - `preempt` value that is not a boolean → transformer error
 - `virtual-link-local` on an IPv4 `vrrp-group` → not-supported
 - VIP that is not an IP address of the matching family → transformer / CVL error
-- VIP already used by another VRRP / VRRP6 group (same host address, any prefix length) → `InvalidArgs` (`VIP must be unique across VRRP groups`). IPv6 link-local `fe80:` addresses are unique per hosting interface only, so `fe80::1` may exist on both Vlan100 and Vlan200
+- VIP already used by another VRRP / VRRP6 group (same host address, any prefix length) → `InvalidArgs` (`VIP must be unique across VRRP groups`). IPv6 link-local `fe80:` addresses are unique per hosting interface only, so `fe80::1` may exist on both Vlan100 and Vlan200. UMF and native CLI enforce this. CVL and JSON `config load` do not.
+- Unkeyed DELETE or REPLACE of `/vrrp` or `/vrrp-group` (no `virtual-router-id`) → `InvalidArgs`. Native CLI always takes `<vrid>`. PATCH of the unkeyed list with keyed payload entries still creates those VRIDs.
 - `priority-decrement` outside 10..50 → `InvalidArgs` from UMF (CVL would also reject)
 - VRRP on an interface that is not an existing L3 INTERFACE / PORTCHANNEL_INTERFACE / VLAN_INTERFACE → CVL error
 - VRRP path `address[ip]` that is not configured on the path's interface → `InvalidArgs` (`VRRP path address %s is not configured on %s`)
@@ -635,6 +643,10 @@ Invalid configurations report an error. Examples include:
 15. PATCH of `/config/virtual-address` replaces `vip@` globals; leftover addresses are removed.
 16. PATCH of a VIP already owned by another `{if}|{vrid}` is rejected; same-group UPDATE of the group's own VIP succeeds.
 17. PATCH of the same host address with a different prefix length is rejected. PATCH of the same IPv6 link-local on a different interface succeeds; a second VRID on the same interface is rejected.
+18. PATCH of `/config/virtual-address` to `[]` HDELs `vip@` globals (keeps IPv6 link-local).
+19. IPv6 `2001:db8:1:2:3:4::1` stores as `2001:db8:1:2:3:4:0:1/128`.
+20. Unkeyed DELETE and REPLACE of `/vrrp-group` require `virtual-router-id`; Redis rows survive.
+21. GET of `address[ip]` that is not on the interface is empty / gNMI `NOT_FOUND`, not `InvalidArgs`.
 
 ## 7.2 Negative Test Cases
 1. SET of `/config/virtual-link-local` on an IPv4 `vrrp-group` is rejected (leaf is IPv6-only in OpenConfig; transformer also guards).
@@ -644,3 +656,5 @@ Invalid configurations report an error. Examples include:
 5. SET of `priority-decrement` outside 10..50 is rejected by UMF.
 6. SET of VRRP on a non-L3 interface is rejected by CVL.
 7. SET of `/config/virtual-address` to a VIP already owned by another group is `InvalidArgs`, including the same host address with a different prefix length. Reusing an IPv6 link-local VIP on a different interface is allowed.
+8. DELETE or REPLACE of unkeyed `/vrrp` or `/vrrp-group` is `InvalidArgs`.
+9. GET of an `address[ip]` that is not configured on the path's interface is not `InvalidArgs`.
