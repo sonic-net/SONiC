@@ -616,6 +616,7 @@ Invalid configurations report an error. Examples include:
 - `preempt-delay` or `accept-mode` → `NotSupported`
 - `preempt` value that is not a boolean → transformer error
 - `virtual-link-local` on an IPv4 `vrrp-group` → not-supported
+- `virtual-link-local` that is not an IPv6 link-local (`fe80:`) → `InvalidArgs`
 - VIP that is not an IP address of the matching family → transformer / CVL error
 - VIP already used by another VRRP / VRRP6 group (same host address, any prefix length) → `InvalidArgs` (`VIP must be unique across VRRP groups`). IPv6 link-local `fe80:` addresses are unique per hosting interface only, so `fe80::1` may exist on both Vlan100 and Vlan200. UMF and native CLI enforce this. CVL and JSON `config load` do not.
 - Unkeyed DELETE or REPLACE of `/vrrp` or `/vrrp-group` (no `virtual-router-id`) → `InvalidArgs`. Native CLI always takes `<vrid>`. PATCH of the unkeyed list with keyed payload entries still creates those VRIDs.
