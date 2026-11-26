@@ -676,6 +676,8 @@ The `port` key is a union of leafrefs to `PORT/PORT_LIST/name` and `PORTCHANNEL/
 
 **Configuration exclusivity:** Explicit `SFLOW|global` configuration and `PORT_MIRROR_SAMPLE` entries are mutually exclusive system-wide. GCU/YANG validation rejects any candidate configuration containing both, regardless of port, direction, or admin state. Unsampled SPAN/ERSPAN is not subject to this restriction.
 
+**Runtime mode:** Once `orchagent` selects sFlow or sampled ERSPAN, it keeps that mode for the lifetime of the process. Even after the old configuration and its hardware resources have been removed, switching to the other mode requires an `orchagent` restart.
+
 ### 3.6.2 Configuration Commands
 
 **Unsampled ERSPAN:**
@@ -737,8 +739,6 @@ These commands reuse the source-interface and direction parsing of `sample add/r
 
 `enable` and `disable` update only `admin_state` to `up` and `down`, respectively. The binding and its policy remain unchanged. Both operations are idempotent.
 
-A disabled binding remains subject to the configuration-exclusivity rule: it still cannot coexist with explicit `SFLOW|global`. To switch to sFlow, remove the sampled bindings rather than only disabling them.
-
 **4. Remove sampled source bindings:**
 
 ```text
@@ -748,6 +748,13 @@ config mirror_session sample remove <session_name> <src_port> <rx|tx|both>
 Removal deletes the selected bindings, not the export session. Verify session references before deleting any entries. For `both`, remove all matching directional entries; reject a mismatched reference before any deletion. Report an error if no matching binding exists.
 
 To change `sample_rate`, `truncate_size`, or `mirror_session`, remove and recreate the binding. Delete the export session separately with `config mirror_session remove <session_name>` after removing its sampled and ACL references.
+
+**Switching between sFlow and sampled ERSPAN:**
+
+1. Remove the current mode's configuration. When leaving sampled ERSPAN, remove all `PORT_MIRROR_SAMPLE` bindings, including disabled ones. When leaving sFlow, remove the sFlow configuration, including `SFLOW|global`. Disabling the current mode is not sufficient.
+2. Wait for `orchagent` to detach the old mode's sampling resources from the affected ports and remove its SamplePacket objects.
+3. Restart `orchagent`.
+4. Configure the new mode.
 
 **CLI validation:** Relevant sFlow and sampled-mirroring CLI commands enforce the configuration-exclusivity rule in Section 3.6.1 before writing CONFIG_DB and return a clear error on conflict.
 
