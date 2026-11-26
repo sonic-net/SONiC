@@ -50,6 +50,8 @@ This HLD adds dedicated RSTP mode to the existing SONiC spanning-tree stack. The
 
 Existing spanning-tree CONFIG_DB tables (`STP|GLOBAL`, `STP_PORT`) are reused.
 
+This is a dedicated IEEE 802.1w mode (`mode=rstp` → `rstp/` / `L2_RSTP`). The engine transmits IEEE 802.1w version-2 BPDUs on a single spanning tree (instance 0).
+
 ## 3. Definitions/Abbreviations
 
 | Term | Definition |
@@ -76,11 +78,11 @@ Typical uses:
 
 ## 5. Requirements
 
-1. `config spanning-tree enable rstp` sets `STP|GLOBAL|mode=rstp` and default bridge timers/priority. Per-port STP (`STP_PORT`) is added only via `config spanning-tree interface enable <ifname>` after global RSTP is enabled.
-2. `config spanning-tree disable rstp` stops RSTP and removes spanning-tree configuration written by enable.
+1. `config spanning-tree enable rstp` sets `STP|GLOBAL|mode=rstp` with default bridge timers/priority and creates `STP_PORT` for every Ethernet and PortChannel that is already a VLAN member. Ports with no VLAN membership are not added.
+2. `config spanning-tree disable rstp` stops RSTP and removes `STP|GLOBAL` and `STP_PORT` written by enable.
 3. `stpd` processes IEEE spanning-tree BPDUs (RSTP and classic STP) on enabled ports when RSTP mode is active.
 4. RSTP interoperates with classic STP neighbors per IEEE 802.1w protocol migration (PPM). Ports attached to STP-only peers send and process STP-format BPDUs until the peer speaks RSTP.
-5. VLAN member add/remove updates RSTP port participation in instance 0.
+5. VLAN member add/remove updates RSTP port participation in instance 0. The first VLAN on a port creates `STP_PORT` (`enabled=true`). The last VLAN on a port deletes `STP_PORT`, including `enabled=false`. Per-port enable/disable applies only while the port still has a VLAN member. Re-adding the first VLAN creates a new `STP_PORT` with `enabled=true`.
 6. A VLAN member on an STP-disabled or admin-disabled port is placed in FORWARDING for that VLAN without RSTP participation.
 7. `show spanning-tree` displays RSTP summary when `mode=rstp`.
 8. `show spanning-tree rstp` displays bridge, port role/state, designated vectors, and BPDU counters from APPL_DB.
@@ -89,7 +91,7 @@ Typical uses:
 
 No SONiC macro-architecture change is introduced.
 
-RSTP uses the spanning-tree layout in [SONiC_PVST_HLD.md](SONiC_PVST_HLD.md) and [MSTP.md](../MSTP/MSTP.md).
+RSTP uses the spanning-tree layout in [SONiC_PVST_HLD.md](SONiC_PVST_HLD.md) and [MSTP.md](../MSTP/MSTP.md). Those documents describe the shared STP container layout. RSTP runs as its own protocol engine (`rstp/`).
 
 ![STP Architecture](images/STP_Architecture.png "Figure 1: High level STP architecture")
 
@@ -118,12 +120,11 @@ This is a built-in SONiC feature in the STP container. It does not change SAI.
 __Figure 2: Global RSTP enable__
 
 1. Operator configures VLANs and VLAN members (before or after RSTP).
-2. Operator runs `config spanning-tree enable rstp`; CLI writes `STP|GLOBAL` (`mode=rstp`) with default bridge timers and priority.
-3. `stpmgrd` reads CONFIG_DB, selects RSTP mode (instance 0), and sends bridge config IPC to `stpd`.
-4. `stpd` starts the RSTP module for instance 0 and applies global timers and bridge priority.
-5. `stpsync` mirrors bridge runtime state to `STP_RSTP_INST_TABLE`.
-
-Global enable does not create `STP_PORT` entries.
+2. Operator runs `config spanning-tree enable rstp`; CLI writes `STP|GLOBAL` (`mode=rstp`) with default bridge timers and priority, and writes `STP_PORT` for each Ethernet/PortChannel already present in `VLAN_MEMBER`.
+3. `stpmgrd` reads CONFIG_DB, selects RSTP mode (instance 0), sends bridge config IPC to `stpd`, then `STP_PORT_CONFIG` for each new `STP_PORT` with that port's VLAN list.
+4. `stpd` starts the RSTP module for instance 0, applies global timers and bridge priority, and adds VLAN-member ports to the control set.
+5. `stpsync` mirrors bridge runtime state to `STP_RSTP_INST_TABLE` and port state to `STP_RSTP_PORT_TABLE`, `STP_VLAN_INSTANCE_TABLE`, and `STP_PORT_STATE_TABLE`.
+6. `STPOrch` programs instance-0 port state in the ASIC from `STP_PORT_STATE_TABLE`.
 
 ### 7.2. Port enable sequence
 
@@ -131,7 +132,7 @@ Global enable does not create `STP_PORT` entries.
 
 __Figure 3: RSTP port enable__
 
-1. Operator runs `config spanning-tree interface enable <ifname>`; CLI writes `STP_PORT|enabled=true` (global RSTP must already be enabled).
+1. Operator runs `config spanning-tree interface enable <ifname>` to re-enable a port with `STP_PORT|enabled=false`. CLI sets `enabled=true` (global RSTP must already be enabled). The port must already be a VLAN member.
 2. `stpmgrd` builds `STP_PORT_CONFIG` with the port's VLAN list from `STATE_VLAN_MEMBER` and sends it to `stpd`.
 3. `stpd` adds the port to the RSTP control set, applies edge port / link-type / root guard / BPDU guard from CONFIG, and maps the port's VLANs to instance 0.
 4. `stpsync` updates `STP_VLAN_INSTANCE_TABLE`, `STP_RSTP_PORT_TABLE`, and `STP_PORT_STATE_TABLE` in APPL_DB.
@@ -146,15 +147,16 @@ __Figure 4: RSTP port disable__
 1. Operator runs `config spanning-tree interface disable <ifname>`; CLI writes `STP_PORT|enabled=false`.
 2. `stpmgrd` sends `STP_PORT_CONFIG` with the port's VLAN list to `stpd`.
 3. `stpd` removes each VLAN mapping for the port, deletes `STP_VLAN_INSTANCE_TABLE` entries when no STP-participating members remain on that VLAN, disables root guard and BPDU guard on the port, and removes the port from the control set.
-4. `stpsync` updates APPL_DB; `STPOrch` places VLANs on the port in FORWARDING (RSTP bypass).
+4. `stpsync` updates APPL_DB; `STPOrch` removes the SAI STP port so VLANs on the port are FORWARDING (RSTP bypass).
 
 ### 7.4. VLAN members and participation
 
 RSTP runs a single spanning tree for all VLANs (instance 0). Per-VLAN STP enable/disable is not supported in RSTP mode.
 
-- VLAN member add (port STP-enabled): `stpmgrd` sends vlan-member IPC; port/VLAN joins instance 0.
+- VLAN member add (first VLAN on the port while RSTP is enabled): CLI creates `STP_PORT`; `stpmgrd` sends `STP_PORT_CONFIG` and the port joins instance 0.
+- VLAN member add (port already STP-enabled): `stpmgrd` sends vlan-member IPC; port/VLAN joins instance 0.
 - VLAN member add (port STP-disabled): that VLAN/port is placed in FORWARDING (RSTP bypass).
-- VLAN member remove: the port drops from the instance when it has no remaining VLANs; unreferenced VLAN mappings are removed from APPL_DB.
+- VLAN member remove: CLI deletes `STP_PORT` when the last `VLAN_MEMBER` for that port is gone (this also clears an explicit `enabled=false`); unreferenced VLAN mappings are removed from APPL_DB. Re-adding the first VLAN creates a new `STP_PORT` with `enabled=true`.
 
 Show **Vlans mapped** lists VLANs in `STP_VLAN_INSTANCE_TABLE` that have at least one STP-enabled L2 member port programmed in `stpd`.
 
@@ -183,7 +185,7 @@ When a port is attached to a classic STP neighbor, the Protocol Migration (PPM) 
 | Protocol Version Identifier | `2` (RSTP); `0` when sending classic STP Configuration BPDU |
 | BPDU Type | `0x02` (RSTP Configuration BPDU); `0x00` (Configuration); `0x80` (TCN) |
 | Flags | Proposal, Agreement, Learning, Forwarding, Port Role, TC, TC Ack (see Figure 6) |
-| Root / Bridge Identifier | 8 octets: 4-bit priority, 12-bit system ID extension, 6-byte MAC |
+| Root / Bridge Identifier | 8 octets: 4-bit priority, 12-bit system ID extension (0), 6-byte MAC |
 | Port Identifier | 4-bit priority, 12-bit port number |
 | Timers | Message Age, Max Age, Hello Time, Forward Delay (1/256 second units) |
 | Version 1 Length | `0` (no Version 1 parameters) |
@@ -197,8 +199,8 @@ Refer to [IEEE 802.1w](https://standards.ieee.org/ieee/802.1w/1046/) for RSTP BP
 __Figure 7: RSTP port state update__
 
 1. `stpd` receives a BPDU on the packet socket; port guard features are evaluated first.
-2. Valid IEEE spanning-tree BPDUs are accepted: RSTP BPDUs (protocol version 2) and classic STP Configuration/TCN BPDUs (protocol version 0).
-3. The Protocol Migration (PPM) state machine detects whether the peer speaks RSTP or classic STP and selects the BPDU format transmitted on that port.
+2. Valid IEEE spanning-tree BPDUs are accepted by type: RSTP Configuration (`0x02`), classic Configuration (`0x00`), and TCN (`0x80`). Protocol version is not used to drop the frame. Type `0x02` is processed as RSTP from the first 36 octets, including version-3 frames from an MST peer.
+3. The Protocol Migration (PPM) state machine classifies the peer from BPDU type (`0x02` → RSTP, otherwise STP) and selects the BPDU format transmitted on that port (RSTP version 2 or STP version 0).
 4. BPDU contents drive the remaining state machines. Ports on classic STP neighbors use STP timing; RSTP-capable links use rapid transition.
 5. `stpsync` publishes updated port roles and states to `STP_RSTP_PORT_TABLE` and `STP_PORT_STATE_TABLE`; `STPOrch` applies port state from `STP_PORT_STATE_TABLE`.
 
@@ -247,7 +249,7 @@ __Figure 8: RSTP state machine flow__
 
 __Figure 9: Global RSTP disable__
 
-On `config spanning-tree disable rstp`, CONFIG_DB entries are removed; `stpmgrd` notifies `stpd`; participating ports are returned to FORWARDING; RSTP instance and port APPL_DB tables are deleted.
+On `config spanning-tree disable rstp`, CLI removes `STP|GLOBAL` and `STP_PORT`; `stpmgrd` notifies `stpd`; `stpsync` deletes RSTP APPL_DB tables; `STPOrch` removes SAI STP ports (FORWARDING bypass).
 
 ### 7.9. APPL_DB
 
@@ -330,14 +332,14 @@ leaf mode {
 
 - **config spanning-tree {enable|disable} rstp**
   - Enables or disables RSTP globally.
-  - On enable, writes `STP|GLOBAL|mode=rstp` with default bridge timers and priority.
-  - On disable, removes RSTP global configuration and `STP_PORT` entries.
+  - On enable, writes `STP|GLOBAL|mode=rstp` with default timers/priority, and `STP_PORT` for each Ethernet/PortChannel already in `VLAN_MEMBER`.
+  - On disable, removes `STP|GLOBAL` and `STP_PORT`.
   - Disabled by default.
 
 - **config spanning-tree interface {enable|disable} \<ifname\>**
-  - Enables or disables RSTP on a port. Requires global RSTP to be enabled first.
-  - On enable, `stpmgrd` sends `STP_PORT_CONFIG` with the port's VLAN list.
-  - On disable, VLAN mappings for that port are removed; APPL_DB VLAN instance entries are cleaned up when no STP-participating members remain.
+  - Re-enables or disables RSTP on a port after global RSTP is enabled.
+  - On enable, CLI sets `STP_PORT|enabled=true`; `stpmgrd` sends `STP_PORT_CONFIG` with the port's VLAN list.
+  - On disable, CLI sets `enabled=false`; VLAN mappings for that port are removed.
 
 Existing spanning-tree CLI for hello-time, max-age, forward-delay, priority, interface cost/priority, edge port, link type, root guard, and BPDU guard apply in RSTP mode.
 
@@ -398,7 +400,7 @@ Ethernet0   128    1      N      FORWARDING    DESIGNATED  0        1000.022c.95
 |-------|--------|
 | `STP\|GLOBAL` | Allowed value `mode=rstp`. On enable, CLI also writes default `forward_delay`, `hello_time`, `max_age`, `priority`. |
 
-No new CONFIG_DB tables. `STP_PORT` entries are created only by `config spanning-tree interface enable`.
+No new CONFIG_DB tables. `STP_PORT` uses RSTP defaults (`enabled=true`, `edge_port=false`, `link_type=auto`, default path cost and priority). It is created by global enable (current VLAN members) and by the first VLAN member add on a port; it is deleted by last VLAN member delete and by global disable.
 
 ### 9.3. Configuration Examples
 
@@ -408,7 +410,6 @@ config vlan add 20
 config vlan member add 10 Ethernet0
 config vlan member add 20 Ethernet0
 config spanning-tree enable rstp
-config spanning-tree interface enable Ethernet0
 show spanning-tree rstp
 ```
 
@@ -439,25 +440,26 @@ Warm boot is not in the test matrix. Config reload after `config save` is covere
 
 CLI:
 
-1. Verify CLI to enable RSTP globally.
-2. Verify CLI to disable RSTP globally.
-3. Verify CLI to enable spanning-tree on an interface (after global RSTP enable).
-4. Verify CLI to disable spanning-tree on an interface.
-5. Verify CLI to set bridge priority, hello-time, forward-delay, and max-age.
-6. Verify CLI to set interface path cost and port priority.
-7. Verify CLI to set and clear edge port.
-8. Verify CLI to set link type (point-to-point, auto).
-9. Verify CLI to set and clear root guard.
-10. Verify CLI to set and clear BPDU guard (with and without shutdown).
-11. Verify CLI to display spanning-tree running configuration.
-12. Verify CLI to display RSTP state (`show spanning-tree`, `show spanning-tree rstp`, `show spanning-tree brief`, `show spanning-tree rstp interface`).
-13. Verify CLI to display and clear spanning-tree statistics.
-14. Verify that enabling RSTP is rejected while PVST or MSTP is already enabled, and the reverse.
+1. Verify CLI to enable RSTP globally; `STP_PORT` is created for VLAN-member Ethernet/PortChannel ifnames only.
+2. Verify CLI to disable RSTP globally; `STP|GLOBAL` and `STP_PORT` are removed.
+3. Verify first `vlan member add` while RSTP is enabled creates `STP_PORT`; last `vlan member del` removes it.
+4. Verify CLI to enable spanning-tree on an interface (explicit, after global RSTP enable).
+5. Verify CLI to disable spanning-tree on an interface.
+6. Verify CLI to set bridge priority, hello-time, forward-delay, and max-age.
+7. Verify CLI to set interface path cost and port priority.
+8. Verify CLI to set and clear edge port.
+9. Verify CLI to set link type (point-to-point, auto).
+10. Verify CLI to set and clear root guard.
+11. Verify CLI to set and clear BPDU guard (with and without shutdown).
+12. Verify CLI to display spanning-tree running configuration.
+13. Verify CLI to display RSTP state (`show spanning-tree`, `show spanning-tree rstp`, `show spanning-tree brief`, `show spanning-tree rstp interface`).
+14. Verify CLI to display and clear spanning-tree statistics.
+15. Verify that enabling RSTP is rejected while PVST or MSTP is already enabled, and the reverse.
 
 CONFIG_DB / YANG:
 
 1. Verify CONFIG_DB is populated with configured RSTP values (`mode=rstp`, timers, priority).
-2. Verify global enable does not create `STP_PORT` until interface enable.
+2. Verify global enable creates `STP_PORT` for VLAN-member Ethernet/PortChannel ifnames and not for ports with no VLAN membership.
 3. Verify YANG accepts `mode=rstp` and allows `edge_port` / `link_type` in RSTP mode.
 4. Verify out-of-range timer, priority, cost, and invalid mode values are rejected with CONFIG_DB unchanged.
 
@@ -465,7 +467,7 @@ CONFIG_DB / YANG:
 
 Enable, programming, and VLAN mapping:
 
-1. Verify VLAN members may exist before global RSTP; per-port enable/disable updates APPL_DB; a disabled port's VLANs are FORWARDING (RSTP bypass).
+1. Verify VLAN members may exist before global RSTP; `STP_PORT` appears on `enable rstp` without per-port enable. Per-port disable/enable still updates APPL_DB; a disabled port's VLANs are FORWARDING (RSTP bypass).
 2. Verify show Vlans mapped matches APPL_DB instance-0 VLANs and lists only VLANs with at least one STP-enabled L2 member.
 3. Verify global RSTP disable removes STP config and APPL_DB RSTP tables and returns participating ports to FORWARDING.
 4. Verify multiple VLANs, including a native (untagged) VLAN, share instance 0 and the same port role/state.
@@ -516,19 +518,20 @@ Interoperability with legacy STP:
 28. Verify receiving only 802.1D Config BPDUs migrates DUT TX to STP format (version 0, type 0x00) while Config/TCN RX is still accepted.
 29. Verify RSTP BPDUs after STP-format migration restore version-2 TX.
 30. Verify a TCN from an STP peer triggers topology-change handling.
+31. Verify a version-3 MST BPDU (type `0x02`) is processed as RSTP from the first 36 octets and DUT TX stays version 2.
 
 VLAN churn and flood containment:
 
-31. Verify removing all RSTP VLANs from a port drops it from instance 0; re-adding restores it; the tree stays loop-free.
-32. Verify deleting a VLAN member on a Discarding port does not crash `stpd` and does not create a loop.
-33. Verify broadcast/unknown flood is bounded on the Alternate port (no L2 storm).
+32. Verify removing all RSTP VLANs from a port drops it from instance 0; re-adding restores it; the tree stays loop-free.
+33. Verify deleting a VLAN member on a Discarding port does not crash `stpd` and does not create a loop.
+34. Verify broadcast/unknown flood is bounded on the Alternate port (no L2 storm).
 
 LAG, L3, SAI:
 
-34. Verify RSTP behavior over LAG; BPDU is sent from one LAG member; adding or deleting a LAG member does not flap the protocol.
-35. Verify adding and deleting a LAG as a VLAN member with RSTP enabled.
-36. Verify L3 forwarding follows RSTP port state (forwards on Root/Designated, dropped on Alternate).
-37. Verify `STPOrch` programs instance-0 port state on existing SAI STP objects when roles and states change.
+35. Verify RSTP behavior over LAG; BPDU is sent from one LAG member; adding or deleting a LAG member does not flap the protocol.
+36. Verify adding and deleting a LAG as a VLAN member with RSTP enabled.
+37. Verify L3 forwarding follows RSTP port state (forwards on Root/Designated, dropped on Alternate).
+38. Verify `STPOrch` programs instance-0 port state on existing SAI STP objects when roles and states change.
 
 ## 14. Open/Action Items
 
