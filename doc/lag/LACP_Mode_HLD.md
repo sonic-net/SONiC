@@ -298,6 +298,14 @@ Related work:
 | OpenConfig LACP HLD | [SONiC#2664](https://github.com/sonic-net/SONiC/pull/2664) |
 | OpenConfig LACP implementation | [sonic-mgmt-common#298](https://github.com/sonic-net/sonic-mgmt-common/pull/298) |
 
+Implementation PRs:
+
+| Repo | PR |
+|------|-----|
+| sonic-buildimage | [sonic-buildimage#31114](https://github.com/sonic-net/sonic-buildimage/pull/31114) |
+| sonic-swss | [sonic-swss#5212](https://github.com/sonic-net/sonic-swss/pull/5212) |
+| sonic-utilities | [sonic-utilities#5119](https://github.com/sonic-net/sonic-utilities/pull/5119) |
+
 ## 14. Testing
 
 ### 14.1 Unit tests
