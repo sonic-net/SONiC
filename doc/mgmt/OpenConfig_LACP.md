@@ -382,5 +382,14 @@ Invalid configurations will report an error.
 # 8 Dependencies
 | Repository | Change | Why | Status |
 |------------|--------|-----|--------|
+| sonic-mgmt-common | OpenConfig LACP transformers (REST / gNMI) | Implementation | [sonic-mgmt-common#298](https://github.com/sonic-net/sonic-mgmt-common/pull/298) |
 | sonic-buildimage (libteam) | teamd per-member LACP statistics `statistics.lacpdu_rx_stats`, `lacpdu_tx_stats`, `lacpdu_illegal_pkts` | Source of member counters | [sonic-buildimage#23380](https://github.com/sonic-net/sonic-buildimage/pull/23380) |
 | sonic-swss (tlm_teamd) | Publish `runner.statistics.*` to `LAG_MEMBER_TABLE` | Required for member counters | To be raised |
+
+`interface/config/lacp-mode` maps to CONFIG_DB `PORTCHANNEL` field `active`. See [SONiC#2676](https://github.com/sonic-net/SONiC/pull/2676) and:
+
+| Repository | Change | Why | Status |
+|------------|--------|-----|--------|
+| sonic-buildimage | `PORTCHANNEL.active` YANG leaf | CVL / CONFIG_DB | [sonic-buildimage#31114](https://github.com/sonic-net/sonic-buildimage/pull/31114) |
+| sonic-swss | teammgrd passes `runner.active` to teamd | LACP activity at LAG creation | [sonic-swss#5212](https://github.com/sonic-net/sonic-swss/pull/5212) |
+| sonic-utilities | `config portchannel add --lacp-mode` | CLI | [sonic-utilities#5119](https://github.com/sonic-net/sonic-utilities/pull/5119) |
