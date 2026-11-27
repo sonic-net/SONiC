@@ -169,9 +169,23 @@ LCP host interfaces in namespace `asicN`.
   (`FrontEnd` / `BackEnd`).
 - **Router MAC**: all frontend ASICs use the system base MAC; each backend ASIC
   uses a distinct MAC (that of `eth0` in its namespace).
-- **Loopbacks**: `Loopback0` carries the device-wide address advertised
-  externally, identical on all ASICs. `Loopback4096` carries a per-ASIC, internal-only
-  address used as the BGP router ID.
+- **Loopbacks**:
+  - `Loopback0` carries the device-wide address advertised externally. It is
+    configured with the same address on every ASIC, frontend and backend.
+  - `Loopback4096` carries a per-ASIC, internal-only address, advertised with the
+    `HIDE_INTERNAL` route-map.
+- **BGP router ID** (`bgpd.main.conf.j2`, unless `bgp_router_id` is set):
+  - **Frontend ASICs use `Loopback0`, so all frontend ASICs share one router ID.**
+    Together with the shared ASN, `Loopback0` and router MAC, external peers
+    see the device as a single router.
+  - **Backend ASICs use `Loopback4096`, so each backend has a unique router ID.**
+  - A shared router ID is safe because frontend ASICs never peer with each
+    other. Every iBGP session is frontend ↔ backend, and its two ends always
+    have different router IDs. The side effect on route reflection is handled in
+    [Section 5.4.1](#541-same-prefix-learned-on-more-than-one-frontend-asic).
+  - The generic multi-ASIC HLD describes `Loopback4096` as the router ID of every
+    ASIC. In the current templates that holds only for backend ASICs (and
+    chassis-packet / VOQ systems).
 - Internal links are routed point-to-point interfaces, normally bundled as
   internal port channels (`PortChannel40xx`) with internal IP addresses.
 
@@ -185,12 +199,74 @@ LCP host interfaces in namespace `asicN`.
   (`dockers/docker-fpm-frr/frr/bgpd/templates/internal/peer-group.conf.j2`).
   This is how a route learned by one frontend ASIC reaches the other frontend
   ASICs without a frontend-frontend iBGP mesh.
-- Internal neighbors are `next-hop-self`, so a frontend ASIC always resolves
-  remote prefixes to a backend next hop on a backplane link.
+- **Backend ASICs set `next-hop-self force`** towards their frontend peers
+  (`templates/internal/instance.conf.j2`). A frontend ASIC therefore resolves
+  every reflected prefix to a backend next hop on a backplane link. Frontend
+  ASICs do not set next-hop-self; a backend reaches the external next hops in
+  frontend advertisements through the connected routes the frontends
+  redistribute.
 - Frontend ASICs redistribute connected routes into BGP.
 - eBGP to external peers exists only on frontend ASICs.
+- **eBGP sessions and ASICs:**
+  - Each eBGP session belongs to exactly one frontend ASIC: the one that owns
+    the front-panel port or port channel carrying the session's local address.
+    Its `BGP_NEIGHBOR` entry is in that ASIC's `config_db<N>.json`.
+  - One external peer device can have **several sessions to different frontend
+    ASICs** when it has separate links (or port channels) landing on each. They
+    are independent sessions, each with its own link addresses. On the peer
+    they look like parallel sessions to one neighbor: same ASN, and the same
+    router ID because of the shared `Loopback0`. That is valid for eBGP; BGP
+    collision detection only compares sessions between the same pair of
+    addresses.
+  - A single session cannot span ASICs, because a port channel cannot have
+    members on two ASICs.
+  - Sessions are directly connected. A multihop session to the device's
+    `Loopback0` is not used, because every ASIC owns that address.
 - Each namespace has its own `bgpd`, `zebra` and `fpmsyncd`; routes are
   programmed into that namespace's `APPL_DB` and from there into that ASIC's VPP.
+
+#### 5.4.1 Same prefix learned on more than one frontend ASIC
+
+This is the normal case: for example, a default route or aggregate advertised by
+external peers attached to both asic0 and asic1. It is resolved by standard BGP
+best-path selection in each namespace; no multi-ASIC-specific logic is involved.
+
+- **Each frontend ASIC prefers its own eBGP paths.** asic0 has its eBGP paths
+  for prefix P and, through the backends, an iBGP path pointing at asic1. iBGP
+  does not prepend the AS, and the internal route-maps leave local-preference
+  unchanged. So when asic0's and asic1's external paths are equally good, the
+  tie is broken by "eBGP over iBGP", and asic0 forwards out its own front-panel
+  ports. asic1 behaves the same way. FRR never combines eBGP and iBGP paths in
+  one ECMP group. Traffic for P is therefore not sent across the backplane
+  while a local external path exists.
+- **The reflected path is a backup.** If asic0 loses all of its eBGP paths for
+  P, its best path becomes the iBGP path via a backend. Its route for P moves to
+  backend next hops, and traffic goes asic0 → backend → asic1 → external.
+- **Unequal external paths.** If asic1's external path wins on an earlier
+  attribute (for example a shorter AS path, or higher local-preference set by
+  inbound policy), asic0 prefers the iBGP path. Traffic from asic0 then crosses
+  the backplane to exit on asic1. This is the intended behavior.
+- **Backend view.** Each backend receives P from both frontends, as two iBGP
+  paths. It picks its best path (ECMP across both frontends where FRR's iBGP
+  multipath and the AS-path rules allow; SONiC configures only the eBGP
+  `maximum-paths`) and reflects only that best path; no add-path is used. The
+  path is not advertised back to the frontend it was learned from. With
+  `next-hop-self force`, the reflected next hop is the backend itself.
+- **Loop prevention and the shared frontend router ID.** Standard
+  route-reflection rules apply: backends do not peer with each other, and the
+  cluster list is used. The originator ID needs special handling. Normally a
+  reflector stamps ORIGINATOR_ID with the originating client's router ID, and a
+  client drops any route that carries its own router ID. Here every frontend has
+  the same router ID (`Loopback0`). asic1 would therefore drop every route
+  reflected from asic0 as a loop, and cross-ASIC routing would fail. The
+  backend's inbound internal route-map (`templates/internal/policies.conf.j2`,
+  `set originator-id`) prevents this by rewriting the originator ID to the
+  backend's own unique router ID.
+
+**For VPP** none of this is visible. Each VPP simply programs what its
+namespace's FRR installs: local front-panel next hops in the common case, or
+backend next hops when the local paths are gone or worse. Switching between the
+two is an ordinary route update.
 
 ### 5.5 Control-plane services
 
@@ -243,7 +319,7 @@ a single-ASIC router:
 |---|---|---|
 | Front-panel and backplane ports | Physical ports via af_packet (veth) or DPDK | None — a backplane port is just another port |
 | Internal port channels | VPP bond, both ends local to their own VPP | None |
-| Routed internal links, `Loopback0`, `Loopback4096` | RIF / loopback programming | None |
+| Routed internal links, `Loopback0`, `Loopback4096` | RIF / loopback programming. `Loopback0` is the same local /32 in every VPP, so traffic to it is received and punted by the ASIC it arrives on, never forwarded across the backplane | None |
 | Cross-ASIC routes | FIB entries with backend next hops from iBGP | None |
 | ECMP over internal port channels | FIB load-balance + bond hashing | None |
 | Neighbor resolution | Per-VPP ARP/ND on its own ports | None |
@@ -493,6 +569,7 @@ No changes in `platform/vpp/vppbld` (VPP and plugins) or in
 | MA-10 | ECMP over backend | With 2 backend ASICs, asic0 has an ECMP route via both; flows spread over both backends |
 | MA-11 | Backend failure | Shut a backend's internal port channels; traffic converges onto the remaining backend |
 | MA-12 | Counters | `show interface counters -n asicN -d all` reflects per-VPP stats |
+| MA-13 | Same prefix on both frontends | Advertise P from external peers on asic0 and asic1. Each frontend VPP forwards P out its own front-panel ports; withdraw P on asic0 and its traffic moves to asic0 → backend → asic1 |
 
 ### 10.2 sonic-mgmt
 
