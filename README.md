@@ -38,7 +38,7 @@ This repository contains documentation, Wiki, master project management, and web
 
 ## Architecture
 
-SONiC is built on a modular architecture where each network function runs in its own Docker container. This design provides:
+SONiC is built on a modular architecture that groups many networking services into Docker containers, while other components, such as the CLI and sonic-cfggen, run on the host. A container can host multiple related processes. Container boundaries provide process isolation, but services can still depend on shared databases, the host kernel, and hardware resources. This design provides:
 - Better fault isolation
 - Easier debugging and troubleshooting
 - Simplified upgrades and maintenance
