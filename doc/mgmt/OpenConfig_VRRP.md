@@ -1,7 +1,7 @@
 # OpenConfig Model Support for SONiC VRRP Feature
 
 # High Level Design Document
-#### Rev 1.5
+#### Rev 1.7
 
 # Table of Contents
   * [List of Tables](#list-of-tables)
@@ -87,6 +87,7 @@ Mapping tables: [Section 4](#4-mapping-tables)
 | 1.4 | 11/25/2026 | Malavika Unnikrishnan | Controller SET==GET must drop sibling VRRP echoes keyed {if, family, vrid} |
 | 1.5 | 11/25/2026 | Malavika Unnikrishnan | GET/Subscribe on one owner IP (VIP equal, containing subnet, else lowest); SET still per `{if}\|{vrid}` |
 | 1.6 | 11/26/2026 | Malavika Unnikrishnan | Last-family IP delete is refused while VRRP exists; vrrp-group subtree stays for 1:N Subscribe and unkeyed DELETE; REPLACE of /config restores omitted scalar defaults |
+| 1.7 | 11/27/2026 | Malavika Unnikrishnan | vrrp-group SET/GET uses field transformers only (no subtree). Unkeyed DELETE/REPLACE and owner-IP GET live on the key xfmr. Nested interface-tracking keeps a subtree because it is a different Redis table. |
 
 # About this Manual
 This document describes OpenConfig configuration and management of VRRP in SONiC. Google / PINS clients walk the `openconfig-interfaces` tree. `openconfig-if-ip` 3.9.0 adds `ipv4` / `ipv6` / `vrrp` / `vrrp-group` onto that tree (and onto `openconfig-vlan:routed-vlan` for SVIs). There is no `/openconfig-if-ip:` root.
@@ -434,7 +435,7 @@ Same leaf mapping on all four bases. Table name is `VRRP` or `VRRP6` from the IP
 
 | OpenConfig YANG Node | DB Name | Table:Field | Notes |
 |----------------------|---------|-------------|-------|
-| **vrrp-group** | CONFIG_DB | VRRP or VRRP6 | table `vrrp_table_xfmr`; key `vrrp_group_key_xfmr`; field xfmrs on leaves; subtree `vrrp_group_xfmr` on **vrrp-group** only (not the `/vrrp` container). Subtree is required because native is `{if}\|{vrid}`: unkeyed list DELETE/REPLACE must be `InvalidArgs`, GET/Subscribe is 1:N onto the owner IP, and `interface-tracking` is a nested list. Redis key `{if}\|{vrid}` |
+| **vrrp-group** | CONFIG_DB | VRRP or VRRP6 | table `vrrp_table_xfmr`; key `vrrp_group_key_xfmr`; field xfmrs on leaves. No subtree on **vrrp-group** or `/vrrp`. Unkeyed DELETE/REPLACE is `InvalidArgs` in the key xfmr. GET/Subscribe of sibling IPs is empty via owner-IP checks in the key and field xfmrs. Redis key `{if}\|{vrid}` |
 | virtual-router-id | CONFIG_DB | Derived `{vrid}` | Google list key and `config/state/virtual-router-id`. GET via `vrrp_virtual_router_id_xfmr` from the Redis key. UMF does not write hash field `vid` |
 | **vrrp-group/config** and **vrrp-group/state** | | | |
 | virtual-address | CONFIG_DB | VRRP:vip | field `vrrp_virtual_address_xfmr`; UMF stores host prefix `/32` or `/128`. SET replaces the global `vip@` members (does not append leftover globals). A VIP already owned by another `{if}\|{vrid}` is `InvalidArgs`. DELETE removes listed members |
