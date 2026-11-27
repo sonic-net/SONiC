@@ -42,35 +42,47 @@ For CPO fault indication, the refactor covers polling the existing fault interru
 
 ### 0.4 Overview
 
-xcvrd uses two module event tasks. The **SFP thread** updates pluggable ports, including the service port on Chameleon 6S. The **CPO thread** updates ports served by optical engines. Each task handles the events for its own ports.
+Module change event handling in the NVIDIA platform handles below event:
 
-The proposal uses **one polling thread**. The poller handles ASIC state changes, polls module events, runs the MDF in host management mode and dispatches events to the owning task. In the **observer** role, each thread delivers events for its own ports to its xcvrd task. The polling thread also acts as the observer for its own ports. By default, the CPO thread is the poller on CPO platforms and the SFP thread is the poller on pluggable-only platforms.
-
-| Mode or condition | Sysfs nodes watched | Events handled |
+| Event Type | Host mgmt node | Legacy node |
 | --- | --- | --- |
-| Legacy, pluggable and CPO | Module `present` | Insertion, removal and module errors. The poller reads `status` and, when needed, `statuserror` after the notification. |
-| Host management, software-controlled module or control detection | Module `hw_present` and `power_good` | Presence and power changes feed the MDF, which reports insertion, removal or a module error. |
-| Host management, firmware-controlled module | Module `present` | The MDF uses driver presence to report insertion, removal or a module error. |
-| Both modes | HW-MGMT `config/asicN_ready` | ASIC down and up drive removal and recovery for that ASIC's modules. |
-| Host management, CPO with fault indication | Module `interrupt`, opened once per OE through bank 0 when available | CPO fault notification goes to the existing fault-indication task. |
+| Module insertion, removal or error (pluggable or CPO) | `hw_present` and `power_good` for software-controlled modules or control detection (MDF); `present` for firmware-controlled modules (MDF) | `present`; read `status` and, when needed, `statuserror` after the notification |
+| ASIC down or up (per-ASIC module removal and recovery) | HW-MGMT `config/asicN_ready` | HW-MGMT `config/asicN_ready` |
+| CPO fault (hand off to fault-indication task) | Module `interrupt`, opened once per OE through bank 0 when available | — |
 
-[Legacy node selection](https://github.com/nvidia-sonic/sonic-buildimage/blob/15d753f15afc11d09d96eb457aa0f9b7760130a3/platform/mellanox/mlnx-platform-api/sonic_platform/module_sysfs.py#L216) · [Host-mode node selection](https://github.com/nvidia-sonic/sonic-buildimage/blob/15d753f15afc11d09d96eb457aa0f9b7760130a3/platform/mellanox/mlnx-platform-api/sonic_platform/module_detection_flow.py#L313) · [CPO fault interrupt](https://github.com/nvidia-sonic/sonic-buildimage/blob/15d753f15afc11d09d96eb457aa0f9b7760130a3/platform/mellanox/mlnx-platform-api/sonic_platform/cpo.py#L113)
+Support for host management mode and CPO platforms has made the implementation increasingly complex:
+
+- **Two modes** — legacy and host management. Each mode watches different sysfs nodes and follows different logic.
+- **Two threads** — **SfpStateUpdateTask** handles pluggable ports through `chassis.get_change_event()`; **CpoStateUpdateTask** handles CPO ports through `chassis.get_elsfp_change_event()`. Running both threads risks races on shared state that must be guarded with locks.
+- **ASIC coupling** — module event polling is tied to switch-ASIC readiness handling.
+
+Most of that logic lives in `chassis.py`. As the file grows, bug fixes, extensions and code review become harder.
+
+The proposal:
+
+- **Dedicated classes** — `ModuleEventPoller`, `ModuleEventObserver`, and `AsicEventMonitor` split responsibilities out of `chassis.py`.
+- **Poller and observer** — One thread polls ASIC state, pluggable and CPO modules, runs the MDF, and dispatches events. Each xcvrd task reads from its queue and delivers events for its own ports. The polling thread is also the observer for the ports it owns.
 
 ### 0.5 Use Cases
 
-- **Plug in or unplug a module.** The SFP thread receives a pluggable module event. A CPO module presence change goes to the CPO thread for all affected banks.
-- **One ASIC goes down and comes back.** Its modules are reported removed and recovered on return. Other ASICs continue to report module events.
-- **Restart `syncd` on Chameleon 6S.** The optical-engine ports and the service port receive the events they need to recover while the same xcvrd process stays up.
+- **Insert or remove a module.** Pluggable events go to the SFP task. A CPO presence change is delivered to the CPO task for every affected bank.
+- **An ASIC fails and recovers.** Its modules are reported removed when the ASIC goes down and recovered when it returns. Events on other ASICs are unaffected.
+- **Restart `syncd` on CPO platform.** Optical-engine ports and the service port receive the events needed for recovery while xcvrd keeps running.
 
 ## 1 Requirements
 
-| Area | Requirement |
+| ID | Requirement |
 | --- | --- |
-| Coverage | One poller for pluggable and CPO events in legacy and host management modes. |
-| Delivery | Route by physical port index and preserve each port's event order. |
-| Recovery | Rebuild registrations for the affected ASIC and continue polling the others. |
-| Compatibility | Preserve xcvrd APIs, event payloads, configuration, boot behavior and the CPO fault handoff. |
-| Resource use | Bound retries, polling waits and queue memory. |
+| REQ-1 | Provide **one shared poller** per chassis for ASIC readiness, pluggable modules and CPO modules in **legacy** and **host management** modes. |
+| REQ-2 | **Refactor** event logic out of monolithic `chassis.py` into `ModuleChangeEvent`, mode-specific handlers and `AsicReadinessMonitor`. |
+| REQ-3 | Register each sysfs source **once** (for example, one watch per OE). SFP and CPO tasks must not poll the same hardware in parallel. |
+| REQ-4 | In host management mode, run the **MDF on the poller** for pluggable and CPO targets before reporting insertion. |
+| REQ-5 | **Dispatch** events by physical port index to the owning xcvrd task queue. Preserve **per-port event order**. Fan out each OE event to all affected banks. |
+| REQ-6 | On **ASIC down**, stop polling that ASIC's module nodes, cancel pending detection work and queue removals for its ports. On **ASIC up**, rebuild registrations and recover modules while other ASICs keep polling. |
+| REQ-7 | Preserve **`get_change_event()`** and **`get_elsfp_change_event()`** semantics for xcvrd: response shape, error details, wait behavior and shutdown. |
+| REQ-8 | Select **one polling owner** at startup when xcvrd registers tasks (prefer CPO when present). The poller observes its own ports; the other task waits on its queue only. |
+| REQ-9 | Preserve existing **configuration, boot behavior** and **CPO fault** handoff (interrupt poll only; decode and policy unchanged). |
+| REQ-10 | Bound **queue depth**, poll retries and wait times. Recover from `ENODEV`, stale nodes and queue overflow without losing required removals. |
 
 ## 2 Design
 
