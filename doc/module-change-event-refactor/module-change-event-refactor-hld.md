@@ -85,21 +85,33 @@ The proposal:
 **Current flow on a CPO platform**
 
 ```mermaid
-flowchart LR
-    ASIC["ASIC readiness"] --> SFP_POLL
-    MOD["Pluggable module nodes"] --> SFP_POLL
-    OE["Optical-engine nodes"] --> SFP_POLL
-    OE --> CPO_POLL
-    subgraph SFP["xcvrd SFP thread"]
-        SFP_POLL["Poll modules and ASIC state and run MDF in host mode"] --> SFP_DELIVER["Deliver SFP events and drop OE events"]
+flowchart TB
+    ASIC[ASIC nodes]
+    MOD[Pluggable module nodes]
+    CPO_MOD[CPO module nodes]
+
+    subgraph sfp_thr[xcvrd SFP thread]
+        sfp_poll[Poll modules, ASIC state, and MDF in host mode]
+        sfp_deliver[Deliver SFP events and drop CPO events]
+        sfp_poll --> sfp_deliver
     end
-    subgraph CPO["xcvrd CPO thread"]
-        CPO_POLL["Poll optical-engine nodes"] --> CPO_DELIVER["Deliver raw CPO events"]
-        CPO_POLL -.-> STALE["Stale nodes after ASIC reset"]
+
+    subgraph cpo_thr[xcvrd CPO thread]
+        cpo_poll[Poll CPO nodes]
+        cpo_deliver[Deliver raw CPO events]
+        cpo_stale[Stale nodes after ASIC reset]
+        cpo_poll --> cpo_deliver
+        cpo_poll -.-> cpo_stale
     end
+
+    ASIC --> sfp_poll
+    MOD --> sfp_poll
+    CPO_MOD --> sfp_poll
+    CPO_MOD --> cpo_poll
 ```
 
-The SFP thread handles ASIC changes and receives the reset events for both port types. It drops events for the optical-engine ports because the CPO thread owns them. The CPO thread can keep reading stale nodes after the reset, flooding logs and missing the events needed for recovery. In host mode it can also report presence before the MDF finishes. The original report records a service-port numbering bug. The Chameleon 6S baseline shown here includes the physical-port indexing fix. [Redmine #5450531](https://redmine.nvidia.com/issues/5450531) · [Chameleon 6S chassis code](https://github.com/nvidia-sonic/sonic-buildimage/blob/15d753f15afc11d09d96eb457aa0f9b7760130a3/platform/mellanox/mlnx-platform-api/sonic_platform/chassis.py#L826)
+- Polling the same CPO nodes from two threads risks races.
+- The CPO thread does not watch ASIC readiness, so it can miss ASIC down and recovery events.
 
 ### 2.2 Motivation
 
@@ -111,19 +123,19 @@ A shared poller gives both tasks the same view of ASIC readiness and module stat
 
 ```mermaid
 flowchart TB
-    subgraph CPO["xcvrd CPO thread · poller and CPO observer"]
-        REGISTER["1. Reconcile node registrations"] --> POLL["2. Poll module and ASIC events"]
-        POLL --> HANDLE["3. Handle notifications"]
-        HANDLE --> OUTCOME{"Module event ready?"}
-        OUTCOME -->|Yes| PREPARE["4. Prepare events for affected ports"]
-        OUTCOME -->|No| REGISTER
-        PREPARE --> DISPATCH["5. Dispatch by port owner"]
-        DISPATCH --> CPO_OBSERVER["CPO observer delivers CPO events"]
+    subgraph sfp_obs_thr[xcvrd SFP thread - SFP observer]
+        sfp_observer[SFP observer delivers pluggable events]
     end
-    subgraph SFP["xcvrd SFP thread · SFP observer"]
-        SFP_OBSERVER["SFP observer delivers pluggable events"]
+    subgraph cpo_poll_thr[xcvrd CPO thread - poller and CPO observer]
+        register[1. Reconcile node registrations] --> poll[2. Poll module and ASIC events]
+        poll --> handle[3. Handle notifications]
+        handle --> outcome{Module event ready?}
+        outcome -->|Yes| prepare[4. Prepare events for affected ports]
+        outcome -->|No| register
+        prepare --> dispatch[5. Dispatch by port owner]
+        dispatch --> cpo_observer[CPO observer delivers CPO events]
+        dispatch --> sfp_observer
     end
-    DISPATCH --> SFP_OBSERVER
 ```
 
 1. **Register.** Open or close module nodes at startup and as ASIC readiness or the module's control state changes. Legacy watches `present`. Host management selects the nodes listed in section 0.4.
