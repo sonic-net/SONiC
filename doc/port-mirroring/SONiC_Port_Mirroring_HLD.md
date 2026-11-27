@@ -18,23 +18,37 @@
       * [3.1 Overview](#31-overview)
           * [3.1.1 Architecture Overview](#311-architecture-overview)
           * [3.1.2 Data Format](#312-data-format)
+              * [HWSFLOW Datagram Format](#hwsflow-datagram-format)
       * [3.2 DB Changes](#32-db-changes)
           * [3.2.1 CONFIG DB](#321-config-db)
+              * [Sampled Mirroring Extension: PORT_MIRROR_SAMPLE](#sampled-mirroring-extension-port_mirror_sample)
+              * [HWSFLOW Extension: MIRROR_SESSION](#hwsflow-extension-mirror_session)
           * [3.2.2 APP_DB](#322-app_db)
           * [3.2.3 STATE_DB](#323-state_db)
+              * [HWSFLOW Capabilities](#hwsflow-capabilities)
           * [3.2.4 ASIC_DB](#324-asic_db)
           * [3.2.5 COUNTER_DB](#325-counter_db)
       * [3.3 Switch State Service Design](#33-switch-state-service-design)
           * [3.3.1 Orchestration Agent](#331-orchestration-agent)
+              * [Sampled Port Mirroring Extension](#sampled-port-mirroring-extension)
+              * [HWSFLOW Session Extension](#hwsflow-session-extension)
           * [3.3.2 Other Process](#332-other-process)
       * [3.4 Mirror Capability Discovery](#34-mirror-capability-discovery)
+          * [3.4.1 Capability Discovery Process](#341-capability-discovery-process)
+          * [3.4.2 Capability Validation Flow](#342-capability-validation-flow)
+          * [3.4.3 Error Handling](#343-error-handling)
+          * [3.4.4 Implementation Components](#344-implementation-components)
       * [3.5 SAI](#35-sai)
          * [3.5.1 Port Mirroring SAI APIs](#351-port-mirroring-sai-apis)
          * [3.5.2 Sampled Port Mirroring SAI APIs](#352-sampled-port-mirroring-sai-apis)
       * [3.6 CLI](#36-cli)
           * [3.6.1 Data Models](#361-data-models)
           * [3.6.2 Configuration Commands](#362-configuration-commands)
+              * [Sampled Port Mirroring on ERSPAN](#sampled-port-mirroring-on-erspan)
+              * [HWSFLOW Session Configuration](#hwsflow-session-configuration)
           * [3.6.3 Show Commands](#363-show-commands)
+              * [Sampled Port Mirroring on ERSPAN](#sampled-port-mirroring-on-erspan-1)
+              * [HWSFLOW Session Show Output](#hwsflow-session-show-output)
           * [3.6.4 Clear Commands](#364-clear-commands)
           * [3.6.5 Debug Commands](#365-debug-commands)
           * [3.6.6 Rest API Support](#366-rest-api-support)
@@ -47,9 +61,12 @@
   * [9. Unit Test](#9-unit-test)
       * [9.1 CLI Test Cases](#91-cli-test-cases)
       * [9.2 Mirror Capability Test Cases](#92-mirror-capability-test-cases)
+          * [9.2.1 CLI Capability Validation Tests](#921-cli-capability-validation-tests)
+          * [9.2.2 Swss Mock Tests](#922-swss-mock-tests)
       * [9.3 Sampled Port Mirroring Test Cases](#93-sampled-port-mirroring-test-cases)
           * [9.3.1 Swss Virtual Switch Tests](#931-swss-virtual-switch-tests)
           * [9.3.2 System Tests](#932-system-tests)
+      * [9.4 HWSFLOW Session Test Cases](#94-hwsflow-session-test-cases)
   * [Appendix A: Problem Statement](#appendix-a-problem-statement)
   * [Appendix B: Bandwidth Estimation](#appendix-b-bandwidth-estimation)
 
@@ -63,6 +80,8 @@
 | 0.1 | 05/17/2019  |   Rupesh Kumar      | Initial version                            |
 | 0.2 | 09/05/2025  |   Stephen Sun      | Added mirror capability discovery and validation |
 | 0.3 | 04/16/2026  |   Janet Cui        | Added sampled port mirroring with truncation support on ERSPAN sessions |
+| 0.4 | 10/12/2026  |   Janet Cui        | Separate sampled source bindings and per-port policies into PORT_MIRROR_SAMPLE; add sampled binding CLI |
+| 0.5 | 11/25/2026  |   Darius Grassi    | Add the HWSFLOW session type: sFlow export from the ASIC with the sampling policy on the session |
 
 # About this Manual
 This document provides general information about extending mirroring implementation in SONiC.
@@ -70,9 +89,11 @@ This document provides general information about extending mirroring implementat
 This document describes the high-level design of the Mirroring feature in SONiC, including enhancements for per-port
 sampled mirroring and packet truncation support for ERSPAN (Enhanced Remote Switched Port Analyzer) sessions.
 
-Sampled mirroring enables users to configure a sampling rate on port mirror sessions so that only a statistical
+Sampled mirroring enables users to configure a sampling rate per source port and direction so that only a statistical
 subset of packets is mirrored, reducing bandwidth consumption on the monitor port and the collector. Packet
 truncation further reduces bandwidth by mirroring only the first N bytes of each sampled packet.
+
+The HWSFLOW session type exports the sampled packets as sFlow datagrams that the ASIC builds and sends to a collector.
 
 # Definition/Abbreviation
 ### Table 1: Abbreviations
@@ -84,6 +105,7 @@ truncation further reduces bandwidth by mirroring only the first N bytes of each
 |   ASIC                   | Application-Specific Integrated Circuit |
 |   MirrorOrch             | Orchagent module that manages mirror sessions |
 |   CoPP                   | Control Plane Policing |
+|   HWSFLOW                | Mirror session type that exports sFlow datagrams from the ASIC |
 
 
 # 1 Requirement Overview
@@ -94,8 +116,10 @@ truncation further reduces bandwidth by mirroring only the first N bytes of each
      - Add support to mirror egress traffic on port/port-channel to SPAN/ERSPAN mirror session.
      - Add support to mirror both ingress/egress traffic on port/port-channel to SPAN/ERSPAN mirror session.
      - Add support for per-port sampled mirroring with configurable sample rate and packet truncation on ERSPAN sessions
-     - Backward compatible — existing mirror sessions without sample rate continue to work as before (full mirroring)
+     - Backward compatible — unsampled mirror sessions continue to work as before (full mirroring)
      - SAI capability check to gracefully handle platforms that do not support sampled mirroring or truncation
+     - Add the HWSFLOW session type. The ASIC samples packets, builds sFlow datagrams and sends them to a collector
+     - An HWSFLOW session sets the sample rate and the truncate size. All source ports bound to the session use them
 
 2. Dynamic session management
     - Allow multiple source to single destination.
@@ -110,8 +134,8 @@ truncation further reduces bandwidth by mirroring only the first N bytes of each
     - CLI validation for all mandatory parameters in ERSPAN configuration.
     - CLI validation for all mandatory parameters in port/portchannel mirroring.
     - CLI to allow mirror session configuration only with destination port.
-    - CLI command: `config mirror_session erspan add ... --sample_rate <value> --truncate_size <value>`
-    - Show command displays sample rate and truncate size when configured
+    - Configure sampled source bindings with `config mirror_session sample add/remove` and per-port policy in `PORT_MIRROR_SAMPLE`. Use `sample enable/disable` to change an existing binding's admin state in place.
+    - Show command displays mirror-session information; sampling policies are configured per source binding.
 
 
 ## 1.2 Configuration and Management Requirements
@@ -150,6 +174,29 @@ This HLD describes the design of port mirroring in SONiC, covering SPAN and ERSP
 
 Additionally, this HLD covers per-port sampled port mirroring with packet truncation on ERSPAN sessions (added in revision 0.3), and mirror capability discovery. See [Appendix A](#appendix-a-problem-statement) for the problem statement and [Appendix B](#appendix-b-bandwidth-estimation) for bandwidth estimation.
 
+Revision 0.5 adds the HWSFLOW session type. An HWSFLOW session exports sampled packets as sFlow version 5 datagrams. The ASIC samples the packets, builds the datagrams and sends them to the collector over UDP. The CPU is not in the data path.
+
+HWSFLOW uses the same `MIRROR_SESSION` and `PORT_MIRROR_SAMPLE` tables as sampled ERSPAN. The session says where the samples go and how to sample. `PORT_MIRROR_SAMPLE` says which ports and directions to sample.
+
+```
+  PORT_MIRROR_SAMPLE                 MIRROR_SESSION (type HWSFLOW)
+  +------------------+               +---------------------------+
+  | Ethernet0|rx     |--+            | src_ip, dst_ip, dscp, ttl |          sFlow v5
+  +------------------+  |            | udp_src_port, udp_dst_port|          over UDP
+  +------------------+  +----------->| sample_rate               |--------> collector
+  | PortChannel1|tx  |--+            | truncate_size             |
+  +------------------+               +---------------------------+
+   which ports, which direction       where to send, how to sample
+```
+
+| | Sampled ERSPAN | HWSFLOW |
+|---|---|---|
+| Encapsulation | GRE with ERSPAN header | sFlow version 5 over UDP |
+| Sample rate and truncate size | On each binding | On the session |
+| PortChannel source | Member ports | The LAG object when the SAI supports it, else the member ports |
+
+An HWSFLOW session and the sFlow feature (`SFLOW|global`) cannot be configured together. The YANG model and the CLI reject an HWSFLOW session while `SFLOW|global` exists, and reject `SFLOW|global` while an HWSFLOW session exists.
+
 ### 3.1.1 Architecture Overview
 The following diagram shows the end-to-end control flow for sampled port mirroring with truncation:
 
@@ -174,22 +221,23 @@ flowchart LR
 
     asic[/ASIC/]
 
-    cli[CLI] -->|config mirror_session erspan add| config_db
-    config_db -->|MIRROR_SESSION| mirror_orch
+    cli[CLI] -->|erspan add and sample add/remove/enable/disable| config_db
+    config_db -->|MIRROR_SESSION and PORT_MIRROR_SAMPLE| mirror_orch
     switch_orch -->|sai_query_attribute_capability| syncd
     switch_orch -->|SWITCH_CAPABILITY| state_db
     mirror_orch -->|SAI mirror + samplepacket| syncd
     mirror_orch -->|MIRROR_SESSION_TABLE| state_db
     syncd -->|Vendor SDK| asic
     asic -->|ERSPAN packets| collector[Collector]
+    asic -->|sFlow datagrams| collector
 ```
 
 ### 3.1.2 Data Format
 
 The mirrored packet goes through the following processing in the ASIC hardware pipeline:
-1. Sampling: For each packet on the monitored port in the configured direction (RX, TX or BOTH), a hardware counter is incremented. When the counter reaches N (the configured sample rate), the packet is selected for mirroring.
-2. Truncation: The selected packet is truncated to the configured truncate size (e.g., 128 bytes). Only the packet headers are retained.
-3. GRE encapsulation: The truncated packet is encapsulated with outer headers for tunneling to the collector.
+1. Sampling: Each source port/direction uses its configured SamplePacket policy, with an intended sampling probability of 1/N. CLI `both` configures separate ingress and egress bindings.
+2. Truncation: When configured and supported, the selected packet is truncated to the requested size (e.g., 128 bytes). Without `truncate_size`, the policy does not request truncation.
+3. GRE encapsulation: The selected packet, truncated if requested, is encapsulated with outer headers for tunneling to the collector.
 4. Forwarding: The encapsulated mirror packet is forwarded to the monitor port and routed to the collector. The original packet continues normal forwarding unaffected.
 
 Encapsulation format (GRE type 0x8949):
@@ -208,6 +256,35 @@ packet-beta
 Payload: Original packet truncated to 128B. Total mirror packet size: 60B + 128B = 188 bytes (estimated).
 
 Encapsulation overhead: 60 bytes. The overhead includes the outer Ethernet header (14B), outer IP header (20B), GRE header (4B), and ERSPAN mirror header (22B).
+
+#### HWSFLOW Datagram Format
+
+An HWSFLOW session samples and truncates the packet the same way, with the sample rate and truncate size of the session. In place of the GRE encapsulation, the ASIC puts the sampled header in an sFlow version 5 flow sample and sends the datagram to the collector over UDP, from `udp_src_port` to `udp_dst_port`.
+
+Example datagram with one flow sample, an IPv4 agent address and a 128-byte sampled header:
+
+```mermaid
+---
+title: HWSFLOW Datagram Headers (134 bytes)
+---
+packet-beta
+0-111: "Outer Ethernet Header (14B)"
+112-271: "IPv4 Header (20B)"
+272-335: "UDP Header (8B)"
+336-559: "sFlow Datagram Header (28B)"
+560-879: "Flow Sample Header (40B)"
+880-1071: "Raw Packet Header Record (24B)"
+```
+
+- sFlow datagram header: version 5, agent address (`src_ip`), sub-agent ID, sequence number, uptime and sample count.
+- Flow sample header: sequence number, source ID, sampling rate, sample pool, drops, input and output interfaces and record count.
+- Raw packet header record: header protocol (Ethernet), frame length, stripped bytes and header length, followed by the sampled header.
+
+Payload: the first 128 bytes of the sampled packet. Total datagram size: 134B + 128B = 262 bytes. Some ASICs use the expanded flow sample format or add other flow records, which makes the datagram larger.
+
+Without `truncate_size`, the session truncates at 128 bytes.
+
+The number of samples in one datagram, and so how the datagram stays below the egress MTU, is vendor defined and out of the scope of this document.
 
 
 ## 3.2 DB Changes
@@ -230,20 +307,73 @@ Existing table PORT_MIRROR_TABLE is enhanced to accept new source and destinatio
 
     mirror_session_name = 1*255VCHAR
 
-#### Sampled Mirroring Extension
+#### Sampled Mirroring Extension: PORT_MIRROR_SAMPLE
 
-Extend the existing `MIRROR_SESSION` table with two new optional fields:
+For sampled ERSPAN, `PORT_MIRROR_SAMPLE` separates per-port sampling policies and source bindings from ERSPAN export configuration in `MIRROR_SESSION`. Different source ports can reference the same export session while using different sampling rates. Unsampled SPAN/ERSPAN configuration, including `MIRROR_SESSION.src_port` and `direction`, remains unchanged and does not require this table.
 
-    ```
-    MIRROR_SESSION|{{session_name}}  
-        "sample_rate": {{uint32}}   (Optional)  
-        "truncate_size": {{uint32}} (Optional)
+The referenced `MIRROR_SESSION` contains export attributes such as `src_ip`, `dst_ip`, `gre_type`, `dscp`, `ttl`, and optional `queue` / `policer`. Sampled sources and directions are defined by the binding keys rather than the export session's source fields.
 
-    key = MIRROR_SESSION|session_name 
-    ; field = value 
-    sample_rate = uint32 ; Sampling rate. 0 = full mirror (default), N = mirror 1-in-N packets. 
-    truncate_size = uint32 ; Truncation size in bytes. 0 = no truncation (default).
-    ```
+    ;Configure a sampled ERSPAN source binding.
+    key = PORT_MIRROR_SAMPLE|port|direction
+        ;port references a physical port in PORT or a PortChannel in PORTCHANNEL.
+        ;direction is rx or tx; CLI both creates one entry per direction.
+        ;The port and direction together uniquely identify the binding.
+
+    ;field         = value
+    admin_state    = up or down         ;Optional. Default: down.
+                                       ;up requests activation; down retains a disabled binding.
+                                       ;Supports in-place up/down changes.
+    mirror_session = mirror_session_name ;Required. References an ERSPAN entry in MIRROR_SESSION.
+    sample_rate    = uint32             ;Required. Range: 2..4294967295. Sampling probability: 1/N.
+    truncate_size  = uint32             ;Optional. Range: 64..9216 bytes. Absent: no truncation.
+
+PortChannel source bindings are stored at the logical interface level in CONFIG_DB; no separate member-port entries are generated.
+
+Truncation is configured through the SamplePacket object, subject to hardware support for the requested scope and value.
+
+#### HWSFLOW Extension: MIRROR_SESSION
+
+An HWSFLOW session is a `MIRROR_SESSION` entry with type `HWSFLOW`. It holds the sampling policy that a sampled ERSPAN binding holds in `PORT_MIRROR_SAMPLE`.
+
+    ;Configure an HWSFLOW session.
+    key = MIRROR_SESSION|mirror_session_name
+
+    ;field         = value
+    type           = HWSFLOW
+    src_ip         = ip_address   ;Required. The sFlow agent address.
+    dst_ip         = ip_address   ;Required. The collector address.
+    dscp           = uint8
+    ttl            = uint8
+    udp_src_port   = uint16       ;Optional. Default: 6343.
+    udp_dst_port   = uint16       ;Optional. Default: 6343.
+    sample_rate    = uint32       ;Required. Range: 2..4294967295. One packet in N is sampled.
+    truncate_size  = uint32       ;Optional. Range: 64..9216 bytes. Default: 128.
+
+An HWSFLOW session does not accept `gre_type`, `queue`, `policer`, `src_port`, `dst_port` or `direction`.
+
+A `PORT_MIRROR_SAMPLE` binding that names an HWSFLOW session has `mirror_session` and `admin_state` only. It does not accept `sample_rate` or `truncate_size`.
+
+To change the sample rate or the truncate size, remove the bindings and the session, then add them again.
+
+Example: one collector. Ethernet0 is sampled on ingress and PortChannel1 on egress, both at 1 in 4096 with 128-byte truncation.
+
+```json
+"MIRROR_SESSION": {
+    "hws1": {
+        "type": "HWSFLOW",
+        "src_ip": "10.1.0.32",
+        "dst_ip": "10.2.0.10",
+        "dscp": "8",
+        "ttl": "64",
+        "sample_rate": "4096",
+        "truncate_size": "128"
+    }
+},
+"PORT_MIRROR_SAMPLE": {
+    "Ethernet0|rx":    { "mirror_session": "hws1", "admin_state": "up" },
+    "PortChannel1|tx": { "mirror_session": "hws1", "admin_state": "up" }
+}
+```
 
 ### 3.2.2 APP_DB
 No tables are introduced in APP_DB
@@ -275,7 +405,28 @@ SWITCH_CAPABILITY|switch
   SAMPLEPACKET_TRUNCATION_CAPABLE: "true"
 ```
 
-This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions. The platform also supports ingress sampled port mirroring and packet truncation on sampled sessions. The actual values depend on the platform and vendor SAI implementation. MirrorOrch checks these capabilities at runtime and gracefully falls back when a capability is not supported.
+This indicates that the ASIC supports ingress mirror sessions but does not support egress mirror sessions. The platform also supports ingress sampled port mirroring and packet truncation on sampled sessions. The actual values depend on the platform and vendor SAI implementation. MirrorOrch checks the required capabilities before activating a sampled binding. If a required capability is unsupported, it logs an error and does not activate the binding.
+
+#### HWSFLOW Capabilities
+
+The HWSFLOW session type adds these fields to `SWITCH_CAPABILITY|switch`. A failed query gives "false".
+
+```text
+MIRROR_SESSION_HWSFLOW_CAPABLE         = "true" | "false"    ; SAI_MIRROR_SESSION_ATTR_TYPE lists SAI_MIRROR_SESSION_TYPE_SFLOW
+MIRROR_SESSION_SAMPLE_RATE_CAPABLE     = "true" | "false"    ; create_implemented on SAI_MIRROR_SESSION_ATTR_SAMPLE_RATE
+MIRROR_SESSION_TRUNCATION_CAPABLE      = "true" | "false"    ; create_implemented on SAI_MIRROR_SESSION_ATTR_TRUNCATE_SIZE
+LAG_INGRESS_SAMPLE_MIRROR_CAPABLE      = "true" | "false"    ; set_implemented on SAI_LAG_ATTR_INGRESS_SAMPLE_MIRROR_SESSION_LIST
+LAG_EGRESS_SAMPLE_MIRROR_CAPABLE       = "true" | "false"    ; set_implemented on SAI_LAG_ATTR_EGRESS_SAMPLE_MIRROR_SESSION_LIST
+```
+
+| Field | What it decides |
+|---|---|
+| `MIRROR_SESSION_HWSFLOW_CAPABLE` | Whether an HWSFLOW session is accepted |
+| `MIRROR_SESSION_SAMPLE_RATE_CAPABLE` | Whether the mirror session or the SamplePacket samples |
+| `MIRROR_SESSION_TRUNCATION_CAPABLE` | Whether the mirror session or the SamplePacket truncates |
+| `LAG_INGRESS_SAMPLE_MIRROR_CAPABLE`, `LAG_EGRESS_SAMPLE_MIRROR_CAPABLE` | Whether a PortChannel source is bound on the LAG object or on its member ports |
+
+There is no platform-specific code.
 
 ### 3.2.4 ASIC_DB
 No changes are introduced in ASIC_DB.·
@@ -287,7 +438,7 @@ No changes are introduced in COUNTER_DB.·
 
 Mirror Orchestration agent is modified to support this feature:
    - Handle both SPAN and ERSPAN sessions separately·
-   - No changes to ERSPAN functionality.
+   - No changes to unsampled ERSPAN functionality.
    - Configure mirror session based on CONFIG_DB parameters.
    - Port mirror session will be active in below cases.
         - Session with destination port only config becomes active when session is created in SAI. These sessions can be used for ACL mirroring.
@@ -296,19 +447,42 @@ Mirror Orchestration agent is modified to support this feature:
 
 #### Sampled Port Mirroring Extension
 
-MirrorOrch is extended to manage the lifecycle of SamplePacket SAI objects alongside the existing mirror session objects. When `sample_rate` is configured, MirrorOrch creates a SamplePacket and binds it to the source port(s) according to the configured `direction`:
+MirrorOrch consumes `MIRROR_SESSION` for export configuration and `PORT_MIRROR_SAMPLE` for sampled source bindings. Each enabled binding applies its sampling policy and references the corresponding export session's SAI object. Disabled bindings retain their configuration without active sampling attachments.
 
-- **RX**: bind with `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION`.
-- **TX**: bind with `SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION`.
-- **BOTH**: bind both the ingress and the egress attribute pairs to the same SamplePacket and mirror session.
+An enabled binding creates or acquires a compatible SamplePacket profile. Its direction selects the following port attributes:
+
+- **rx**: `SAI_PORT_ATTR_INGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_INGRESS_SAMPLE_MIRROR_SESSION`.
+- **tx**: `SAI_PORT_ATTR_EGRESS_SAMPLEPACKET_ENABLE` + `SAI_PORT_ATTR_EGRESS_SAMPLE_MIRROR_SESSION`.
+- **Both directions**: MirrorOrch programs the ingress and egress attribute pairs independently for the corresponding `rx` and `tx` bindings.
+
+Bindings wait for the referenced session and its destination to be ready. Removing one binding releases only its attachment and unused sampling resources, not a still-referenced export session.
+
+For a PortChannel source, MirrorOrch expands the binding to its physical member ports for SAI programming and updates the attachments as members join or leave. Each member uses the configured sampling policy.
 
 See Section 3.1.1 for the architecture overview and Section 4 for the detailed workflow.
 
 **Configuration semantics:**
 
-- **Duplicate session names are rejected; no in-place update.** When a SET arrives for a session name that already exists, `createEntry()` returns `task_duplicated` and the existing session is left unchanged — the new attributes are not applied. Reconfiguring any field of a sampled mirror session, including `sample_rate` or `truncate_size`, therefore requires deleting the session and re-adding it with the new values.
-- **Unsupported platforms are rejected, not silently downgraded.** If the required per-direction sampled mirroring capability (or samplepacket truncation) is not supported by the ASIC, MirrorOrch rejects the session (`task_invalid_entry`).
-- **Sampled mirroring requires an explicit direction.** A session that configures `sample_rate` must also specify a `direction` (RX, TX or BOTH); a sampled session without a direction is rejected.
+- **Duplicate session names are rejected; in-place export-session updates are not supported.** The sampled `add` command also rejects duplicate port/direction keys. Changes to a binding's `sample_rate`, `truncate_size`, or `mirror_session` require removing and recreating the binding. The referenced export session does not need to be recreated.
+- **Binding admin state supports in-place updates.** Enabling or disabling a binding preserves its configuration and shared export session. Disabling removes its sampled attachments and releases unused sampling resources. Reactivation waits for any pending cleanup to complete.
+- **Unsupported platforms are rejected, not silently downgraded.** MirrorOrch checks the required per-direction sampling and truncation capabilities before activation.
+
+#### HWSFLOW Session Extension
+
+**Session.** MirrorOrch creates the SAI mirror session with type `SAI_MIRROR_SESSION_TYPE_SFLOW`, the IP header fields, `SAI_MIRROR_SESSION_ATTR_UDP_SRC_PORT`, `SAI_MIRROR_SESSION_ATTR_UDP_DST_PORT`, `SAI_MIRROR_SESSION_ATTR_SAMPLE_RATE` and `SAI_MIRROR_SESSION_ATTR_TRUNCATE_SIZE`. The session resolves its route and neighbor as an ERSPAN session does.
+
+**Binding.** A binding programs the same objects as a sampled ERSPAN binding: one SamplePacket, bound to the port together with the mirror session.
+
+| | SAI mirror session | SamplePacket |
+|---|---|---|
+| Sample rate | `SAMPLE_RATE` = `sample_rate` | `SAMPLE_RATE` = `sample_rate` |
+| Truncation | `TRUNCATE_SIZE` = `truncate_size` | None |
+
+SAI does not say which object samples when both carry a rate ([OCP SAI #1082](https://github.com/opencomputeproject/SAI/pull/1082)). SAI puts truncation for a mirror session on the session ([Samplepacket truncation proposal](https://github.com/opencomputeproject/SAI/blob/master/doc/Samplepacket/SAI-Proposal-Samplepacket_truncation.md)). The SamplePacket rate is mandatory, so both objects get the same rate. A SAI that applies both rates samples 1 in N² packets. The SAI must apply one of them.
+
+**PortChannel source.** When the LAG capability for the direction is "true", MirrorOrch sets the SamplePacket and the mirror session on the LAG object. Member changes then need no reprogramming. A binding on a port that is a member of a PortChannel is not programmed in this case; MirrorOrch logs an error that names the port, and the CLI rejects the command. Bind the PortChannel. When the capability is "false", MirrorOrch binds each member port, as for sampled ERSPAN.
+
+**Admin state and removal.** These work as for sampled ERSPAN bindings. Disabling a binding detaches its ports and removes its SamplePacket. The session and the other bindings are not changed.
 
 ## 3.4 Mirror Capability Discovery
 
@@ -432,7 +606,7 @@ https://github.com/opencomputeproject/SAI/blob/master/inc/saimirror.h
     SAI_PORT_ATTR_EGRESS_MIRROR_SESSION,
 ```
 ### 3.5.2 Sampled Port Mirroring SAI APIs
-Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation. The ingress pair (INGRESS_SAMPLEPACKET_ENABLE + INGRESS_SAMPLE_MIRROR_SESSION) carries RX sampling, the egress pair (EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION) carries TX, and a BOTH session populates both pairs.
+Sampled port mirroring leverages the SAI SamplePacket object to enable per-port hardware-based sampling with optional truncation. The ingress pair (INGRESS_SAMPLEPACKET_ENABLE + INGRESS_SAMPLE_MIRROR_SESSION) carries an `rx` binding; the egress pair (EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION) carries a `tx` binding. CLI `both` creates two entries. The export session's SAI object carries export configuration, while the SamplePacket object carries sampling and truncation settings.
 
 #### SamplePacket Attributes
 
@@ -540,19 +714,23 @@ More details about the [Port SAI API](https://github.com/opencomputeproject/SAI/
 
 #### SAI API Call Sequence
 
-**Create sampled mirror session:**
+**Activate a sampled source binding:**
  
- 1. `sai_mirror_api->create_mirror_session()` — Create ERSPAN mirror session with encapsulation attributes (src_ip, dst_ip, gre_type, dscp, ttl, etc.)
- 2. `sai_samplepacket_api->create_samplepacket()` — Create SamplePacket object with `SAMPLE_RATE`, `TYPE=SAI_SAMPLEPACKET_TYPE_MIRROR_SESSION`, and optionally `TRUNCATE_ENABLE` + `TRUNCATE_SIZE`
- 3. `sai_port_api->set_port_attribute(...)` — Bind the SamplePacket to the source port(s): `INGRESS_SAMPLEPACKET_ENABLE` for RX, `EGRESS_SAMPLEPACKET_ENABLE` for TX, both for BOTH
- 4. `sai_port_api->set_port_attribute(...)` — Bind the mirror session to the source port(s): `INGRESS_SAMPLE_MIRROR_SESSION` for RX, `EGRESS_SAMPLE_MIRROR_SESSION` for TX, both for BOTH
+ 1. Resolve the referenced export session and wait until it is active and its ERSPAN mirror SAI object is available.
+ 2. `sai_samplepacket_api->create_samplepacket()` — Create a SamplePacket object for the binding with `SAMPLE_RATE`, `TYPE=SAI_SAMPLEPACKET_TYPE_MIRROR_SESSION`, and optionally `TRUNCATE_ENABLE` and `TRUNCATE_SIZE`. The implementation relies on the default SAI `EXCLUSIVE` mode.
+ 3. `sai_port_api->set_port_attribute(...)` — Attach the SamplePacket object to the source port using `INGRESS_SAMPLEPACKET_ENABLE` for `rx` or `EGRESS_SAMPLEPACKET_ENABLE` for `tx`.
+ 4. `sai_port_api->set_port_attribute(...)` — Attach the referenced mirror session using `INGRESS_SAMPLE_MIRROR_SESSION` for `rx` or `EGRESS_SAMPLE_MIRROR_SESSION` for `tx`.
+
+For a PortChannel binding, the port-attribute operations apply to its physical member ports.
+
+**Disable or remove a sampled binding:**
+
+Disabling retains the binding configuration with `admin_state=down`; removal deletes it. Both use the following resource cleanup sequence.
  
-**Delete sampled mirror session (reverse order):**
- 
- 1. `sai_port_api->set_port_attribute(...)` — Clear the mirror session binding (`INGRESS_SAMPLE_MIRROR_SESSION` and/or `EGRESS_SAMPLE_MIRROR_SESSION`)
- 2. `sai_port_api->set_port_attribute(...)` — Clear the SamplePacket binding (`INGRESS_SAMPLEPACKET_ENABLE` and/or `EGRESS_SAMPLEPACKET_ENABLE`)
- 3. `sai_samplepacket_api->remove_samplepacket()` — Remove SamplePacket object
- 4. `sai_mirror_api->remove_mirror_session()` — Remove mirror session
+ 1. `sai_port_api->set_port_attribute(...)` — Clear the binding's directional sampled-mirror attachment by setting the mirror-session list to empty.
+ 2. `sai_port_api->set_port_attribute(...)` — Clear the corresponding SamplePacket attachment by setting its OID to `SAI_NULL_OBJECT_ID`.
+ 3. `sai_samplepacket_api->remove_samplepacket()` — Remove the binding's SamplePacket object after all its port attachments have been successfully cleared.
+ 4. Release the binding's reference to the export session. The `MIRROR_SESSION` configuration remains; export-session deletion is a separate operation and must respect remaining sampled and ACL references.
 
 **SAI Header References:**
 - saisamplepacket.h: https://github.com/opencomputeproject/SAI/blob/master/inc/saisamplepacket.h
@@ -561,6 +739,7 @@ More details about the [Port SAI API](https://github.com/opencomputeproject/SAI/
 
 ## 3.6 CLI
 ### 3.6.1 Data Models
+
 SONiC Yang model  and OpenConfig extension models will be introduced for this feature.
 
 ## openconfig-mirror-ext
@@ -624,8 +803,6 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
      |     +--rw dst_port?    union
      |     +--rw src_port?    union
      |     +--rw direction?   enumeration
-     |     +--rw sample_rate?   uint32
-     |     +--rw truncate_size? uint32
      +--ro MIRROR_SESSION_TABLE
         +--ro MIRROR_SESSION_TABLE_LIST* [name]
            +--ro name            string
@@ -637,56 +814,38 @@ SONiC Yang model  and OpenConfig extension models will be introduced for this fe
            +--ro next_hop_ip?    inet:ipv4-address
 
 ```
-#### Updated YANG Model (Sampled Port Mirroring)
+#### YANG Model (Sampled Port Mirroring)
 
-The following leaves are added to `MIRROR_SESSION_LIST` in `sonic-mirror-session.yang` for sampled port mirroring:
+`PORT_MIRROR_SAMPLE` is defined alongside `MIRROR_SESSION` in `sonic-mirror-session.yang`. The following tree shows the sampled-binding table:
 
-```yang
-leaf sample_rate {
-    when "current()/../type = 'ERSPAN'";
-    type uint32 {
-        range "2..max" {
-            error-message "Sample rate must be in range 2..max";
-            error-app-tag sample-rate-invalid;
-        }
-    }
-    description
-        "Sampling rate for mirrored packets. When not configured,
-            full mirroring is used (no sampling). N means mirror 1 out
-            of every N packets.";
-}
-
-leaf truncate_size {
-    when "current()/../type = 'ERSPAN'";
-    type uint32 {
-        range "64..9216" {
-            error-message "Truncate size must be 64..9216";
-            error-app-tag truncate-size-invalid;
-        }
-    }
-    description
-        "Truncation size in bytes for mirrored packets.
-            When not configured, no truncation is applied. When set,
-            only the first N bytes of each mirrored packet are sent.";
-}
+```text
++--rw sonic-mirror-session
+   +--rw PORT_MIRROR_SAMPLE
+      +--rw PORT_MIRROR_SAMPLE_LIST* [port direction]
+         +--rw port             union (PORT or PORTCHANNEL reference)
+         +--rw direction        enumeration (rx, tx)
+         +--rw admin_state?     enumeration (up, down; default down)
+         +--rw mirror_session   -> /sonic-mirror-session/MIRROR_SESSION/MIRROR_SESSION_LIST/name
+         +--rw sample_rate      uint32 (2..max)
+         +--rw truncate_size?   uint32 (64..9216)
 ```
+
+The `port` key is a union of leafrefs to `PORT/PORT_LIST/name` and `PORTCHANNEL/PORTCHANNEL_LIST/name` in their respective YANG modules. YANG validates source-port and mirror-session references, mandatory fields, and value ranges for both enabled and disabled bindings. A mirror session referenced by `PORT_MIRROR_SAMPLE` must have type `ERSPAN`. Each sampled binding specifies its source interface and direction through the `port` and `direction` keys. The referenced `MIRROR_SESSION` entry must not configure `src_port`.
+
+**Configuration exclusivity:** Explicit `SFLOW|global` configuration and `PORT_MIRROR_SAMPLE` entries are mutually exclusive system-wide. GCU/YANG validation rejects any candidate configuration containing both, regardless of port, direction, or admin state. Unsampled SPAN/ERSPAN is not subject to this restriction.
 
 ### 3.6.2 Configuration Commands
 
-Existing mirror session commands are enhanced to support this feature.
+**Unsampled ERSPAN:**
+
+```text
+config mirror_session erspan add <session_name> \
+    <src_ip> <dst_ip> <dscp> <ttl> \
+    [gre_type] [queue] [src_port] [direction] \
+    [--policer <policer_name>]
 ```
-    # Modify existing ERSPAN configuration as below.
-    config mirror_session add erspan <session-name> <src_ip> <dst_ip> <gre> <dscp>  [ttl] [queue] --policer <policer>
 
-    #Configure Destination only span mirror session.
-    config mirror_session add span <session-name> <destination_ifName>
-
-    # Modify existing ERSPAN configuration to accept source port and direction
-    config mirror_session add erspan <session-name> <src_ip> <dst_ip> <gre> <dscp>  [ttl] [queue] [src_port] [rx/tx/both] --policer <policer>
-
-    #Configure Port mirror span mirror session.
-    config mirror_session add span <session-name> <destination_ifName> <source_ifName> <rx/tx/both> [queue] --policer <policer>
-```
+Unsampled mirroring retains the existing source fields. Direction accepts `rx`, `tx`, or `both` and defaults to `both` when source ports are supplied. The command writes a `MIRROR_SESSION` entry; no `PORT_MIRROR_SAMPLE` entry is created.
 
 KLISH CLI Support.
 
@@ -702,18 +861,79 @@ KLISH CLI Support.
 
 #### Sampled Port Mirroring on ERSPAN
 
-Extend the existing config mirror_session erspan add command with two new optional parameters (`--sample_rate` and `--truncate_size`):
+Configure sampled ERSPAN by creating an export session and then attaching source ports with their sampling policies.
+
+**1. Create a destination-only ERSPAN export session:**
+
+```text
+config mirror_session erspan add <session_name> \
+    <src_ip> <dst_ip> <dscp> <ttl> \
+    [gre_type] [queue] [--policer <policer_name>]
 ```
-    config mirror_session erspan add <session_name> \
-        <src_ip> <dst_ip> <dscp> <ttl> \
-        [gre_type] [queue] [src_port] [direction] \
-        [--policer <policer_name>] \
-        [--sample_rate <value>] [--truncate_size <value>]
+
+This writes export attributes without `src_port` or an explicitly supplied direction. No source traffic is attached by this command alone.
+
+**2. Add the sampling policy and export reference for each source port:**
+
+```text
+config mirror_session sample add <session_name> <src_port> <rx|tx|both> \
+    --sample_rate <N> [--truncate_size <bytes>] [--disabled]
 ```
+
+`src_port` accepts a physical port or PortChannel, or a comma-separated list of source interfaces. `sample add` creates a `PORT_MIRROR_SAMPLE` entry for each source and direction, referencing the export session without modifying it. It explicitly writes `admin_state=up`; `--disabled` writes `down`. Omitted truncation leaves `truncate_size` absent.
+
+For `both`, the CLI creates separate `rx` and `tx` entries with the same policy and session reference. Validate both before any write and reject duplicate keys rather than overwriting them.
+
+**3. Enable or disable existing sampled source bindings in place:**
+
+```text
+config mirror_session sample enable <session_name> <src_port> <rx|tx|both>
+config mirror_session sample disable <session_name> <src_port> <rx|tx|both>
+```
+
+These commands reuse the source-interface and direction parsing of `sample add/remove`, including physical ports, PortChannels, comma-separated source lists, and `both`. Every selected binding must already exist and reference the specified session. For `both`, both directional bindings must exist. Validate all selected bindings before writing; a missing binding or mismatched session reference rejects the request without changing any entries.
+
+`enable` and `disable` update only `admin_state` to `up` and `down`, respectively. The binding and its policy remain unchanged. Both operations are idempotent.
+
+A disabled binding remains subject to the configuration-exclusivity rule: it still cannot coexist with explicit `SFLOW|global`. To switch to sFlow, remove the sampled bindings rather than only disabling them.
+
+**4. Remove sampled source bindings:**
+
+```text
+config mirror_session sample remove <session_name> <src_port> <rx|tx|both>
+```
+
+Removal deletes the selected bindings, not the export session. Verify session references before deleting any entries. For `both`, remove all matching directional entries; reject a mismatched reference before any deletion. Report an error if no matching binding exists.
+
+To change `sample_rate`, `truncate_size`, or `mirror_session`, remove and recreate the binding. Delete the export session separately with `config mirror_session remove <session_name>` after removing its sampled and ACL references.
+
+**CLI validation:** Relevant sFlow and sampled-mirroring CLI commands enforce the configuration-exclusivity rule in Section 3.6.1 before writing CONFIG_DB and return a clear error on conflict.
+
+#### HWSFLOW Session Configuration
+
+```text
+config mirror_session hwsflow add <session_name> <src_ip> <dst_ip> <dscp> <ttl> --sample_rate <N>
+    [--truncate_size <bytes>] [--udp_src_port <port>] [--udp_dst_port <port>]
+
+config mirror_session sample add <session_name> <source-port-list> <rx|tx|both> [--disabled]
+config mirror_session sample remove|enable|disable <session_name> <source-port-list> <rx|tx|both>
+```
+
+Example:
+
+```text
+config mirror_session hwsflow add hws1 10.1.0.32 10.2.0.10 8 64 --sample_rate 4096 --truncate_size 128
+config mirror_session sample add hws1 Ethernet0 rx
+config mirror_session sample add hws1 PortChannel1 tx
+```
+
+- `hwsflow add` fails when `MIRROR_SESSION_HWSFLOW_CAPABLE` is "false".
+- `--truncate_size` fails when neither the mirror session nor the SamplePacket can truncate.
+- `sample add` on an HWSFLOW session does not accept `--sample_rate` or `--truncate_size`.
 
 ### 3.6.3 Show Commands
 
-The following show command display all the mirror sessions that are configured.
+The session display shows configured mirror sessions and export status.
 
     # show mirror-session
     ERSPAN Sessions
@@ -730,18 +950,33 @@ KLISH show mirror-session is same as above.
 
 #### Sampled Port Mirroring on ERSPAN
 
-The show mirror_session output is extended with two new columns (`Sample Rate` and `Truncate Size`):
+`show mirror_session sample` displays the configuration in `PORT_MIRROR_SAMPLE`, with one row per source port and direction. Bindings sharing an export session can have different sampling rates.
 
+```text
+# show mirror_session sample
+Sampled ERSPAN Bindings
+Source Port    Direction    Mirror Session    Admin State      Sample Rate  Truncate Size
+-------------  -----------  ----------------  -------------  -------------  ---------------
+Ethernet0      rx           sampled_erspan    up                      5000  128
+Ethernet0      tx           sampled_erspan    up                      5000  128
+Ethernet4      rx           sampled_erspan    down                    1000  Disabled
 ```
-    admin@sonic:~$  show mirror_session
-    ERSPAN Sessions
-    Name    Status    SRC IP      DST IP      GRE      DSCP    TTL  Queue    Policer    Monitor Port    SRC Port    Direction      Sample Rate    Truncate Size
-    ------  --------  ----------  ----------  -----  ------  -----  -------  ---------  --------------  ----------  -----------  -------------  ---------------
-    test1   error     10.0.1.192  10.0.1.193              8     64                                                                       50000              128
+
+#### HWSFLOW Session Show Output
+
+`show mirror_session` lists HWSFLOW sessions in their own table:
+
+```text
+HWSFLOW Sessions
+Name    Status    SRC IP     DST IP       DSCP    TTL    UDP SRC Port    UDP DST Port    Sample Rate  Truncate Size    Monitor Port
+------  --------  ---------  ---------  ------  -----  --------------  --------------  -------------  ---------------  --------------
+hws1    active    10.1.0.32  10.2.0.10       8     64            6343            6343           4096  128              Ethernet8
 ```
+
+`show mirror_session sample` lists HWSFLOW bindings with the sample rate and the truncate size of their session.
 
 ###  3.6.4 Clear Commands
-No command variants of config commands take care of clear config.
+Use the configuration removal commands to delete bindings and sessions; no separate clear command is defined.
 
 ### 3.6.5 Debug Commands
 Not applicable
@@ -789,7 +1024,10 @@ The following show command display all the mirror sessions that are configured.
 
 # 4 Flow Diagrams
 
-The following diagram shows the create and delete workflow for sampled mirror sessions, including the rejection path for unsupported platforms:
+The following diagram shows export creation and sampled-binding activation, disable, and removal after configuration validation. Invalid candidate configurations are rejected before CONFIG_DB writes. CLI `both` operates on two directional entries.
+
+An HWSFLOW session follows the same flow. MirrorOrch creates the SAI mirror session with type `SAI_MIRROR_SESSION_TYPE_SFLOW`, and each binding takes its sampling policy from the session.
+
 ```mermaid
 sequenceDiagram
      autonumber
@@ -804,31 +1042,43 @@ sequenceDiagram
          participant syncd as Syncd
      end
      participant asic as ASIC
-     Note over config_db,asic: === Create Sampled Mirror Session ===
-     config_db ->> mirror_orch: SET MIRROR_SESSION|session1<br/>{sample_rate: 50000, truncate_size: 128, direction, ...}
-     mirror_orch ->> state_db: Query SWITCH_CAPABILITY
-     state_db -->> mirror_orch: capabilities
-     alt Sampled mirroring supported and no sFlowOrch conflict
-         mirror_orch ->> syncd: create_mirror_session(ERSPAN encap attrs)
-         mirror_orch ->> syncd: create_samplepacket<br/>(SAMPLE_RATE, TYPE=MIRROR_SESSION,<br/>optional: TRUNCATE_ENABLE, TRUNCATE_SIZE)
-         Note over mirror_orch,syncd: Bind per direction:<br/>RX → INGRESS_SAMPLEPACKET_ENABLE + INGRESS_SAMPLE_MIRROR_SESSION<br/>TX → EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION<br/>BOTH → both pairs
-         mirror_orch ->> syncd: Bind samplepacket to source port(s) per direction
-         syncd ->> asic: Program mirror session + samplepacket
+     Note over config_db,asic: === Create Export Session ===
+     config_db ->> mirror_orch: SET MIRROR_SESSION
+     mirror_orch ->> mirror_orch: Resolve export destination
+     opt Export destination ready
+         mirror_orch ->> syncd: Create ERSPAN mirror session
+         syncd ->> asic: Program export session
+     end
+     Note over config_db,asic: === Activate Sampled Binding ===
+     config_db ->> mirror_orch: SET PORT_MIRROR_SAMPLE with admin_state=up<br/>Create or enable existing binding
+     mirror_orch ->> mirror_orch: Check capabilities via SwitchOrch
+     alt Dependencies ready, supported, and resources available
+         mirror_orch ->> mirror_orch: Acquire export reference
+         mirror_orch ->> syncd: Create SamplePacket<br/>Rate and optional truncation
+         Note over mirror_orch,syncd: rx → ingress attribute pair<br/>tx → egress attribute pair
+         mirror_orch ->> syncd: Attach SamplePacket and mirror session<br/>to source port/direction
+         syncd ->> asic: Program sampled attachment
      else Sampled mirroring or truncation not supported
-         mirror_orch ->> mirror_orch: Log error, reject session (task_invalid_entry)
-     else Samplepacket conflict with sFlow on port
-         mirror_orch ->> mirror_orch: Log error, session remains inactive
+         mirror_orch ->> mirror_orch: Log error and leave inactive
+     else Dependencies pending or conflicting resources still owned
+         mirror_orch ->> mirror_orch: Wait and retry<br/>Do not overwrite attachments
      end
-     Note over config_db,asic: === Delete Mirror Session ===
-     config_db ->> mirror_orch: DEL MIRROR_SESSION|session1
-     alt Sampled path (samplepacketId != NULL)
-         mirror_orch ->> syncd: Unbind samplepacket from source port(s) (per direction)
-         mirror_orch ->> syncd: remove_samplepacket
-     else Full mirror path
-         mirror_orch ->> syncd: clear INGRESS_MIRROR_SESSION / EGRESS_MIRROR_SESSION
+     Note over config_db,asic: === Disable or Remove Binding ===
+     alt Disable existing binding
+         config_db ->> mirror_orch: SET admin_state=down on PORT_MIRROR_SAMPLE
+         Note over config_db,mirror_orch: Retain binding configuration and policy
+     else Remove binding
+         config_db ->> mirror_orch: DEL PORT_MIRROR_SAMPLE
      end
-     mirror_orch ->> syncd: remove_mirror_session
-     syncd ->> asic: Remove mirror session + samplepacket
+     mirror_orch ->> syncd: Clear owned sampled-mirror attachment
+     syncd ->> asic: Clear sampled-mirror port attribute
+     mirror_orch ->> syncd: Clear SamplePacket attachment
+     syncd ->> asic: Clear SamplePacket port attribute
+     opt SamplePacket no longer referenced
+         mirror_orch ->> syncd: Remove SamplePacket
+         syncd ->> asic: Delete SamplePacket object
+     end
+     mirror_orch ->> mirror_orch: Release export reference<br/>Keep export configuration
 ```
 
 # 5 Error Handling
@@ -887,11 +1137,11 @@ The error handling follows a two-stage validation process:
 
 ### 5.2.4 SamplePacket Conflict Detection
 
-Sampled port mirroring and sFlow share the port's per-direction SamplePacket resource, which only one of them can own per direction. Conflict detection is symmetric: if one tries to bind a direction the other already owns, the later request is rejected instead of overwriting the existing binding, and the session is activated only if all of its directions are free.
+Sampled port mirroring and sFlow share sampling resources. The configuration exclusion is defined in Section 3.6.1. Runtime conflict detection remains symmetric: a request must not overwrite another feature's binding, and activation must wait for successful cleanup of conflicting resources.
 
 ### 5.2.5 Backward Compatibility
 
-- **Legacy Support**: Existing configurations continue to work
+- **Legacy Support**: Unsampled configurations remain unchanged.
 - **Graceful Migration**: New capability checks don't break existing functionality
 - **Default Behavior**: When capability detection fails, system assumes full support for backward compatibility
 
@@ -918,8 +1168,7 @@ Max mirror sessions supported are silicon specific.
 The mirror capability discovery and validation feature is designed to be fully backward compatible:
 
 ### 8.1.2 Existing Configurations
-- **Legacy Support**: All existing mirror session configurations continue to work without modification
-- **No Breaking Changes**: Existing CLI commands and configurations remain unchanged
+- **Legacy Support**: Unsampled mirror configurations continue to use the existing table and source-binding model.
 - **Graceful Migration**: New capability checks are additive and don't interfere with existing functionality
 
 ### 8.1.3 Capability Detection Fallback
@@ -928,9 +1177,7 @@ The mirror capability discovery and validation feature is designed to be fully b
 - **Logging**: Capability detection failures are logged but don't prevent normal operation
 
 ### 8.1.4 CLI Compatibility
-- **Command Compatibility**: All existing CLI commands work exactly as before
-- **Error Message Enhancement**: New error messages are only shown when capabilities are explicitly checked
-- **Optional Validation**: Capability validation is only performed when direction parameters are specified
+Unsampled mirroring commands retain their syntax. The sampled workflow is defined in Section 3.6.2.
 
 ### 8.1.5 OrchAgent Compatibility
 - **Runtime Validation**: New capability validation is performed at runtime without affecting existing sessions
@@ -1012,33 +1259,48 @@ The following test cases validate the mirror capability discovery and validation
 
 | S.No | Test Case Synopsis |
 |------|-------------------|
-| 27 | Verify that a sampled session can be created and removed (SAMPLEPACKET created in ASIC_DB when sample_rate > 0, and removed on delete) |
+| 27 | Verify enabled PORT_MIRROR_SAMPLE creation and removal, including SamplePacket and export-reference lifecycle |
 | 28 | Verify that truncation attributes (TRUNCATE_ENABLE, TRUNCATE_SIZE) are set on the SamplePacket when truncate_size > 0 |
-| 29 | Verify that no SAMPLEPACKET is created when sample_rate is absent (backward compatibility — full mirroring) |
-| 30 | Verify that sample_rate and truncate_size are reflected in MIRROR_SESSION_TABLE in STATE_DB |
+| 29 | Verify unsampled MIRROR_SESSION source bindings without sampling entries create no SamplePacket |
+| 30 | Verify two ports with different rates share an export OID and use distinct compatible SamplePacket profiles |
 | 31 | Verify that the sampled-mirror capabilities are published to STATE_DB (SWITCH_CAPABILITY) |
 | 32 | Verify TX direction: SamplePacket bound via EGRESS_SAMPLEPACKET_ENABLE + EGRESS_SAMPLE_MIRROR_SESSION, with no active ingress binding |
-| 33 | Verify that truncate_size without an explicit sample_rate defaults the sample rate to 1 so a SamplePacket is still created |
-| 34 | Verify that source-port sampled-mirror attributes are cleaned up after the session is removed |
+| 33 | Verify sample_rate=1 is rejected, including when truncate_size is configured, and sample_rate=2 is accepted as the minimum valid value |
+| 34 | Verify that removing a sampled binding clears only its source-port/direction attributes |
 | 35 | Verify multiple source ports: each configured port is programmed with the sampled-mirror attributes |
-| 36 | Verify BOTH direction: a single SamplePacket is bound to both the ingress and the egress port attribute pairs |
-| 37 | Verify delete-and-recreate: a session can be removed and a new one created on the same port |
-| 38 | Verify that a duplicate SET on an existing session is ignored |
-| 39 | Verify that a sampled mirror session is rejected when the source port is already bound by sFlow (samplepacket conflict) |
-| 40 | Verify sampled mirroring on a LAG: the SamplePacket is bound to the LAG member ports |
-| 41 | Verify that while the session is inactive (no route to the ERSPAN dst) nothing is programmed into the ASIC |
+| 36 | Verify CLI both produces RX and TX attachments; equal-policy profile reuse preserves independent sampling |
+| 37 | Verify binding remove/add changes policy without disrupting other users of the shared export session |
+| 38 | Verify in-place down/up/down transitions preserve the binding configuration and policy, activate/clean up sampled attachments, and leave the shared export and other bindings unaffected; repeated enable/disable is idempotent |
+| 39 | Verify bypassed validation cannot overwrite conflicting sFlow resources; cleanup failure blocks activation |
+| 40 | Verify a PortChannel binding remains a logical CONFIG_DB entry, programs its physical members, follows member additions/removals, and does not overwrite overlapping direct member-port bindings |
+| 41 | Verify that a binding whose export destination is unresolved has no active sampled source attachment |
 | 42 | Verify route withdraw/reactivate: the session deactivates when the route is withdrawn and reactivates when it returns |
 
 ### 9.3.2 System Tests
 
 | S.No | Test Case Synopsis |
 |------|-------------------|
-| 43 | Verify that sampled mirror session can be created via CLI with --sample_rate and --truncate_size |
-| 44 | Verify that show mirror_session displays Sample Rate and Truncate Size columns |
+| 43 | Verify destination-only export creation followed by sample add with --sample_rate and optional --truncate_size |
+| 44 | Verify sample add defaults to up, --disabled stores down, enable/disable updates only admin_state on existing matching bindings, duplicate add is rejected, and remove preserves the export session |
 | 45 | Verify that mirrored traffic rate matches expected sampling ratio (1:N) |
 | 46 | Verify that mirrored packets are truncated to configured size |
-| 47 | Verify backward compatibility: mirror session without sample_rate works as full mirror |
-| 48 | Verify that a sampled mirror session is rejected when the platform does not support sampled mirroring or truncation |
+| 47 | Verify that a sampled mirror session is rejected when the platform does not support sampled mirroring or truncation |
+
+Additional configuration tests cover new-table field/reference validation, CLI `both` prevalidation, and rejection of explicit `SFLOW|global` plus sampled-binding entries in either configuration order, including disabled entries. A rejected request must leave CONFIG_DB unchanged.
+
+## 9.4 HWSFLOW Session Test Cases
+
+| S.No | Test Case Synopsis |
+|------|-------------------|
+| 1 | Swss mock: the mirror session gets the sample rate and the truncate size; the SamplePacket gets the same sample rate and no truncation |
+| 2 | Swss mock: a PortChannel binding uses the LAG object when capable and the member ports otherwise; a binding on a member port is not programmed where the LAG is sampled |
+| 3 | Swss mock: an HWSFLOW session is rejected without one of its three capabilities, without `sample_rate`, or with an ERSPAN-only field; without `truncate_size` it truncates at 128 bytes |
+| 4 | Swss mock: a binding takes its sample rate from the session; a binding with its own rate is not programmed |
+| 5 | YANG and CLI: field rules of the session and the binding, and the exclusion with `SFLOW|global` in both directions |
+| 6 | System: the collector receives sFlow version 5 datagrams with the session's agent address, UDP ports and sample rate; the sample count matches the rate; the sampled header has the truncate size |
+| 7 | System: two sessions with different rates, one port each; each port samples at the rate of its session |
+| 8 | System: a PortChannel source; packets received on each member are sampled at the session rate |
+| 9 | System: a disabled or removed binding stops sampling and the other bindings of the session continue; an enabled binding samples again |
 
 # Appendix A: Problem Statement
 
