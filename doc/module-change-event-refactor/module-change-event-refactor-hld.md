@@ -194,13 +194,25 @@ classDiagram
     class AsicEventMonitor {
         read_transitions()
     }
+    class LegacyHandler {
+        nodes_to_watch(module)
+        handle(notification)
+    }
+    class HostMgmtHandler {
+        nodes_to_watch(module)
+        handle(notification)
+    }
     Chassis *-- "1" ModuleEventPoller : owns
     Chassis *-- "1..2" ModuleEventObserver : one per active task
     ModuleEventPoller *-- "1" AsicEventMonitor : reads ASIC transitions
     ModuleEventPoller --> ModuleEventObserver : dispatches events
+    ModuleEventPoller --> LegacyHandler : uses in legacy mode
+    ModuleEventPoller --> HostMgmtHandler : uses in host management mode
 ```
 
-- **`ModuleEventPoller`** owns the module descriptors and the five stages. Registration and notification handling use the current mode. Both modes share polling, event preparation, and dispatch.
+- **`ModuleEventPoller`** owns the module descriptors and the five stages. At startup it receives one handler for the configured mode. Both modes share polling, event preparation, and dispatch.
+- **`LegacyHandler`** watches `present` and interprets the driver's module status.
+- **`HostMgmtHandler`** selects nodes based on module state and uses the MDF to interpret notifications. It can defer insertion until reset completes.
 - **`ModuleEventObserver`** owns one task's queue and delivers its events in the existing API format. The observer runs in the calling xcvrd thread.
 - **`AsicEventMonitor`** tracks readiness per ASIC and reports transitions in the poller's loop. The poller owns the recovery actions.
 
