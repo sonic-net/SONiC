@@ -14,7 +14,6 @@ DEFID_BRCM="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitio
 DEFID_MLNX="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.mellanox' | jq -r '.value[0].id')"
 DEFID_VS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.vs' | jq -r '.value[0].id')"
 DEFID_INNO="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.innovium' | jq -r '.value[0].id')"
-DEFID_BFT="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.barefoot' | jq -r '.value[0].id')"
 DEFID_CHE="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.cache' | jq -r '.value[0].id')"
 DEFID_CTC="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.centec' | jq -r '.value[0].id')"
 DEFID_CTC64="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/definitions?name=Azure.sonic-buildimage.official.centec-arm64' | jq -r '.value[0].id')"
@@ -37,8 +36,6 @@ do
 	BUILD_VS_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_VS}"'?api-version=6.0' | jq -r '.queueTime')"
 	BUILD_INNO="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_INNO}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
 	BUILD_INNO_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_INNO}"'?api-version=6.0' | jq -r '.queueTime')"
-	BUILD_BFT="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_BFT}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
-	BUILD_BFT_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_BFT}"'?api-version=6.0' | jq -r '.queueTime')"
 	BUILD_CHE="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_CHE}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
 	BUILD_CHE_TS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_CHE}"'?api-version=6.0' | jq -r '.queueTime')"
 	BUILD_CTC="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_CTC}"'&branchName=refs/heads/'"${BRANCH}"'&$top=1&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].id')"
@@ -59,7 +56,6 @@ do
 	ARTF_MLNX="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_MLNX}"'/artifacts?artifactName=sonic-buildimage.mellanox&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_VS="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_VS}"'/artifacts?artifactName=sonic-buildimage.vs&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_INNO="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_INNO}"'/artifacts?artifactName=sonic-buildimage.innovium&api-version=5.1' | jq -r '.resource.downloadUrl')"
-	ARTF_BFT="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_BFT}"'/artifacts?artifactName=sonic-buildimage.barefoot&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_CHE="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_CHE}"'/artifacts?artifactName=sonic-buildimage.cache&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_CTC="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_CTC}"'/artifacts?artifactName=sonic-buildimage.centec&api-version=5.1' | jq -r '.resource.downloadUrl')"
 	ARTF_CTC64="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds/'"${BUILD_CTC64}"'/artifacts?artifactName=sonic-buildimage.centec-arm64&api-version=5.1' | jq -r '.resource.downloadUrl')"
@@ -74,8 +70,6 @@ do
 	COMMIT_VS_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_VS}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
 	COMMIT_INNO_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_INNO}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
 	COMMIT_INNO_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_INNO}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
-	COMMIT_BFT_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_BFT}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
-	COMMIT_BFT_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_BFT}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
 	COMMIT_CHE_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_CHE}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
 	COMMIT_CHE_2="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_CHE}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[1].sourceVersion')"
 	COMMIT_CTC_1="$(curl -s 'https://dev.azure.com/mssonic/build/_apis/build/builds?definitions='"${DEFID_CTC}"'&branchName=refs/heads/'"${BRANCH}"'&$top=2&resultFilter=succeeded&api-version=6.0' | jq -r '.value[0].sourceVersion')"
@@ -143,20 +137,6 @@ do
 	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_INNO_2}"..."${COMMIT_INNO_1}"\"," >> sonic_image_links.json
 	echo "  \"build\": \"${BUILD_INNO}\"," >> sonic_image_links.json
 	echo "  \"date\": \"${BUILD_INNO_TS}\"" >> sonic_image_links.json	
-	echo " }," >> sonic_image_links.json
-	echo "\"sonic-barefoot.bin\": {" >> sonic_image_links.json
-	echo "  \"url\": \"$(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-barefoot.bin/')\"," >> sonic_image_links.json
-	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_BFT}&view=results\"," >> sonic_image_links.json
-	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_BFT_2}"..."${COMMIT_BFT_1}"\"," >> sonic_image_links.json
-	echo "  \"build\": \"${BUILD_BFT}\"," >> sonic_image_links.json
-	echo "  \"date\": \"${BUILD_BFT_TS}\"" >> sonic_image_links.json
-	echo " }," >> sonic_image_links.json
-	echo "\"sonic-aboot-barefoot.swi\": {" >> sonic_image_links.json
-	echo "  \"url\": \"$(echo "${ARTF_BFT}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-aboot-barefoot.swi/')\"," >> sonic_image_links.json
-	echo "  \"build-url\": \"https://dev.azure.com/mssonic/build/_build/results?buildId=${BUILD_BFT}&view=results\"," >> sonic_image_links.json
-	echo " \"diff\": \"https://github.com/sonic-net/sonic-buildimage/compare/"${COMMIT_BFT_2}"..."${COMMIT_BFT_1}"\"," >> sonic_image_links.json
-	echo "  \"build\": \"${BUILD_BFT}\"," >> sonic_image_links.json
-	echo "  \"date\": \"${BUILD_BFT_TS}\"" >> sonic_image_links.json
 	echo " }," >> sonic_image_links.json
 	echo "\"sonic-centec.bin\": {" >> sonic_image_links.json
 	echo "  \"url\": \"$(echo "${ARTF_CTC}" | sed 's/format=zip/format=file\&subpath=\/target\/sonic-centec.bin/')\"," >> sonic_image_links.json
