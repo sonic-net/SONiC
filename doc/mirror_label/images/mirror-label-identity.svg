@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="690" viewBox="0 0 920 690"
+     font-family="Segoe UI, Arial, sans-serif">
+  <title>Mirror session identity without and with a label</title>
+  <desc>Two columns comparing how a mirror session is identified today and with a
+        label, and which ASIC mirror slot is selected after warm reboot.</desc>
+
+  <defs>
+    <marker id="arrowLogic" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#31465f"/>
+    </marker>
+    <marker id="arrowKeep" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#41662a"/>
+    </marker>
+    <marker id="arrowMove" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c05a17"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="920" height="690" fill="#ffffff"/>
+
+  <!-- panels -->
+  <rect x="16" y="16" width="432" height="558" rx="10" fill="#fbfcfd" stroke="#b3b9c0"/>
+  <rect x="472" y="16" width="432" height="558" rx="10" fill="#fbfcfd" stroke="#b3b9c0"/>
+
+  <text x="232" y="46" text-anchor="middle" font-size="15" font-weight="bold" fill="#1f2937">
+    Today: identified by name
+  </text>
+  <text x="688" y="46" text-anchor="middle" font-size="15" font-weight="bold" fill="#1f2937">
+    With label: stable identity
+  </text>
+
+  <!-- left column, before warm reboot -->
+  <rect x="82" y="62" width="300" height="46" rx="6" fill="#5b9bd5" stroke="#31465f"/>
+  <text x="232" y="84" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">CONFIG_DB</text>
+  <text x="232" y="101" text-anchor="middle" font-size="11" fill="#eef4fa">MIRROR_SESSION|erspan1</text>
+
+  <line x1="232" y1="108" x2="232" y2="134" stroke="#31465f" stroke-width="2" marker-end="url(#arrowLogic)"/>
+
+  <rect x="82" y="138" width="300" height="46" rx="6" fill="#5b9bd5" stroke="#31465f"/>
+  <text x="232" y="160" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">MirrorOrch</text>
+  <text x="232" y="177" text-anchor="middle" font-size="11" fill="#eef4fa">create session, no label</text>
+
+  <rect x="64" y="218" width="336" height="94" fill="#f1f3f5" stroke="#7f7f7f"/>
+  <text x="74" y="236" font-size="11" font-weight="bold" fill="#44505f">ASIC mirror slots</text>
+  <rect x="83"  y="252" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="161" y="252" width="64" height="44" fill="#70ad47" stroke="#41662a"/>
+  <rect x="239" y="252" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="317" y="252" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <text x="115" y="279" text-anchor="middle" font-size="12" fill="#5c6672">1</text>
+  <text x="193" y="279" text-anchor="middle" font-size="12" font-weight="bold" fill="#ffffff">2</text>
+  <text x="271" y="279" text-anchor="middle" font-size="12" fill="#5c6672">3</text>
+  <text x="349" y="279" text-anchor="middle" font-size="12" fill="#5c6672">4</text>
+
+  <line x1="232" y1="184" x2="193" y2="250" stroke="#41662a" stroke-width="2.5"
+        stroke-dasharray="6 4" marker-end="url(#arrowKeep)"/>
+  <text x="244" y="212" font-size="10" font-style="italic" fill="#41662a">selects slot 2</text>
+
+  <!-- right column, before warm reboot -->
+  <rect x="538" y="62" width="300" height="46" rx="6" fill="#5b9bd5" stroke="#31465f"/>
+  <text x="688" y="84" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">CONFIG_DB</text>
+  <text x="688" y="101" text-anchor="middle" font-size="11" fill="#eef4fa">MIRROR_SESSION|erspan1 + label</text>
+
+  <line x1="688" y1="108" x2="688" y2="134" stroke="#31465f" stroke-width="2" marker-end="url(#arrowLogic)"/>
+
+  <rect x="538" y="138" width="300" height="46" rx="6" fill="#5b9bd5" stroke="#31465f"/>
+  <text x="688" y="160" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">MirrorOrch</text>
+  <text x="688" y="177" text-anchor="middle" font-size="11" fill="#eef4fa">create session with label</text>
+
+  <rect x="520" y="218" width="336" height="94" fill="#f1f3f5" stroke="#7f7f7f"/>
+  <text x="530" y="236" font-size="11" font-weight="bold" fill="#44505f">ASIC mirror slots</text>
+  <rect x="539" y="252" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="617" y="252" width="64" height="44" fill="#70ad47" stroke="#41662a"/>
+  <rect x="695" y="252" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="773" y="252" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <text x="571" y="279" text-anchor="middle" font-size="12" fill="#5c6672">1</text>
+  <text x="649" y="279" text-anchor="middle" font-size="12" font-weight="bold" fill="#ffffff">2</text>
+  <text x="727" y="279" text-anchor="middle" font-size="12" fill="#5c6672">3</text>
+  <text x="805" y="279" text-anchor="middle" font-size="12" fill="#5c6672">4</text>
+
+  <line x1="688" y1="184" x2="649" y2="250" stroke="#41662a" stroke-width="2.5"
+        stroke-dasharray="6 4" marker-end="url(#arrowKeep)"/>
+  <text x="700" y="212" font-size="10" font-style="italic" fill="#41662a">selects slot 2</text>
+
+  <!-- warm reboot divider -->
+  <line x1="16" y1="340" x2="904" y2="340" stroke="#7f7f7f" stroke-width="2" stroke-dasharray="8 6"/>
+  <rect x="398" y="326" width="124" height="28" rx="6" fill="#ffffff" stroke="#7f7f7f"/>
+  <text x="460" y="345" text-anchor="middle" font-size="12" font-weight="bold" fill="#31465f">warm reboot</text>
+
+  <!-- left column, after warm reboot -->
+  <rect x="82" y="372" width="300" height="46" rx="6" fill="#e8edf3" stroke="#31465f"/>
+  <text x="232" y="394" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Replay create</text>
+  <text x="232" y="411" text-anchor="middle" font-size="11" fill="#44505f">new SAI OID, name only</text>
+
+  <rect x="64" y="452" width="336" height="94" fill="#f1f3f5" stroke="#7f7f7f"/>
+  <text x="74" y="470" font-size="11" font-weight="bold" fill="#44505f">ASIC mirror slots</text>
+  <rect x="83"  y="486" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="161" y="486" width="64" height="44" fill="#ffffff" stroke="#9aa3ad" stroke-dasharray="4 3"/>
+  <rect x="239" y="486" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="317" y="486" width="64" height="44" fill="#ed7d31" stroke="#c05a17"/>
+  <text x="115" y="513" text-anchor="middle" font-size="12" fill="#5c6672">1</text>
+  <text x="193" y="513" text-anchor="middle" font-size="12" fill="#9aa3ad">2</text>
+  <text x="271" y="513" text-anchor="middle" font-size="12" fill="#5c6672">3</text>
+  <text x="349" y="513" text-anchor="middle" font-size="12" font-weight="bold" fill="#ffffff">4</text>
+
+  <line x1="232" y1="418" x2="349" y2="484" stroke="#c05a17" stroke-width="2.5"
+        stroke-dasharray="6 4" marker-end="url(#arrowMove)"/>
+  <text x="74" y="446" font-size="10" font-style="italic" fill="#c05a17">picks slot 4</text>
+
+  <text x="232" y="562" text-anchor="middle" font-size="12" fill="#c05a17">
+    Slot can change, mirroring may break
+  </text>
+
+  <!-- right column, after warm reboot -->
+  <rect x="538" y="372" width="300" height="46" rx="6" fill="#e8edf3" stroke="#31465f"/>
+  <text x="688" y="394" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Replay create</text>
+  <text x="688" y="411" text-anchor="middle" font-size="11" fill="#44505f">new SAI OID, same label</text>
+
+  <rect x="520" y="452" width="336" height="94" fill="#f1f3f5" stroke="#7f7f7f"/>
+  <text x="530" y="470" font-size="11" font-weight="bold" fill="#44505f">ASIC mirror slots</text>
+  <rect x="539" y="486" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="617" y="486" width="64" height="44" fill="#70ad47" stroke="#41662a"/>
+  <rect x="695" y="486" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <rect x="773" y="486" width="64" height="44" fill="#ffffff" stroke="#7f7f7f"/>
+  <text x="571" y="513" text-anchor="middle" font-size="12" fill="#5c6672">1</text>
+  <text x="649" y="513" text-anchor="middle" font-size="12" font-weight="bold" fill="#ffffff">2</text>
+  <text x="727" y="513" text-anchor="middle" font-size="12" fill="#5c6672">3</text>
+  <text x="805" y="513" text-anchor="middle" font-size="12" fill="#5c6672">4</text>
+
+  <line x1="688" y1="418" x2="649" y2="484" stroke="#41662a" stroke-width="2.5"
+        stroke-dasharray="6 4" marker-end="url(#arrowKeep)"/>
+  <text x="700" y="446" font-size="10" font-style="italic" fill="#41662a">reuses slot 2</text>
+
+  <text x="688" y="562" text-anchor="middle" font-size="12" fill="#41662a">
+    Same slot, mirroring continues
+  </text>
+
+  <!-- legend -->
+  <rect x="16" y="590" width="888" height="84" rx="10" fill="#ffffff" stroke="#b3b9c0"/>
+  <text x="32" y="612" font-size="12" font-weight="bold" fill="#1f2937">Legend</text>
+
+  <line x1="110" y1="636" x2="148" y2="636" stroke="#31465f" stroke-width="2" marker-end="url(#arrowLogic)"/>
+  <text x="156" y="640" font-size="11" fill="#5c6672">logical flow</text>
+
+  <line x1="254" y1="636" x2="292" y2="636" stroke="#41662a" stroke-width="2.5"
+        stroke-dasharray="6 4" marker-end="url(#arrowKeep)"/>
+  <text x="300" y="640" font-size="11" fill="#5c6672">hardware slot selection</text>
+
+  <rect x="458" y="627" width="18" height="18" fill="#70ad47" stroke="#41662a"/>
+  <text x="484" y="640" font-size="11" fill="#5c6672">slot in use</text>
+
+  <rect x="574" y="627" width="18" height="18" fill="#ffffff" stroke="#9aa3ad" stroke-dasharray="4 3"/>
+  <text x="600" y="640" font-size="11" fill="#5c6672">slot released</text>
+
+  <rect x="700" y="627" width="18" height="18" fill="#ed7d31" stroke="#c05a17"/>
+  <text x="726" y="640" font-size="11" fill="#5c6672">different slot</text>
+
+  <text x="460" y="664" text-anchor="middle" font-size="10" font-style="italic" fill="#8a939d">
+    Solid arrows follow the configuration path; dashed arrows show which hardware slot the session lands on.
+  </text>
+</svg>
