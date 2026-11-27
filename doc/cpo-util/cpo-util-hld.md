@@ -38,6 +38,7 @@
 | 1.0 | 2026-08-03 | Junchao Chen | Base version — Phase 1 (firmware command group)         |
 | 1.1 | 2026-10-14 | Junchao Chen | Identify OE and ELS by component index instead of interface name, and defer the OIF package path to a future phase |
 | 1.2 | 2026-11-16 | Junchao Chen | The firmware hooks take no lock, the platform serializes them; report a device that is not ready; abort a failed download only when the CDB is idle |
+| 1.3 | 2026-11-26 | Junchao Chen | `show {oe\|els} fwversion` shows the image that holds the active and inactive firmware; "image" is the firmware slot and "bank" the CMIS lane bank; `upgrade` prints a line while it runs and commits the image |
 
 ### 2. Scope
 
@@ -55,7 +56,7 @@ Compared with the `sfputil firmware` command group:
 
 | Operation | Description | In scope |
 | --- | --- | --- |
-| download | Download a firmware image to the inactive bank of the device | Yes |
+| download | Download a firmware image to the inactive image of the device | Yes |
 | run | Run the inactive image | Yes |
 | commit | Commit the running image so that the device boots from it | Yes |
 | upgrade | download, run and commit | Yes |
@@ -80,7 +81,8 @@ Key points:
 | CMIS | Common Management Interface Specification [2] |
 | CDB | Command Data Block — the CMIS command mechanism used for firmware management |
 | LPL / EPL | Local / Extended Payload — the CDB payload areas used to write firmware blocks |
-| Bank / image | A CMIS firmware storage slot (image A, image B). `download` writes the inactive one |
+| Image | A firmware storage slot of the device (image A, image B), called a firmware bank in CMIS. `download` writes the inactive one |
+| Bank | A CMIS lane bank of an OE, as in `cpoutil show interface map` and `cpoutil read-eeprom -b` |
 | OIF | Optical Internetworking Forum |
 | Platform API | `sonic_platform_base` abstract bases plus the vendor platform API subclasses |
 | CPO topology | The platform `cpo.json` file, read with `device_info.get_cpo_data()`, which names the OEs and ELSs (`oe0`, `els0`, ...) and the ports they serve |
@@ -350,13 +352,14 @@ cpoutil show els fwversion [<els_index>] [--json]
 - A missing hook, or a hook that raises `NotImplementedError`, is reported as `<OE|ELS> <hook> is not implemented for this platform`.
 - Any other error is reported for that target, and the remaining targets still run.
 - The command fails when any target failed: `<OE|ELS> firmware <op> failed for <targets>; completed for <targets>`.
-- `show {oe|els} fwversion` prints one block per target, like `sfputil show fwversion`. With `--json`, the output is a JSON object keyed by target (`oe0`, `els0`, ...). A target that fails is reported on stderr and omitted from the output; the command then fails with `Failed to get <OE|ELS> firmware version for <targets>`.
+- `show {oe|els} fwversion` prints one block per target, like `sfputil show fwversion`. After the active and inactive firmware versions, it shows the image (A or B) that holds each of them, derived from the running image: `(Image A)` in the text output, `Active Image` and `Inactive Image` in the JSON output. When the running image is not known, as with the EEPROM versions, the image is omitted from the text output and is `N/A` in the JSON output. When the running image is known but the device reports no inactive firmware version, for example after a failed download (LIM-6), the version is `N/A` and the image is still shown: `Inactive Firmware: N/A (Image B)` in the text output, `"Inactive Firmware": "N/A"` and `"Inactive Image": "B"` in the JSON output. Image B is still the inactive image, and the next `download` writes to it. It is called "image", not "bank", because a bank in `cpoutil` is the CMIS lane bank of an OE ([§3](#3-definitionsabbreviations)). With `--json`, the output is a JSON object keyed by target (`oe0`, `els0`, ...). A target that fails is reported on stderr and omitted from the output; the command then fails with `Failed to get <OE|ELS> firmware version for <targets>`.
 
 ##### 7.5.3 Usage examples
 
 ```
 admin@sonic:~$ cpoutil firmware upgrade els 0 --raw els_fw.bin
 Upgrading ELS0 firmware  [####################################]  100%
+Upgrading ELS0 firmware: running and committing the new image ...
 Upgrading ELS0 firmware ... OK (262144 bytes)
 
 admin@sonic:~$ cpoutil firmware download els all --raw els_fw.bin
@@ -370,14 +373,16 @@ ELS0:
   Factory Image Version: 1.0.0
   Running Image: A
   Committed Image: A
-  Active Firmware: 1.2.0
-  Inactive Firmware: 1.1.0
+  Active Firmware: 1.2.0 (Image A)
+  Inactive Firmware: 1.1.0 (Image B)
 
 admin@sonic:~$ cpoutil show oe fwversion 0 --json
 {
     "oe0": {
         "Active Firmware": "2.1",
-        "Inactive Firmware": "2.0"
+        "Active Image": "N/A",
+        "Inactive Firmware": "2.0",
+        "Inactive Image": "N/A"
     }
 }
 
@@ -614,7 +619,7 @@ No daemon. `cpoutil` is a short-lived CLI process; the firmware image is read bl
 | LIM-3 | Traffic | Running new firmware may disrupt traffic on the ports the OE or ELS serves. |
 | LIM-4 | STATE_DB | Firmware operations do not update `TRANSCEIVER_FIRMWARE_INFO` in STATE_DB. Use `cpoutil show {oe\|els} fwversion`. |
 | LIM-5 | Concurrency | Firmware operations are serialized only by a platform lock ([§7.8](#78-concurrency)). |
-| LIM-6 | Device behavior | Some devices reject a download while the running image is not committed, or invalidate the inactive bank when a download fails. Commit before the next download, and keep an image at hand to recover the inactive bank. |
+| LIM-6 | Device behavior | Some devices reject a download while the running image is not committed, or invalidate the inactive image when a download fails. Commit before the next download, and keep a firmware binary at hand to recover the inactive image. |
 
 ### 13. Testing Requirements/Design
 
@@ -646,7 +651,7 @@ No daemon. `cpoutil` is a short-lived CLI process; the firmware image is read bl
 On a CPO-capable switch:
 
 - `upgrade` of one ELS and of `all`; versions verified with `fwversion`, before and after a reboot.
-- Stepwise `download`, `run`, `commit`; bank state verified after each step.
+- Stepwise `download`, `run`, `commit`; image state verified after each step.
 - Upgrade to the same version.
 - Corrupted and truncated images: the download fails and the running image is unaffected.
 - Ctrl-C during a download: the command exits and the next download succeeds.
