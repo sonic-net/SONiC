@@ -123,28 +123,40 @@ A shared poller gives both tasks the same view of ASIC readiness and module stat
 
 ```mermaid
 flowchart TB
-    subgraph sfp_obs_thr[xcvrd SFP thread - SFP observer]
-        sfp_observer[SFP observer delivers pluggable events]
+    hardware["ASIC readiness and module nodes"]
+    subgraph cpo_poll_thr["xcvrd CPO thread · default poller and CPO observer"]
+        poller["ModuleEventPoller"]
+        cpo_observer["ModuleEventObserver for CPO ports"]
     end
-    subgraph cpo_poll_thr[xcvrd CPO thread - poller and CPO observer]
-        register[1. Reconcile node registrations] --> poll[2. Poll module and ASIC events]
-        poll --> handle[3. Handle notifications]
-        handle --> outcome{Module event ready?}
-        outcome -->|Yes| prepare[4. Prepare events for affected ports]
-        outcome -->|No| register
-        prepare --> dispatch[5. Dispatch by port owner]
-        dispatch --> cpo_observer[CPO observer delivers CPO events]
-        dispatch --> sfp_observer
+    subgraph sfp_obs_thr["xcvrd SFP thread · SFP observer"]
+        sfp_observer["ModuleEventObserver for pluggable ports"]
     end
+    hardware --> poller
+    poller -->|CPO events| cpo_observer
+    poller -->|Pluggable events| sfp_observer
 ```
 
-1. **Register.** Open or close module nodes at startup and as ASIC readiness or the module's control state changes. Legacy watches `present`. Host management selects the nodes listed in section 0.4.
-2. **Poll.** Wait for module or ASIC notifications and for pending work such as reset completion.
-3. **Handle.** Apply ASIC-down before module notifications for that ASIC in the same batch. For module notifications, legacy reads driver status and host management runs the MDF. The MDF can wait for a later reset completion before producing an insertion. CPO fault interrupts go to the existing fault-indication task.
-4. **Prepare.** Turn module outcomes into xcvrd status and error payloads. Map each outcome to its physical ports and expand an OE event to its affected banks.
-5. **Dispatch.** Queue events for the owning observers in per-port order. A removal and reinsertion are delivered as separate events.
-
 On a pluggable-only platform, the SFP thread runs the poller and observes its own events. A CPO-only platform uses the CPO thread for both roles.
+
+**Polling stages shared by legacy and host management**
+
+```mermaid
+flowchart TB
+    readiness["Read ASIC readiness without waiting"] --> register["1. Reconcile node registrations for ready ASICs"]
+    register --> poll["2. Poll for ASIC, module, or reset events"]
+    poll --> handle["3. Handle ASIC transitions first, then module events"]
+    handle --> outcome{"Events to deliver?"}
+    outcome -->|Yes| prepare["4. Prepare events for affected ports"]
+    outcome -->|No| readiness
+    prepare --> dispatch["5. Dispatch events to the owning observers"]
+    dispatch -->|Next cycle| readiness
+```
+
+1. **Register.** Start the ASIC watcher before the initial readiness read. Check readiness before opening module nodes. Register nodes only for ready ASICs. Legacy watches `present`. Host management selects the nodes listed in section 0.4.
+2. **Poll.** Use one blocking wait for ASIC and module notifications. Bound the wait so reset completions and registration retries are handled promptly. If work is already pending, such as an ASIC-down found before registration, process it immediately.
+3. **Handle.** Apply ASIC-down before any module notification from that ASIC in the same batch. Close its descriptors, cancel pending detection, and report removal. On ASIC-up, mark the ASIC for registration and recheck its modules as nodes appear. Legacy reads driver status. Host management runs the MDF and may wait for reset completion before reporting insertion. Forward CPO fault interrupts to the existing fault-indication task.
+4. **Prepare.** Turn module outcomes into xcvrd status and error payloads. Map each outcome to its physical ports and expand an OE event to its affected banks.
+5. **Dispatch.** Queue events for the owning observers in per-port order. Deliver removal and reinsertion as separate events.
 
 | Area | Current | Proposed |
 | --- | --- | --- |
