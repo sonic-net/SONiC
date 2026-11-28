@@ -24,6 +24,7 @@ High Level Design · Draft 0.2
 | 0.3 | 2026-11-28 | Add the mode handler interface, port mapping, node registry and data types to the class diagram; add the call sequence |
 | 0.4 | 2026-11-28 | Add the simulation mode and the modsim simulator |
 | 0.5 | 2026-11-28 | Add the testability challenge and requirement; keep the simulator out of SONiC |
+| 0.6 | 2026-11-28 | Align the polling stages with the implementation; use a Python simulator with a file tree and inotify |
 
 ### 0.2 Scope
 
@@ -147,21 +148,29 @@ On a pluggable-only platform, the SFP thread runs the poller and observes its ow
 
 ```mermaid
 flowchart TB
-    readiness["Read ASIC readiness without waiting"] --> register["1. Reconcile node registrations for ready ASICs"]
-    register --> poll["2. Poll for ASIC, module, or reset events"]
-    poll --> handle["3. Handle ASIC transitions first, then module events"]
-    handle --> outcome{"Events to deliver?"}
-    outcome -->|Yes| prepare["4. Prepare events for affected ports"]
-    outcome -->|No| readiness
-    prepare --> dispatch["5. Dispatch events to the owning observers"]
-    dispatch -->|Next cycle| readiness
+    asic1["1. Apply ASIC transitions"] --> mode["2. Prepare the mode"]
+    mode --> register["3. Reconcile node registrations for ready ASICs"]
+    register --> poll["4. Wait once for ASIC or module notifications"]
+    poll --> asic2["5. Apply ASIC transitions again"]
+    asic2 --> handle["6. Handle module notifications"]
+    handle --> due["7. Handle the work due without a notification"]
+    due -->|Next cycle| asic1
+    asic1 -.->|Outcomes| dispatch[["Map to ports and dispatch<br/>one batch per step and observer"]]
+    asic2 -.->|Outcomes| dispatch
+    handle -.->|Outcomes| dispatch
+    due -.->|Outcomes| dispatch
+    handle -.->|CPO fault interrupts| fit["Fault-indication task"]
 ```
 
-1. **Register.** Start the ASIC watcher before the initial readiness read. Check readiness before opening module nodes. Register nodes only for ready ASICs. Legacy watches `present`. Host management selects the nodes listed in section 0.4.
-2. **Poll.** Use one blocking wait for ASIC and module notifications. Bound the wait so reset completions and registration retries are handled promptly. If work is already pending, such as an ASIC-down found before registration, process it immediately.
-3. **Handle.** Apply ASIC-down before any module notification from that ASIC in the same batch. Close its descriptors, let the mode handler cancel its pending detection, and report removal. On ASIC-up, mark the ASIC for registration and recheck its modules as nodes appear. Legacy reads driver status. Host management runs the MDF and may wait for reset completion before reporting insertion. Forward CPO fault interrupts to the existing fault-indication task.
-4. **Prepare.** Turn module outcomes into xcvrd status and error payloads. Map each outcome to its physical ports and expand an OE event to its affected banks.
-5. **Dispatch.** Queue events for the owning observers in per-port order. Deliver removal and reinsertion as separate events.
+1. **ASIC transitions.** Read the readiness of each ASIC without waiting. On ASIC-down, close the nodes of its modules, let the mode handler cancel its pending work, and report removal. On ASIC-up, let the mode handler restart its modules, mark them for registration, and report insertion.
+2. **Mode.** Let the mode handler bring up what it needs. Legacy waits until the driver nodes are ready. Host management runs the module initializer for every ASIC that is not initialized.
+3. **Register.** Open the nodes of the marked modules whose ASIC is ready. Legacy watches `present`. Host management selects the nodes listed in section 0.4. Retry a module whose nodes are missing with a backoff. The ASIC watcher starts before the first readiness read.
+4. **Poll.** Use one blocking wait for the ASIC watch and the module nodes. Bound the wait so that reset completions and registration retries are handled promptly.
+5. **ASIC transitions again.** An ASIC-down found by this poll is applied before the module notifications of the same batch. The nodes of that ASIC are closed, so its notifications are skipped.
+6. **Module notifications.** Read each notified node. Forward CPO fault interrupts to the existing fault-indication task. Pass the other notifications to the mode handler. Legacy reads the driver status. Host management runs the MDF.
+7. **Work without a notification.** Let the mode handler report what is due: the insertion that follows a fast removal, and the modules that completed a reset.
+
+Every step that produces outcomes dispatches them at once: map each outcome to its physical ports, expand an OE event to its banks, and queue one batch for each owning observer. A removal and the insertion after it are therefore separate events.
 
 | Area | Current | Proposed |
 | --- | --- | --- |
@@ -332,8 +341,8 @@ flowchart LR
         poller --> roots{"Node roots"}
     end
     roots -->|Hardware mode| hw["sx_core module nodes<br/>HW-MGMT asicN_ready"]
-    roots -->|Simulation mode| fs["Simulated tree<br/>(FUSE mount)"]
-    subgraph sim["modsim (Rust)"]
+    roots -->|Simulation mode| fs["Simulated tree<br/>(files on tmpfs, inotify)"]
+    subgraph sim["modsim (Python)"]
         fs --- model["Module and ASIC models"]
         cli["CLI and scenario runner"] --> model
         model --> log["Event log"]
@@ -341,14 +350,19 @@ flowchart LR
     test["Test or engineer"] --> cli
 ```
 
-**Selection.** The platform API reads the simulation root once when xcvrd starts, from `/etc/sonic/module_event_simulation`. When the file is absent, it uses the hardware paths. When it is present, the `sx_core` module root and the HW-MGMT readiness directory resolve under the simulation root. No other code path checks the mode.
+**Selection.** The platform API reads the simulation root once when xcvrd starts, from `/etc/sonic/module_event_simulation`. When the file is absent, it uses the hardware paths. When it is present:
 
-**Simulator.** `modsim` is a Rust program that runs on the switch host. It is an NVIDIA internal tool in its own repository, not part of `sonic-buildimage`. SONiC contains only the selection of the node roots described above. The simulator mounts a FUSE file system with the same layout as the hardware nodes:
+- the `sx_core` module root and the HW-MGMT readiness directory resolve under the simulation root, and
+- `ModuleNodeRegistry` learns of node changes through one inotify watch on the simulated tree, instead of `POLLPRI` from `sysfs_notify`. A plain file cannot raise `POLLPRI`.
+
+The notification source is chosen once, at startup. No other code path checks the mode, so hardware mode has no runtime cost.
+
+**Simulator.** `modsim` is a Python script that runs on the switch host. It is an NVIDIA internal tool in its own repository, not part of `sonic-buildimage`. SONiC contains only the selection described above. The simulator writes a tree of plain files on tmpfs, with the same layout as the hardware nodes. It watches the files the MDF writes with inotify, and answers through its module models:
 
 | Simulated node | Model behavior |
 | --- | --- |
 | `asicN_ready` | Written by the `asic` commands. A change wakes the directory watch. |
-| `present`, `hw_present`, `power_good`, `interrupt` | Pollable. A change notifies the poll with `POLLPRI` and `POLLERR`, as `sysfs_notify` does. |
+| `present`, `hw_present`, `power_good`, `interrupt` | Written and closed by `modsim`. The close wakes the inotify watch of the platform API, as `sysfs_notify` wakes the poll on hardware. |
 | `status`, `statuserror` | The legacy status and error code of the module. |
 | `power_on`, `hw_reset`, `control`, `power_limit` | Written by the MDF. The model answers as a module does: power good after power on, reset done after a set delay, a control type from the module profile. |
 | EEPROM pages | Served from a module profile, for example a capture from a real module. |
@@ -379,7 +393,7 @@ sequenceDiagram
     participant xcvrd
     Test->>modsim: run fast-reinsert.yaml
     modsim->>modsim: present 1 -> 0 -> 1 within 5 ms
-    modsim-->>Poller: POLLPRI on present
+    modsim-->>Poller: inotify: present written
     Poller->>modsim: read present (1)
     Poller->>Handler: handle(notification)
     Handler-->>Poller: removal, insertion deferred
@@ -401,7 +415,8 @@ sequenceDiagram
 **Scope and limits.**
 
 - The SDK and the SAI still see the real modules. Port link state does not follow the simulated modules. Simulation mode tests the module event flow, not the data path.
-- The FUSE mount must be visible in the pmon container. Mount it under a host directory that is bind-mounted into pmon before pmon starts.
+- The simulated tree must be visible in the pmon container. Put it under a host directory that is bind-mounted into pmon, such as `/tmp/nv-syncd-shared`.
+- Simulation mode replaces only the notification source. The way `sysfs_notify` wakes the poll is not tested.
 - The timing of a simulated module, such as the reset delay, comes from the profile. It does not reproduce every real module.
 - Simulation mode is for test setups only. The platform API logs a warning at startup when it is active.
 
@@ -422,7 +437,6 @@ The implementation lives in the NVIDIA Mellanox platform API and uses the existi
 - Which event latency and queue limits should the design meet on the largest supported platform?
 - How does polling ownership move if the preferred task starts after the other task has called in, or if the owner task stops?
 - What does a queue resync send after an overflow, and in which order relative to the preserved removal?
-- Does a FUSE file system pass `POLLPRI` and `POLLERR` to `poll()` the same way `sysfs_notify` does on the kernels SONiC uses? If not, simulation mode needs a node source that does not rely on FUSE.
 - Does xcvrd need a replay when switch services recreate port database entries after a reset? The incident observed port entries being removed while recovery was in progress. [Redmine incident notes](https://redmine.nvidia.com/issues/5450531)
 
 ## Reference Table
