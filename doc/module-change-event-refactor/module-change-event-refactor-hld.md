@@ -22,6 +22,7 @@ High Level Design · Draft 0.2
 | 0.1 | 2026-11-27 | Initial design for review |
 | 0.2 | 2026-11-27 | Clarify event sources, thread roles and fault-indication scope |
 | 0.3 | 2026-11-28 | Add the mode handler interface, port mapping, node registry and data types to the class diagram; add the call sequence |
+| 0.4 | 2026-11-28 | Add the simulation mode and the modsim simulator |
 
 ### 0.2 Scope
 
@@ -78,6 +79,7 @@ The proposal:
 | REQ-2 | Deliver insertion, removal, and error events in order for each affected port. In host management mode, report insertion when the module is ready to be managed. |
 | REQ-3 | Recover ports after an ASIC restart while xcvrd stays running and other ASICs continue reporting events. |
 | REQ-4 | Preserve existing xcvrd interfaces, event formats, and operator configuration. |
+| REQ-5 | Make ASIC and module events testable on a real switch without hardware action, through a simulation mode that runs the production code paths. |
 
 ## 2 Design
 
@@ -314,6 +316,93 @@ Use a bounded in-process queue for each active event task.
 
 The polling owner's xcvrd work can delay the next poll for both port types. If the driver collapses several changes into one notification, SONiC reconciles from the state it can still observe.
 
+### 2.14 Simulation Mode
+
+Module events depend on hardware actions: an ASIC reset, a module inserted or removed, a power fault. These are slow and hard to repeat in the lab. They are also hard to time, for example a removal and an insertion within one poll cycle. Simulation mode lets a test create these events on a real switch, on demand and in a repeatable order.
+
+**Principle.** The simulator replaces the hardware, not the code. In simulation mode the platform API reads the module nodes and the ASIC readiness files from a simulated tree instead of `sx_core` and HW-MGMT. `ModuleEventPoller`, the mode handlers, the MDF and xcvrd run unchanged. A test therefore exercises the same code that runs in production.
+
+```mermaid
+flowchart LR
+    subgraph pmon["pmon container"]
+        xcvrd["xcvrd tasks"] --> chassis["Chassis API"]
+        chassis --> poller["ModuleEventPoller"]
+        poller --> roots{"Node roots"}
+    end
+    roots -->|Hardware mode| hw["sx_core module nodes<br/>HW-MGMT asicN_ready"]
+    roots -->|Simulation mode| fs["Simulated tree<br/>(FUSE mount)"]
+    subgraph sim["modsim (Rust)"]
+        fs --- model["Module and ASIC models"]
+        cli["CLI and scenario runner"] --> model
+        model --> log["Event log"]
+    end
+    test["Test or engineer"] --> cli
+```
+
+**Selection.** The platform API reads the simulation root once when xcvrd starts, from `/etc/sonic/module_event_simulation`. When the file is absent, it uses the hardware paths. When it is present, the `sx_core` module root and the HW-MGMT readiness directory resolve under the simulation root. No other code path checks the mode.
+
+**Simulator.** `modsim` is a Rust program that runs on the switch host. It mounts a FUSE file system with the same layout as the hardware nodes:
+
+| Simulated node | Model behavior |
+| --- | --- |
+| `asicN_ready` | Written by the `asic` commands. A change wakes the directory watch. |
+| `present`, `hw_present`, `power_good`, `interrupt` | Pollable. A change notifies the poll with `POLLPRI` and `POLLERR`, as `sysfs_notify` does. |
+| `status`, `statuserror` | The legacy status and error code of the module. |
+| `power_on`, `hw_reset`, `control`, `power_limit` | Written by the MDF. The model answers as a module does: power good after power on, reset done after a set delay, a control type from the module profile. |
+| EEPROM pages | Served from a module profile, for example a capture from a real module. |
+
+A model also simulates node faults, so error handling is testable: a node that is missing, a read that fails with `ENODEV`, and a node that changes again before it is read.
+
+**Commands.**
+
+| Command | Effect |
+| --- | --- |
+| `modsim start --profile <file>` | Mount the tree with one module model per sx_core module, as the profile describes |
+| `modsim asic down\|up <asic>` | Change the readiness of one ASIC |
+| `modsim plug <module> [--profile <file>]` | Insert a module |
+| `modsim unplug <module>` | Remove a module |
+| `modsim fault <module> power-bad\|error <code>\|interrupt` | Raise a module fault |
+| `modsim run <scenario>` | Run a timed sequence of the commands above |
+| `modsim log` | Print the simulated events and the node reads that followed them |
+| `modsim stop` | Unmount the tree |
+
+**Example: fast removal and insertion**
+
+```mermaid
+sequenceDiagram
+    participant Test
+    participant modsim
+    participant Poller as ModuleEventPoller
+    participant Handler as Mode handler
+    participant xcvrd
+    Test->>modsim: run fast-reinsert.yaml
+    modsim->>modsim: present 1 -> 0 -> 1 within 5 ms
+    modsim-->>Poller: POLLPRI on present
+    Poller->>modsim: read present (1)
+    Poller->>Handler: handle(notification)
+    Handler-->>Poller: removal, insertion deferred
+    Poller->>xcvrd: removal event
+    Poller->>Handler: on_tick()
+    Handler-->>Poller: insertion
+    Poller->>xcvrd: insertion event
+    Test->>modsim: log
+    Test->>xcvrd: check the port in STATE_DB
+```
+
+**Workflow.**
+
+1. Start `modsim` on the host with a profile of the platform.
+2. Create `/etc/sonic/module_event_simulation` and restart pmon. xcvrd now reads the simulated tree.
+3. Run scenarios and check the result in the `modsim` log, the syslog, and the xcvrd tables in `STATE_DB`.
+4. Remove the file, restart pmon, and stop `modsim`.
+
+**Scope and limits.**
+
+- The SDK and the SAI still see the real modules. Port link state does not follow the simulated modules. Simulation mode tests the module event flow, not the data path.
+- The FUSE mount must be visible in the pmon container. Mount it under a host directory that is bind-mounted into pmon before pmon starts.
+- The timing of a simulated module, such as the reset delay, comes from the profile. It does not reproduce every real module.
+- Simulation mode is for test setups only. The platform API logs a warning at startup when it is active.
+
 ## 3 Test Plan
 
 TBD.
@@ -331,6 +420,7 @@ The implementation lives in the NVIDIA Mellanox platform API and uses the existi
 - Which event latency and queue limits should the design meet on the largest supported platform?
 - How does polling ownership move if the preferred task starts after the other task has called in, or if the owner task stops?
 - What does a queue resync send after an overflow, and in which order relative to the preserved removal?
+- Does a FUSE file system pass `POLLPRI` and `POLLERR` to `poll()` the same way `sysfs_notify` does on the kernels SONiC uses? If not, simulation mode needs a node source that does not rely on FUSE.
 - Does xcvrd need a replay when switch services recreate port database entries after a reset? The incident observed port entries being removed while recovery was in progress. [Redmine incident notes](https://redmine.nvidia.com/issues/5450531)
 
 ## Reference Table
