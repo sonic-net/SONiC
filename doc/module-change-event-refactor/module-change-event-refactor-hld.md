@@ -23,6 +23,7 @@ High Level Design · Draft 0.2
 | 0.2 | 2026-11-27 | Clarify event sources, thread roles and fault-indication scope |
 | 0.3 | 2026-11-28 | Add the mode handler interface, port mapping, node registry and data types to the class diagram; add the call sequence |
 | 0.4 | 2026-11-28 | Add the simulation mode and the modsim simulator |
+| 0.5 | 2026-11-28 | Add the testability challenge and requirement; keep the simulator out of SONiC |
 
 ### 0.2 Scope
 
@@ -79,7 +80,7 @@ The proposal:
 | REQ-2 | Deliver insertion, removal, and error events in order for each affected port. In host management mode, report insertion when the module is ready to be managed. |
 | REQ-3 | Recover ports after an ASIC restart while xcvrd stays running and other ASICs continue reporting events. |
 | REQ-4 | Preserve existing xcvrd interfaces, event formats, and operator configuration. |
-| REQ-5 | Make ASIC and module events testable on a real switch without hardware action, through a simulation mode that runs the production code paths. |
+| REQ-5 | Make the module event handling easy to test: ASIC and module events can be created on a real switch without hardware action, and the test runs the production code paths. Section 2.14 meets this requirement with the simulation mode. |
 
 ## 2 Design
 
@@ -115,6 +116,7 @@ flowchart TB
 
 - Polling the same CPO nodes from two threads risks races.
 - The CPO thread does not watch ASIC readiness, so it can miss ASIC down and recovery events.
+- The flow is hard to test. It depends on lower layer capabilities: the switch chip must reset, a module must be inserted or removed, or a fault must occur. These events are slow, need manual action, and are hard to time, for example a removal and an insertion within one poll cycle. Unit tests replace the lower layers with mocks, so they do not show how the flow behaves with the real nodes.
 
 ### 2.2 Motivation
 
@@ -341,7 +343,7 @@ flowchart LR
 
 **Selection.** The platform API reads the simulation root once when xcvrd starts, from `/etc/sonic/module_event_simulation`. When the file is absent, it uses the hardware paths. When it is present, the `sx_core` module root and the HW-MGMT readiness directory resolve under the simulation root. No other code path checks the mode.
 
-**Simulator.** `modsim` is a Rust program that runs on the switch host. It mounts a FUSE file system with the same layout as the hardware nodes:
+**Simulator.** `modsim` is a Rust program that runs on the switch host. It is an NVIDIA internal tool in its own repository, not part of `sonic-buildimage`. SONiC contains only the selection of the node roots described above. The simulator mounts a FUSE file system with the same layout as the hardware nodes:
 
 | Simulated node | Model behavior |
 | --- | --- |
