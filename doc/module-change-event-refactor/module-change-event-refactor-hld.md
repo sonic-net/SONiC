@@ -25,6 +25,7 @@ High Level Design · Draft 0.2
 | 0.4 | 2026-11-28 | Add the simulation mode and the modsim simulator |
 | 0.5 | 2026-11-28 | Add the testability challenge and requirement; keep the simulator out of SONiC |
 | 0.6 | 2026-11-28 | Align the polling stages with the implementation; use a Python simulator with a file tree and inotify |
+| 0.7 | 2026-11-28 | Name the polling stages in plain English |
 
 ### 0.2 Scope
 
@@ -148,29 +149,29 @@ On a pluggable-only platform, the SFP thread runs the poller and observes its ow
 
 ```mermaid
 flowchart TB
-    asic1["1. Apply ASIC transitions"] --> mode["2. Prepare the mode"]
-    mode --> register["3. Reconcile node registrations for ready ASICs"]
-    register --> poll["4. Wait once for ASIC or module notifications"]
-    poll --> asic2["5. Apply ASIC transitions again"]
-    asic2 --> handle["6. Handle module notifications"]
-    handle --> due["7. Handle the work due without a notification"]
+    asic1["1. Check if an ASIC went down or came up"] --> mode["2. Get the modules ready<br/>(legacy: wait for the driver,<br/>host management: initialize the modules)"]
+    mode --> register["3. Start watching the module nodes<br/>of every ready ASIC"]
+    register --> poll["4. Wait for an ASIC or module change"]
+    poll --> asic2["5. Check the ASICs again"]
+    asic2 --> handle["6. Handle the module changes"]
+    handle --> due["7. Handle the work with no module event<br/>(insertion after a fast removal, reset done)"]
     due -->|Next cycle| asic1
-    asic1 -.->|Outcomes| dispatch[["Map to ports and dispatch<br/>one batch per step and observer"]]
-    asic2 -.->|Outcomes| dispatch
-    handle -.->|Outcomes| dispatch
-    due -.->|Outcomes| dispatch
+    asic1 -.->|Module events| dispatch[["Find the ports of each module<br/>and send the events to their xcvrd task"]]
+    asic2 -.->|Module events| dispatch
+    handle -.->|Module events| dispatch
+    due -.->|Module events| dispatch
     handle -.->|CPO fault interrupts| fit["Fault-indication task"]
 ```
 
-1. **ASIC transitions.** Read the readiness of each ASIC without waiting. On ASIC-down, close the nodes of its modules, let the mode handler cancel its pending work, and report removal. On ASIC-up, let the mode handler restart its modules, mark them for registration, and report insertion.
-2. **Mode.** Let the mode handler bring up what it needs. Legacy waits until the driver nodes are ready. Host management runs the module initializer for every ASIC that is not initialized.
-3. **Register.** Open the nodes of the marked modules whose ASIC is ready. Legacy watches `present`. Host management selects the nodes listed in section 0.4. Retry a module whose nodes are missing with a backoff. The ASIC watcher starts before the first readiness read.
-4. **Poll.** Use one blocking wait for the ASIC watch and the module nodes. Bound the wait so that reset completions and registration retries are handled promptly.
-5. **ASIC transitions again.** An ASIC-down found by this poll is applied before the module notifications of the same batch. The nodes of that ASIC are closed, so its notifications are skipped.
-6. **Module notifications.** Read each notified node. Forward CPO fault interrupts to the existing fault-indication task. Pass the other notifications to the mode handler. Legacy reads the driver status. Host management runs the MDF.
-7. **Work without a notification.** Let the mode handler report what is due: the insertion that follows a fast removal, and the modules that completed a reset.
+1. **ASIC down or up.** Read the readiness of each ASIC without waiting. On ASIC-down, close the nodes of its modules, let the mode handler cancel its pending work, and report removal. On ASIC-up, let the mode handler restart its modules, mark them for registration, and report insertion.
+2. **Get the modules ready.** Let the mode handler bring up what it needs. Legacy waits until the driver nodes are ready. Host management runs the module initializer for every ASIC that is not initialized.
+3. **Start watching.** Open the nodes of the marked modules whose ASIC is ready. Legacy watches `present`. Host management selects the nodes listed in section 0.4. Retry a module whose nodes are missing with a backoff. The ASIC watcher starts before the first readiness read.
+4. **Wait.** Use one blocking wait for the ASIC watch and the module nodes. Bound the wait so that reset completions and registration retries are handled promptly.
+5. **Check the ASICs again.** An ASIC-down found by this poll is applied before the module notifications of the same batch. The nodes of that ASIC are closed, so its notifications are skipped.
+6. **Module changes.** Read each notified node. Forward CPO fault interrupts to the existing fault-indication task. Pass the other notifications to the mode handler. Legacy reads the driver status. Host management runs the MDF.
+7. **No module event.** Let the mode handler report the work that has no module event of its own: the insertion that follows a fast removal, and the modules that completed a reset.
 
-Every step that produces outcomes dispatches them at once: map each outcome to its physical ports, expand an OE event to its banks, and queue one batch for each owning observer. A removal and the insertion after it are therefore separate events.
+Each step sends its module events as soon as it has them. It finds the front panel ports of each module (all banks of an OE), and queues the events of each step as one message for each xcvrd task that owns those ports. A removal and the insertion after it are therefore separate events.
 
 | Area | Current | Proposed |
 | --- | --- | --- |
