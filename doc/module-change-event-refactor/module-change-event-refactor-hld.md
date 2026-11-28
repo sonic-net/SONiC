@@ -21,6 +21,7 @@ High Level Design · Draft 0.2
 | --- | --- | --- |
 | 0.1 | 2026-11-27 | Initial design for review |
 | 0.2 | 2026-11-27 | Clarify event sources, thread roles and fault-indication scope |
+| 0.3 | 2026-11-28 | Add the mode handler interface, port mapping, node registry and data types to the class diagram; add the call sequence |
 
 ### 0.2 Scope
 
@@ -42,9 +43,9 @@ For CPO fault indication, the refactor covers polling the existing fault interru
 
 ### 0.4 Overview
 
-Module change event handling in the NVIDIA platform handles below event:
+Module change event handling in the NVIDIA platform handles the events below:
 
-| Event Type | Host mgmt node | Legacy node |
+| Event Type | Host management mode | Legacy mode |
 | --- | --- | --- |
 | Module insertion, removal or error (pluggable or CPO) | `hw_present` and `power_good` for software-controlled modules or control detection (MDF); `present` for firmware-controlled modules (MDF) | `present`; read `status` and, when needed, `statuserror` after the notification |
 | ASIC down or up (per-ASIC module removal and recovery) | HW-MGMT `config/asicN_ready` | HW-MGMT `config/asicN_ready` |
@@ -154,7 +155,7 @@ flowchart TB
 
 1. **Register.** Start the ASIC watcher before the initial readiness read. Check readiness before opening module nodes. Register nodes only for ready ASICs. Legacy watches `present`. Host management selects the nodes listed in section 0.4.
 2. **Poll.** Use one blocking wait for ASIC and module notifications. Bound the wait so reset completions and registration retries are handled promptly. If work is already pending, such as an ASIC-down found before registration, process it immediately.
-3. **Handle.** Apply ASIC-down before any module notification from that ASIC in the same batch. Close its descriptors, cancel pending detection, and report removal. On ASIC-up, mark the ASIC for registration and recheck its modules as nodes appear. Legacy reads driver status. Host management runs the MDF and may wait for reset completion before reporting insertion. Forward CPO fault interrupts to the existing fault-indication task.
+3. **Handle.** Apply ASIC-down before any module notification from that ASIC in the same batch. Close its descriptors, let the mode handler cancel its pending detection, and report removal. On ASIC-up, mark the ASIC for registration and recheck its modules as nodes appear. Legacy reads driver status. Host management runs the MDF and may wait for reset completion before reporting insertion. Forward CPO fault interrupts to the existing fault-indication task.
 4. **Prepare.** Turn module outcomes into xcvrd status and error payloads. Map each outcome to its physical ports and expand an OE event to its affected banks.
 5. **Dispatch.** Queue events for the owning observers in per-port order. Deliver removal and reinsertion as separate events.
 
@@ -181,42 +182,105 @@ classDiagram
         get_elsfp_change_event(timeout)
     }
     class ModuleEventPoller {
-        reconcile_registrations()
-        poll()
-        handle_notifications()
-        prepare_events()
-        dispatch_events()
+        run_once(timeout)
+    }
+    class ModuleNodeRegistry {
+        reconcile(ready_asics)
+        unregister_asic(asic)
+        fds()
+    }
+    class AsicEventMonitor {
+        fileno()
+        is_ready(asic)
+        read_transitions()
+    }
+    class ModuleModeHandler {
+        <<interface>>
+        nodes_to_watch(module)
+        handle(notification) ModuleOutcome
+        on_asic_down(asic)
+        on_asic_up(asic)
+        on_tick(now)
+    }
+    class LegacyHandler
+    class HostMgmtHandler
+    class PortMapper {
+        port_events(outcome) List~PortEvent~
+        observer_key(port)
     }
     class ModuleEventObserver {
+        key
         enqueue(events)
         read_events(timeout)
     }
-    class AsicEventMonitor {
-        read_transitions()
+    class FaultInterruptForwarder {
+        fds()
+        forward(notification)
     }
-    class LegacyHandler {
-        nodes_to_watch(module)
-        handle(notification)
-    }
-    class HostMgmtHandler {
-        nodes_to_watch(module)
-        handle(notification)
-    }
+    class ModuleDetectionFlow
+    class ModuleHostMgmtInitializer
     Chassis *-- "1" ModuleEventPoller : owns
-    Chassis *-- "1..2" ModuleEventObserver : one per active task
-    ModuleEventPoller *-- "1" AsicEventMonitor : reads ASIC transitions
-    ModuleEventPoller --> ModuleEventObserver : dispatches events
-    ModuleEventPoller --> LegacyHandler : uses in legacy mode
-    ModuleEventPoller --> HostMgmtHandler : uses in host management mode
+    Chassis *-- "1..*" ModuleEventObserver : one per event key
+    ModuleEventPoller *-- "1" ModuleNodeRegistry : module descriptors
+    ModuleEventPoller *-- "1" AsicEventMonitor : ASIC transitions
+    ModuleEventPoller --> "1" ModuleModeHandler : configured mode
+    ModuleEventPoller --> "1" PortMapper : outcomes to port events
+    ModuleEventPoller --> "1..*" ModuleEventObserver : dispatches by key
+    ModuleEventPoller --> "0..1" FaultInterruptForwarder : CPO only
+    ModuleModeHandler <|.. LegacyHandler
+    ModuleModeHandler <|.. HostMgmtHandler
+    HostMgmtHandler --> ModuleDetectionFlow : reuses
+    HostMgmtHandler --> ModuleHostMgmtInitializer : reuses
 ```
 
-- **`ModuleEventPoller`** owns the module descriptors and the five stages. At startup it receives one handler for the configured mode. Both modes share polling, event preparation, and dispatch.
-- **`LegacyHandler`** watches `present` and interprets the driver's module status.
-- **`HostMgmtHandler`** selects nodes based on module state and uses the MDF to interpret notifications. It can defer insertion until reset completes.
-- **`ModuleEventObserver`** owns one task's queue and delivers its events in the existing API format. The observer runs in the calling xcvrd thread.
-- **`AsicEventMonitor`** tracks readiness per ASIC and reports transitions in the poller's loop. The poller owns the recovery actions.
+The poller depends only on the `ModuleModeHandler` interface, the `PortMapper` and the observer keys. A new management mode adds a handler. A new port type adds a mapping. A new consumer registers an observer under a new key. None of these changes the poller.
 
-On ASIC-down, the poller closes that ASIC's module nodes, cancels pending detection, and discards late completions from before the reset. It reports affected ports as removed. On ASIC-up, it reopens the nodes as they appear and recovers each module through its management mode.
+- **`ModuleEventPoller`** runs the five stages of section 2.3 inside `run_once()`. The stages are private. It coordinates the other classes and holds no mode-specific or port-specific logic.
+- **`ModuleNodeRegistry`** owns the module descriptors and the poll object. It registers nodes only for ready ASICs, removes an ASIC's nodes on ASIC-down, and handles `ENODEV` (section 2.8).
+- **`AsicEventMonitor`** tracks readiness per ASIC. It exposes its descriptor so that one blocking wait covers ASIC and module notifications, and it answers readiness queries for the registry.
+- **`ModuleModeHandler`** is the contract for a management mode. The chassis selects the implementation at startup.
+  - `nodes_to_watch()` returns the nodes listed in section 0.4.
+  - `handle()` turns one notification into a `ModuleOutcome`.
+  - `on_asic_down()` and `on_asic_up()` let the mode cancel and restart its own state. The handler is the only owner of module readiness and initialization state.
+  - `on_tick()` runs every cycle, so that reset completions and wait timeouts are handled without a notification.
+- **`LegacyHandler`** watches `present` and reads the driver's module status.
+- **`HostMgmtHandler`** selects nodes from the module state and runs the MDF. It reuses the existing `ModuleDetectionFlow` and `ModuleHostMgmtInitializer`. It can defer insertion until reset completes.
+- **`PortMapper`** maps a module outcome to its physical ports, expands an OE event to its banks, and names the observer key (`sfp` or `elsfp`) that owns each port.
+- **`ModuleEventObserver`** owns one task's bounded queue and delivers its events in the existing API format. It runs in the calling xcvrd thread.
+- **`FaultInterruptForwarder`** opens the CPO interrupt node once per OE and forwards assertions to the existing fault-indication task. It exists only on CPO platforms in host management mode.
+
+The data passed between the classes:
+
+| Type | Fields | Produced by | Consumed by |
+| --- | --- | --- | --- |
+| `ModuleNotification` | module, node, value | `ModuleNodeRegistry` | `ModuleModeHandler` |
+| `ModuleOutcome` | module, status, error | `ModuleModeHandler` | `PortMapper` |
+| `PortEvent` | port, status, error | `PortMapper` | `ModuleEventObserver` |
+
+On ASIC-down, the poller tells the registry to close that ASIC's module nodes and tells the handler to cancel its pending work. Late completions from before the reset are discarded. Affected ports are reported as removed. On ASIC-up, the registry reopens the nodes as they appear, and the handler recovers each module through its management mode.
+
+**Call sequence**
+
+```mermaid
+sequenceDiagram
+    participant Owner as Polling task (CPO)
+    participant Other as Other task (SFP)
+    participant Chassis
+    participant Poller as ModuleEventPoller
+    participant OwnObs as Owner observer
+    participant OthObs as Other observer
+    Owner->>Chassis: get_elsfp_change_event(timeout)
+    Chassis->>Poller: run_once(timeout)
+    Poller->>OwnObs: enqueue(CPO events)
+    Poller->>OthObs: enqueue(pluggable events)
+    Chassis->>OwnObs: read_events(0)
+    Chassis-->>Owner: elsfp events
+    Other->>Chassis: get_change_event(timeout)
+    Chassis->>OthObs: read_events(timeout)
+    Chassis-->>Other: sfp events
+```
+
+**Alternative considered.** A dedicated poller thread owned by `Chassis` would make both xcvrd tasks plain observers. It removes the owner selection and the restriction in section 2.13. The platform API already runs its own thread for `WaitSfpReadyTask`. The cost is one more thread in xcvrd and a stop path on shutdown.
 
 ### 2.6 Lower Layer API
 
@@ -265,6 +329,8 @@ The implementation lives in the NVIDIA Mellanox platform API and uses the existi
 ## 6 Open Questions
 
 - Which event latency and queue limits should the design meet on the largest supported platform?
+- How does polling ownership move if the preferred task starts after the other task has called in, or if the owner task stops?
+- What does a queue resync send after an overflow, and in which order relative to the preserved removal?
 - Does xcvrd need a replay when switch services recreate port database entries after a reset? The incident observed port entries being removed while recovery was in progress. [Redmine incident notes](https://redmine.nvidia.com/issues/5450531)
 
 ## Reference Table
